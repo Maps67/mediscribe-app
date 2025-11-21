@@ -9,69 +9,65 @@ export class GeminiMedicalService {
     : null;
 
   /**
-   * Genera un resumen médico estructurado e intenta identificar hablantes por contexto.
+   * Genera un resumen médico adaptado a la especialidad seleccionada.
    */
-  static async generateSummary(transcript: string): Promise<string> {
-    // 1. Diagnóstico de Error de Configuración
-    if (!API_KEY) {
-      console.error("CRÍTICO: No se encontró la VITE_GEMINI_API_KEY.");
-      throw new Error("Falta la API Key de Gemini. Verifica las variables de entorno en Netlify.");
-    }
-
-    if (!this.model) {
-      throw new Error("El servicio de IA no pudo inicializarse.");
-    }
-
-    if (!transcript || transcript.trim().length < 5) {
-        return "La transcripción es demasiado corta para generar un análisis confiable.";
-    }
+  static async generateSummary(transcript: string, specialty: string = "Medicina General"): Promise<string> {
+    if (!API_KEY) throw new Error("Falta la API Key de Gemini.");
+    if (!this.model) throw new Error("Servicio de IA no inicializado.");
+    if (!transcript || transcript.trim().length < 5) return "Transcripción insuficiente.";
 
     try {
-      // 2. Prompt Avanzado para Separación de Roles (Diarización Contextual)
+      // Definimos el "Lente Clínico" según la especialidad
+      let focusInstruction = "";
+      
+      switch (specialty) {
+        case "Cardiología":
+          focusInstruction = "Enfócate prioritariamente en síntomas cardiovasculares (disnea, dolor torácico, palpitaciones), factores de riesgo, y mediciones hemodinámicas mencionadas.";
+          break;
+        case "Pediatría":
+          focusInstruction = "Enfócate en el desarrollo, alimentación, vacunación, y refiere al paciente como 'el paciente pediátrico' o 'el niño/a'. Menciona siempre a los padres/tutores si intervienen.";
+          break;
+        case "Psicología/Psiquiatría":
+          focusInstruction = "Realiza un examen mental basado en el discurso. Enfócate en el estado de ánimo, afecto, percepción, cognición y riesgo suicida si se menciona.";
+          break;
+        case "Ginecología":
+          focusInstruction = "Enfócate en antecedentes gineco-obstétricos, ciclo menstrual, anticoncepción y síntomas pélvicos.";
+          break;
+        default: // Medicina General
+          focusInstruction = "Realiza un abordaje integral cubriendo todos los sistemas mencionados.";
+      }
+
       const prompt = `
-        Actúa como un Asistente Médico Senior experto en documentación clínica.
+        Actúa como un **Especialista en ${specialty}** experto en redacción clínica.
         
-        Tu tarea es analizar la siguiente transcripción cruda de una consulta médica. 
-        Dado que la grabación no distingue voces, tú debes inferir quién habla basándote en el contexto (quién hace preguntas médicas vs quién describe síntomas).
+        INSTRUCCIÓN DE ESPECIALIDAD: ${focusInstruction}
 
-        Instrucciones de Salida (Formato Markdown estricto):
+        Tu tarea es convertir la siguiente transcripción (que puede tener errores de audio) en una Nota de Evolución Clínica formal y profesional.
         
-        --- INICIO REPORTE ---
+        Instrucciones de Estructura (Markdown):
         
-        ### 🗣️ Análisis de Diálogo
-        (Reconstruye brevemente el intercambio clave identificando roles)
-        * **Dr:** [Resumen de preguntas clave/intervenciones]
-        * **Paciente:** [Resumen de respuestas/quejas]
+        ### 🗣️ Análisis de Interacción (Diarización Inferida)
+        * **Médico (${specialty}):** [Resumen de intervenciones clave]
+        * **Paciente:** [Resumen de motivos y respuestas]
 
-        ### 📋 Resumen Clínico (SOAP)
-        * **S (Subjetivo):** Motivo de consulta y síntomas descritos por el paciente.
-        * **O (Objetivo):** Signos o datos observables inferidos (si los hay).
-        * **A (Análisis):** Posible diagnóstico o impresión clínica basándote en la charla.
-        * **P (Plan):** Medicamentos, estudios o recomendaciones mencionadas por el Doctor.
+        ### 📋 Nota Clínica (${specialty})
+        * **S (Subjetivo):** Motivo de consulta y padecimiento actual con terminología médica técnica propia de ${specialty}.
+        * **O (Objetivo):** Signos vitales o hallazgos físicos mencionados (si no se mencionan, indicar "No mencionados en audio").
+        * **A (Análisis/Diagnóstico):** Impresión diagnóstica basada en el contexto.
+        * **P (Plan):** Tratamiento, estudios solicitados y recomendaciones.
 
-        --- FIN REPORTE ---
-
-        Transcripción a procesar:
+        Transcripción:
         "${transcript}"
       `;
 
       const result = await this.model.generateContent(prompt);
       const response = await result.response;
-      const text = response.text();
+      return response.text();
       
-      return text;
     } catch (error: any) {
-      console.error("Error detallado de Gemini:", error);
-      
-      // Manejo de errores específicos
-      if (error.message?.includes('API key')) {
-        throw new Error("La API Key de Google es inválida o expiró.");
-      }
-      if (error.message?.includes('quota')) {
-        throw new Error("Se ha excedido la cuota gratuita de la IA por hoy.");
-      }
-      
-      throw new Error("Error conectando con la Inteligencia Artificial.");
+      console.error("Gemini Error:", error);
+      if (error.message?.includes('quota')) throw new Error("Cuota de IA excedida.");
+      throw new Error("Error al procesar la consulta con IA.");
     }
   }
 }
