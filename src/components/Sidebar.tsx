@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Stethoscope, Users, Smartphone, LogOut, X, Settings } from 'lucide-react';
+import { LayoutDashboard, Stethoscope, Users, Smartphone, LogOut, X, Settings, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface SidebarProps {
@@ -11,17 +11,29 @@ interface SidebarProps {
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
-  // Estado para datos del perfil real
+  // Estado para guardar los datos del doctor
   const [profile, setProfile] = useState({ name: 'Cargando...', specialty: '' });
+  
+  // Estado para el evento de instalación PWA
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
     fetchProfile();
+
+    // 1. Escuchar si el navegador permite instalar
+    const handler = (e: any) => {
+      e.preventDefault(); // Evitar que Chrome muestre su barrita fea automática
+      setDeferredPrompt(e); // Guardar el evento para usarlo en NUESTRO botón
+    };
+
+    window.addEventListener('beforeinstallprompt', handler);
+
+    return () => window.removeEventListener('beforeinstallprompt', handler);
   }, []);
 
   const fetchProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
-      // Intentamos buscar el perfil
       const { data } = await supabase
         .from('profiles')
         .select('full_name, specialty')
@@ -34,7 +46,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             specialty: data.specialty || 'Medicina General' 
         });
       } else {
-        // Si no existe perfil aun (usuario viejo), mostramos default
         setProfile({ name: 'Bienvenido', specialty: 'Configure su perfil' });
       }
     }
@@ -44,12 +55,25 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     await supabase.auth.signOut();
   };
 
+  const handleInstallClick = async () => {
+    if (!deferredPrompt) return;
+    
+    // 2. Mostrar el prompt nativo del celular/PC
+    deferredPrompt.prompt();
+    
+    // 3. Esperar a ver si el usuario aceptó
+    const { outcome } = await deferredPrompt.userChoice;
+    
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null); // Ocultar botón si ya instaló
+    }
+  };
+
   const menuItems = [
     { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
     { path: '/consultation', icon: <Stethoscope size={20} />, label: 'Consulta IA' },
     { path: '/patients', icon: <Users size={20} />, label: 'Pacientes' },
     { path: '/card', icon: <Smartphone size={20} />, label: 'Tarjeta Digital' },
-    // Nuevo botón de configuración
     { path: '/settings', icon: <Settings size={20} />, label: 'Configuración' },
   ];
 
@@ -67,7 +91,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           md:translate-x-0 flex flex-col
         `}
       >
-        {/* Header */}
         <div className="p-6 flex items-center justify-between border-b border-slate-100 shrink-0">
           <div className="flex items-center space-x-2">
             <div className="bg-brand-teal p-2 rounded-lg">
@@ -80,7 +103,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           </button>
         </div>
 
-        {/* Links */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto">
           {menuItems.map((item) => (
             <NavLink
@@ -99,9 +121,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
               <span>{item.label}</span>
             </NavLink>
           ))}
+
+          {/* BOTÓN DE INSTALACIÓN (Solo aparece si es instalable) */}
+          {deferredPrompt && (
+            <button
+              onClick={handleInstallClick}
+              className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 bg-slate-900 text-white shadow-lg shadow-slate-900/20 mt-4 animate-fade-in-up"
+            >
+              <Download size={20} />
+              <span className="font-bold">Instalar App</span>
+            </button>
+          )}
         </nav>
 
-        {/* Footer / Perfil Dinámico */}
         <div className="p-4 border-t border-slate-100 shrink-0">
           <div className="flex items-center p-3 mb-2 rounded-lg bg-slate-50 border border-slate-100">
               <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-brand-teal font-bold text-xs shrink-0">
