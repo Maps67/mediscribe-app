@@ -3,6 +3,12 @@ import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
 
 export default defineConfig({
+  // --- SOLUCIÓN PANTALLA BLANCA ---
+  // Definimos 'global' como 'window' para que la librería de PDF no rompa la app
+  define: {
+    global: 'window',
+  },
+  // -------------------------------
   plugins: [
     react(),
     VitePWA({
@@ -12,11 +18,7 @@ export default defineConfig({
         cleanupOutdatedCaches: true,
         skipWaiting: true,
         clientsClaim: true,
-        // --- SOLUCIÓN DEL ERROR ---
-        // Aumentamos el límite de caché a 4MB (Default es 2MB)
-        // Esto permite que el motor de PDF se descargue y funcione offline
-        maximumFileSizeToCacheInBytes: 4000000, 
-        // --------------------------
+        maximumFileSizeToCacheInBytes: 4000000, // 4MB
         globPatterns: ['**/*.{js,css,html,ico,png,svg}']
       },
       devOptions: {
@@ -51,7 +53,6 @@ export default defineConfig({
     exclude: ['lucide-react'],
   },
   build: {
-    // Opcional: Ayuda a dividir el código en pedazos más pequeños si crece mucho más
     chunkSizeWarningLimit: 4000,
   }
 });

@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Download } from 'lucide-react';
-import { supabase } from '../lib/supabase'; 
-import { PDFDownloadLink } from '@react-pdf/renderer'; 
-import PrescriptionPDF from './PrescriptionPDF'; 
+import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { PDFDownloadLink } from '@react-pdf/renderer';
+import PrescriptionPDF from './PrescriptionPDF';
 
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { MedicalDataService } from '../services/MedicalDataService';
@@ -22,8 +22,8 @@ const ConsultationView: React.FC = () => {
   const [hasConsent, setHasConsent] = useState(false);
   const [specialty, setSpecialty] = useState("Medicina General");
   
-  // Datos del Doctor (Para el PDF)
-  const [doctorProfile, setDoctorProfile] = useState({ full_name: '', specialty: '', license_number: '', phone: '' });
+  // Perfil del Doctor
+  const [doctorProfile, setDoctorProfile] = useState({ full_name: 'Doctor', specialty: 'Medicina', license_number: '', phone: '' });
 
   // CRM State
   const [searchTerm, setSearchTerm] = useState('');
@@ -50,7 +50,6 @@ const ConsultationView: React.FC = () => {
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
-  // Cargar perfil del doctor al iniciar
   useEffect(() => {
     generateSessionKey().then(setSessionKey);
     fetchDoctorProfile();
@@ -64,11 +63,9 @@ const ConsultationView: React.FC = () => {
     }
   };
 
-  // Auto-scrolls
   useEffect(() => { transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [transcript, interimTranscript]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, activeTab]);
 
-  // Buscador CRM
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (searchTerm.length >= 2 && !selectedPatient) {
@@ -101,7 +98,6 @@ const ConsultationView: React.FC = () => {
   const generateRecord = async () => {
     if (!transcript) return;
     setIsLoadingRecord(true);
-    setActiveTab('record');
     
     try {
       const { clinicalNote, patientInstructions, actionItems } = await GeminiMedicalService.generateSummary(transcript, specialty);
@@ -118,6 +114,9 @@ const ConsultationView: React.FC = () => {
       setEditableSummary(clinicalNote);
       setPatientInstructions(patientInstructions);
       setActionItems(actionItems);
+      
+      // CAMBIO: Al generar, vamos directo a la pestaña de instrucciones para ver el PDF
+      setActiveTab('instructions'); 
 
     } catch (e) {
       alert("Error: " + (e instanceof Error ? e.message : "Error desconocido"));
@@ -153,8 +152,7 @@ const ConsultationView: React.FC = () => {
 
   return (
     <div className="p-6 max-w-6xl mx-auto space-y-6 h-[calc(100vh-2rem)] flex flex-col">
-      
-      {/* Header Fijo */}
+      {/* Header */}
       <div className="flex flex-col gap-4 shrink-0">
         <div className="flex justify-between items-center">
             <h2 className="text-2xl font-bold text-slate-800">Consulta Inteligente</h2>
@@ -162,23 +160,13 @@ const ConsultationView: React.FC = () => {
                 {isListening ? '● Grabando' : '● En Espera'}
             </div>
         </div>
-
         <div className="flex flex-col md:flex-row gap-4">
             {/* Buscador CRM */}
             <div className="relative flex-1">
                 <div className={`flex items-center bg-white border rounded-lg px-3 py-2 shadow-sm ${selectedPatient ? 'border-green-500 bg-green-50' : 'border-slate-200'}`}>
                     {selectedPatient ? <User className="text-green-600 mr-2" size={20} /> : <Search className="text-slate-400 mr-2" size={20} />}
-                    <input 
-                        type="text"
-                        disabled={!!selectedPatient}
-                        placeholder={selectedPatient ? selectedPatient.name : "Buscar paciente..."}
-                        className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-400"
-                        value={searchTerm}
-                        onChange={(e) => setSearchTerm(e.target.value)}
-                    />
-                    {selectedPatient && (
-                        <button onClick={handleClearPatient} className="text-slate-400 hover:text-red-500"><span className="text-xs font-bold">X</span></button>
-                    )}
+                    <input type="text" disabled={!!selectedPatient} placeholder={selectedPatient ? selectedPatient.name : "Buscar paciente..."} className="flex-1 bg-transparent outline-none text-sm text-slate-700 placeholder:text-slate-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
+                    {selectedPatient && <button onClick={handleClearPatient} className="text-slate-400 hover:text-red-500"><span className="text-xs font-bold">X</span></button>}
                 </div>
                 {searchResults.length > 0 && (
                     <div className="absolute top-full left-0 right-0 mt-1 bg-white border border-slate-200 rounded-lg shadow-xl z-50 max-h-60 overflow-y-auto">
@@ -191,8 +179,6 @@ const ConsultationView: React.FC = () => {
                     </div>
                 )}
             </div>
-
-            {/* Selector */}
             <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 shadow-sm min-w-[200px]">
                 <Stethoscope size={18} className="text-brand-teal ml-1" />
                 <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer flex-1">
@@ -202,24 +188,16 @@ const ConsultationView: React.FC = () => {
         </div>
       </div>
 
-      {/* Area Principal */}
+      {/* Contenido Principal */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
-        
-        {/* COLUMNA IZQUIERDA */}
+        {/* Izquierda */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden h-full">
           <div className="p-3 bg-orange-50 border-b border-orange-100 flex items-center gap-2 shrink-0">
              <input type="checkbox" checked={hasConsent} onChange={(e) => setHasConsent(e.target.checked)} disabled={isListening} className="rounded text-brand-teal cursor-pointer" />
              <span className="text-xs font-medium text-orange-800">Confirmo consentimiento.</span>
           </div>
           <div className="flex-1 p-4 bg-slate-50 overflow-y-auto font-mono text-sm leading-relaxed">
-             {transcript ? (
-               <><span className="text-slate-800 whitespace-pre-wrap">{transcript}</span><span className="text-slate-400 italic ml-1">{interimTranscript}</span></>
-             ) : isListening ? <p className="text-slate-400 italic animate-pulse">Escuchando...</p> : 
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
-                    <Mic size={40} className="mb-2"/>
-                    <p className="text-center text-sm">Listo para iniciar.</p>
-                </div>
-             }
+             {transcript ? <><span className="text-slate-800 whitespace-pre-wrap">{transcript}</span><span className="text-slate-400 italic ml-1">{interimTranscript}</span></> : isListening ? <p className="text-slate-400 italic animate-pulse">Escuchando...</p> : <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60"><Mic size={40} className="mb-2"/><p className="text-center text-sm">Listo para iniciar.</p></div>}
              <div ref={transcriptEndRef} />
           </div>
           <div className="p-4 border-t flex gap-3 bg-white shrink-0">
@@ -227,12 +205,12 @@ const ConsultationView: React.FC = () => {
               {isListening ? <><Square size={18}/> Parar</> : <><Mic size={18}/> Iniciar</>}
             </button>
             <button onClick={generateRecord} disabled={!transcript || isListening || isLoadingRecord} className="px-4 py-3 bg-brand-teal text-white rounded-lg font-medium flex items-center gap-2 disabled:opacity-50 hover:bg-teal-600 transition-all shadow-lg shadow-teal-500/20">
-              {isLoadingRecord ? <RefreshCw className="animate-spin" size={20}/> : <Sparkles size={20}/>} Generar
+              {isLoadingRecord ? <RefreshCw className="animate-spin" size={20}/> : <FileText size={20}/>} Generar
             </button>
           </div>
         </div>
 
-        {/* COLUMNA DERECHA */}
+        {/* Derecha */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden h-full relative">
           <div className="flex border-b bg-slate-50 shrink-0">
             <button onClick={() => setActiveTab('record')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'record' ? 'bg-white text-brand-teal border-t-2 border-brand-teal' : 'text-slate-400 hover:text-slate-600'}`}>Expediente</button>
@@ -243,26 +221,14 @@ const ConsultationView: React.FC = () => {
           {/* Action Board */}
           {generatedRecord && actionItems && (
             <div className="p-2 bg-slate-50 border-b border-slate-200 flex gap-2 overflow-x-auto shrink-0 scrollbar-hide">
-                {actionItems.next_appointment && (
-                <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0">
-                    <Calendar size={14} /><div className="leading-tight"><p className="uppercase text-[8px] opacity-70">Cita</p><p className="font-bold">{actionItems.next_appointment}</p></div>
-                </div>
-                )}
-                {actionItems.urgent_referral && (
-                <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 animate-pulse">
-                    <AlertTriangle size={14} /><span className="font-bold">URGENCIA</span>
-                </div>
-                )}
-                {actionItems.lab_tests_required.length > 0 && (
-                <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0">
-                    <Beaker size={14} /><div className="leading-tight"><p className="uppercase text-[8px] opacity-70">Estudios</p><p className="truncate max-w-[100px] font-bold">{actionItems.lab_tests_required.length}</p></div>
-                </div>
-                )}
+                {actionItems.next_appointment && <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"><Calendar size={14} /><div className="leading-tight"><p className="uppercase text-[8px] opacity-70">Cita</p><p className="font-bold">{actionItems.next_appointment}</p></div></div>}
+                {actionItems.urgent_referral && <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 animate-pulse"><AlertTriangle size={14} /><span className="font-bold">URGENCIA</span></div>}
+                {actionItems.lab_tests_required.length > 0 && <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"><Beaker size={14} /><div className="leading-tight"><p className="uppercase text-[8px] opacity-70">Estudios</p><p className="truncate max-w-[100px] font-bold">{actionItems.lab_tests_required.length}</p></div></div>}
             </div>
           )}
 
           <div className="flex-1 relative bg-white">
-             {/* TAB 1: EXPEDIENTE */}
+             {/* TAB EXPEDIENTE */}
              {activeTab === 'record' && (
                 <div className="absolute inset-0 flex flex-col">
                    {generatedRecord ? (
@@ -276,7 +242,7 @@ const ConsultationView: React.FC = () => {
                 </div>
              )}
 
-             {/* TAB 2: INSTRUCCIONES / RECETA */}
+             {/* TAB PACIENTE / RECETA */}
              {activeTab === 'instructions' && (
                <div className="absolute inset-0 flex flex-col">
                    {generatedRecord ? (
@@ -284,33 +250,25 @@ const ConsultationView: React.FC = () => {
                           <div className="flex-1 p-4 bg-green-50/30">
                             <textarea className="w-full h-full bg-transparent outline-none resize-none text-sm text-slate-700 font-medium" value={patientInstructions} onChange={(e) => setPatientInstructions(e.target.value)} />
                           </div>
-                          
-                          {/* BARRA DE ACCIONES - AQUI ESTAN LOS BOTONES */}
                           <div className="p-3 border-t border-slate-100 flex items-center gap-2 bg-white shrink-0">
-                            <div className="flex-1 text-xs text-slate-500 truncate hidden md:block">
-                                Para: <strong>{selectedPatient?.name || "Paciente"}</strong>
-                            </div>
+                            <div className="flex-1 text-xs text-slate-500 truncate hidden md:block">Para: <strong>{selectedPatient?.name || "Paciente"}</strong></div>
+                            <button onClick={sendToWhatsApp} className="bg-[#25D366] text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-green-600 transition-colors"><Send size={14}/> <span className="hidden sm:inline">WhatsApp</span></button>
                             
-                            {/* BOTÓN WHATSAPP */}
-                            <button onClick={sendToWhatsApp} className="bg-[#25D366] text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-green-600 transition-colors shadow-sm">
-                                <Send size={14}/> <span className="hidden sm:inline">WhatsApp</span>
-                            </button>
-
-                            {/* BOTÓN PDF (RECETA) - AQUI ESTA EL CAMBIO */}
+                            {/* BOTÓN PDF */}
                             <PDFDownloadLink
                                 document={
                                     <PrescriptionPDF 
-                                        doctorName={doctorProfile.full_name || "Doctor"}
-                                        specialty={doctorProfile.specialty || "Medicina"}
-                                        license={doctorProfile.license_number || "Pendiente"}
-                                        phone={doctorProfile.phone || ""}
+                                        doctorName={doctorProfile.full_name}
+                                        specialty={doctorProfile.specialty}
+                                        license={doctorProfile.license_number}
+                                        phone={doctorProfile.phone}
                                         patientName={selectedPatient?.name || "Paciente"}
                                         date={new Date().toLocaleDateString()}
                                         content={patientInstructions}
                                     />
                                 }
                                 fileName={`Receta_${selectedPatient?.name || 'Paciente'}.pdf`}
-                                className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-sm"
+                                className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors"
                             >
                                 {({ loading }) => (
                                     <>
@@ -327,7 +285,7 @@ const ConsultationView: React.FC = () => {
                </div>
              )}
 
-             {/* TAB 3: CHAT */}
+             {/* TAB CHAT */}
              {activeTab === 'chat' && (
                <div className="absolute inset-0 flex flex-col bg-slate-50">
                   <div className="flex-1 p-4 overflow-y-auto space-y-3">
