@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer } from 'lucide-react';
+import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { PDFDownloadLink } from '@react-pdf/renderer';
+import { PDFDownloadLink, pdf } from '@react-pdf/renderer'; // Importamos 'pdf' para generar en memoria
 import PrescriptionPDF from './PrescriptionPDF';
 
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
@@ -21,18 +21,7 @@ const ConsultationView: React.FC = () => {
   
   const [hasConsent, setHasConsent] = useState(false);
   const [specialty, setSpecialty] = useState("Medicina General");
-  
-  // ESTADO DEL PERFIL (Actualizado con campos NOM-004)
-  const [doctorProfile, setDoctorProfile] = useState({ 
-    full_name: 'Doctor', 
-    specialty: 'Medicina', 
-    license_number: '', 
-    phone: '',
-    university: '',
-    address: '',
-    logo_url: '',
-    signature_url: ''
-  });
+  const [doctorProfile, setDoctorProfile] = useState({ full_name: 'Doctor', specialty: 'Medicina', license_number: '', phone: '', university: '', address: '', logo_url: '', signature_url: '' });
 
   // CRM State
   const [searchTerm, setSearchTerm] = useState('');
@@ -43,8 +32,9 @@ const ConsultationView: React.FC = () => {
   // Resultados IA
   const [generatedRecord, setGeneratedRecord] = useState<MedicalRecord | null>(null);
   const [isLoadingRecord, setIsLoadingRecord] = useState(false);
+  const [isSharing, setIsSharing] = useState(false); // Estado para loading de compartir
   
-  // Textos Editables y Acciones
+  // Textos Editables
   const [editableSummary, setEditableSummary] = useState(''); 
   const [patientInstructions, setPatientInstructions] = useState('');
   const [actionItems, setActionItems] = useState<ActionItems | null>(null);
@@ -123,7 +113,6 @@ const ConsultationView: React.FC = () => {
       setEditableSummary(clinicalNote);
       setPatientInstructions(patientInstructions);
       setActionItems(actionItems);
-      
       setActiveTab('instructions'); 
 
     } catch (e) {
@@ -133,11 +122,48 @@ const ConsultationView: React.FC = () => {
     }
   };
 
-  const sendToWhatsApp = () => {
-    const phone = selectedPatient?.phone || prompt("Ingrese el teléfono del paciente:");
-    if (!phone) return;
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(patientInstructions)}`;
-    window.open(url, '_blank');
+  // --- FUNCIÓN COMPARTIR PDF NATIVO (WHATSAPP) ---
+  const handleSharePDF = async () => {
+    if (!generatedRecord) return;
+    setIsSharing(true);
+
+    try {
+      // 1. Generar el Blob del PDF en memoria
+      const blob = await pdf(
+        <PrescriptionPDF 
+            doctorName={doctorProfile.full_name}
+            specialty={doctorProfile.specialty}
+            license={doctorProfile.license_number}
+            phone={doctorProfile.phone}
+            university={doctorProfile.university}
+            address={doctorProfile.address}
+            logoUrl={doctorProfile.logo_url}
+            signatureUrl={doctorProfile.signature_url}
+            patientName={selectedPatient?.name || "Paciente"}
+            date={new Date().toLocaleDateString()}
+            content={patientInstructions}
+        />
+      ).toBlob();
+
+      // 2. Crear archivo virtual
+      const file = new File([blob], `Receta-${selectedPatient?.name || 'Paciente'}.pdf`, { type: 'application/pdf' });
+
+      // 3. Invocar menú nativo del sistema
+      if (navigator.canShare && navigator.canShare({ files: [file] })) {
+        await navigator.share({
+          files: [file],
+          title: 'Receta Médica',
+          text: `Hola ${selectedPatient?.name || ''}, aquí te envío tu receta médica digital.`
+        });
+      } else {
+        // Fallback si el navegador no soporta compartir archivos (ej. Firefox PC viejo)
+        alert("Tu navegador no soporta compartir archivos directos. Por favor usa el botón 'Imprimir PDF' y envíalo manualmente.");
+      }
+    } catch (error) {
+      console.log("Compartir cancelado o fallido", error);
+    } finally {
+      setIsSharing(false);
+    }
   };
 
   const handleAskAI = async (e: React.FormEvent) => {
@@ -169,7 +195,6 @@ const ConsultationView: React.FC = () => {
             </div>
         </div>
         <div className="flex flex-col md:flex-row gap-4">
-            {/* Buscador */}
             <div className="relative flex-1">
                 <div className={`flex items-center bg-white border rounded-lg px-3 py-2 shadow-sm ${selectedPatient ? 'border-green-500 bg-green-50' : 'border-slate-200'}`}>
                     {selectedPatient ? <User className="text-green-600 mr-2" size={20} /> : <Search className="text-slate-400 mr-2" size={20} />}
@@ -196,7 +221,7 @@ const ConsultationView: React.FC = () => {
         </div>
       </div>
 
-      {/* Contenido */}
+      {/* Main */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
         {/* Izquierda */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden h-full">
@@ -226,7 +251,6 @@ const ConsultationView: React.FC = () => {
             <button onClick={() => setActiveTab('chat')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'chat' ? 'bg-white text-brand-teal border-t-2 border-brand-teal' : 'text-slate-400 hover:text-slate-600'}`}>Chat IA</button>
           </div>
           
-          {/* Action Board */}
           {generatedRecord && actionItems && (
             <div className="p-2 bg-slate-50 border-b border-slate-200 flex gap-2 overflow-x-auto shrink-0 scrollbar-hide">
                 {actionItems.next_appointment && <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"><Calendar size={14} /><div className="leading-tight"><p className="uppercase text-[8px] opacity-70">Cita</p><p className="font-bold">{actionItems.next_appointment}</p></div></div>}
@@ -258,11 +282,21 @@ const ConsultationView: React.FC = () => {
                           <div className="flex-1 p-4 bg-green-50/30">
                             <textarea className="w-full h-full bg-transparent outline-none resize-none text-sm text-slate-700 font-medium" value={patientInstructions} onChange={(e) => setPatientInstructions(e.target.value)} />
                           </div>
-                          <div className="p-3 border-t border-slate-100 flex items-center gap-2 bg-white shrink-0">
-                            <div className="flex-1 text-xs text-slate-500 truncate hidden md:block">Para: <strong>{selectedPatient?.name || "Paciente"}</strong></div>
-                            <button onClick={sendToWhatsApp} className="bg-[#25D366] text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-green-600 transition-colors"><Send size={14}/> <span className="hidden sm:inline">WhatsApp</span></button>
+                          
+                          {/* BARRA DE ACCIONES */}
+                          <div className="p-3 border-t border-slate-100 flex flex-wrap justify-end items-center gap-2 bg-white shrink-0">
                             
-                            {/* BOTÓN PDF CON DATOS NOM-004 */}
+                            {/* BOTÓN 1: Compartir PDF (WhatsApp/Mail Nativo) */}
+                            <button 
+                                onClick={handleSharePDF} 
+                                disabled={isSharing}
+                                className="bg-brand-teal text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-teal-600 transition-colors shadow-sm"
+                            >
+                                {isSharing ? <RefreshCw size={14} className="animate-spin"/> : <Share2 size={14}/>} 
+                                <span>Compartir Archivo</span>
+                            </button>
+
+                            {/* BOTÓN 2: Descargar/Imprimir */}
                             <PDFDownloadLink
                                 document={
                                     <PrescriptionPDF 
@@ -270,22 +304,22 @@ const ConsultationView: React.FC = () => {
                                         specialty={doctorProfile.specialty}
                                         license={doctorProfile.license_number}
                                         phone={doctorProfile.phone}
-                                        university={doctorProfile.university} // Nuevo
-                                        address={doctorProfile.address}       // Nuevo
-                                        logoUrl={doctorProfile.logo_url}      // Nuevo
-                                        signatureUrl={doctorProfile.signature_url} // Nuevo
+                                        university={doctorProfile.university}
+                                        address={doctorProfile.address}
+                                        logoUrl={doctorProfile.logo_url}
+                                        signatureUrl={doctorProfile.signature_url}
                                         patientName={selectedPatient?.name || "Paciente"}
                                         date={new Date().toLocaleDateString()}
                                         content={patientInstructions}
                                     />
                                 }
                                 fileName={`Receta_${selectedPatient?.name || 'Paciente'}.pdf`}
-                                className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors"
+                                className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-sm"
                             >
                                 {({ loading }) => (
                                     <>
                                         {loading ? <RefreshCw size={14} className="animate-spin"/> : <Printer size={14}/>}
-                                        <span className="hidden sm:inline">{loading ? 'Creando...' : 'Receta PDF'}</span>
+                                        <span className="hidden sm:inline">{loading ? 'Creando...' : 'Imprimir'}</span>
                                     </>
                                 )}
                             </PDFDownloadLink>
