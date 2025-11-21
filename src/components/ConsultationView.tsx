@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Download } from 'lucide-react';
-import { supabase } from '../lib/supabase'; // Necesario para cargar perfil del doctor
-import { PDFDownloadLink } from '@react-pdf/renderer'; // Motor PDF
-import PrescriptionPDF from './PrescriptionPDF'; // Nuestro diseño nuevo
+import { supabase } from '../lib/supabase'; 
+import { PDFDownloadLink } from '@react-pdf/renderer'; 
+import PrescriptionPDF from './PrescriptionPDF'; 
 
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { MedicalDataService } from '../services/MedicalDataService';
@@ -13,8 +13,6 @@ import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 async function generateSessionKey(): Promise<CryptoKey> {
   return window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
 }
-// Nota: Mantenemos helpers de encripción aunque no los mostremos en UI por brevedad en este bloque, 
-// la lógica es la misma que tenías.
 
 const SPECIALTIES = ["Medicina General", "Cardiología", "Pediatría", "Psicología/Psiquiatría", "Ginecología", "Dermatología", "Nutrición"];
 
@@ -286,29 +284,33 @@ const ConsultationView: React.FC = () => {
                           <div className="flex-1 p-4 bg-green-50/30">
                             <textarea className="w-full h-full bg-transparent outline-none resize-none text-sm text-slate-700 font-medium" value={patientInstructions} onChange={(e) => setPatientInstructions(e.target.value)} />
                           </div>
+                          
+                          {/* BARRA DE ACCIONES - AQUI ESTAN LOS BOTONES */}
                           <div className="p-3 border-t border-slate-100 flex items-center gap-2 bg-white shrink-0">
-                            <div className="flex-1 text-xs text-slate-500 truncate hidden md:block">Para: <strong>{selectedPatient?.name || "Paciente"}</strong></div>
+                            <div className="flex-1 text-xs text-slate-500 truncate hidden md:block">
+                                Para: <strong>{selectedPatient?.name || "Paciente"}</strong>
+                            </div>
                             
                             {/* BOTÓN WHATSAPP */}
-                            <button onClick={sendToWhatsApp} className="bg-[#25D366] text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-green-600 transition-colors">
+                            <button onClick={sendToWhatsApp} className="bg-[#25D366] text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-green-600 transition-colors shadow-sm">
                                 <Send size={14}/> <span className="hidden sm:inline">WhatsApp</span>
                             </button>
 
-                            {/* BOTÓN PDF (NUEVO) */}
+                            {/* BOTÓN PDF (RECETA) - AQUI ESTA EL CAMBIO */}
                             <PDFDownloadLink
                                 document={
                                     <PrescriptionPDF 
-                                        doctorName={doctorProfile.full_name}
-                                        specialty={doctorProfile.specialty}
-                                        license={doctorProfile.license_number}
-                                        phone={doctorProfile.phone}
-                                        patientName={selectedPatient?.name || "Paciente General"}
+                                        doctorName={doctorProfile.full_name || "Doctor"}
+                                        specialty={doctorProfile.specialty || "Medicina"}
+                                        license={doctorProfile.license_number || "Pendiente"}
+                                        phone={doctorProfile.phone || ""}
+                                        patientName={selectedPatient?.name || "Paciente"}
                                         date={new Date().toLocaleDateString()}
                                         content={patientInstructions}
                                     />
                                 }
                                 fileName={`Receta_${selectedPatient?.name || 'Paciente'}.pdf`}
-                                className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors"
+                                className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-sm"
                             >
                                 {({ loading }) => (
                                     <>
