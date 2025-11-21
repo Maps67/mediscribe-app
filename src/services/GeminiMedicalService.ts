@@ -4,7 +4,6 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 export class GeminiMedicalService {
   
-  // Auto-descubrimiento de modelos para evitar errores 404
   private static async getBestAvailableModel(): Promise<string> {
     try {
       const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`;
@@ -15,7 +14,6 @@ export class GeminiMedicalService {
       const data = await response.json();
       const validModels = data.models?.filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"));
 
-      // Prioridad: Flash > Pro
       const flashModel = validModels.find((m: any) => m.name.includes("flash"));
       if (flashModel) return flashModel.name;
 
@@ -31,7 +29,6 @@ export class GeminiMedicalService {
     }
   }
 
-  // CAMBIO AQUÍ: Agregamos el parámetro 'historyContext'
   static async generateSummary(transcript: string, specialty: string = "Medicina General", historyContext: string = ""): Promise<GeminiResponse> {
     if (!API_KEY) throw new Error("Falta API Key en Netlify.");
 
@@ -39,45 +36,42 @@ export class GeminiMedicalService {
     const URL = `https://generativelanguage.googleapis.com/v1beta/${activeModelName}:generateContent?key=${API_KEY}`;
 
     try {
-      // PROMPT EVOLUCIONADO CON MEMORIA
+      // --- PROMPT DE INGENIERÍA CLÍNICA AVANZADA ---
       const prompt = `
-        Actúa como un Médico Especialista en ${specialty}.
+        Actúa como un Médico Especialista en ${specialty} con enfoque en precisión clínica.
         
-        TIENES ACCESO AL HISTORIAL PREVIO DEL PACIENTE:
-        "${historyContext || 'Es la primera consulta registrada o no hay datos relevantes.'}"
+        TIENES ACCESO AL HISTORIAL: "${historyContext || 'Sin historial relevante.'}"
+        TRANSCRIPCIÓN ACTUAL: "${transcript}"
 
-        TU TAREA:
-        Analiza la TRANSCRIPCIÓN ACTUAL de la consulta de hoy.
-        Genera la documentación clínica (SOAP), relacionando los síntomas actuales con el historial previo SI aplica (ej. "refiere mejoría del cuadro anterior", "el dolor persiste", etc.).
+        TU TAREA ES GENERAR 3 SALIDAS ESTRUCTURADAS:
 
-        Genera 3 salidas:
-        1. Nota SOAP Técnica.
-        2. Instrucciones al paciente (Lenguaje sencillo).
-        3. Action Items (JSON).
+        1. ### NOTA TÉCNICA (SOAP):
+           - Lenguaje médico formal para el expediente.
+           - Incluye evolución si hay historial previo.
 
-        FORMATO DE SALIDA OBLIGATORIO (Respeta los separadores):
+        2. ### INDICACIONES AL PACIENTE (La Receta/Guía):
+           - OBJETIVO: Instrucciones claras, directas y ejecutables.
+           - PROHIBIDO: No saludes ("Hola Juan"), no des explicaciones emocionales ("Entiendo que te duele"), no resumas la charla.
+           - FORMATO OBLIGATORIO:
+             * 💊 **Esquema Farmacológico:** Lista de medicamentos con dosis, frecuencia y duración.
+             * 🥗 **Medidas Generales:** Dieta, actividad física, cuidados.
+             * ⚠️ **Signos de Alarma:** Cuándo acudir a urgencias.
+           - LÓGICA QUIRÚRGICA: Si detectas que es una CIRUGÍA (pre o post), agrega una sección **"CUIDADOS DE HERIDA/QUIRÚRGICOS"** (manejo de drenajes, curaciones, retiro de puntos, faja, etc.).
 
-        ### Resumen Clínico (${specialty})
-        **S (Subjetivo):** ...
-        **O (Objetivo):** ...
-        **A (Análisis):** ... (Menciona evolución si hay historial)
-        **P (Plan):** ...
+        3. ### ACTION ITEMS (JSON):
+           - Extrae datos para automatización.
 
-        --- SEPARADOR_INSTRUCCIONES ---
+        --- SEPARADOR_INSTRUCCIONES --- (Usa este separador exacto)
 
-        Hola! Aquí tienes tus indicaciones:
-        ...
+        [Aquí van las INDICACIONES AL PACIENTE siguiendo las reglas de arriba]
 
         --- SEPARADOR_JSON ---
-        
+
         {
           "next_appointment": "Texto fecha o null",
           "urgent_referral": false,
           "lab_tests_required": ["Lista", "de", "estudios"]
         }
-
-        TRANSCRIPCIÓN ACTUAL (LO QUE SE HABLÓ HOY):
-        "${transcript}"
       `;
 
       const response = await fetch(URL, {
