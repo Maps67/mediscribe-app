@@ -7,14 +7,16 @@ export default defineConfig({
     react(),
     VitePWA({
       registerType: 'autoUpdate',
+      // Esto inyecta el manifiesto automáticamente en el HTML
+      injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'MediScribe AI',
         short_name: 'MediScribe',
-        description: 'Asistente Médico Inteligente con IA',
-        theme_color: '#0d9488', // El color Teal de tu marca
+        description: 'Asistente Médico Inteligente',
+        theme_color: '#0d9488',
         background_color: '#ffffff',
-        display: 'standalone', // Esto quita la barra de navegador
+        display: 'standalone', // CRÍTICO: Esto quita la barra del navegador
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
