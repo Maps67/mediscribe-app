@@ -1,13 +1,23 @@
 import { defineConfig } from 'vite';
 import react from '@vitejs/plugin-react';
 import { VitePWA } from 'vite-plugin-pwa';
+import tailwindcss from 'tailwindcss';
+import autoprefixer from 'autoprefixer';
 
 export default defineConfig({
+  // INCRUSTAMOS LA CONFIGURACIÓN CSS AQUÍ
+  css: {
+    postcss: {
+      plugins: [
+        tailwindcss(),
+        autoprefixer(),
+      ],
+    },
+  },
   plugins: [
     react(),
     VitePWA({
       registerType: 'autoUpdate',
-      // Esto inyecta el manifiesto automáticamente en el HTML
       injectRegister: 'auto',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
@@ -16,7 +26,7 @@ export default defineConfig({
         description: 'Asistente Médico Inteligente',
         theme_color: '#0d9488',
         background_color: '#ffffff',
-        display: 'standalone', // CRÍTICO: Esto quita la barra del navegador
+        display: 'standalone',
         orientation: 'portrait',
         scope: '/',
         start_url: '/',
@@ -30,12 +40,6 @@ export default defineConfig({
             src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png'
-          },
-          {
-            src: 'pwa-512x512.png',
-            sizes: '512x512',
-            type: 'image/png',
-            purpose: 'any maskable'
           }
         ]
       }
