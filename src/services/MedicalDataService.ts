@@ -3,31 +3,24 @@ import { Patient, Consultation } from '../types';
 
 export class MedicalDataService {
   
-  // --- CONSULTAS ---
+  // --- PACIENTES (CRM) ---
 
-  static async createConsultation(
-    consultation: Omit<Consultation, 'id' | 'created_at' | 'doctor_id'>
-  ): Promise<Consultation> {
-    const { data: { session } } = await supabase.auth.getSession();
-    if (!session) throw new Error("No hay sesión activa.");
+  // Búsqueda en tiempo real para el autocompletado
+  static async searchPatients(query: string): Promise<Patient[]> {
+    if (!query || query.length < 2) return [];
 
     const { data, error } = await supabase
-      .from('consultations')
-      .insert([{
-        ...consultation,
-        doctor_id: session.user.id 
-      }])
-      .select()
-      .single();
+      .from('patients')
+      .select('*')
+      .ilike('name', `%${query}%`) // ilike busca sin importar mayúsculas/minúsculas
+      .limit(5);
 
     if (error) {
-      console.error("Error Supabase:", error);
-      throw new Error(error.message);
+      console.error("Error buscando pacientes:", error);
+      return [];
     }
-    return data;
+    return data || [];
   }
-
-  // --- PACIENTES ---
 
   static async getPatients(): Promise<Patient[]> {
     const { data, error } = await supabase
@@ -45,10 +38,7 @@ export class MedicalDataService {
 
     const { data, error } = await supabase
       .from('patients')
-      .insert([{
-        ...patient,
-        doctor_id: session.user.id
-      }])
+      .insert([{ ...patient, doctor_id: session.user.id }])
       .select()
       .single();
 
@@ -56,17 +46,29 @@ export class MedicalDataService {
     return data;
   }
 
-  // NUEVO: Método para borrar pacientes
   static async deletePatient(id: string): Promise<void> {
-    const { error } = await supabase
-      .from('patients')
-      .delete()
-      .eq('id', id);
-
+    const { error } = await supabase.from('patients').delete().eq('id', id);
     if (error) throw error;
   }
-  
-  async signOut() {
-    await supabase.auth.signOut();
+
+  // --- CONSULTAS ---
+
+  static async createConsultation(
+    consultation: Omit<Consultation, 'id' | 'created_at' | 'doctor_id'>
+  ): Promise<Consultation> {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) throw new Error("No hay sesión activa.");
+
+    const { data, error } = await supabase
+      .from('consultations')
+      .insert([{ ...consultation, doctor_id: session.user.id }])
+      .select()
+      .single();
+
+    if (error) {
+      console.error("Error Supabase:", error);
+      throw new Error(error.message);
+    }
+    return data;
   }
 }
