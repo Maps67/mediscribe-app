@@ -4,105 +4,86 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 export class GeminiMedicalService {
   
-  // LISTA DE MODELOS A PROBAR (En orden de preferencia)
-  // Si el primero falla (404), el código saltará automáticamente al siguiente.
-  private static MODELS = [
-    "gemini-1.5-flash",
-    "gemini-1.5-flash-latest",
-    "gemini-1.0-pro",
-    "gemini-pro"
-  ];
-
   static async generateSummary(transcript: string, specialty: string = "Medicina General"): Promise<GeminiResponse> {
-    if (!API_KEY) throw new Error("Falta la API Key en Netlify.");
+    // 1. Verificamos que la llave exista en el código
+    if (!API_KEY) throw new Error("Falta VITE_GEMINI_API_KEY. Verifica tus variables en Netlify.");
 
-    // Prompt (Instrucciones)
-    const prompt = `
-      Actúa como un Médico Especialista en ${specialty}.
-      TU OBJETIVO: Generar Nota Clínica SOAP, Instrucciones al Paciente y Action Items JSON.
+    // 2. Usamos DIRECTAMENTE el modelo Flash (el estándar actual)
+    const MODEL_NAME = "gemini-1.5-flash";
+    const URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
 
-      FORMATO DE SALIDA OBLIGATORIO:
-      ### Resumen Clínico (${specialty})
-      **S:** ...
-      **O:** ...
-      **A:** ...
-      **P:** ...
+    try {
+      const prompt = `
+        Actúa como un Médico Especialista en ${specialty}.
+        Analiza la siguiente transcripción, identifica médico/paciente y genera:
+        1. Nota SOAP.
+        2. Instrucciones al paciente.
+        3. Action Items en JSON.
 
-      --- SEPARADOR_INSTRUCCIONES ---
+        FORMATO DE SALIDA (Estricto):
+        ### Resumen Clínico (${specialty})
+        ... (Nota)
+        --- SEPARADOR_INSTRUCCIONES ---
+        ... (Instrucciones)
+        --- SEPARADOR_JSON ---
+        { "next_appointment": null, "urgent_referral": false, "lab_tests_required": [] }
 
-      Hola! Aquí tienes tus indicaciones:
-      ... (Instrucciones claras)
+        Transcripción: "${transcript}"
+      `;
 
-      --- SEPARADOR_JSON ---
-      
-      {
-        "next_appointment": "Texto fecha o null",
-        "urgent_referral": false,
-        "lab_tests_required": ["Lista", "de", "estudios"]
-      }
-      
-      Transcripción: "${transcript}"
-    `;
+      console.log(`📡 Conectando con Google (${MODEL_NAME})...`);
 
-    let lastError = null;
+      const response = await fetch(URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          contents: [{ parts: [{ text: prompt }] }]
+        })
+      });
 
-    // --- BUCLE DE INTENTOS (La Solución Maestra) ---
-    for (const modelName of this.MODELS) {
-      try {
-        console.log(`🔄 Intentando conectar con modelo: ${modelName}...`);
+      // 3. AQUÍ ESTÁ LA CLAVE: Si falla, leemos el mensaje real de Google
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error("🔥 Error Google:", errorData);
         
-        const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
+        const errorMessage = errorData.error?.message || response.statusText;
+        const errorCode = errorData.error?.code || response.status;
+
+        // Traducimos los errores más comunes para ti
+        if (errorMessage.includes("API key not valid")) throw new Error("Tu API Key es rechazada. ¿Copiaste la correcta de AI Studio?");
+        if (errorMessage.includes("not enabled")) throw new Error("La API no está habilitada en tu cuenta de Google Cloud.");
+        if (errorMessage.includes("User location is not supported")) throw new Error("Este modelo no está disponible en tu país/región.");
         
-        const response = await fetch(URL, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-        });
-
-        if (!response.ok) {
-          const errData = await response.json();
-          // Si es un error 404 (No encontrado), lanzamos error para que el bucle pruebe el siguiente
-          throw new Error(errData.error?.message || response.statusText);
-        }
-
-        // ¡ÉXITO! Si llegamos aquí, el modelo funcionó. Procesamos y salimos.
-        const data = await response.json();
-        const fullText = data.candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!fullText) throw new Error("La IA respondió vacía.");
-
-        return this.parseResponse(fullText);
-
-      } catch (error: any) {
-        console.warn(`⚠️ Falló modelo ${modelName}:`, error.message);
-        lastError = error;
-        // Continuamos al siguiente modelo del array...
+        throw new Error(`Error ${errorCode}: ${errorMessage}`);
       }
+
+      const data = await response.json();
+      const fullText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!fullText) throw new Error("Google respondió, pero el texto llegó vacío.");
+
+      return this.parseResponse(fullText);
+
+    } catch (error: any) {
+      console.error("Fallo Crítico:", error);
+      throw error; // Lanzamos el error tal cual para verlo en la alerta
     }
-
-    // Si todos fallaron
-    throw new Error(`Todos los modelos fallaron. Último error: ${lastError.message}`);
   }
 
-  // Función auxiliar para limpiar el código principal
   private static parseResponse(fullText: string): GeminiResponse {
     const parts = fullText.split("--- SEPARADOR_INSTRUCCIONES ---");
-    const clinicalNote = parts[0] ? parts[0].trim() : "Error generando nota.";
-    
+    const clinicalNote = parts[0] ? parts[0].trim() : "Error de formato.";
     let patientInstructions = "";
     let actionItems: ActionItems = { next_appointment: null, urgent_referral: false, lab_tests_required: [] };
 
     if (parts[1]) {
       const jsonParts = parts[1].split("--- SEPARADOR_JSON ---");
       patientInstructions = jsonParts[0] ? jsonParts[0].trim() : "";
-      
       if (jsonParts[1]) {
         try {
           const cleanJson = jsonParts[1].replace(/```json/g, '').replace(/```/g, '').trim();
           actionItems = JSON.parse(cleanJson);
-        } catch (e) {
-          console.warn("JSON inválido, usando defaults.");
-        }
+        } catch (e) { console.warn("JSON Fallido"); }
       }
     }
     return { clinicalNote, patientInstructions, actionItems };
