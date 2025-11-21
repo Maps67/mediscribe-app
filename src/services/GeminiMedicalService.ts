@@ -5,11 +5,10 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 export class GeminiMedicalService {
   
   static async generateSummary(transcript: string, specialty: string = "Medicina General"): Promise<GeminiResponse> {
-    // 1. Verificamos que la llave exista en el código
     if (!API_KEY) throw new Error("Falta VITE_GEMINI_API_KEY. Verifica tus variables en Netlify.");
 
-    // 2. Usamos DIRECTAMENTE el modelo Flash (el estándar actual)
-    const MODEL_NAME = "gemini-1.5-flash";
+    // CORRECCIÓN MAESTRA: Usamos el alias 'latest' para evitar errores de versión
+    const MODEL_NAME = "gemini-1.5-flash-latest";
     const URL = `https://generativelanguage.googleapis.com/v1beta/models/${MODEL_NAME}:generateContent?key=${API_KEY}`;
 
     try {
@@ -41,20 +40,18 @@ export class GeminiMedicalService {
         })
       });
 
-      // 3. AQUÍ ESTÁ LA CLAVE: Si falla, leemos el mensaje real de Google
       if (!response.ok) {
         const errorData = await response.json();
         console.error("🔥 Error Google:", errorData);
         
         const errorMessage = errorData.error?.message || response.statusText;
-        const errorCode = errorData.error?.code || response.status;
-
-        // Traducimos los errores más comunes para ti
-        if (errorMessage.includes("API key not valid")) throw new Error("Tu API Key es rechazada. ¿Copiaste la correcta de AI Studio?");
-        if (errorMessage.includes("not enabled")) throw new Error("La API no está habilitada en tu cuenta de Google Cloud.");
-        if (errorMessage.includes("User location is not supported")) throw new Error("Este modelo no está disponible en tu país/región.");
         
-        throw new Error(`Error ${errorCode}: ${errorMessage}`);
+        // Si falla el 'latest', intentamos el 'pro' como respaldo automático
+        if (errorMessage.includes("not found")) {
+            return this.retryWithLegacyModel(prompt);
+        }
+        
+        throw new Error(`Error API: ${errorMessage}`);
       }
 
       const data = await response.json();
@@ -66,8 +63,25 @@ export class GeminiMedicalService {
 
     } catch (error: any) {
       console.error("Fallo Crítico:", error);
-      throw error; // Lanzamos el error tal cual para verlo en la alerta
+      throw error; 
     }
+  }
+
+  // MÉTODO DE RESPALDO (Plan B automático)
+  private static async retryWithLegacyModel(prompt: string): Promise<GeminiResponse> {
+      console.log("⚠️ Intentando modelo de respaldo (gemini-pro)...");
+      const BACKUP_URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent?key=${API_KEY}`;
+      
+      const response = await fetch(BACKUP_URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+
+      if (!response.ok) throw new Error("Todos los modelos fallaron. Verifica tu API Key.");
+      
+      const data = await response.json();
+      return this.parseResponse(data.candidates?.[0]?.content?.parts?.[0]?.text || "");
   }
 
   private static parseResponse(fullText: string): GeminiResponse {
