@@ -6,15 +6,15 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 export class GeminiMedicalService {
   private static genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
   
-  // SOLUCIÓN: Usamos 'gemini-pro' (El estándar estable)
-  // Si este falla, es problema 100% de la API Key, no del modelo.
+  // CAMBIO FINAL: Usamos 'gemini-1.5-flash'
+  // Con tu nueva API Key, este es el modelo que DEBE funcionar.
   private static model = GeminiMedicalService.genAI 
-    ? GeminiMedicalService.genAI.getGenerativeModel({ model: "gemini-pro" }) 
+    ? GeminiMedicalService.genAI.getGenerativeModel({ model: "gemini-1.5-flash" }) 
     : null;
 
   static async generateSummary(transcript: string, specialty: string = "Medicina General"): Promise<GeminiResponse> {
-    if (!API_KEY) throw new Error("Falta la API Key. Revisa la configuración en Netlify.");
-    if (!this.model) throw new Error("Error al iniciar el servicio de IA.");
+    if (!API_KEY) throw new Error("Falta la API Key en Netlify.");
+    if (!this.model) throw new Error("Error inicializando IA.");
 
     try {
       const prompt = `
@@ -46,7 +46,7 @@ export class GeminiMedicalService {
           "lab_tests_required": ["Lista", "de", "estudios"]
         }
         
-        IMPORTANTE: La parte final debe ser SOLO JSON válido, sin texto extra.
+        IMPORTANTE: La parte final debe ser SOLO JSON válido.
 
         Transcripción:
         "${transcript}"
@@ -56,7 +56,7 @@ export class GeminiMedicalService {
       const response = await result.response;
       const fullText = response.text();
 
-      // PARSEO ROBUSTO
+      // PARSEO
       const parts = fullText.split("--- SEPARADOR_INSTRUCCIONES ---");
       const clinicalNote = parts[0] ? parts[0].trim() : "Error generando nota.";
       
@@ -69,28 +69,19 @@ export class GeminiMedicalService {
         
         if (jsonParts[1]) {
           try {
-            // Limpieza agresiva para asegurar que 'gemini-pro' no rompa el JSON
-            const cleanJson = jsonParts[1]
-              .replace(/```json/g, '')
-              .replace(/```/g, '')
-              .trim();
+            const cleanJson = jsonParts[1].replace(/```json/g, '').replace(/```/g, '').trim();
             actionItems = JSON.parse(cleanJson);
           } catch (e) {
-            console.warn("La IA generó un JSON inválido, se usarán valores por defecto.");
+            console.warn("JSON inválido de IA, usando defaults.");
           }
         }
       }
       
-      return {
-        clinicalNote,
-        patientInstructions,
-        actionItems
-      };
+      return { clinicalNote, patientInstructions, actionItems };
       
     } catch (error: any) {
       console.error("Error Gemini:", error);
-      // Mensaje de error transparente
-      throw new Error(`Fallo IA (${error.message || "Desconocido"}). Verifica tu API Key.`);
+      throw new Error(`Fallo IA: ${error.message}`);
     }
   }
 }
