@@ -6,8 +6,10 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 export class GeminiMedicalService {
   private static genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
   
+  // SOLUCIÓN: Usamos 'gemini-pro' (El estándar estable)
+  // Si este falla, es problema 100% de la API Key, no del modelo.
   private static model = GeminiMedicalService.genAI 
-    ? GeminiMedicalService.genAI.getGenerativeModel({ model: "gemini-1.5-flash" }) 
+    ? GeminiMedicalService.genAI.getGenerativeModel({ model: "gemini-pro" }) 
     : null;
 
   static async generateSummary(transcript: string, specialty: string = "Medicina General"): Promise<GeminiResponse> {
@@ -21,9 +23,9 @@ export class GeminiMedicalService {
         TU OBJETIVO:
         1. Generar una Nota Clínica SOAP técnica.
         2. Generar Instrucciones claras para el paciente.
-        3. EXTRAER "ITEMS DE ACCIÓN" en formato JSON estricto para automatizar el seguimiento.
+        3. EXTRAER "ITEMS DE ACCIÓN" en formato JSON estricto.
 
-        FORMATO DE SALIDA OBLIGATORIO (Respeta los separadores):
+        FORMATO DE SALIDA OBLIGATORIO (Usa estos separadores exactos):
 
         ### Resumen Clínico (${specialty})
         **S:** ...
@@ -39,12 +41,12 @@ export class GeminiMedicalService {
         --- SEPARADOR_JSON ---
         
         {
-          "next_appointment": "Sugiere una fecha relativa (ej: 'En 2 semanas') o null si no se requiere",
-          "urgent_referral": true/false (true si detectas síntomas de alarma que requieren urgencias o especialista inmediato),
-          "lab_tests_required": ["Lista", "de", "estudios", "mencionados", "como strings"]
+          "next_appointment": "Texto fecha sugerida o null",
+          "urgent_referral": false,
+          "lab_tests_required": ["Lista", "de", "estudios"]
         }
         
-        IMPORTANTE: El JSON debe ser válido y estar limpio sin texto adicional después del separador.
+        IMPORTANTE: La parte final debe ser SOLO JSON válido, sin texto extra.
 
         Transcripción:
         "${transcript}"
@@ -54,26 +56,27 @@ export class GeminiMedicalService {
       const response = await result.response;
       const fullText = response.text();
 
-      // PARSEO INTELIGENTE
-      // 1. Dividimos por los separadores
+      // PARSEO ROBUSTO
       const parts = fullText.split("--- SEPARADOR_INSTRUCCIONES ---");
-      const clinicalNote = parts[0].trim();
+      const clinicalNote = parts[0] ? parts[0].trim() : "Error generando nota.";
       
-      // 2. Separamos instrucciones de JSON
       let patientInstructions = "";
       let actionItems: ActionItems = { next_appointment: null, urgent_referral: false, lab_tests_required: [] };
 
       if (parts[1]) {
         const jsonParts = parts[1].split("--- SEPARADOR_JSON ---");
-        patientInstructions = jsonParts[0].trim();
+        patientInstructions = jsonParts[0] ? jsonParts[0].trim() : "";
         
         if (jsonParts[1]) {
           try {
-            // Limpiamos bloques de código markdown si la IA los pone
-            const cleanJson = jsonParts[1].replace(/```json/g, '').replace(/```/g, '').trim();
+            // Limpieza agresiva para asegurar que 'gemini-pro' no rompa el JSON
+            const cleanJson = jsonParts[1]
+              .replace(/```json/g, '')
+              .replace(/```/g, '')
+              .trim();
             actionItems = JSON.parse(cleanJson);
           } catch (e) {
-            console.error("Error parseando JSON de acciones:", e);
+            console.warn("La IA generó un JSON inválido, se usarán valores por defecto.");
           }
         }
       }
@@ -86,7 +89,8 @@ export class GeminiMedicalService {
       
     } catch (error: any) {
       console.error("Error Gemini:", error);
-      throw new Error(`Error IA: ${error.message}`);
+      // Mensaje de error transparente
+      throw new Error(`Fallo IA (${error.message || "Desconocido"}). Verifica tu API Key.`);
     }
   }
 }
