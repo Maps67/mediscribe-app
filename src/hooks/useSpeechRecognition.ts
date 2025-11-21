@@ -1,66 +1,93 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 
-export const useSpeechRecognition = () => {
+// Opciones del hook (con defaults inteligentes)
+type HookOptions = {
+  lang?: string;
+  continuous?: boolean;
+  interimResults?: boolean;
+};
+
+export const useSpeechRecognition = (options?: HookOptions) => {
+  const {
+    lang = 'es-MX',
+    continuous = true,
+    interimResults = true,
+  } = options || {};
+
+  // Estados compatibles con tu vista actual
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [interimTranscript, setInterimTranscript] = useState('');
-  
+  const [interimTranscript, setInterimTranscript] = useState(''); // Lo mantenemos aunque esté vacío a veces
+
+  // Referencias internas para la lógica anti-duplicados
   const recognitionRef = useRef<any>(null);
+  const finalsRef = useRef<Map<number, string>>(new Map());
+  const interimsRef = useRef<Map<number, string>>(new Map());
+  const lastCombinedRef = useRef<string>('');
   const isManuallyStopped = useRef(false);
 
-  useEffect(() => {
-    // Detección de API (Chrome/Safari/Edge)
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+  // Helper: Acceso seguro a la API
+  const getSpeechRecognition = useCallback(() => {
+    const win = window as any;
+    return win.SpeechRecognition || win.webkitSpeechRecognition || null;
+  }, []);
+
+  // Lógica de fusión inteligente (Evita el "hola hola hola")
+  const buildTranscript = () => {
+    const allIndexes = new Set<number>();
+    finalsRef.current.forEach((_, k) => allIndexes.add(k));
+    interimsRef.current.forEach((_, k) => allIndexes.add(k));
     
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      recognition.continuous = true;
-      recognition.interimResults = true;
-      recognition.lang = 'es-MX';
+    const sortedIndexes = Array.from(allIndexes).sort((a, b) => a - b);
+    
+    const finalParts: string[] = [];
+    const interimParts: string[] = [];
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        isManuallyStopped.current = false;
-      };
+    sortedIndexes.forEach(idx => {
+      const f = finalsRef.current.get(idx);
+      if (f) finalParts.push(f.trim());
+      
+      const i = interimsRef.current.get(idx);
+      if (i) interimParts.push(i.trim());
+    });
 
-      recognition.onresult = (event: any) => {
-        // SOLUCIÓN TEXTO DUPLICADO:
-        // En lugar de sumar (+=), reconstruimos la frase completa cada vez
-        // basándonos en lo que el navegador tiene en memoria en este momento.
-        
-        let finalTranscript = '';
-        let interimStr = '';
+    // Texto final consolidado
+    const fullFinal = finalParts.join(' ').trim();
+    // Texto temporal actual
+    const fullInterim = interimParts.join(' ').trim();
 
-        for (let i = 0; i < event.results.length; i++) {
-          const result = event.results[i];
-          if (result.isFinal) {
-            finalTranscript += result[0].transcript;
-          } else {
-            interimStr += result[0].transcript;
-          }
-        }
+    return { fullFinal, fullInterim };
+  };
 
-        // Actualizamos el estado con la versión limpia
-        // Nota: En Android 'continuous' a veces limpia el buffer, 
-        // si notas que borra texto anterior, avísame para activar el modo "Append Seguro".
-        // Por ahora, este modo "Full Rebuild" elimina los duplicados del video.
-        setTranscript(finalTranscript);
-        setInterimTranscript(interimStr);
-      };
+  const startListening = useCallback(() => {
+    const SR = getSpeechRecognition();
+    if (!SR) {
+      alert("Navegador no compatible con voz.");
+      return;
+    }
 
-      recognition.onerror = (event: any) => {
-        // Ignoramos error 'no-speech' que es común en silencios
-        if (event.error !== 'no-speech') {
-            console.error("Error voz:", event.error);
-        }
-      };
+    // Limpiar estado anterior
+    finalsRef.current.clear();
+    interimsRef.current.clear();
+    setTranscript('');
+    setInterimTranscript('');
+    isManuallyStopped.current = false;
 
+    try {
+      const recognition = new SR();
+      recognition.lang = lang;
+      recognition.continuous = continuous;
+      recognition.interimResults = interimResults;
+      recognition.maxAlternatives = 1;
+
+      recognition.onstart = () => setIsListening(true);
+      
       recognition.onend = () => {
-        if (isListening && !isManuallyStopped.current) {
+        // Auto-reinicio para móviles (si no se paró manual)
+        if (!isManuallyStopped.current) {
             try {
-                recognition.start(); // Reinicio automático
-            } catch (e) {
-                // Si falla el reinicio, paramos
+                recognition.start();
+            } catch(e) {
                 setIsListening(false);
             }
         } else {
@@ -68,31 +95,62 @@ export const useSpeechRecognition = () => {
         }
       };
 
-      recognitionRef.current = recognition;
-    }
-  }, [isListening]); // Agregamos dependencia para reinicio
+      recognition.onerror = (event: any) => {
+        console.log("Error voz:", event.error);
+      };
 
-  const startListening = useCallback(() => {
-    if (recognitionRef.current) {
-        // Limpiamos al iniciar una nueva sesión manual
-        setTranscript(''); 
-        setInterimTranscript('');
-        try {
-            recognitionRef.current.start();
-        } catch(e) {
-            console.log("Micrófono ya activo");
+      recognition.onresult = (event: any) => {
+        // Algoritmo Anti-Bucle Android
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+            const res = event.results[i];
+            const txt = res[0].transcript;
+            
+            if (res.isFinal) {
+                finalsRef.current.set(i, txt);
+                interimsRef.current.delete(i); // Ya es final, borramos interim
+            } else {
+                interimsRef.current.set(i, txt);
+            }
         }
-    } else {
-        alert("Navegador no compatible.");
+
+        const { fullFinal, fullInterim } = buildTranscript();
+        
+        // Solo actualizamos si cambió algo para evitar re-renders infinitos
+        if (fullFinal !== lastCombinedRef.current) {
+            setTranscript(fullFinal);
+            lastCombinedRef.current = fullFinal;
+        }
+        setInterimTranscript(fullInterim);
+      };
+
+      recognitionRef.current = recognition;
+      recognition.start();
+
+    } catch (e) {
+      console.error("Error iniciando:", e);
     }
-  }, []);
+  }, [getSpeechRecognition, lang, continuous, interimResults]);
 
   const stopListening = useCallback(() => {
+    isManuallyStopped.current = true;
     if (recognitionRef.current) {
-        isManuallyStopped.current = true;
+      try {
         recognitionRef.current.stop();
+      } catch (e) {
+        // ignorar si ya estaba parado
+      }
     }
+    setIsListening(false);
   }, []);
 
-  return { isListening, transcript, interimTranscript, startListening, stopListening };
+  // Retornamos la interfaz exacta que tu componente ya usa
+  return {
+    isListening,
+    transcript,
+    interimTranscript,
+    startListening,
+    stopListening
+  };
 };
+
+export default useSpeechRecognition;
