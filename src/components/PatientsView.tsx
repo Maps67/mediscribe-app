@@ -3,7 +3,7 @@ import { Search, Plus, Phone, Calendar, User, X, Save, FileText, ChevronLeft, Cl
 import { supabase } from '../lib/supabase';
 import { Patient, Consultation } from '../types';
 import FormattedText from './FormattedText';
-import { pdf } from '@react-pdf/renderer'; // Usamos pdf() imperativo, NO el componente DownloadLink
+import { pdf } from '@react-pdf/renderer'; 
 import PrescriptionPDF from './PrescriptionPDF';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
@@ -138,10 +138,9 @@ const PatientsView: React.FC = () => {
   // --- GENERACIÓN DE PDF BAJO DEMANDA ---
   const handleDownloadPDF = async (consultation: Consultation) => {
     if (!selectedPatient) return;
-    setGeneratingPdfId(consultation.id); // Activar loading en ese botón específico
+    setGeneratingPdfId(consultation.id); 
 
     try {
-      // Generamos el Blob
       const blob = await pdf(
         <PrescriptionPDF 
             doctorName={doctorProfile.full_name}
@@ -158,7 +157,6 @@ const PatientsView: React.FC = () => {
         />
       ).toBlob();
 
-      // Creamos un link invisible y le damos click para descargar
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
@@ -172,7 +170,7 @@ const PatientsView: React.FC = () => {
       console.error("Error generando PDF", error);
       alert("Error al generar el PDF. Intente de nuevo.");
     } finally {
-      setGeneratingPdfId(null); // Apagar loading
+      setGeneratingPdfId(null);
     }
   };
 
@@ -254,12 +252,10 @@ const PatientsView: React.FC = () => {
                             <a href={`https://wa.me/${selectedPatient.phone}?text=${encodeURIComponent(consultation.summary || '')}`} target="_blank" rel="noreferrer" className="px-4 py-2 bg-green-100 text-green-700 text-xs font-bold rounded-lg flex items-center gap-2"><Send size={16} /> WhatsApp</a>
                         )}
                         
-                        {/* BOTÓN COMPARTIR */}
                         <button onClick={() => handleSharePDF(consultation)} disabled={generatingPdfId === consultation.id} className="bg-brand-teal text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-teal-600 transition-colors shadow-sm">
                             {generatingPdfId === consultation.id ? <RefreshCw size={16} className="animate-spin"/> : <Share2 size={16}/>} Compartir
                         </button>
 
-                        {/* BOTÓN IMPRIMIR (SOLUCIÓN CRASH) */}
                         <button 
                             onClick={() => handleDownloadPDF(consultation)} 
                             disabled={generatingPdfId === consultation.id}
@@ -273,7 +269,7 @@ const PatientsView: React.FC = () => {
             ))}
         </div>
 
-        {/* MODAL RECETA (Sin cambios) */}
+        {/* MODAL RECETA */}
         {isRxModalOpen && (
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
