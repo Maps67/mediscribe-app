@@ -1,8 +1,8 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, RefreshCw, Send, FileText, ShieldCheck, Lock, AlertCircle, Sparkles, Stethoscope, ChevronDown, User, Search, Bot } from 'lucide-react';
+import { Mic, Square, RefreshCw, Send, FileText, ShieldCheck, Lock, AlertCircle, Sparkles, Stethoscope, ChevronDown, User, Search, Bot, Calendar, AlertTriangle, Beaker } from 'lucide-react';
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { MedicalDataService } from '../services/MedicalDataService';
-import { MedicalRecord, Patient } from '../types';
+import { MedicalRecord, Patient, ActionItems } from '../types';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 // --- Helpers (Seguridad) ---
@@ -15,13 +15,11 @@ async function encryptMessage(text: string, key: CryptoKey): Promise<string> {
   const iv = window.crypto.getRandomValues(new Uint8Array(12));
   const encryptedBuffer = await window.crypto.subtle.encrypt({ name: "AES-GCM", iv: iv }, key, data);
   
-  // Convertir a base64 manualmente para evitar errores de TS
   let binary = '';
   const bytes = new Uint8Array(encryptedBuffer);
   for (let i = 0; i < bytes.byteLength; i++) binary += String.fromCharCode(bytes[i]);
   const encryptedBase64 = window.btoa(binary);
   
-  // IV tambien a base64
   let ivBinary = '';
   const ivBytes = new Uint8Array(iv);
   for (let i = 0; i < ivBytes.byteLength; i++) ivBinary += String.fromCharCode(ivBytes[i]);
@@ -30,12 +28,8 @@ async function encryptMessage(text: string, key: CryptoKey): Promise<string> {
   return `${ivBase64}:${encryptedBase64}`;
 }
 
-// Componente para desencriptar visualmente
 const EncryptedMessage: React.FC<{ text: string }> = ({ text }) => {
-    // Por simplicidad en este demo, mostramos el texto directo si no está encriptado o un placeholder.
-    // En producción real aquí iría la lógica de decryptMessage.
-    // Para efectos de que la UI no parpadee, mostraremos el texto.
-    return <span>{text.includes(':') ? "Mensaje seguro..." : text}</span>; 
+    return <span>{text}</span>; 
 };
 
 const SPECIALTIES = ["Medicina General", "Cardiología", "Pediatría", "Psicología/Psiquiatría", "Ginecología", "Dermatología", "Nutrición"];
@@ -56,9 +50,10 @@ const ConsultationView: React.FC = () => {
   const [generatedRecord, setGeneratedRecord] = useState<MedicalRecord | null>(null);
   const [isLoadingRecord, setIsLoadingRecord] = useState(false);
   
-  // Textos Editables
+  // Textos Editables y Acciones
   const [editableSummary, setEditableSummary] = useState(''); 
   const [patientInstructions, setPatientInstructions] = useState('');
+  const [actionItems, setActionItems] = useState<ActionItems | null>(null); // ESTADO NUEVO
   
   // UI States
   const [activeTab, setActiveTab] = useState<'record' | 'instructions' | 'chat'>('record');
@@ -71,8 +66,6 @@ const ConsultationView: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { generateSessionKey().then(setSessionKey); }, []);
-  
-  // Auto-scrolls
   useEffect(() => { transcriptEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [transcript, interimTranscript]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, activeTab]);
 
@@ -112,11 +105,11 @@ const ConsultationView: React.FC = () => {
     if (!transcript) return;
     
     setIsLoadingRecord(true);
-    setActiveTab('record'); // Forzar vista a expediente al generar
+    setActiveTab('record');
     
     try {
-      // 1. IA Genera
-      const { clinicalNote, patientInstructions } = await GeminiMedicalService.generateSummary(transcript, specialty);
+      // 1. IA Genera (Desestructuramos los 3 valores)
+      const { clinicalNote, patientInstructions, actionItems } = await GeminiMedicalService.generateSummary(transcript, specialty);
       
       // 2. Guardar BD
       const patientId = selectedPatient ? selectedPatient.id : '00000000-0000-0000-0000-000000000000';
@@ -138,6 +131,7 @@ const ConsultationView: React.FC = () => {
       
       setEditableSummary(clinicalNote);
       setPatientInstructions(patientInstructions);
+      setActionItems(actionItems); // Guardamos los items de acción
 
     } catch (e) {
       alert("Error: " + (e instanceof Error ? e.message : "Error desconocido"));
@@ -160,22 +154,12 @@ const ConsultationView: React.FC = () => {
     const q = chatInput;
     setChatInput('');
     
-    // Mostrar mensaje usuario inmediatamente (sin encriptar para la UI, encriptado en lógica real)
     setChatMessages(p => [...p, { role: 'user', text: q }]);
     setIsChatLoading(true);
 
     try {
-        // Usamos el servicio existente para responder preguntas
-       const ans = await GeminiMedicalService.generateSummary(`Contexto Médico: ${transcript}. \n\nPregunta del Doctor: ${q}\n\nResponde breve y conciso.`, specialty);
-       
-       // Como generateSummary devuelve un objeto JSON-like en nuestra nueva implementación,
-       // es mejor usar un método directo o parsear.
-       // Para este fix rápido, tomamos el 'clinicalNote' que es el texto principal.
-       // NOTA: Lo ideal seria tener un método .chat() en el servicio, pero usaremos este hack seguro:
-       
-       // Si el servicio devuelve objeto, tomamos la parte de texto. Si devuelve string (error), lo mostramos.
-       let answerText = typeof ans === 'object' ? (ans as any).clinicalNote : ans;
-       
+       const response = await GeminiMedicalService.generateSummary(`Contexto Médico: ${transcript}. \n\nPregunta del Doctor: ${q}\n\nResponde breve y conciso.`, specialty);
+       const answerText = response.clinicalNote; // Usamos la parte de texto para el chat
        setChatMessages(p => [...p, { role: 'ai', text: answerText }]);
     } catch (e) {
        setChatMessages(p => [...p, { role: 'ai', text: "Error conectando con el asistente." }]);
@@ -235,7 +219,7 @@ const ConsultationView: React.FC = () => {
         </div>
       </div>
 
-      {/* Area Principal (Grid) - Flex Grow para ocupar alto */}
+      {/* Area Principal */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 flex-1 min-h-0">
         
         {/* COLUMNA IZQUIERDA: GRABACIÓN */}
@@ -267,18 +251,45 @@ const ConsultationView: React.FC = () => {
           </div>
         </div>
 
-        {/* COLUMNA DERECHA: RESULTADOS (FIXED LAYOUT) */}
+        {/* COLUMNA DERECHA: RESULTADOS */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden h-full relative">
-          {/* Tabs Header */}
           <div className="flex border-b bg-slate-50 shrink-0">
             <button onClick={() => setActiveTab('record')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'record' ? 'bg-white text-brand-teal border-t-2 border-brand-teal' : 'text-slate-400 hover:text-slate-600'}`}>Expediente</button>
             <button onClick={() => setActiveTab('instructions')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'instructions' ? 'bg-white text-brand-teal border-t-2 border-brand-teal' : 'text-slate-400 hover:text-slate-600'}`}>Paciente</button>
             <button onClick={() => setActiveTab('chat')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors ${activeTab === 'chat' ? 'bg-white text-brand-teal border-t-2 border-brand-teal' : 'text-slate-400 hover:text-slate-600'}`}>Chat IA</button>
           </div>
           
-          {/* Content Area (Con posicionamiento absoluto para evitar colapso) */}
+          {/* ACTION BOARD (Tablero de Acciones Automáticas) */}
+          {generatedRecord && actionItems && (
+            <div className="p-2 bg-slate-50 border-b border-slate-200 flex gap-2 overflow-x-auto shrink-0 scrollbar-hide">
+                {actionItems.next_appointment && (
+                <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0">
+                    <Calendar size={14} />
+                    <div>
+                        <p className="uppercase text-[8px] opacity-70">Cita</p>
+                        <p className="font-bold">{actionItems.next_appointment}</p>
+                    </div>
+                </div>
+                )}
+                {actionItems.urgent_referral && (
+                <div className="flex items-center gap-2 bg-red-50 border border-red-100 text-red-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0 animate-pulse">
+                    <AlertTriangle size={14} />
+                    <span className="font-bold">URGENCIA DETECTADA</span>
+                </div>
+                )}
+                {actionItems.lab_tests_required.length > 0 && (
+                <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0">
+                    <Beaker size={14} />
+                    <div>
+                        <p className="uppercase text-[8px] opacity-70">Estudios</p>
+                        <p className="truncate max-w-[120px] font-bold">{actionItems.lab_tests_required.join(', ')}</p>
+                    </div>
+                </div>
+                )}
+            </div>
+          )}
+
           <div className="flex-1 relative bg-white">
-             
              {/* TAB 1: EXPEDIENTE */}
              {activeTab === 'record' && (
                 <div className="absolute inset-0 flex flex-col">
@@ -302,7 +313,7 @@ const ConsultationView: React.FC = () => {
                 </div>
              )}
 
-             {/* TAB 2: INSTRUCCIONES PACIENTE */}
+             {/* TAB 2: INSTRUCCIONES */}
              {activeTab === 'instructions' && (
                <div className="absolute inset-0 flex flex-col">
                    {generatedRecord ? (
@@ -332,16 +343,10 @@ const ConsultationView: React.FC = () => {
                </div>
              )}
 
-             {/* TAB 3: CHAT (FIXED) */}
+             {/* TAB 3: CHAT */}
              {activeTab === 'chat' && (
                <div className="absolute inset-0 flex flex-col bg-slate-50">
                   <div className="flex-1 p-4 overflow-y-auto space-y-3">
-                    {chatMessages.length === 0 && (
-                        <div className="text-center mt-10 text-slate-400 text-xs">
-                            <Bot size={32} className="mx-auto mb-2 opacity-20"/>
-                            <p>Haz preguntas sobre la consulta actual.</p>
-                        </div>
-                    )}
                     {chatMessages.map((m, i) => (
                       <div key={i} className={`flex ${m.role === 'user' ? 'justify-end' : 'justify-start'}`}>
                         <div className={`p-3 rounded-lg text-sm max-w-[85%] shadow-sm ${m.role === 'user' ? 'bg-brand-teal text-white rounded-br-none' : 'bg-white text-slate-700 rounded-bl-none'}`}>
@@ -349,13 +354,6 @@ const ConsultationView: React.FC = () => {
                         </div>
                       </div>
                     ))}
-                    {isChatLoading && (
-                        <div className="flex justify-start">
-                            <div className="bg-white px-3 py-2 rounded-lg rounded-bl-none shadow-sm">
-                                <div className="flex gap-1"><span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce"/><span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-100"/><span className="w-1.5 h-1.5 bg-slate-400 rounded-full animate-bounce delay-200"/></div>
-                            </div>
-                        </div>
-                    )}
                     <div ref={chatEndRef} />
                   </div>
                   <div className="p-3 bg-white border-t border-slate-200 shrink-0">
@@ -363,7 +361,7 @@ const ConsultationView: React.FC = () => {
                         <input 
                             value={chatInput} 
                             onChange={e => setChatInput(e.target.value)} 
-                            placeholder="Preguntar a la IA..." 
+                            placeholder="Preguntar..." 
                             className="flex-1 p-2 border border-slate-200 rounded-lg text-sm focus:ring-2 focus:ring-brand-teal outline-none"
                         />
                         <button type="submit" disabled={!chatInput.trim()} className="bg-slate-900 text-white p-2.5 rounded-lg hover:bg-slate-800 disabled:opacity-50 transition-colors">

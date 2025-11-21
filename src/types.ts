@@ -1,48 +1,46 @@
-
-export enum ViewState {
-  DASHBOARD = 'DASHBOARD',
-  CONSULTATION = 'CONSULTATION',
-  PATIENTS = 'PATIENTS',
-  DIGITAL_CARD = 'DIGITAL_CARD',
-  SETTINGS = 'SETTINGS'
-}
-
 export interface Patient {
   id: string;
+  created_at: string;
+  doctor_id: string;
   name: string;
-  phone: string;
-  lastVisit: string;
-  condition: string;
-  avatarUrl: string;
+  phone?: string | null;
+  condition?: string | null;
+  avatar_url?: string | null;
 }
 
-export interface MedicalRecord {
-  subjective: string; // Patient complaints
-  objective: string;  // Vital signs, physical exam
-  assessment: string; // Diagnosis
-  plan: string;       // Treatment plan
-}
-
-export interface Prescription {
-  medications: Array<{
-    name: string;
-    dosage: string;
-    frequency: string;
-    duration: string;
-  }>;
-  notes: string;
-}
-
-export interface LiveSessionConfig {
-  isRecording: boolean;
+export interface Consultation {
+  id: string;
+  created_at: string;
+  doctor_id: string;
+  patient_id: string;
   transcript: string;
-  status: 'idle' | 'connecting' | 'connected' | 'processing' | 'error';
+  summary: string | null;
+  status: 'completed' | 'pending' | 'in_progress';
 }
 
-// Structure for database operations compliant with RLS
-export interface DatabaseRecord {
-  patientId: string;
-  soapData: MedicalRecord;
-  summary: string;
-  encryptedKeyRef?: string; // ID for the key management system
+export interface MedicalRecord extends Consultation {
+  subjective?: string;
+  objective?: string;
+  assessment?: string;
+  plan?: string;
+}
+
+export enum ViewState {
+  DASHBOARD,
+  CONSULTATION,
+  PATIENTS,
+  DIGITAL_CARD
+}
+
+// NUEVO: Estructura para los Items de Acción
+export interface ActionItems {
+  next_appointment: string | null;
+  urgent_referral: boolean;
+  lab_tests_required: string[];
+}
+
+export interface GeminiResponse {
+  clinicalNote: string;
+  patientInstructions: string;
+  actionItems: ActionItems;
 }
