@@ -1,8 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History } from 'lucide-react';
+import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Edit2, Eye } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
+import FormattedText from './FormattedText'; // Importamos el renderizador bonito
 
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { MedicalDataService } from '../services/MedicalDataService';
@@ -25,8 +26,6 @@ const ConsultationView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
-  
-  // ESTADO DE CONTEXTO: Aquí vive la "memoria" del paciente
   const [patientContext, setPatientContext] = useState<string>(''); 
 
   const [generatedRecord, setGeneratedRecord] = useState<MedicalRecord | null>(null);
@@ -38,6 +37,9 @@ const ConsultationView: React.FC = () => {
   const [actionItems, setActionItems] = useState<ActionItems | null>(null);
   
   const [activeTab, setActiveTab] = useState<'record' | 'instructions' | 'chat'>('record');
+  // ESTADO NUEVO: Controla si estamos editando o leyendo
+  const [isEditingNote, setIsEditingNote] = useState(false);
+
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'ai', text: string}>>([]);
   const [isChatLoading, setIsChatLoading] = useState(false);
@@ -82,7 +84,6 @@ const ConsultationView: React.FC = () => {
     setSearchTerm(patient.name);
     setSearchResults([]);
     
-    // Cargar última consulta para contexto
     const { data } = await supabase
         .from('consultations')
         .select('summary')
@@ -115,7 +116,6 @@ const ConsultationView: React.FC = () => {
     setIsLoadingRecord(true);
     
     try {
-      // CAMBIO CLAVE: Enviamos 'patientContext' como tercer argumento
       const { clinicalNote, patientInstructions, actionItems } = await GeminiMedicalService.generateSummary(transcript, specialty, patientContext);
       
       const patientId = selectedPatient ? selectedPatient.id : '00000000-0000-0000-0000-000000000000';
@@ -130,7 +130,13 @@ const ConsultationView: React.FC = () => {
       setEditableSummary(clinicalNote);
       setPatientInstructions(patientInstructions);
       setActionItems(actionItems);
-      setActiveTab('instructions'); 
+      
+      // Al generar, mostramos primero el modo lectura bonito
+      setIsEditingNote(false); 
+      
+      // Nota: Dependiendo de tu flujo, puedes dejarlo en 'record' o moverlo a 'instructions'
+      // Si quieres que el medico revise la nota primero, dejalo en 'record'
+      setActiveTab('record'); 
 
     } catch (e) {
       alert("Error: " + (e instanceof Error ? e.message : "Error desconocido"));
@@ -304,23 +310,51 @@ const ConsultationView: React.FC = () => {
           )}
 
           <div className="flex-1 relative bg-white overflow-hidden">
+             
+             {/* TAB 1: EXPEDIENTE (MODO LECTURA vs EDICIÓN) */}
              {activeTab === 'record' && (
-               <div className="absolute inset-0 flex flex-col">
-                  {generatedRecord ? (
-                    <textarea className="flex-1 p-4 text-sm text-slate-700 outline-none resize-none font-mono leading-relaxed" value={editableSummary} onChange={(e) => setEditableSummary(e.target.value)} />
-                  ) : (
-                    <div className="flex-1 flex flex-col items-center justify-center text-slate-400"><FileText size={32} className="mb-2 opacity-20"/><p className="text-sm">Sin nota generada.</p></div>
-                  )}
-               </div>
+                <div className="absolute inset-0 flex flex-col">
+                   {generatedRecord ? (
+                       <>
+                          {/* BARRA DE HERRAMIENTAS (Editar / Guardar) */}
+                          <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
+                             <span className="text-[10px] uppercase font-bold text-slate-400 ml-2">Nota Clínica SOAP</span>
+                             <button 
+                               onClick={() => setIsEditingNote(!isEditingNote)}
+                               className={`flex items-center gap-2 px-3 py-1 rounded text-xs font-bold transition-colors ${isEditingNote ? 'bg-brand-teal text-white' : 'text-slate-500 hover:bg-slate-200'}`}
+                             >
+                               {isEditingNote ? <><Eye size={14}/> Ver Vista Previa</> : <><Edit2 size={14}/> Editar Texto</>}
+                             </button>
+                          </div>
+
+                          {/* CONTENIDO (Toggle entre Textarea y FormattedText) */}
+                          <div className="flex-1 overflow-y-auto p-4">
+                             {isEditingNote ? (
+                                <textarea 
+                                    className="w-full h-full text-sm text-slate-700 outline-none resize-none font-mono leading-relaxed bg-transparent" 
+                                    value={editableSummary} 
+                                    onChange={(e) => setEditableSummary(e.target.value)} 
+                                />
+                             ) : (
+                                <FormattedText content={editableSummary} />
+                             )}
+                          </div>
+                       </>
+                   ) : (
+                     <div className="flex-1 flex flex-col items-center justify-center text-slate-400"><FileText size={32} className="mb-2 opacity-20"/><p className="text-sm">Sin nota generada.</p></div>
+                   )}
+                </div>
              )}
 
+             {/* TAB 2: INSTRUCCIONES (Mismo patrón si quisieras, por ahora editable por defecto) */}
              {activeTab === 'instructions' && (
                <div className="absolute inset-0 flex flex-col">
                    {generatedRecord ? (
                        <>
-                          <div className="flex-1 p-4 bg-green-50/30">
+                          <div className="flex-1 p-4 bg-green-50/30 overflow-y-auto">
                             <textarea className="w-full h-full bg-transparent outline-none resize-none text-sm text-slate-700 font-medium" value={patientInstructions} onChange={(e) => setPatientInstructions(e.target.value)} />
                           </div>
+                          
                           <div className="p-3 border-t border-slate-100 flex flex-wrap justify-end items-center gap-2 bg-white shrink-0">
                             <button onClick={handleSharePDF} disabled={isSharing} className="bg-brand-teal text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-teal-600 transition-colors shadow-sm flex-1 justify-center md:flex-none">
                                 {isSharing ? <RefreshCw size={14} className="animate-spin"/> : <Share2 size={14}/>} <span>Compartir</span>
