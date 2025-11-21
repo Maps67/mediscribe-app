@@ -9,31 +9,49 @@ export class GeminiMedicalService {
     : null;
 
   /**
-   * Genera un resumen médico estructurado basado en una transcripción.
+   * Genera un resumen médico estructurado e intenta identificar hablantes por contexto.
    */
   static async generateSummary(transcript: string): Promise<string> {
-    // Verificación de seguridad y estado
+    // 1. Diagnóstico de Error de Configuración
+    if (!API_KEY) {
+      console.error("CRÍTICO: No se encontró la VITE_GEMINI_API_KEY.");
+      throw new Error("Falta la API Key de Gemini. Verifica las variables de entorno en Netlify.");
+    }
+
     if (!this.model) {
-      console.error("Gemini API Key no encontrada o servicio no inicializado.");
-      return "Error: Servicio de IA no configurado. Verifique su archivo .env.local y la variable VITE_GEMINI_API_KEY.";
+      throw new Error("El servicio de IA no pudo inicializarse.");
     }
 
     if (!transcript || transcript.trim().length < 5) {
-        return "La transcripción es demasiado corta para generar un resumen.";
+        return "La transcripción es demasiado corta para generar un análisis confiable.";
     }
 
     try {
+      // 2. Prompt Avanzado para Separación de Roles (Diarización Contextual)
       const prompt = `
-        Actúa como un asistente médico experto (Dr. AI).
-        Tu tarea es analizar la siguiente transcripción de una consulta médica y generar un Resumen Clínico Profesional.
+        Actúa como un Asistente Médico Senior experto en documentación clínica.
         
-        Instrucciones de Formato (Usa Markdown):
-        **1. Motivo de Consulta:** Resumen en una frase.
-        **2. Sintomatología:** Lista de síntomas detectados.
-        **3. Hallazgos/Observaciones:** Datos relevantes mencionados por el paciente.
-        **4. Recomendaciones/Plan:** Pasos a seguir sugeridos en la conversación (si existen).
+        Tu tarea es analizar la siguiente transcripción cruda de una consulta médica. 
+        Dado que la grabación no distingue voces, tú debes inferir quién habla basándote en el contexto (quién hace preguntas médicas vs quién describe síntomas).
 
-        Transcripción del audio:
+        Instrucciones de Salida (Formato Markdown estricto):
+        
+        --- INICIO REPORTE ---
+        
+        ### 🗣️ Análisis de Diálogo
+        (Reconstruye brevemente el intercambio clave identificando roles)
+        * **Dr:** [Resumen de preguntas clave/intervenciones]
+        * **Paciente:** [Resumen de respuestas/quejas]
+
+        ### 📋 Resumen Clínico (SOAP)
+        * **S (Subjetivo):** Motivo de consulta y síntomas descritos por el paciente.
+        * **O (Objetivo):** Signos o datos observables inferidos (si los hay).
+        * **A (Análisis):** Posible diagnóstico o impresión clínica basándote en la charla.
+        * **P (Plan):** Medicamentos, estudios o recomendaciones mencionadas por el Doctor.
+
+        --- FIN REPORTE ---
+
+        Transcripción a procesar:
         "${transcript}"
       `;
 
@@ -42,9 +60,18 @@ export class GeminiMedicalService {
       const text = response.text();
       
       return text;
-    } catch (error) {
-      console.error("Error generando resumen con Gemini:", error);
-      return "Hubo un error al procesar la solicitud con la IA. Por favor intente nuevamente.";
+    } catch (error: any) {
+      console.error("Error detallado de Gemini:", error);
+      
+      // Manejo de errores específicos
+      if (error.message?.includes('API key')) {
+        throw new Error("La API Key de Google es inválida o expiró.");
+      }
+      if (error.message?.includes('quota')) {
+        throw new Error("Se ha excedido la cuota gratuita de la IA por hoy.");
+      }
+      
+      throw new Error("Error conectando con la Inteligencia Artificial.");
     }
   }
 }
