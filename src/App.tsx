@@ -5,46 +5,47 @@ import Sidebar from './components/Sidebar';
 import ConsultationView from './components/ConsultationView';
 import DigitalCard from './components/DigitalCard';
 import PatientsView from './components/PatientsView';
+import SettingsView from './components/SettingsView'; // IMPORT NUEVO
 import AuthView from './components/AuthView';
 import Dashboard from './routes/Dashboard';
 import { Activity, Menu } from 'lucide-react';
+import { ViewState } from './types';
 
-// Layout Principal con Lógica de Menú Móvil
 const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false); // Estado del menú móvil
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const navigate = useNavigate();
+  const location = useLocation();
+
+  const getCurrentView = (): ViewState => {
+    switch (location.pathname) {
+      case '/consultation': return ViewState.CONSULTATION;
+      case '/patients': return ViewState.PATIENTS;
+      case '/card': return ViewState.DIGITAL_CARD;
+      // NO NECESITAMOS AGREGAR SETTINGS A VIEWSTATE, SOLO AL SIDEBAR
+      default: return ViewState.DASHBOARD;
+    }
+  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-900">
-      
-      {/* Sidebar recibe el estado y la función para cerrarse */}
-      <Sidebar 
-        isOpen={isSidebarOpen} 
-        onClose={() => setIsSidebarOpen(false)} 
-      />
-      
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col min-h-screen">
-        {/* Mobile Header */}
         <div className="md:hidden bg-slate-900 text-white p-4 flex items-center justify-between sticky top-0 z-40 shadow-md">
            <span className="font-bold flex items-center gap-2">
              <Activity className="text-brand-teal" size={20} />
              MediScribe AI
            </span>
-           
-           {/* Botón de Hamburguesa real */}
-           <button 
-             onClick={() => setIsSidebarOpen(true)} 
-             className="text-white p-2 hover:bg-slate-800 rounded-lg transition-colors"
-           >
+           <button onClick={() => setIsSidebarOpen(true)} className="text-white p-2 hover:bg-slate-800 rounded-lg transition-colors">
              <Menu size={24} />
            </button>
         </div>
-        
         <div className="flex-1">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/consultation" element={<ConsultationView />} />
             <Route path="/patients" element={<PatientsView />} />
             <Route path="/card" element={<DigitalCard />} />
+            <Route path="/settings" element={<SettingsView />} /> {/* RUTA NUEVA */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
@@ -62,25 +63,15 @@ const App: React.FC = () => {
       setSession(session);
       setLoading(false);
     });
-
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setLoading(false);
     });
-
     return () => subscription.unsubscribe();
   }, []);
 
-  const handleLogout = async () => {
-    await supabase.auth.signOut();
-  };
-
   if (loading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400">
-         <Activity className="animate-spin mr-2" /> Cargando sistema...
-      </div>
-    );
+    return <div className="min-h-screen flex items-center justify-center bg-slate-50 text-slate-400"><Activity className="animate-spin mr-2" /> Cargando sistema...</div>;
   }
 
   if (!session) {
@@ -89,7 +80,7 @@ const App: React.FC = () => {
 
   return (
     <BrowserRouter>
-      <MainLayout session={session} onLogout={handleLogout} />
+      <MainLayout session={session} onLogout={async () => await supabase.auth.signOut()} />
     </BrowserRouter>
   );
 };
