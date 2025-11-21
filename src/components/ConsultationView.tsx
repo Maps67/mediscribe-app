@@ -1,15 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
 import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { PDFDownloadLink, pdf } from '@react-pdf/renderer'; 
-import PrescriptionPDF from './PrescriptionPDF'; 
+import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
+import PrescriptionPDF from './PrescriptionPDF';
 
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { MedicalDataService } from '../services/MedicalDataService';
 import { MedicalRecord, Patient, ActionItems } from '../types';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
-// --- Helpers ---
 async function generateSessionKey(): Promise<CryptoKey> {
   return window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
 }
@@ -17,30 +16,25 @@ async function generateSessionKey(): Promise<CryptoKey> {
 const SPECIALTIES = ["Medicina General", "Cardiología", "Pediatría", "Psicología/Psiquiatría", "Ginecología", "Dermatología", "Nutrición"];
 
 const ConsultationView: React.FC = () => {
-  // Hook de reconocimiento de voz
   const { isListening, transcript, interimTranscript, startListening, stopListening } = useSpeechRecognition();
   
   const [hasConsent, setHasConsent] = useState(false);
   const [specialty, setSpecialty] = useState("Medicina General");
   const [doctorProfile, setDoctorProfile] = useState({ full_name: 'Doctor', specialty: 'Medicina', license_number: '', phone: '', university: '', address: '', logo_url: '', signature_url: '' });
 
-  // CRM State
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [isSearching, setIsSearching] = useState(false);
 
-  // Resultados IA
   const [generatedRecord, setGeneratedRecord] = useState<MedicalRecord | null>(null);
   const [isLoadingRecord, setIsLoadingRecord] = useState(false);
   const [isSharing, setIsSharing] = useState(false);
   
-  // Textos Editables
   const [editableSummary, setEditableSummary] = useState(''); 
   const [patientInstructions, setPatientInstructions] = useState('');
   const [actionItems, setActionItems] = useState<ActionItems | null>(null);
   
-  // UI States
   const [activeTab, setActiveTab] = useState<'record' | 'instructions' | 'chat'>('record');
   const [chatInput, setChatInput] = useState('');
   const [chatMessages, setChatMessages] = useState<Array<{role: 'user' | 'ai', text: string}>>([]);
@@ -188,7 +182,7 @@ const ConsultationView: React.FC = () => {
   };
 
   return (
-    <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4 lg:space-y-6 flex flex-col min-h-screen lg:h-[calc(100vh-2rem)]">
+    <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4 flex flex-col min-h-screen lg:h-[calc(100vh-2rem)]">
       
       {/* Header */}
       <div className="flex flex-col gap-4 shrink-0">
@@ -225,20 +219,37 @@ const ConsultationView: React.FC = () => {
         </div>
       </div>
 
-      {/* Main Layout: En móvil (flex-col) se apila, en PC (lg:grid) se divide */}
+      {/* Contenido */}
       <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1">
         
-        {/* COLUMNA 1: Grabación */}
-        <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden min-h-[300px] lg:h-full order-1">
+        {/* COLUMNA 1: Grabación (FIXED HEIGHT EN MÓVIL) */}
+        {/* AQUI ESTA LA SOLUCIÓN: h-[450px] fuerza la altura fija en celular */}
+        <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden h-[450px] lg:h-full order-1">
           <div className="p-3 bg-orange-50 border-b border-orange-100 flex items-center gap-2 shrink-0">
              <input type="checkbox" checked={hasConsent} onChange={(e) => setHasConsent(e.target.checked)} disabled={isListening} className="rounded text-brand-teal cursor-pointer w-5 h-5" />
              <span className="text-xs font-medium text-orange-800">Confirmo consentimiento.</span>
           </div>
-          <div className="flex-1 p-4 bg-slate-50 overflow-y-auto font-mono text-sm leading-relaxed h-48 lg:h-auto">
-             {transcript ? <><span className="text-slate-800 whitespace-pre-wrap">{transcript}</span><span className="text-slate-400 italic ml-1">{interimTranscript}</span></> : isListening ? <p className="text-slate-400 italic animate-pulse">Escuchando...</p> : <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60"><Mic size={40} className="mb-2"/><p className="text-center text-sm">Listo para iniciar.</p></div>}
+          
+          {/* El contenido crece DENTRO de la caja, no estira la caja */}
+          <div className="flex-1 p-4 bg-slate-50 overflow-y-auto font-mono text-sm leading-relaxed relative">
+             {transcript ? (
+               <div className="pb-10"> {/* Padding bottom para que el texto no quede pegado al final */}
+                 <span className="text-slate-800 whitespace-pre-wrap">{transcript}</span>
+                 <span className="text-slate-400 italic ml-1">{interimTranscript}</span>
+               </div>
+             ) : isListening ? (
+               <p className="text-slate-400 italic animate-pulse">Escuchando...</p>
+             ) : (
+               <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
+                  <Mic size={40} className="mb-2"/>
+                  <p className="text-center text-sm">Listo para iniciar.</p>
+               </div>
+             )}
              <div ref={transcriptEndRef} />
           </div>
-          <div className="p-4 border-t flex gap-3 bg-white shrink-0">
+
+          {/* Botones Fijos al fondo */}
+          <div className="p-4 border-t flex gap-3 bg-white shrink-0 z-10">
             <button onClick={handleToggleRecording} disabled={!hasConsent} className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${isListening ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
               {isListening ? <><Square size={18}/> Parar</> : <><Mic size={18}/> Iniciar</>}
             </button>
@@ -248,7 +259,7 @@ const ConsultationView: React.FC = () => {
           </div>
         </div>
 
-        {/* COLUMNA 2: Resultados (Se muestra abajo en móvil) */}
+        {/* COLUMNA 2: Resultados */}
         <div className="bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden min-h-[500px] lg:h-full relative order-2">
           <div className="flex border-b bg-slate-50 shrink-0 overflow-x-auto">
             <button onClick={() => setActiveTab('record')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap px-4 ${activeTab === 'record' ? 'bg-white text-brand-teal border-t-2 border-brand-teal' : 'text-slate-400 hover:text-slate-600'}`}>Expediente</button>
@@ -256,7 +267,7 @@ const ConsultationView: React.FC = () => {
             <button onClick={() => setActiveTab('chat')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap px-4 ${activeTab === 'chat' ? 'bg-white text-brand-teal border-t-2 border-brand-teal' : 'text-slate-400 hover:text-slate-600'}`}>Chat IA</button>
           </div>
           
-          {/* Action Board (Scrollable en móvil) */}
+          {/* Action Board */}
           {generatedRecord && actionItems && (
             <div className="p-2 bg-slate-50 border-b border-slate-200 flex gap-2 overflow-x-auto shrink-0 scrollbar-hide">
                 {actionItems.next_appointment && <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"><Calendar size={14} /><div className="leading-tight"><p className="uppercase text-[8px] opacity-70">Cita</p><p className="font-bold">{actionItems.next_appointment}</p></div></div>}
@@ -294,7 +305,6 @@ const ConsultationView: React.FC = () => {
                                 {isSharing ? <RefreshCw size={14} className="animate-spin"/> : <Share2 size={14}/>} <span>Compartir</span>
                             </button>
 
-                            {/* Solo mostramos Descargar directo si no estamos compartiendo */}
                             {!isSharing && (
                                 <PDFDownloadLink
                                     document={

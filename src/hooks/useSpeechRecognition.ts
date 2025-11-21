@@ -1,103 +1,90 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-interface IWindow extends Window {
-  webkitSpeechRecognition: any;
-  SpeechRecognition: any;
-}
-
 export const useSpeechRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [interimTranscript, setInterimTranscript] = useState(''); // Texto en gris (lo que estás diciendo)
+  const [interimTranscript, setInterimTranscript] = useState(''); // Texto en gris (procesando)
+  
   const recognitionRef = useRef<any>(null);
+  const isManuallyStopped = useRef(false); // Para saber si el usuario dio click a PARAR
 
   useEffect(() => {
-    const { webkitSpeechRecognition } = window as unknown as IWindow;
+    // Verificar soporte del navegador
+    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
-    if (!webkitSpeechRecognition) {
-      console.error("Web Speech API no soportada en este navegador.");
-      return;
-    }
+    if (SpeechRecognition) {
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true; // CLAVE: No detenerse al hacer pausas
+      recognition.interimResults = true; // Ver texto mientras hablas
+      recognition.lang = 'es-MX'; // Español México
 
-    const recognition = new webkitSpeechRecognition();
-    recognition.continuous = true;      // No detenerse al hacer pausas
-    recognition.interimResults = true;  // Mostrar resultados mientras hablas
-    recognition.lang = 'es-MX';         // Español México (mejor acento)
-
-    recognition.onresult = (event: any) => {
-      let finalChunk = '';
-      let interimChunk = '';
-
-      for (let i = event.resultIndex; i < event.results.length; i++) {
-        const result = event.results[i];
-        if (result.isFinal) {
-          finalChunk += result[0].transcript;
-        } else {
-          interimChunk += result[0].transcript;
-        }
-      }
-
-      if (finalChunk) {
-        setTranscript((prev) => prev + ' ' + finalChunk);
-        setInterimTranscript(''); // Limpiamos el interim al confirmar
-      } else {
-        setInterimTranscript(interimChunk);
-      }
-    };
-
-    recognition.onerror = (event: any) => {
-      console.error("Error de reconocimiento de voz:", event.error);
-      if (event.error === 'not-allowed') {
-        setIsListening(false);
-        alert("Permiso de micrófono denegado.");
-      }
-    };
-
-    recognition.onend = () => {
-      // Si el estado dice que debemos seguir escuchando, reiniciamos
-      // (Esto evita que Chrome se apague solo a los 10 segundos de silencio)
-      if (isListening) {
-        try {
-          recognition.start();
-        } catch (error) {
-          // Ignorar error si ya estaba iniciado
-        }
-      }
-    };
-
-    recognitionRef.current = recognition;
-  }, [isListening]);
-
-  const startListening = useCallback(() => {
-    if (recognitionRef.current && !isListening) {
-      try {
-        setTranscript(''); // Limpiar anterior
-        recognitionRef.current.start();
+      recognition.onstart = () => {
         setIsListening(true);
-      } catch (e) {
-        console.error("Error al iniciar:", e);
-      }
-    }
-  }, [isListening]);
+        isManuallyStopped.current = false;
+      };
 
-  const stopListening = useCallback(() => {
-    if (recognitionRef.current && isListening) {
-      recognitionRef.current.stop();
-      setIsListening(false);
-    }
-  }, [isListening]);
+      recognition.onresult = (event: any) => {
+        let final = '';
+        let interim = '';
 
-  const resetTranscript = useCallback(() => {
-    setTranscript('');
-    setInterimTranscript('');
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          if (event.results[i].isFinal) {
+            final += event.results[i][0].transcript + ' ';
+          } else {
+            interim += event.results[i][0].transcript;
+          }
+        }
+
+        if (final) setTranscript((prev) => prev + final);
+        setInterimTranscript(interim);
+      };
+
+      recognition.onerror = (event: any) => {
+        console.error("Error voz:", event.error);
+        // Si es error de "no-speech", ignoramos. Si es "not-allowed", avisamos.
+        if (event.error === 'not-allowed') {
+            setIsListening(false);
+            alert("Permiso de micrófono denegado.");
+        }
+      };
+
+      recognition.onend = () => {
+        // REINICIO AUTOMÁTICO (Truco para móviles)
+        // Si el usuario NO le dio a "Parar", y se cortó solo, lo volvemos a prender.
+        if (!isManuallyStopped.current && isListening) {
+            try {
+                recognition.start(); 
+            } catch (e) {
+                setIsListening(false);
+            }
+        } else {
+            setIsListening(false);
+        }
+      };
+
+      recognitionRef.current = recognition;
+    }
   }, []);
 
-  return {
-    isListening,
-    transcript,
-    interimTranscript,
-    startListening,
-    stopListening,
-    resetTranscript
-  };
+  const startListening = useCallback(() => {
+    if (recognitionRef.current) {
+        setTranscript(''); // Limpiar al iniciar nueva
+        try {
+            recognitionRef.current.start();
+        } catch(e) {
+            console.log("Ya estaba activo");
+        }
+    } else {
+        alert("Tu navegador no soporta reconocimiento de voz. Usa Chrome o Safari.");
+    }
+  }, []);
+
+  const stopListening = useCallback(() => {
+    if (recognitionRef.current) {
+        isManuallyStopped.current = true; // Marcamos que FUE MANUAL
+        recognitionRef.current.stop();
+    }
+  }, []);
+
+  return { isListening, transcript, interimTranscript, startListening, stopListening };
 };
