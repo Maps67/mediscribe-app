@@ -1,60 +1,71 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
 export class GeminiMedicalService {
+  // Validación inicial
   private static genAI = API_KEY ? new GoogleGenerativeAI(API_KEY) : null;
+  
+  // Usamos 'gemini-1.5-flash' que es más rápido y estable para texto
   private static model = GeminiMedicalService.genAI 
-    ? GeminiMedicalService.genAI.getGenerativeModel({ model: "gemini-pro" }) 
+    ? GeminiMedicalService.genAI.getGenerativeModel({ 
+        model: "gemini-1.5-flash",
+        safetySettings: [
+          {
+            category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HATE_SPEECH,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_HARASSMENT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+          {
+            category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT,
+            threshold: HarmBlockThreshold.BLOCK_NONE,
+          },
+        ],
+      }) 
     : null;
 
-  /**
-   * Genera un resumen médico adaptado a la especialidad seleccionada.
-   */
   static async generateSummary(transcript: string, specialty: string = "Medicina General"): Promise<string> {
-    if (!API_KEY) throw new Error("Falta la API Key de Gemini.");
-    if (!this.model) throw new Error("Servicio de IA no inicializado.");
-    if (!transcript || transcript.trim().length < 5) return "Transcripción insuficiente.";
+    // 1. Diagnóstico claro de falta de llave
+    if (!API_KEY) {
+      console.error("CRÍTICO: API Key no encontrada en variables de entorno.");
+      throw new Error("Falta la API Key (VITE_GEMINI_API_KEY). Configúrala en Netlify.");
+    }
+
+    if (!this.model) {
+      throw new Error("El servicio de IA no pudo inicializarse correctamente.");
+    }
 
     try {
-      // Definimos el "Lente Clínico" según la especialidad
       let focusInstruction = "";
-      
       switch (specialty) {
-        case "Cardiología":
-          focusInstruction = "Enfócate prioritariamente en síntomas cardiovasculares (disnea, dolor torácico, palpitaciones), factores de riesgo, y mediciones hemodinámicas mencionadas.";
-          break;
-        case "Pediatría":
-          focusInstruction = "Enfócate en el desarrollo, alimentación, vacunación, y refiere al paciente como 'el paciente pediátrico' o 'el niño/a'. Menciona siempre a los padres/tutores si intervienen.";
-          break;
-        case "Psicología/Psiquiatría":
-          focusInstruction = "Realiza un examen mental basado en el discurso. Enfócate en el estado de ánimo, afecto, percepción, cognición y riesgo suicida si se menciona.";
-          break;
-        case "Ginecología":
-          focusInstruction = "Enfócate en antecedentes gineco-obstétricos, ciclo menstrual, anticoncepción y síntomas pélvicos.";
-          break;
-        default: // Medicina General
-          focusInstruction = "Realiza un abordaje integral cubriendo todos los sistemas mencionados.";
+        case "Cardiología": focusInstruction = "Enfócate en síntomas cardiovasculares, factores de riesgo y hemodinamia."; break;
+        case "Pediatría": focusInstruction = "Enfócate en desarrollo, alimentación y menciona a los padres/tutores."; break;
+        case "Psicología/Psiquiatría": focusInstruction = "Realiza un examen mental, enfócate en estado de ánimo y afecto."; break;
+        default: focusInstruction = "Realiza un abordaje integral clínico.";
       }
 
       const prompt = `
-        Actúa como un **Especialista en ${specialty}** experto en redacción clínica.
+        Actúa como un Especialista en ${specialty}.
+        ${focusInstruction}
         
-        INSTRUCCIÓN DE ESPECIALIDAD: ${focusInstruction}
-
-        Tu tarea es convertir la siguiente transcripción (que puede tener errores de audio) en una Nota de Evolución Clínica formal y profesional.
+        Analiza esta transcripción y genera una Nota Clínica SOAP formal.
         
-        Instrucciones de Estructura (Markdown):
-        
-        ### 🗣️ Análisis de Interacción (Diarización Inferida)
-        * **Médico (${specialty}):** [Resumen de intervenciones clave]
-        * **Paciente:** [Resumen de motivos y respuestas]
+        ### 🗣️ Diálogo
+        * **Médico:** ...
+        * **Paciente:** ...
 
         ### 📋 Nota Clínica (${specialty})
-        * **S (Subjetivo):** Motivo de consulta y padecimiento actual con terminología médica técnica propia de ${specialty}.
-        * **O (Objetivo):** Signos vitales o hallazgos físicos mencionados (si no se mencionan, indicar "No mencionados en audio").
-        * **A (Análisis/Diagnóstico):** Impresión diagnóstica basada en el contexto.
-        * **P (Plan):** Tratamiento, estudios solicitados y recomendaciones.
+        * **S (Subjetivo):** ...
+        * **O (Objetivo):** ...
+        * **A (Análisis):** ...
+        * **P (Plan):** ...
 
         Transcripción:
         "${transcript}"
@@ -65,9 +76,17 @@ export class GeminiMedicalService {
       return response.text();
       
     } catch (error: any) {
-      console.error("Gemini Error:", error);
-      if (error.message?.includes('quota')) throw new Error("Cuota de IA excedida.");
-      throw new Error("Error al procesar la consulta con IA.");
+      console.error("Gemini Error Completo:", error);
+      
+      // Extraer mensaje real del error para mostrarlo al usuario
+      const rawMessage = error.message || error.toString();
+      
+      if (rawMessage.includes('API key')) return "Error: Tu API Key no es válida o ha sido desactivada en Google Cloud.";
+      if (rawMessage.includes('quota')) return "Error: Se acabó el saldo gratuito de la IA por hoy.";
+      if (rawMessage.includes('fetch')) return "Error: Falló la conexión a internet.";
+      
+      // Devolver el error técnico para que sepamos qué pasa
+      throw new Error(`Error IA: ${rawMessage}`);
     }
   }
 }
