@@ -29,7 +29,8 @@ export enum ViewState {
   DASHBOARD,
   CONSULTATION,
   PATIENTS,
-  DIGITAL_CARD
+  DIGITAL_CARD,
+  APPOINTMENTS // Nuevo estado para la vista de Agenda
 }
 
 export interface ActionItems {
@@ -44,7 +45,6 @@ export interface GeminiResponse {
   actionItems: ActionItems;
 }
 
-// --- NUEVO: PERFIL MÉDICO CON NIVELES DE SUSCRIPCIÓN ---
 export interface DoctorProfile {
   id?: string;
   full_name: string;
@@ -57,4 +57,17 @@ export interface DoctorProfile {
   signature_url: string;
   website_url?: string;
   subscription_tier: 'basic' | 'pro' | 'enterprise';
+}
+
+// --- NUEVA INTERFAZ DE CITA ---
+export interface Appointment {
+  id: string;
+  created_at: string;
+  doctor_id: string;
+  patient_id: string;
+  date_time: string;
+  reason?: string;
+  status: 'scheduled' | 'completed' | 'cancelled';
+  type: 'new' | 'follow_up';
+  patients?: Patient; // Para poder leer el nombre del paciente al traer la cita
 }
