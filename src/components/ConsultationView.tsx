@@ -26,9 +26,10 @@ const ConsultationView: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientContext, setPatientContext] = useState<string>(''); 
+  const [fullPatientHistory, setFullPatientHistory] = useState<any[]>([]); // NUEVO: Estado para historial completo
   const [documents, setDocuments] = useState<any[]>([]);
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
-  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false); // NUEVO ESTADO PARA EL MODAL DE HISTORIAL
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [newDocName, setNewDocName] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -76,8 +77,22 @@ const ConsultationView: React.FC = () => {
 
   const handleSelectPatient = async (patient: Patient) => {
     setSelectedPatient(patient); setSearchTerm(patient.name); setSearchResults([]);
-    const { data: consult } = await supabase.from('consultations').select('summary').eq('patient_id', patient.id).order('created_at', { ascending: false }).limit(1).single();
-    if (consult && consult.summary) setPatientContext(consult.summary); else setPatientContext('');
+    
+    // MODIFICADO: Obtener TODO el historial ordenado por fecha (más reciente primero)
+    const { data: history } = await supabase
+        .from('consultations')
+        .select('*')
+        .eq('patient_id', patient.id)
+        .order('created_at', { ascending: false }); // Orden descendente
+    
+    if (history && history.length > 0) {
+        setPatientContext(history[0].summary); // Para la IA (el contexto inmediato)
+        setFullPatientHistory(history); // Para el Modal (todo el historial)
+    } else {
+        setPatientContext('');
+        setFullPatientHistory([]);
+    }
+
     fetchDocuments(patient.id);
   };
 
@@ -95,7 +110,14 @@ const ConsultationView: React.FC = () => {
       } catch (error) { toast.error("Error al cargar estudios."); }
   };
 
-  const handleClearPatient = () => { setSelectedPatient(null); setSearchTerm(''); setSearchResults([]); setPatientContext(''); setDocuments([]); };
+  const handleClearPatient = () => { 
+      setSelectedPatient(null); 
+      setSearchTerm(''); 
+      setSearchResults([]); 
+      setPatientContext(''); 
+      setFullPatientHistory([]); // Limpiar historial
+      setDocuments([]); 
+  };
 
   const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0 || !selectedPatient) return;
@@ -129,9 +151,7 @@ const ConsultationView: React.FC = () => {
     isListening ? stopListening() : startListening();
   };
 
-  // --- CORRECCIÓN CRÍTICA: VALIDACIÓN ANTI-ALUCINACIÓN ---
   const generateRecord = async () => {
-    // 1. Validación de longitud mínima
     const cleanText = transcript.trim();
     const wordCount = cleanText.split(/\s+/).length;
 
@@ -150,7 +170,6 @@ const ConsultationView: React.FC = () => {
       setGeneratedRecord({ ...newConsultation }); setEditableSummary(clinicalNote); setPatientInstructions(patientInstructions); setActionItems(actionItems); setIsEditingNote(false); setActiveTab('record'); toast.success("Expediente generado.");
     } catch (e) { toast.error("Error al generar."); } finally { setIsLoadingRecord(false); }
   };
-  // -------------------------------------------------------
 
   const handleSharePDF = async () => {
     if (!generatedRecord || !isPro) return;
@@ -214,7 +233,7 @@ const ConsultationView: React.FC = () => {
                 <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer flex-1 w-full">{SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}{!SPECIALTIES.includes(doctorProfile.specialty) && doctorProfile.specialty !== 'Medicina' && (<option value={doctorProfile.specialty}>{doctorProfile.specialty}</option>)}</select>
             </div>
         </div>
-        {/* CORRECCIÓN: BARRA DE CONTEXTO CLICKEABLE */}
+        {/* BARRA DE CONTEXTO CLICKEABLE */}
         {patientContext && (
             <div className="flex gap-2 overflow-x-auto pb-1">
                 <div 
@@ -305,22 +324,39 @@ const ConsultationView: React.FC = () => {
             </div>
       )}
       
-      {/* NUEVO MODAL: HISTORIAL / CONTEXTO */}
+      {/* MODAL HISTORIAL / CONTEXTO MEJORADO */}
       {isHistoryModalOpen && (
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
                     <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                          <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
-                            <History className="text-brand-teal"/> Historial / Contexto
+                            <History className="text-brand-teal"/> Historial Médico: {selectedPatient?.name}
                          </h3>
                          <button onClick={() => setIsHistoryModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm"><X size={24} /></button>
                     </div>
                     <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50">
-                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
-                            <p className="text-sm text-slate-700 font-mono whitespace-pre-wrap leading-relaxed">
-                                {patientContext || "No hay contexto histórico disponible."}
-                            </p>
-                        </div>
+                        {fullPatientHistory.length > 0 ? (
+                            fullPatientHistory.map((record, index) => (
+                                <div key={record.id} className="mb-6 border-b border-slate-100 pb-6 last:border-0 last:mb-0 last:pb-0">
+                                    <div className="flex items-center gap-2 mb-3">
+                                        <div className="bg-slate-200 text-slate-600 px-2 py-1 rounded text-xs font-bold flex items-center gap-1">
+                                            <Calendar size={12} />
+                                            {new Date(record.created_at).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+                                        </div>
+                                        {index === 0 && <span className="text-[10px] bg-brand-teal text-white px-2 py-0.5 rounded-full font-bold uppercase">Más Reciente</span>}
+                                    </div>
+                                    <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm">
+                                        {/* Usamos FormattedText para renderizar bonito el Markdown */}
+                                        <FormattedText content={record.summary} />
+                                    </div>
+                                </div>
+                            ))
+                        ) : (
+                            <div className="text-center py-10 text-slate-400">
+                                <History size={48} className="mx-auto mb-4 opacity-20"/>
+                                <p>No hay historial previo registrado para este paciente.</p>
+                            </div>
+                        )}
                     </div>
                      <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
                         <button onClick={() => setIsHistoryModalOpen(false)} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-800">Cerrar</button>
