@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown, Edit2, Eye, PenTool, X, Save, UploadCloud, Image as ImageIcon } from 'lucide-react';
+import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown, Edit2, Eye, PenTool, X, Save, Image as ImageIcon, UploadCloud, Eye as EyeIcon, Trash2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
@@ -14,20 +14,10 @@ async function generateSessionKey(): Promise<CryptoKey> {
   return window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
 }
 
-// LISTA AMPLIADA CON CIRUGÍA
 const SPECIALTIES = [
-    "Medicina General", 
-    "Cirujano General", // <--- AGREGADO PARA DR. CARLOS
-    "Cardiología", 
-    "Pediatría", 
-    "Ginecología y Obstetricia", 
-    "Traumatología y Ortopedia",
-    "Medicina Interna",
-    "Dermatología", 
-    "Psicología/Psiquiatría", 
-    "Nutrición",
-    "Oftalmología",
-    "Otorrinolaringología"
+    "Medicina General", "Cirujano General", "Cardiología", "Pediatría", "Ginecología y Obstetricia", 
+    "Traumatología y Ortopedia", "Medicina Interna", "Dermatología", "Psicología/Psiquiatría", 
+    "Nutrición", "Oftalmología", "Otorrinolaringología"
 ];
 
 const ConsultationView: React.FC = () => {
@@ -46,6 +36,13 @@ const ConsultationView: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientContext, setPatientContext] = useState<string>(''); 
+
+  // ESTADO NUEVO: DOCUMENTOS EN CONSULTA
+  const [documents, setDocuments] = useState<any[]>([]);
+  const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
+  const [uploadingDoc, setUploadingDoc] = useState(false);
+  const [newDocName, setNewDocName] = useState('');
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const [generatedRecord, setGeneratedRecord] = useState<MedicalRecord | null>(null);
   const [isLoadingRecord, setIsLoadingRecord] = useState(false);
@@ -82,21 +79,13 @@ const ConsultationView: React.FC = () => {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         if (data) {
             setDoctorProfile({ ...data, subscription_tier: data.subscription_tier || 'basic' });
-            
-            // MAGIA: Si el doctor tiene especialidad guardada, la seleccionamos automáticamente
-            if (data.specialty) {
-                // Verificamos si está en la lista, si no, la agregamos visualmente o seleccionamos la más cercana
-                // Por simplicidad, seteamos el estado directo.
-                setSpecialty(data.specialty);
-            }
+            if (data.specialty) setSpecialty(data.specialty);
         }
     }
   };
 
   useEffect(() => { 
-    if (textContainerRef.current) {
-        textContainerRef.current.scrollTop = textContainerRef.current.scrollHeight;
-    }
+    if (textContainerRef.current) textContainerRef.current.scrollTop = textContainerRef.current.scrollHeight;
   }, [transcript, interimTranscript]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, activeTab]);
@@ -116,16 +105,18 @@ const ConsultationView: React.FC = () => {
     setSearchTerm(patient.name);
     setSearchResults([]);
     
-    const { data } = await supabase
-        .from('consultations')
-        .select('summary')
-        .eq('patient_id', patient.id)
-        .order('created_at', { ascending: false })
-        .limit(1)
-        .single();
-
-    if (data && data.summary) setPatientContext(data.summary);
+    // 1. Cargar Contexto Texto
+    const { data: consult } = await supabase.from('consultations').select('summary').eq('patient_id', patient.id).order('created_at', { ascending: false }).limit(1).single();
+    if (consult && consult.summary) setPatientContext(consult.summary);
     else setPatientContext('');
+
+    // 2. Cargar Documentos (Imágenes)
+    fetchDocuments(patient.id);
+  };
+
+  const fetchDocuments = async (patientId: string) => {
+      const { data } = await supabase.from('patient_documents').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
+      setDocuments(data || []);
   };
 
   const handleClearPatient = () => {
@@ -133,8 +124,39 @@ const ConsultationView: React.FC = () => {
     setSearchTerm('');
     setSearchResults([]);
     setPatientContext('');
+    setDocuments([]);
   };
 
+  // --- LOGICA SUBIDA DESDE CONSULTA ---
+  const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    if (!event.target.files || event.target.files.length === 0 || !selectedPatient) return;
+    const file = event.target.files[0];
+    if(!newDocName) { alert("Escribe un nombre para el estudio."); return; }
+
+    setUploadingDoc(true);
+    try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if(!user) return;
+        const fileExt = file.name.split('.').pop();
+        const fileName = `${selectedPatient.id}/${Date.now()}.${fileExt}`;
+        const { error: uploadError } = await supabase.storage.from('patient-files').upload(fileName, file);
+        if(uploadError) throw uploadError;
+        const { data: { publicUrl } } = supabase.storage.from('patient-files').getPublicUrl(fileName);
+        await supabase.from('patient_documents').insert([{
+            doctor_id: user.id, patient_id: selectedPatient.id, name: newDocName, file_url: publicUrl, file_type: file.type.startsWith('image/') ? 'image' : 'file'
+        }]);
+        setNewDocName('');
+        fetchDocuments(selectedPatient.id);
+    } catch (e) { alert("Error subiendo."); } finally { setUploadingDoc(false); }
+  };
+
+  const handleDeleteDocument = async (docId: string) => {
+    if(!confirm("¿Borrar?")) return;
+    await supabase.from('patient_documents').delete().eq('id', docId);
+    if(selectedPatient) fetchDocuments(selectedPatient.id);
+  };
+
+  // ... (Resto de funciones: ToggleRecord, Generate, Share, etc. IGUALES) ...
   const handleToggleRecording = () => {
     if (!hasConsent && !isListening) return alert("Debe confirmar el consentimiento de privacidad.");
     isListening ? stopListening() : startListening();
@@ -144,17 +166,11 @@ const ConsultationView: React.FC = () => {
     if (!transcript) return;
     setIsLoadingRecord(true);
     try {
-      // Aquí la IA recibe 'specialty', que ahora será "Cirujano General" automáticamente
       const { clinicalNote, patientInstructions, actionItems } = await GeminiMedicalService.generateSummary(transcript, specialty, patientContext);
-      
       const patientId = selectedPatient ? selectedPatient.id : '00000000-0000-0000-0000-000000000000';
       const newConsultation = await MedicalDataService.createConsultation({
-        patient_id: patientId,
-        transcript: transcript,
-        summary: clinicalNote,
-        status: 'completed'
+        patient_id: patientId, transcript, summary: clinicalNote, status: 'completed'
       });
-
       setGeneratedRecord({ ...newConsultation });
       setEditableSummary(clinicalNote);
       setPatientInstructions(patientInstructions);
@@ -166,50 +182,20 @@ const ConsultationView: React.FC = () => {
 
   const handleSharePDF = async () => {
     if (!generatedRecord) return;
-    if (!isPro) {
-        alert("🔒 Función Premium: Actualiza a PRO para enviar recetas por WhatsApp y generar PDFs legales.");
-        return;
-    }
-
+    if (!isPro) { alert("🔒 Función Premium: Actualiza a PRO."); return; }
     setIsSharing(true);
     try {
-      const blob = await pdf(
-        <PrescriptionPDF 
-            doctorName={doctorProfile.full_name}
-            specialty={doctorProfile.specialty}
-            license={doctorProfile.license_number}
-            phone={doctorProfile.phone}
-            university={doctorProfile.university}
-            address={doctorProfile.address}
-            logoUrl={doctorProfile.logo_url}
-            signatureUrl={doctorProfile.signature_url}
-            patientName={selectedPatient?.name || "Paciente"}
-            date={new Date().toLocaleDateString()}
-            content={patientInstructions}
-        />
-      ).toBlob();
-
-      const file = new File([blob], `Receta-${selectedPatient?.name || 'Paciente'}.pdf`, { type: 'application/pdf' });
-
-      if (navigator.canShare && navigator.canShare({ files: [file] })) {
-        await navigator.share({
-          files: [file],
-          title: 'Receta Médica',
-          text: `Receta médica digital para ${selectedPatient?.name || 'Paciente'}.`
-        });
-      } else { alert("Tu dispositivo no soporta compartir archivos directos."); }
+      const blob = await pdf(<PrescriptionPDF doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty} license={doctorProfile.license_number} phone={doctorProfile.phone} university={doctorProfile.university} address={doctorProfile.address} logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url} patientName={selectedPatient?.name || "Paciente"} date={new Date().toLocaleDateString()} content={patientInstructions} />).toBlob();
+      const file = new File([blob], `Receta.pdf`, { type: 'application/pdf' });
+      if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Receta' }); } else { alert("No soportado."); }
     } catch (error) { console.log("Cancelado"); } finally { setIsSharing(false); }
   };
 
   const sendToWhatsApp = () => {
-    if (!isPro) {
-        alert("🔒 Función Premium: El envío directo requiere Plan PRO.");
-        return;
-    }
-    const phone = selectedPatient?.phone || prompt("Ingrese el teléfono del paciente:");
+    if (!isPro) { alert("🔒 Función Premium."); return; }
+    const phone = selectedPatient?.phone || prompt("Teléfono:");
     if (!phone) return;
-    const url = `https://wa.me/${phone}?text=${encodeURIComponent(patientInstructions)}`;
-    window.open(url, '_blank');
+    window.open(`https://wa.me/${phone}?text=${encodeURIComponent(patientInstructions)}`, '_blank');
   };
 
   const handleGenerateRx = async () => {
@@ -218,7 +204,7 @@ const ConsultationView: React.FC = () => {
       try {
           const formattedRx = await GeminiMedicalService.generatePrescriptionOnly(transcript);
           setRxText(formattedRx);
-      } catch (e) { alert("Error al generar receta"); } finally { setIsProcessingRx(false); stopListening(); }
+      } catch (e) { alert("Error"); } finally { setIsProcessingRx(false); stopListening(); }
   };
 
   const handleSaveRx = async () => {
@@ -227,28 +213,19 @@ const ConsultationView: React.FC = () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
-        await supabase.from('consultations').insert([{
-            doctor_id: user.id,
-            patient_id: selectedPatient.id,
-            transcript: "DICTADO DE RECETA: " + transcript, 
-            summary: rxText, 
-            status: 'completed'
-        }]);
+        await supabase.from('consultations').insert([{ doctor_id: user.id, patient_id: selectedPatient.id, transcript: "DICTADO DE RECETA: " + transcript, summary: rxText, status: 'completed' }]);
         setIsRxModalOpen(false);
-      } catch(e) { alert("Error guardando"); } finally { setIsSavingRx(false); }
+      } catch(e) { alert("Error"); } finally { setIsSavingRx(false); }
   };
 
   const handleAskAI = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!chatInput.trim() || !sessionKey) return;
-    const q = chatInput;
-    setChatInput('');
-    setChatMessages(p => [...p, { role: 'user', text: q }]);
-    setIsChatLoading(true);
+    const q = chatInput; setChatInput(''); setChatMessages(p => [...p, { role: 'user', text: q }]); setIsChatLoading(true);
     try {
-       const response = await GeminiMedicalService.generateSummary(`Contexto: ${transcript}. Pregunta: ${q}. Responde breve.`, specialty);
+       const response = await GeminiMedicalService.generateSummary(`Contexto: ${transcript}. Pregunta: ${q}. Breve.`, specialty);
        setChatMessages(p => [...p, { role: 'ai', text: response.clinicalNote }]);
-    } catch (e) { setChatMessages(p => [...p, { role: 'ai', text: "Error conectando con el asistente." }]); } finally { setIsChatLoading(false); }
+    } catch (e) { setChatMessages(p => [...p, { role: 'ai', text: "Error." }]); } finally { setIsChatLoading(false); }
   };
 
   return (
@@ -285,19 +262,35 @@ const ConsultationView: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 shadow-sm w-full lg:w-auto lg:min-w-[200px]">
                 <Stethoscope size={18} className="text-brand-teal ml-1" />
-                {/* MENÚ DESPLEGABLE ACTUALIZADO */}
                 <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer flex-1 w-full">
                     {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
-                    {/* Si la especialidad del doctor no está en la lista estándar, la agregamos al final como opción extra */}
                     {!SPECIALTIES.includes(doctorProfile.specialty) && doctorProfile.specialty !== 'Medicina' && (
                         <option value={doctorProfile.specialty}>{doctorProfile.specialty}</option>
                     )}
                 </select>
             </div>
         </div>
-        {patientContext && <div className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-2 animate-fade-in-up"><History size={14} /><span><strong>Contexto Activo:</strong> La IA considerará el historial previo.</span></div>}
+        
+        {/* BARRA DE CONTEXTO CON BOTÓN DE ESTUDIOS */}
+        {patientContext && (
+            <div className="flex gap-2 overflow-x-auto pb-1">
+                <div className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-2 animate-fade-in-up flex-1 min-w-[200px]">
+                    <History size={14} />
+                    <span className="truncate"><strong>Contexto:</strong> {patientContext.substring(0, 60)}...</span>
+                </div>
+                {/* BOTÓN NUEVO: ABRIR ESTUDIOS */}
+                <button 
+                    onClick={() => setIsDocsModalOpen(true)}
+                    className="bg-white border border-slate-300 text-slate-700 px-3 py-1 rounded text-xs font-bold flex items-center gap-2 hover:bg-slate-50 shrink-0"
+                >
+                    <ImageIcon size={14} /> 
+                    Estudios ({documents.length})
+                </button>
+            </div>
+        )}
       </div>
 
+      {/* Contenido Principal */}
       <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1 min-h-0 overflow-hidden">
         <div className={`bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden lg:h-full transition-all duration-300 ${generatedRecord ? 'h-[30vh]' : 'flex-1'}`}>
           <div className="p-3 bg-orange-50 border-b border-orange-100 flex items-center gap-2 shrink-0">
@@ -360,7 +353,6 @@ const ConsultationView: React.FC = () => {
                           <div className="flex-1 p-4 bg-green-50/30 overflow-y-auto">
                             <textarea className="w-full h-full bg-transparent outline-none resize-none text-sm text-slate-700 font-medium" value={patientInstructions} onChange={(e) => setPatientInstructions(e.target.value)} />
                           </div>
-                          
                           <div className="p-3 border-t border-slate-100 flex flex-wrap justify-end items-center gap-2 bg-white shrink-0">
                             <button onClick={sendToWhatsApp} className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm flex-1 justify-center md:flex-none ${isPro ? 'bg-[#25D366] text-white hover:bg-green-600' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
                                 {!isPro && <Lock size={12}/>} <Send size={14}/> WhatsApp
@@ -405,6 +397,59 @@ const ConsultationView: React.FC = () => {
         </div>
       </div>
 
+      {/* MODAL ESTUDIOS (DENTRO DE CONSULTA) */}
+      {isDocsModalOpen && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                        <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><ImageIcon className="text-brand-teal"/> Estudios de {selectedPatient?.name}</h3>
+                        <button onClick={() => setIsDocsModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm"><X size={24} /></button>
+                    </div>
+                    
+                    <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50">
+                        {/* Formulario de subida */}
+                        <div className="bg-white p-4 rounded-xl border border-slate-200 mb-6">
+                            <label className="block text-sm font-medium text-slate-700 mb-2">Nuevo Estudio</label>
+                            <div className="flex gap-2">
+                                <input type="text" value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="Ej. Radiografía" className="flex-1 p-2 border rounded-lg text-sm" />
+                                <div className="relative overflow-hidden">
+                                    <button className="bg-brand-teal text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
+                                        {uploadingDoc ? <RefreshCw className="animate-spin" size={16}/> : <UploadCloud size={16}/>} Subir
+                                    </button>
+                                    <input type="file" accept="image/*" onChange={handleUploadFile} disabled={uploadingDoc} className="absolute inset-0 opacity-0 cursor-pointer" />
+                                </div>
+                            </div>
+                        </div>
+
+                        {/* Galería */}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
+                            {documents.map(doc => (
+                                <div key={doc.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden group relative shadow-sm">
+                                    <div className="aspect-square bg-slate-100 flex items-center justify-center cursor-pointer" onClick={() => setPreviewUrl(doc.file_url)}>
+                                        <img src={doc.file_url} className="w-full h-full object-cover" />
+                                    </div>
+                                    <div className="p-2 text-xs font-bold truncate">{doc.name}</div>
+                                    <button onClick={() => handleDeleteDocument(doc.id)} className="absolute top-1 right-1 bg-white/90 p-1 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <Trash2 size={12} />
+                                    </button>
+                                </div>
+                            ))}
+                            {documents.length === 0 && <p className="col-span-full text-center text-slate-400 text-sm py-4">No hay estudios guardados.</p>}
+                        </div>
+                    </div>
+                </div>
+            </div>
+      )}
+
+      {/* MODAL PREVISUALIZACIÓN IMAGEN */}
+      {previewUrl && (
+            <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4" onClick={() => setPreviewUrl(null)}>
+                <button className="absolute top-4 right-4 text-white p-2"><X size={32} /></button>
+                <img src={previewUrl} className="max-w-full max-h-[90vh] rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} />
+            </div>
+      )}
+
+      {/* MODAL RECETA RÁPIDA (Sin cambios) */}
       {isRxModalOpen && (
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -412,48 +457,22 @@ const ConsultationView: React.FC = () => {
                         <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><PenTool className="text-brand-teal"/> Nueva Receta Rápida</h3>
                         <button onClick={() => setIsRxModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm"><X size={24} /></button>
                     </div>
-                    
                     <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50">
                         {!rxText ? (
                             <div className="flex flex-col items-center justify-center h-full space-y-6 py-10">
-                                <div className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-red-100 text-red-600 animate-pulse scale-110' : 'bg-slate-200 text-slate-400'}`}>
-                                    <Mic size={48} />
-                                </div>
-                                <p className="text-center text-slate-600 max-w-md">
-                                    {isListening ? "Escuchando dictado..." : "Presione Iniciar y dicte los medicamentos e indicaciones."}
-                                </p>
-                                {transcript && (
-                                    <div className="w-full bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-600 italic">"{transcript}"</div>
-                                )}
+                                <div className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-red-100 text-red-600 animate-pulse scale-110' : 'bg-slate-200 text-slate-400'}`}><Mic size={48} /></div>
+                                <p className="text-center text-slate-600 max-w-md">{isListening ? "Escuchando dictado..." : "Presione Iniciar y dicte los medicamentos e indicaciones."}</p>
+                                {transcript && <div className="w-full bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-600 italic">"{transcript}"</div>}
                                 <div className="flex gap-4 w-full max-w-xs">
-                                    <button onClick={isListening ? stopListening : startListening} className={`flex-1 py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition-all ${isListening ? 'bg-white border-2 border-red-100 text-red-500 hover:bg-red-50' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg'}`}>
-                                        {isListening ? <><Square size={18}/> Detener</> : <><Mic size={18}/> Iniciar Dictado</>}
-                                    </button>
-                                    <button onClick={handleGenerateRx} disabled={!transcript || isListening} className="flex-1 bg-brand-teal text-white py-3 rounded-xl font-bold shadow-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
-                                        {isProcessingRx ? <RefreshCw className="animate-spin" size={18}/> : <RefreshCw size={18}/>} Generar
-                                    </button>
+                                    <button onClick={isListening ? stopListening : startListening} className={`flex-1 py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition-all ${isListening ? 'bg-white border-2 border-red-100 text-red-500 hover:bg-red-50' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg'}`}>{isListening ? <><Square size={18}/> Detener</> : <><Mic size={18}/> Iniciar Dictado</>}</button>
+                                    <button onClick={handleGenerateRx} disabled={!transcript || isListening} className="flex-1 bg-brand-teal text-white py-3 rounded-xl font-bold shadow-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">{isProcessingRx ? <RefreshCw className="animate-spin" size={18}/> : <RefreshCw size={18}/>} Generar</button>
                                 </div>
                             </div>
                         ) : (
-                            <div className="h-full flex flex-col">
-                                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Vista Previa de Receta</label>
-                                <textarea 
-                                    className="flex-1 w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-teal outline-none resize-none font-mono text-sm leading-relaxed bg-white shadow-sm"
-                                    value={rxText}
-                                    onChange={(e) => setRxText(e.target.value)}
-                                />
-                            </div>
+                            <div className="h-full flex flex-col"><label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Vista Previa de Receta</label><textarea className="flex-1 w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-teal outline-none resize-none font-mono text-sm leading-relaxed bg-white shadow-sm" value={rxText} onChange={(e) => setRxText(e.target.value)} /></div>
                         )}
                     </div>
-
-                    {rxText && (
-                        <div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
-                            <button onClick={() => setRxText('')} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg font-medium transition-colors">Reintentar</button>
-                            <button onClick={handleSaveRx} disabled={isSavingRx} className="px-6 py-2 bg-brand-teal text-white rounded-lg font-bold shadow-lg hover:bg-teal-600 transition-colors flex items-center gap-2">
-                                {isSavingRx ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>} Guardar y Crear PDF
-                            </button>
-                        </div>
-                    )}
+                    {rxText && <div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0"><button onClick={() => setRxText('')} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg font-medium transition-colors">Reintentar</button><button onClick={handleSaveRx} disabled={isSavingRx} className="px-6 py-2 bg-brand-teal text-white rounded-lg font-bold shadow-lg hover:bg-teal-600 transition-colors flex items-center gap-2">{isSavingRx ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>} Guardar y Crear PDF</button></div>}
                 </div>
             </div>
         )}
