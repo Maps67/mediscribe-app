@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
@@ -7,30 +7,25 @@ export const useAppointmentAlarms = () => {
   const [isSilent, setIsSilent] = useState(false);
   const alertedRef = useRef<Set<string>>(new Set());
 
-  // Cargar preferencia del médico al iniciar
   useEffect(() => {
     const savedPreference = localStorage.getItem('mediscribe_silent_mode');
     setIsSilent(savedPreference === 'true');
 
-    // Cargar audio
     audioRef.current = new Audio('/alarm.mp3'); 
     audioRef.current.volume = 0.6;
   }, []);
 
-  // Función para cambiar el modo (usada desde el Dashboard)
   const toggleSound = () => {
     const newState = !isSilent;
     setIsSilent(newState);
     localStorage.setItem('mediscribe_silent_mode', String(newState));
     
-    // Feedback visual breve
     toast(newState ? "🔕 Modo Silencio Activado" : "🔔 Sonido Activado", {
       duration: 2000,
     });
   };
 
   useEffect(() => {
-    // Solicitar permiso de notificación nativa
     if (Notification.permission !== "granted" && Notification.permission !== "denied") {
       Notification.requestPermission();
     }
@@ -77,22 +72,17 @@ export const useAppointmentAlarms = () => {
     checkAppointments();
 
     return () => clearInterval(intervalId);
-  }, [isSilent]); // Se actualiza si cambia el modo silencio
+  }, [isSilent]);
 
   const triggerSmartAlarm = (patientName: string, minutes: number) => {
-    // 1. VIBRACIÓN (Solo móviles compatibles)
-    // Patrón: Vibrar 500ms, pausa 200ms, vibrar 500ms
     if (navigator.vibrate) {
       navigator.vibrate([500, 200, 500]);
     }
 
-    // 2. SONIDO (Solo si NO está en silencio)
     if (!isSilent && audioRef.current) {
       audioRef.current.play().catch(e => console.log("Audio autoplay bloqueado", e));
     }
 
-    // 3. NOTIFICACIÓN INTERACTIVA (PERSISTENTE)
-    // Usamos duration: Infinity para que no se vaya hasta que el médico interactúe
     toast.custom((t) => (
       <div className="bg-white rounded-xl shadow-2xl border-l-4 border-indigo-500 p-4 w-full max-w-sm pointer-events-auto flex flex-col gap-3 animate-enter">
         <div className="flex justify-between items-start">
@@ -116,7 +106,7 @@ export const useAppointmentAlarms = () => {
                 }}
                 className="flex-1 bg-indigo-600 text-white text-sm font-bold py-2 rounded-lg hover:bg-indigo-700 active:scale-95 transition-all"
             >
-                Entendido / Parar
+                Entendido
             </button>
             <button 
                  onClick={() => {
@@ -135,16 +125,18 @@ export const useAppointmentAlarms = () => {
       </div>
     ), { duration: Infinity, position: 'top-center' });
 
-    // 4. Notificación Nativa (Sistema Operativo)
     if (Notification.permission === "granted") {
-      new Notification(`Cita en ${minutes} min: ${patientName}`, {
-        body: isSilent ? "Alerta silenciosa" : "Toca para abrir",
-        icon: '/pwa-192x192.png',
-        silent: isSilent // Respeta la decisión también en la notificación nativa
-      });
+      try {
+        new Notification(`Cita en ${minutes} min: ${patientName}`, {
+          body: isSilent ? "Alerta silenciosa" : "Toca para abrir",
+          icon: '/pwa-192x192.png',
+          silent: isSilent
+        });
+      } catch (e) {
+        console.log("Error notificación nativa", e);
+      }
     }
   };
 
-  // Exponemos los controles para el Dashboard
   return { isSilent, toggleSound };
 };
