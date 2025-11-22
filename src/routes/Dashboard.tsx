@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise, MessageCircle, HelpCircle, ExternalLink, Calendar, ClipboardCheck, X, FileText } from 'lucide-react';
+import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise, MessageCircle, HelpCircle, ExternalLink, Calendar, ClipboardCheck, X, FileText, MapPin } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -26,9 +26,13 @@ const Dashboard: React.FC = () => {
       nextAppt: '---' 
   });
 
-  // Estado para la lista detallada de consultas de hoy (Modal)
+  // Listas para Modales
   const [todaysConsultationsList, setTodaysConsultationsList] = useState<any[]>([]);
+  const [todaysAppointmentsList, setTodaysAppointmentsList] = useState<any[]>([]); // NUEVO: Lista de citas de hoy
+
+  // Estados de Modales
   const [isConsultationsModalOpen, setIsConsultationsModalOpen] = useState(false);
+  const [isAppointmentsModalOpen, setIsAppointmentsModalOpen] = useState(false); // NUEVO: Modal de Citas
 
   useEffect(() => {
     fetchDashboardData();
@@ -63,24 +67,27 @@ const Dashboard: React.FC = () => {
 
       // DEFINIR RANGO DE HOY (Local Time)
       const today = new Date(); 
-      today.setHours(0, 0, 0, 0); // Inicio de hoy
+      today.setHours(0, 0, 0, 0); 
       const tomorrow = new Date(today); 
-      tomorrow.setDate(tomorrow.getDate() + 1); // Inicio de mañana
-
-      // Definir "AHORA MISMO" para citas futuras solamente
+      tomorrow.setDate(tomorrow.getDate() + 1);
       const now = new Date();
 
-      // 3. Citas Hoy (Agenda / Planeado)
-      // CORRECCIÓN: Solo mostrar citas pendientes desde AHORA en adelante para el día de hoy
-      // Si quieres ver TODAS las del día (incluso pasadas), usa 'today'. 
-      // Si quieres solo pendientes, usa 'now'. Según instrucción previa: "si no hay programadas para una hora posterior... cero"
-      const { count: appointmentsTodayCount } = await supabase
+      // 3. Citas Hoy (Agenda Detallada)
+      // Obtenemos TODAS las de hoy para mostrarlas en la lista
+      const { data: appointmentsTodayData } = await supabase
         .from('appointments')
-        .select('*', { count: 'exact', head: true })
-        .gte('date_time', now.toISOString()) // Solo citas futuras desde este momento
-        .lt('date_time', tomorrow.toISOString()); // Hasta terminar el día
+        .select('*')
+        .gte('date_time', today.toISOString())
+        .lt('date_time', tomorrow.toISOString())
+        .order('date_time', { ascending: true });
 
-      // 4. Consultas Realizadas Hoy (Productividad / Ejecutado)
+      const appointmentsList = appointmentsTodayData || [];
+      setTodaysAppointmentsList(appointmentsList);
+
+      // Calculamos el contador "Pendientes" (Solo las futuras desde AHORA)
+      const pendingAppointmentsCount = appointmentsList.filter(appt => new Date(appt.date_time) >= now).length;
+
+      // 4. Consultas Realizadas Hoy (Productividad)
       const { data: consultationsTodayData, count: consultationsDoneCount } = await supabase
         .from('consultations')
         .select('*, patients(name)', { count: 'exact' })
@@ -90,7 +97,7 @@ const Dashboard: React.FC = () => {
 
       setTodaysConsultationsList(consultationsTodayData || []);
 
-      // 5. Siguiente Cita
+      // 5. Siguiente Cita (Global)
       const { data: nextApptData } = await supabase
         .from('appointments')
         .select('date_time')
@@ -110,7 +117,7 @@ const Dashboard: React.FC = () => {
 
       setStats({ 
         totalPatients: patientsCount || 0, 
-        appointmentsToday: appointmentsTodayCount || 0, 
+        appointmentsToday: pendingAppointmentsCount, // Usamos el cálculo filtrado
         consultationsDoneCount: consultationsDoneCount || 0,
         nextAppt: nextApptString 
       });
@@ -138,7 +145,7 @@ const Dashboard: React.FC = () => {
           <div className="absolute -right-10 -top-10 w-64 h-64 bg-gradient-to-br from-brand-teal/5 to-blue-500/5 rounded-full blur-3xl pointer-events-none"></div>
       </div>
       
-      {/* GRID INTELIGENTE DE ESTADÍSTICAS (5 COLUMNAS) */}
+      {/* GRID INTELIGENTE DE ESTADÍSTICAS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
          
          {/* 1. Pacientes */}
@@ -147,18 +154,20 @@ const Dashboard: React.FC = () => {
             <p className="text-2xl font-bold text-slate-800">{stats.totalPatients}</p><p className="text-slate-400 text-xs font-bold uppercase">Pacientes</p>
          </div>
 
-         {/* 2. Agenda (Citas Hoy) - TEAL */}
-         <div onClick={() => navigate('/appointments')} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-teal-300 cursor-pointer transition-all group">
+         {/* 2. Agenda (Citas Hoy) - TEAL - AHORA ABRE MODAL DE AGENDA */}
+         <div 
+            onClick={() => setIsAppointmentsModalOpen(true)} 
+            className="bg-white p-4 rounded-xl border border-slate-200 hover:border-teal-300 cursor-pointer transition-all group"
+         >
             <div className="flex justify-between mb-2"><div className="bg-teal-50 p-2 rounded-lg text-brand-teal"><Calendar size={18}/></div><ChevronRight className="text-slate-300 group-hover:text-brand-teal" size={16}/></div>
-            <p className="text-2xl font-bold text-slate-800">{stats.appointmentsToday}</p><p className="text-slate-400 text-xs font-bold uppercase">Citas Hoy</p>
+            <p className="text-2xl font-bold text-slate-800">{stats.appointmentsToday}</p><p className="text-slate-400 text-xs font-bold uppercase">Citas Pendientes</p>
          </div>
 
-         {/* 3. Productividad (Consultas Realizadas) - INDIGO - ABRE MODAL */}
+         {/* 3. Productividad (Consultas Realizadas) - INDIGO - ABRE MODAL DE REALIZADAS */}
          <div 
             onClick={() => setIsConsultationsModalOpen(true)} 
             className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition-all group relative overflow-hidden"
          >
-             {/* Indicador sutil de progreso */}
              <div className="absolute top-0 right-0 p-1">
                 <span className={`flex h-2 w-2 rounded-full ${stats.consultationsDoneCount > 0 ? 'bg-indigo-500' : 'bg-slate-200'}`}></span>
              </div>
@@ -180,7 +189,7 @@ const Dashboard: React.FC = () => {
 
       </div>
       
-      {/* FOOTER: TARJETA DIGITAL Y SOPORTE */}
+      {/* FOOTER */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <div className="md:col-span-2 bg-gradient-to-r from-slate-800 to-slate-900 text-white rounded-xl p-5 relative overflow-hidden cursor-pointer group" onClick={() => navigate('/card')}>
              <div className="relative z-10 flex justify-between items-center">
@@ -203,16 +212,73 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL: LISTA DE CONSULTAS REALIZADAS HOY */}
+      {/* MODAL 1: LISTA DE CITAS DE HOY (AGENDA) */}
+      {isAppointmentsModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                     <div>
+                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                            <Calendar className="text-teal-600" size={20}/> Agenda de Hoy
+                        </h3>
+                        <p className="text-xs text-slate-500">{new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                     </div>
+                     <button onClick={() => setIsAppointmentsModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm transition-colors"><X size={20} /></button>
+                </div>
+
+                <div className="flex-1 p-0 overflow-y-auto bg-slate-50/50">
+                    {todaysAppointmentsList.length > 0 ? (
+                        <div className="divide-y divide-slate-100">
+                            {todaysAppointmentsList.map((appt) => {
+                                const isPast = new Date(appt.date_time) < new Date();
+                                return (
+                                    <div key={appt.id} className={`p-4 transition-colors ${isPast ? 'bg-slate-50 opacity-60' : 'bg-white hover:bg-teal-50/50'}`}>
+                                        <div className="flex justify-between items-center mb-2">
+                                            <div className="flex items-center gap-3">
+                                                <div className={`font-mono text-sm font-bold px-2 py-1 rounded ${isPast ? 'bg-slate-200 text-slate-600' : 'bg-teal-100 text-teal-700'}`}>
+                                                    {new Date(appt.date_time).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                                </div>
+                                                <div>
+                                                    <p className="font-bold text-slate-800">{appt.patient_name}</p>
+                                                    <p className="text-xs text-slate-500 truncate max-w-[150px]">{appt.reason}</p>
+                                                </div>
+                                            </div>
+                                            {isPast && <span className="text-[10px] font-bold text-slate-400 border border-slate-200 px-1.5 py-0.5 rounded">PASADA</span>}
+                                        </div>
+                                    </div>
+                                );
+                            })}
+                            {/* BOTÓN PARA IR A LA AGENDA COMPLETA */}
+                            <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-center">
+                                <button 
+                                    onClick={() => navigate('/appointments')}
+                                    className="text-teal-600 text-xs font-bold hover:underline flex items-center gap-1"
+                                >
+                                    <ExternalLink size={12}/> Gestionar Agenda Completa
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                         <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+                            <Calendar size={40} className="mb-2 opacity-20"/>
+                            <p className="text-sm">Agenda libre por hoy.</p>
+                        </div>
+                    )}
+                </div>
+             </div>
+        </div>
+      )}
+
+      {/* MODAL 2: LISTA DE CONSULTAS REALIZADAS */}
       {isConsultationsModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
                 <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
                      <div>
                         <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
-                            <ClipboardCheck className="text-indigo-600" size={20}/> Consultas de Hoy
+                            <ClipboardCheck className="text-indigo-600" size={20}/> Consultas Realizadas
                         </h3>
-                        <p className="text-xs text-slate-500">{new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                        <p className="text-xs text-slate-500">Historial del día</p>
                      </div>
                      <button onClick={() => setIsConsultationsModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm transition-colors"><X size={20} /></button>
                 </div>
@@ -230,11 +296,9 @@ const Dashboard: React.FC = () => {
                                     </div>
                                     <p className="text-xs text-slate-500 line-clamp-2 mb-2">{consult.summary}</p>
                                     <div className="flex justify-end">
-                                         {/* BOTÓN INTELIGENTE: NAVEGA Y ABRE EXPEDIENTE */}
                                          <button 
                                             onClick={() => {
                                                 setIsConsultationsModalOpen(false);
-                                                // PASAMOS EL ID DEL PACIENTE EN EL ESTADO DE LA NAVEGACIÓN
                                                 navigate('/patients', { state: { openPatientId: consult.patient_id } });
                                             }}
                                             className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
