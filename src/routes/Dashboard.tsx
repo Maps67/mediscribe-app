@@ -2,6 +2,7 @@ import React, { useEffect, useState } from 'react';
 import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise, MessageCircle, HelpCircle, ExternalLink, Calendar, ClipboardCheck, X, FileText, MapPin } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+import { useAppointmentAlarms } from '../hooks/useAppointmentAlarms'; // <--- IMPORTACIÓN DEL HOOK
 
 const TIPS_AND_QUOTES = [
   "La medicina es la más humana de las artes. - Edmund Pellegrino",
@@ -13,6 +14,11 @@ const TIPS_AND_QUOTES = [
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
+  
+  // --- ACTIVAR ALARMAS INTELIGENTES ---
+  useAppointmentAlarms(); 
+  // ------------------------------------
+
   const [loading, setLoading] = useState(true);
   const [doctorName, setDoctorName] = useState('');
   const [greeting, setGreeting] = useState('');
@@ -28,11 +34,11 @@ const Dashboard: React.FC = () => {
 
   // Listas para Modales
   const [todaysConsultationsList, setTodaysConsultationsList] = useState<any[]>([]);
-  const [todaysAppointmentsList, setTodaysAppointmentsList] = useState<any[]>([]); // NUEVO: Lista de citas de hoy
+  const [todaysAppointmentsList, setTodaysAppointmentsList] = useState<any[]>([]);
 
   // Estados de Modales
   const [isConsultationsModalOpen, setIsConsultationsModalOpen] = useState(false);
-  const [isAppointmentsModalOpen, setIsAppointmentsModalOpen] = useState(false); // NUEVO: Modal de Citas
+  const [isAppointmentsModalOpen, setIsAppointmentsModalOpen] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -65,7 +71,7 @@ const Dashboard: React.FC = () => {
       // 2. Total Pacientes
       const { count: patientsCount } = await supabase.from('patients').select('*', { count: 'exact', head: true });
 
-      // DEFINIR RANGO DE HOY (Local Time)
+      // DEFINIR RANGO DE HOY
       const today = new Date(); 
       today.setHours(0, 0, 0, 0); 
       const tomorrow = new Date(today); 
@@ -73,7 +79,6 @@ const Dashboard: React.FC = () => {
       const now = new Date();
 
       // 3. Citas Hoy (Agenda Detallada)
-      // Obtenemos TODAS las de hoy para mostrarlas en la lista
       const { data: appointmentsTodayData } = await supabase
         .from('appointments')
         .select('*')
@@ -84,10 +89,10 @@ const Dashboard: React.FC = () => {
       const appointmentsList = appointmentsTodayData || [];
       setTodaysAppointmentsList(appointmentsList);
 
-      // Calculamos el contador "Pendientes" (Solo las futuras desde AHORA)
+      // Calculamos Pendientes (Futuras desde AHORA)
       const pendingAppointmentsCount = appointmentsList.filter(appt => new Date(appt.date_time) >= now).length;
 
-      // 4. Consultas Realizadas Hoy (Productividad)
+      // 4. Consultas Realizadas Hoy
       const { data: consultationsTodayData, count: consultationsDoneCount } = await supabase
         .from('consultations')
         .select('*, patients(name)', { count: 'exact' })
@@ -97,7 +102,7 @@ const Dashboard: React.FC = () => {
 
       setTodaysConsultationsList(consultationsTodayData || []);
 
-      // 5. Siguiente Cita (Global)
+      // 5. Siguiente Cita
       const { data: nextApptData } = await supabase
         .from('appointments')
         .select('date_time')
@@ -117,7 +122,7 @@ const Dashboard: React.FC = () => {
 
       setStats({ 
         totalPatients: patientsCount || 0, 
-        appointmentsToday: pendingAppointmentsCount, // Usamos el cálculo filtrado
+        appointmentsToday: pendingAppointmentsCount,
         consultationsDoneCount: consultationsDoneCount || 0,
         nextAppt: nextApptString 
       });
@@ -148,13 +153,11 @@ const Dashboard: React.FC = () => {
       {/* GRID INTELIGENTE DE ESTADÍSTICAS */}
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-5 gap-4 mb-6">
          
-         {/* 1. Pacientes */}
          <div onClick={() => navigate('/patients')} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-blue-300 cursor-pointer transition-all group">
             <div className="flex justify-between mb-2"><div className="bg-blue-50 p-2 rounded-lg text-blue-600"><Users size={18}/></div><ChevronRight className="text-slate-300 group-hover:text-blue-500" size={16}/></div>
             <p className="text-2xl font-bold text-slate-800">{stats.totalPatients}</p><p className="text-slate-400 text-xs font-bold uppercase">Pacientes</p>
          </div>
 
-         {/* 2. Agenda (Citas Hoy) - TEAL - AHORA ABRE MODAL DE AGENDA */}
          <div 
             onClick={() => setIsAppointmentsModalOpen(true)} 
             className="bg-white p-4 rounded-xl border border-slate-200 hover:border-teal-300 cursor-pointer transition-all group"
@@ -163,7 +166,6 @@ const Dashboard: React.FC = () => {
             <p className="text-2xl font-bold text-slate-800">{stats.appointmentsToday}</p><p className="text-slate-400 text-xs font-bold uppercase">Citas Pendientes</p>
          </div>
 
-         {/* 3. Productividad (Consultas Realizadas) - INDIGO - ABRE MODAL DE REALIZADAS */}
          <div 
             onClick={() => setIsConsultationsModalOpen(true)} 
             className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition-all group relative overflow-hidden"
@@ -175,13 +177,11 @@ const Dashboard: React.FC = () => {
             <p className="text-2xl font-bold text-slate-800">{stats.consultationsDoneCount}</p><p className="text-slate-400 text-xs font-bold uppercase">Realizadas</p>
          </div>
 
-         {/* 4. Siguiente Cita */}
          <div onClick={() => navigate('/appointments')} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-purple-300 cursor-pointer transition-all group">
              <div className="flex justify-between mb-2"><div className="bg-purple-50 p-2 rounded-lg text-purple-600"><Clock size={18}/></div><ChevronRight className="text-slate-300 group-hover:text-purple-500" size={16}/></div>
             <p className="text-xl font-bold text-slate-800 truncate">{stats.nextAppt}</p><p className="text-slate-400 text-xs font-bold uppercase">Siguiente</p>
          </div>
 
-         {/* 5. Estado */}
          <div className="bg-white p-4 rounded-xl border border-slate-200">
             <div className="flex justify-between mb-2"><div className="bg-orange-50 p-2 rounded-lg text-orange-600"><ShieldCheck size={18}/></div><div className="h-2 w-2 bg-green-500 rounded-full animate-pulse"></div></div>
             <p className="text-xl font-bold text-slate-800">Seguro</p><p className="text-slate-400 text-xs font-bold uppercase">Estado</p>
@@ -212,7 +212,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL 1: LISTA DE CITAS DE HOY (AGENDA) */}
+      {/* MODAL 1: AGENDA DE HOY */}
       {isAppointmentsModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
              <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
@@ -248,12 +248,8 @@ const Dashboard: React.FC = () => {
                                     </div>
                                 );
                             })}
-                            {/* BOTÓN PARA IR A LA AGENDA COMPLETA */}
                             <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-center">
-                                <button 
-                                    onClick={() => navigate('/appointments')}
-                                    className="text-teal-600 text-xs font-bold hover:underline flex items-center gap-1"
-                                >
+                                <button onClick={() => navigate('/appointments')} className="text-teal-600 text-xs font-bold hover:underline flex items-center gap-1">
                                     <ExternalLink size={12}/> Gestionar Agenda Completa
                                 </button>
                             </div>
@@ -269,7 +265,7 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 2: LISTA DE CONSULTAS REALIZADAS */}
+      {/* MODAL 2: CONSULTAS REALIZADAS */}
       {isConsultationsModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
