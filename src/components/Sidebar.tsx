@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Stethoscope, Users, Smartphone, LogOut, X, Settings, Download, Share } from 'lucide-react';
+import { LayoutDashboard, Stethoscope, Users, Smartphone, LogOut, X, Settings, Download, Share, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface SidebarProps {
@@ -22,15 +22,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     fetchProfile();
 
-    // 1. Detectar si es iOS (iPhone/iPad)
     const isDeviceIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
     setIsIOS(isDeviceIOS);
 
-    // 2. Detectar si YA está instalada (Modo Standalone)
     const isApp = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone;
     setIsStandalone(isApp);
 
-    // 3. Capturar evento de instalación (Android/PC)
     const handler = (e: any) => {
       e.preventDefault();
       setDeferredPrompt(e);
@@ -51,21 +48,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const handleLogout = async () => { await supabase.auth.signOut(); };
 
   const handleInstallClick = () => {
-    // CASO A: Android/PC con evento capturado
     if (deferredPrompt) {
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then((choiceResult: any) => {
-        if (choiceResult.outcome === 'accepted') {
-          setDeferredPrompt(null);
-        }
+        if (choiceResult.outcome === 'accepted') setDeferredPrompt(null);
       });
-    } 
-    // CASO B: Es iPhone (iOS)
-    else if (isIOS) {
+    } else if (isIOS) {
       setShowIOSInstructions(!showIOSInstructions);
-    } 
-    // CASO C: Android/PC sin evento (Manual)
-    else {
+    } else {
       alert("Para instalar: Abre el menú de tu navegador (3 puntos) y selecciona 'Instalar aplicación' o 'Agregar a pantalla de inicio'.");
     }
   };
@@ -74,6 +64,8 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
     { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
     { path: '/consultation', icon: <Stethoscope size={20} />, label: 'Consulta IA' },
     { path: '/patients', icon: <Users size={20} />, label: 'Pacientes' },
+    // NUEVO ÍTEM DE AGENDA
+    { path: '/appointments', icon: <Calendar size={20} />, label: 'Agenda' }, 
     { path: '/card', icon: <Smartphone size={20} />, label: 'Tarjeta Digital' },
     { path: '/settings', icon: <Settings size={20} />, label: 'Configuración' },
   ];
@@ -123,25 +115,16 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </NavLink>
           ))}
 
-          {/* BOTÓN INTELIGENTE DE INSTALACIÓN */}
-          {/* Solo se muestra si NO estamos ya en modo App */}
           {!isStandalone && (
             <div className="mt-4">
-                <button
-                  onClick={handleInstallClick}
-                  className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 bg-slate-900 text-white shadow-lg shadow-slate-900/20 active:scale-95"
-                >
+                <button onClick={handleInstallClick} className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 bg-slate-900 text-white shadow-lg shadow-slate-900/20 active:scale-95">
                   <Download size={20} />
                   <span className="font-bold">Instalar App</span>
                 </button>
-
-                {/* Instrucciones especiales para iOS */}
                 {showIOSInstructions && (
                     <div className="mt-3 p-3 bg-slate-100 rounded-lg text-xs text-slate-600 border border-slate-200 animate-fade-in-up">
                         <p className="font-bold mb-2 text-slate-800">Para instalar en iPhone:</p>
-                        <div className="flex items-center gap-2 mb-1">
-                            1. Toca el botón <Share size={12} className="text-blue-500"/> Compartir.
-                        </div>
+                        <div className="flex items-center gap-2 mb-1">1. Toca el botón <Share size={12} className="text-blue-500"/> Compartir.</div>
                         <div>2. Selecciona <strong>"Agregar a Inicio"</strong>.</div>
                     </div>
                 )}
@@ -151,9 +134,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
         <div className="p-4 border-t border-slate-100 shrink-0">
           <div className="flex items-center p-3 mb-2 rounded-lg bg-slate-50 border border-slate-100">
-              <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-brand-teal font-bold text-xs shrink-0">
-                  DR
-              </div>
+              <div className="w-8 h-8 rounded-full bg-teal-100 flex items-center justify-center text-brand-teal font-bold text-xs shrink-0">DR</div>
               <div className="ml-3 overflow-hidden">
                   <p className="text-sm font-medium text-slate-700 truncate">{profile.name}</p>
                   <p className="text-[10px] text-slate-500 truncate uppercase tracking-wide">{profile.specialty}</p>

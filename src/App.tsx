@@ -5,9 +5,10 @@ import Sidebar from './components/Sidebar';
 import ConsultationView from './components/ConsultationView';
 import DigitalCard from './components/DigitalCard';
 import PatientsView from './components/PatientsView';
-import SettingsView from './components/SettingsView'; // IMPORT NUEVO
+import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
 import Dashboard from './routes/Dashboard';
+import AppointmentsView from './components/AppointmentsView'; // Import Nuevo
 import { Activity, Menu } from 'lucide-react';
 import { ViewState } from './types';
 
@@ -15,16 +16,6 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const navigate = useNavigate();
   const location = useLocation();
-
-  const getCurrentView = (): ViewState => {
-    switch (location.pathname) {
-      case '/consultation': return ViewState.CONSULTATION;
-      case '/patients': return ViewState.PATIENTS;
-      case '/card': return ViewState.DIGITAL_CARD;
-      // NO NECESITAMOS AGREGAR SETTINGS A VIEWSTATE, SOLO AL SIDEBAR
-      default: return ViewState.DASHBOARD;
-    }
-  };
 
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-900">
@@ -44,8 +35,9 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
             <Route path="/" element={<Dashboard />} />
             <Route path="/consultation" element={<ConsultationView />} />
             <Route path="/patients" element={<PatientsView />} />
+            <Route path="/appointments" element={<AppointmentsView />} /> {/* Ruta Nueva */}
             <Route path="/card" element={<DigitalCard />} />
-            <Route path="/settings" element={<SettingsView />} /> {/* RUTA NUEVA */}
+            <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
