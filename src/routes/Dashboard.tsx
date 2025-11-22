@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise } from 'lucide-react';
+import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise, MessageCircle, HelpCircle } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -32,22 +32,29 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchDashboardData();
     determineGreeting();
-    // Seleccionar frase aleatoria
     setQuote(TIPS_AND_QUOTES[Math.floor(Math.random() * TIPS_AND_QUOTES.length)]);
   }, []);
 
   const determineGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) setGreeting('Buenos días');
-    else if (hour < 18) setGreeting('Buenas tardes');
+    else if (hour < 19) setGreeting('Buenas tardes');
     else setGreeting('Buenas noches');
   };
 
   const getGreetingIcon = () => {
     const hour = new Date().getHours();
     if (hour < 12) return <Sunrise className="text-orange-400" size={32} />;
-    if (hour < 18) return <Sun className="text-yellow-500" size={32} />;
+    if (hour < 19) return <Sun className="text-yellow-500" size={32} />;
     return <Moon className="text-indigo-400" size={32} />;
+  };
+
+  // --- ACCIÓN DE SOPORTE TÉCNICO ---
+  const handleSupport = () => {
+    // TU NÚMERO AQUÍ (Formato Internacional sin +)
+    const SUPPORT_PHONE = "523330583807"; 
+    const message = "Hola Soporte MediScribe, necesito ayuda con la plataforma.";
+    window.open(`https://wa.me/${SUPPORT_PHONE}?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   const fetchDashboardData = async () => {
@@ -59,8 +66,7 @@ const Dashboard: React.FC = () => {
       setDoctorName(profile?.full_name || 'Doctor');
 
       const { count: patientsCount } = await supabase.from('patients').select('*', { count: 'exact', head: true });
-      const { count: totalConsul } = await supabase.from('consultations').select('*', { count: 'exact', head: true });
-
+      
       const today = new Date();
       today.setHours(0, 0, 0, 0);
       const { count: todayConsul } = await supabase
@@ -87,9 +93,9 @@ const Dashboard: React.FC = () => {
 
       setStats({
         totalPatients: patientsCount || 0,
-        totalConsultations: totalConsul || 0,
+        totalConsultations: 0, 
         consultationsToday: todayConsul || 0,
-        nextAppt: nextApptString
+        nextAppt: nextApptString 
       });
 
     } catch (error) { console.error(error); } finally { setLoading(false); }
@@ -109,9 +115,8 @@ const Dashboard: React.FC = () => {
   return (
     <div className="p-4 lg:p-6 max-w-6xl mx-auto">
       
-      {/* WELCOME HERO PERSONALIZADO */}
+      {/* HERO */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 lg:p-8 flex flex-col md:flex-row items-center justify-between mb-8 relative overflow-hidden">
-          {/* Barra lateral de color */}
           <div className="absolute top-0 left-0 w-2 h-full bg-brand-teal"></div>
           
           <div className="flex-1 z-10 text-center md:text-left mb-6 md:mb-0">
@@ -121,7 +126,7 @@ const Dashboard: React.FC = () => {
                     {greeting}, <span className="text-brand-teal">{doctorName.split(' ')[0]}</span>
                 </h2>
              </div>
-             <p className="text-slate-500 italic text-sm lg:text-base max-w-xl mx-auto md:mx-0">
+             <p className="text-slate-500 italic text-sm lg:text-base max-w-xl mx-auto md:mx-0 bg-slate-50 p-2 rounded-lg border border-slate-100 inline-block">
                 "{quote}"
              </p>
           </div>
@@ -134,35 +139,29 @@ const Dashboard: React.FC = () => {
                 <Activity size={20} /> Iniciar Consulta
              </button>
           </div>
-
-          {/* Decoración de fondo */}
           <div className="absolute -right-10 -top-10 w-64 h-64 bg-gradient-to-br from-brand-teal/10 to-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
       </div>
       
-      {/* GRID DE ESTADÍSTICAS (Compacto en Móvil) */}
+      {/* STATS */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
-         
-         {/* PACIENTES */}
-         <div onClick={() => navigate('/patients')} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all cursor-pointer group">
+         <div onClick={() => navigate('/patients')} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md hover:border-blue-200 transition-all cursor-pointer group">
             <div className="flex items-center justify-between mb-2">
-               <div className="bg-blue-50 p-2 rounded-lg text-blue-600"><Users size={20} /></div>
+               <div className="bg-blue-50 p-2 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors"><Users size={20} /></div>
                <ChevronRight className="text-slate-300 group-hover:text-blue-500" size={16}/>
             </div>
             <p className="text-2xl font-bold text-slate-800">{stats.totalPatients}</p>
-            <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Pacientes</p>
+            <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Pacientes Totales</p>
          </div>
 
-         {/* CONSULTAS HOY */}
          <div onClick={() => navigate('/appointments')} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all cursor-pointer group">
             <div className="flex items-center justify-between mb-2">
-               <div className="bg-teal-50 p-2 rounded-lg text-brand-teal"><Activity size={20} /></div>
-               <ChevronRight className="text-slate-300 group-hover:text-brand-teal" size={16}/>
+               <div className="bg-teal-50 p-2 rounded-lg text-brand-teal group-hover:bg-brand-teal group-hover:text-white transition-colors"><Activity size={20} /></div>
+               <ChevronRight onClick={(e) => {e.stopPropagation(); navigate('/consultation')}} className="text-slate-300 group-hover:text-brand-teal" size={16}/>
             </div>
             <p className="text-2xl font-bold text-slate-800">{stats.consultationsToday}</p>
             <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Consultas Hoy</p>
          </div>
 
-         {/* PRÓXIMA CITA */}
          <div onClick={() => navigate('/appointments')} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all cursor-pointer group">
              <div className="flex items-center justify-between mb-2">
                <div className="bg-purple-50 p-2 rounded-lg text-purple-600"><Clock size={20} /></div>
@@ -172,23 +171,33 @@ const Dashboard: React.FC = () => {
             <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Próxima Cita</p>
          </div>
 
-         {/* SISTEMA */}
          <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
             <div className="flex items-center justify-between mb-2">
                <div className="bg-orange-50 p-2 rounded-lg text-orange-600"><ShieldCheck size={20} /></div>
-               <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" title="Online"></div>
+               <div className="flex items-center gap-1 text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">
+                  <div className="h-1.5 w-1.5 bg-green-500 rounded-full animate-pulse"></div> Online
+               </div>
             </div>
             <p className="text-xl font-bold text-slate-800">Seguro</p>
             <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Estado</p>
          </div>
       </div>
       
-      {/* ACCESOS RÁPIDOS INFERIORES */}
+      {/* ACCESOS INFERIORES */}
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        
+        {/* TARJETA DE SOPORTE ACTIVADA */}
         <div className="bg-slate-900 text-white rounded-xl p-6 relative overflow-hidden">
-             <h3 className="font-bold text-lg mb-1">¿Necesitas Ayuda?</h3>
-             <p className="text-slate-300 text-xs mb-4 max-w-xs">Consulta nuestra guía de uso o contacta a soporte técnico.</p>
-             <button className="bg-white/10 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-white/20 transition-colors cursor-not-allowed opacity-70">Ver Tutoriales (Pronto)</button>
+             <div className="relative z-10">
+                <h3 className="font-bold text-lg mb-1 flex items-center gap-2"><HelpCircle size={20} className="text-teal-400"/> Soporte Técnico</h3>
+                <p className="text-slate-300 text-xs mb-4 max-w-xs">¿Dudas o problemas? Contacta directamente a nuestro equipo de ingeniería.</p>
+                <button 
+                    onClick={handleSupport}
+                    className="bg-teal-600 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-teal-500 transition-colors flex items-center gap-2 shadow-lg"
+                >
+                    <MessageCircle size={16} /> Contactar Soporte
+                </button>
+             </div>
              <Sparkles className="absolute bottom-[-20px] right-[-20px] text-white/5 w-32 h-32" />
         </div>
         
