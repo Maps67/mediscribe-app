@@ -1,6 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
+import { Toaster } from 'sonner'; // <--- IMPORTANTE: Librería de notificaciones
+
 import Sidebar from './components/Sidebar';
 import ConsultationView from './components/ConsultationView';
 import DigitalCard from './components/DigitalCard';
@@ -8,14 +10,11 @@ import PatientsView from './components/PatientsView';
 import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
 import Dashboard from './routes/Dashboard';
-import AppointmentsView from './components/AppointmentsView'; // Import Nuevo
+import AppointmentsView from './components/AppointmentsView';
 import { Activity, Menu } from 'lucide-react';
-import { ViewState } from './types';
 
 const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
-  const navigate = useNavigate();
-  const location = useLocation();
 
   return (
     <div className="min-h-screen bg-slate-50 flex font-sans text-slate-900">
@@ -35,7 +34,7 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
             <Route path="/" element={<Dashboard />} />
             <Route path="/consultation" element={<ConsultationView />} />
             <Route path="/patients" element={<PatientsView />} />
-            <Route path="/appointments" element={<AppointmentsView />} /> {/* Ruta Nueva */}
+            <Route path="/appointments" element={<AppointmentsView />} />
             <Route path="/card" element={<DigitalCard />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -67,11 +66,19 @@ const App: React.FC = () => {
   }
 
   if (!session) {
-    return <AuthView authService={{ supabase }} onLoginSuccess={() => {}} />;
+    // También agregamos el Toaster aquí por si hay errores de login
+    return (
+      <>
+        <Toaster richColors position="top-center" />
+        <AuthView authService={{ supabase }} onLoginSuccess={() => {}} />
+      </>
+    );
   }
 
   return (
     <BrowserRouter>
+      {/* Aquí vive el sistema de notificaciones global */}
+      <Toaster richColors position="top-center" closeButton />
       <MainLayout session={session} onLogout={async () => await supabase.auth.signOut()} />
     </BrowserRouter>
   );
