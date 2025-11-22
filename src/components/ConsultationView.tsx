@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown, Edit2, Eye, PenTool, X, Save } from 'lucide-react';
+import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown, Edit2, Eye, PenTool, X, Save, UploadCloud, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
@@ -14,7 +14,21 @@ async function generateSessionKey(): Promise<CryptoKey> {
   return window.crypto.subtle.generateKey({ name: "AES-GCM", length: 256 }, true, ["encrypt", "decrypt"]);
 }
 
-const SPECIALTIES = ["Medicina General", "Cardiología", "Pediatría", "Psicología/Psiquiatría", "Ginecología", "Dermatología", "Nutrición"];
+// LISTA AMPLIADA CON CIRUGÍA
+const SPECIALTIES = [
+    "Medicina General", 
+    "Cirujano General", // <--- AGREGADO PARA DR. CARLOS
+    "Cardiología", 
+    "Pediatría", 
+    "Ginecología y Obstetricia", 
+    "Traumatología y Ortopedia",
+    "Medicina Interna",
+    "Dermatología", 
+    "Psicología/Psiquiatría", 
+    "Nutrición",
+    "Oftalmología",
+    "Otorrinolaringología"
+];
 
 const ConsultationView: React.FC = () => {
   const { isListening, transcript, interimTranscript, startListening, stopListening } = useSpeechRecognition();
@@ -66,7 +80,16 @@ const ConsultationView: React.FC = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        if (data) setDoctorProfile({ ...data, subscription_tier: data.subscription_tier || 'basic' });
+        if (data) {
+            setDoctorProfile({ ...data, subscription_tier: data.subscription_tier || 'basic' });
+            
+            // MAGIA: Si el doctor tiene especialidad guardada, la seleccionamos automáticamente
+            if (data.specialty) {
+                // Verificamos si está en la lista, si no, la agregamos visualmente o seleccionamos la más cercana
+                // Por simplicidad, seteamos el estado directo.
+                setSpecialty(data.specialty);
+            }
+        }
     }
   };
 
@@ -121,6 +144,7 @@ const ConsultationView: React.FC = () => {
     if (!transcript) return;
     setIsLoadingRecord(true);
     try {
+      // Aquí la IA recibe 'specialty', que ahora será "Cirujano General" automáticamente
       const { clinicalNote, patientInstructions, actionItems } = await GeminiMedicalService.generateSummary(transcript, specialty, patientContext);
       
       const patientId = selectedPatient ? selectedPatient.id : '00000000-0000-0000-0000-000000000000';
@@ -261,8 +285,13 @@ const ConsultationView: React.FC = () => {
             </div>
             <div className="flex items-center gap-2 bg-white p-2 rounded-lg border border-slate-200 shadow-sm w-full lg:w-auto lg:min-w-[200px]">
                 <Stethoscope size={18} className="text-brand-teal ml-1" />
+                {/* MENÚ DESPLEGABLE ACTUALIZADO */}
                 <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer flex-1 w-full">
                     {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
+                    {/* Si la especialidad del doctor no está en la lista estándar, la agregamos al final como opción extra */}
+                    {!SPECIALTIES.includes(doctorProfile.specialty) && doctorProfile.specialty !== 'Medicina' && (
+                        <option value={doctorProfile.specialty}>{doctorProfile.specialty}</option>
+                    )}
                 </select>
             </div>
         </div>
@@ -331,6 +360,7 @@ const ConsultationView: React.FC = () => {
                           <div className="flex-1 p-4 bg-green-50/30 overflow-y-auto">
                             <textarea className="w-full h-full bg-transparent outline-none resize-none text-sm text-slate-700 font-medium" value={patientInstructions} onChange={(e) => setPatientInstructions(e.target.value)} />
                           </div>
+                          
                           <div className="p-3 border-t border-slate-100 flex flex-wrap justify-end items-center gap-2 bg-white shrink-0">
                             <button onClick={sendToWhatsApp} className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm flex-1 justify-center md:flex-none ${isPro ? 'bg-[#25D366] text-white hover:bg-green-600' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
                                 {!isPro && <Lock size={12}/>} <Send size={14}/> WhatsApp
@@ -374,6 +404,7 @@ const ConsultationView: React.FC = () => {
           </div>
         </div>
       </div>
+
       {isRxModalOpen && (
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
