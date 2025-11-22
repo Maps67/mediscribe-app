@@ -27,9 +27,9 @@ const PatientsView: React.FC = () => {
   const [doctorProfile, setDoctorProfile] = useState({ full_name: 'Doctor', specialty: 'Medicina', license_number: '', phone: '', university: '', address: '', logo_url: '', signature_url: '' });
 
   // Modales
-  const [isModalOpen, setIsModalOpen] = useState(false); // Crear Paciente
-  const [isRxModalOpen, setIsRxModalOpen] = useState(false); // Receta Voz
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); // Subir Foto
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isRxModalOpen, setIsRxModalOpen] = useState(false);
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
 
   const [newPatientName, setNewPatientName] = useState('');
   const [newPatientPhone, setNewPatientPhone] = useState('');
@@ -45,7 +45,7 @@ const PatientsView: React.FC = () => {
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [loadingDocs, setLoadingDocs] = useState(false);
   
-  // Estado para indicar qué PDF se está generando (Loading en botón)
+  // Estado para indicar qué PDF se está generando
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
 
   // Lógica Voz Receta
@@ -65,7 +65,7 @@ const PatientsView: React.FC = () => {
     fetchDoctorProfile();
   }, []);
 
-  // --- FUNCIONES DE CARGA ---
+  // --- FUNCIONES ---
   const fetchDoctorProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -95,7 +95,6 @@ const PatientsView: React.FC = () => {
       try {
         const { data: docs } = await supabase.from('patient_documents').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
         if (docs) {
-            // Generar URLs firmadas
             const docsUrl = await Promise.all(docs.map(async (d) => {
                 let path = d.file_url;
                 if(path.includes('patient-files/')) path = path.split('patient-files/')[1];
@@ -107,7 +106,6 @@ const PatientsView: React.FC = () => {
       } catch(e) { console.error(e); } finally { setLoadingDocs(false); }
   };
 
-  // --- INTERACCIÓN ---
   const handlePatientClick = (patient: Patient) => {
     setSelectedPatient(patient);
     setActiveTab('history');
@@ -143,7 +141,6 @@ const PatientsView: React.FC = () => {
     } catch (error) { alert("Error"); } finally { setIsSaving(false); }
   };
 
-  // --- LOGICA PDF (BAJO DEMANDA) ---
   const handleDownloadPDF = async (consultation: Consultation) => {
     if (!selectedPatient) return;
     setGeneratingPdfId(consultation.id); 
@@ -208,7 +205,6 @@ const PatientsView: React.FC = () => {
     } catch (error) { console.log("Cancelado"); } finally { setGeneratingPdfId(null); }
   };
 
-  // --- RECETA RÁPIDA ---
   const handleGenerateRx = async () => {
       if(!transcript) return;
       setIsProcessingRx(true);
@@ -236,7 +232,6 @@ const PatientsView: React.FC = () => {
       } catch(e) { alert("Error guardando"); } finally { setIsSavingRx(false); }
   };
 
-  // --- ARCHIVOS ---
   const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0 || !selectedPatient) return;
     const file = event.target.files[0];
@@ -262,9 +257,7 @@ const PatientsView: React.FC = () => {
 
   const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // =================================================
-  // VISTA 1: DETALLE DEL PACIENTE (HISTORIAL)
-  // =================================================
+  // VISTA DETALLE
   if (selectedPatient) {
     return (
       <div className="p-6 max-w-6xl mx-auto animate-fade-in-up">
@@ -437,68 +430,6 @@ const PatientsView: React.FC = () => {
                 </div>
             </div>
         )}
-    </div>
-  );
-
-  // =================================================
-  // VISTA 2: LISTA DE PACIENTES (TABLA)
-  // =================================================
-  return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <div className="flex flex-col md:flex-row justify-between items-center mb-8 gap-4">
-        <div><h2 className="text-2xl font-bold text-slate-800">Directorio de Pacientes</h2><p className="text-slate-500 text-sm">Gestione sus expedientes.</p></div>
-        <button onClick={() => setIsModalOpen(true)} className="bg-brand-teal text-white px-6 py-3 rounded-lg font-bold shadow-lg shadow-teal-500/20 hover:bg-teal-600 transition-all flex items-center gap-2"><Plus size={20} /> Nuevo Paciente</button>
-      </div>
-
-      <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 mb-6 flex items-center gap-3">
-        <Search className="text-slate-400" size={20} />
-        <input type="text" placeholder="Buscar por nombre..." className="flex-1 outline-none text-slate-700 bg-transparent" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} />
-      </div>
-
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 overflow-hidden">
-        {loading ? <div className="text-center py-10 text-slate-400">Cargando...</div> : filteredPatients.length === 0 ? <div className="text-center py-10 text-slate-400">No hay pacientes.</div> : (
-            <div className="overflow-x-auto">
-                <table className="w-full text-left border-collapse">
-                    <thead>
-                        <tr className="bg-slate-50 border-b border-slate-100 text-xs font-bold text-slate-500 uppercase tracking-wider">
-                            <th className="p-4">Paciente</th>
-                            <th className="p-4">Teléfono</th>
-                            <th className="p-4 hidden md:table-cell">Fecha Registro</th>
-                            <th className="p-4 text-right">Acción</th>
-                        </tr>
-                    </thead>
-                    <tbody className="divide-y divide-slate-100">
-                        {filteredPatients.map((patient) => (
-                            <tr key={patient.id} className="hover:bg-slate-50 transition-colors cursor-pointer group" onClick={() => handlePatientClick(patient)}>
-                                <td className="p-4">
-                                    <div className="flex items-center gap-3">
-                                        <div className="w-8 h-8 bg-blue-100 text-blue-600 rounded-full flex items-center justify-center font-bold text-xs">{patient.name.charAt(0).toUpperCase()}</div>
-                                        <span className="font-bold text-slate-700">{patient.name}</span>
-                                    </div>
-                                </td>
-                                <td className="p-4 text-sm text-slate-500">{patient.phone || "-"}</td>
-                                <td className="p-4 text-sm text-slate-500 hidden md:table-cell">{new Date(patient.created_at).toLocaleDateString()}</td>
-                                <td className="p-4 text-right"><button className="text-brand-teal hover:bg-teal-50 p-2 rounded-full transition-colors"><ChevronRight size={20} /></button></td>
-                            </tr>
-                        ))}
-                    </tbody>
-                </table>
-            </div>
-        )}
-      </div>
-
-      {isModalOpen && (
-        <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
-            <div className="p-6 border-b border-slate-100 flex justify-between items-center bg-slate-50"><h3 className="font-bold text-lg text-slate-800">Registrar Paciente</h3><button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-red-500"><X size={24} /></button></div>
-            <form onSubmit={handleCreatePatient} className="p-6 space-y-4">
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Nombre</label><input type="text" required className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" value={newPatientName} onChange={e => setNewPatientName(e.target.value)} /></div>
-              <div><label className="block text-sm font-medium text-slate-700 mb-1">Teléfono</label><input type="tel" className="w-full p-3 border border-slate-200 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none" value={newPatientPhone} onChange={e => setNewPatientPhone(e.target.value)} /></div>
-              <button type="submit" disabled={isSaving} className="w-full bg-brand-teal text-white py-3 rounded-lg font-bold hover:bg-teal-600">{isSaving ? 'Guardando...' : 'Guardar'}</button>
-            </form>
-          </div>
-        </div>
-      )}
     </div>
   );
 };
