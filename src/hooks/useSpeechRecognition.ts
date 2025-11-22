@@ -1,110 +1,101 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
+interface IWindow extends Window {
+  webkitSpeechRecognition: any;
+  SpeechRecognition: any;
+}
+
 export const useSpeechRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   const [interimTranscript, setInterimTranscript] = useState('');
-  
+  const [error, setError] = useState<string | null>(null);
+
   const recognitionRef = useRef<any>(null);
-  const isManuallyStopped = useRef(false);
-  
-  // Acumulador seguro de texto (La "Memoria" que nosotros controlamos, no el navegador)
-  const persistentTranscript = useRef(''); 
+  const isIntentionalStop = useRef(false);
 
   useEffect(() => {
-    const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
-    
-    if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      
-      // DETECCIÓN DE MÓVIL
-      // Si es móvil, desactivamos continuous para forzar limpieza de buffer
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      recognition.continuous = !isMobile; // PC: True (Continuo), Móvil: False (Frase por frase)
-      recognition.interimResults = true;
-      recognition.lang = 'es-MX';
+    const { webkitSpeechRecognition, SpeechRecognition } = window as unknown as IWindow;
+    const SpeechRecognitionAPI = SpeechRecognition || webkitSpeechRecognition;
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        isManuallyStopped.current = false;
-      };
-
-      recognition.onresult = (event: any) => {
-        let newInterim = '';
-        let newFinal = '';
-
-        // Si es PC (Continuous), la lógica es estándar
-        // Si es Móvil (No Continuous), el evento siempre trae texto fresco
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            newFinal += event.results[i][0].transcript + ' ';
-          } else {
-            newInterim += event.results[i][0].transcript;
-          }
-        }
-
-        if (newFinal) {
-            // En móvil, acumulamos manualmente porque el navegador olvida al reiniciar
-            persistentTranscript.current += newFinal; 
-            setTranscript(persistentTranscript.current);
-        }
-        
-        setInterimTranscript(newInterim);
-      };
-
-      recognition.onerror = (event: any) => {
-        // Ignoramos errores silenciosos
-        if (event.error !== 'no-speech') {
-            console.warn("Speech warning:", event.error);
-        }
-      };
-
-      recognition.onend = () => {
-        // EL TRUCO MAGICO:
-        // Si se cortó solo (porque terminó la frase en móvil) y NO lo paramos nosotros...
-        // ... LO REINICIAMOS INMEDIATAMENTE.
-        if (!isManuallyStopped.current) {
-            try {
-                recognition.start();
-            } catch (e) {
-                // Si falla el reinicio inmediato, esperamos un poco
-                setTimeout(() => {
-                    if (!isManuallyStopped.current) recognition.start();
-                }, 100);
-            }
-        } else {
-            setIsListening(false);
-        }
-      };
-
-      recognitionRef.current = recognition;
+    if (!SpeechRecognitionAPI) {
+      setError('Navegador no compatible.');
+      return;
     }
+
+    const recognition = new SpeechRecognitionAPI();
+    recognition.continuous = false; // CRÍTICO: false para reiniciar buffer en Android
+    recognition.interimResults = true;
+    recognition.lang = 'es-MX';
+
+    recognition.onstart = () => {
+      setIsListening(true);
+      isIntentionalStop.current = false;
+    };
+
+    recognition.onresult = (event: any) => {
+      let finalChunk = '';
+      let interimChunk = '';
+
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
+        if (event.results[i].isFinal) {
+          finalChunk += event.results[i][0].transcript;
+        } else {
+          interimChunk += event.results[i][0].transcript;
+        }
+      }
+
+      if (finalChunk) {
+        setTranscript((prev) => {
+          const newText = `${prev} ${finalChunk}`.trim();
+          return newText.charAt(0).toUpperCase() + newText.slice(1);
+        });
+        setInterimTranscript(''); 
+      } else {
+        setInterimTranscript(interimChunk);
+      }
+    };
+
+    recognition.onerror = (event: any) => {
+      if (event.error === 'not-allowed') {
+        setIsListening(false);
+        setError('Permiso denegado.');
+        isIntentionalStop.current = true;
+      }
+    };
+
+    recognition.onend = () => {
+      // Reinicia automáticamente si no fue una parada manual (Restart Pattern)
+      if (!isIntentionalStop.current) {
+        setTimeout(() => {
+          try { recognition.start(); } catch (e) { /* ignorar si ya inició */ }
+        }, 100); 
+      } else {
+        setIsListening(false);
+        setInterimTranscript('');
+      }
+    };
+
+    recognitionRef.current = recognition;
+    return () => { if (recognitionRef.current) recognitionRef.current.abort(); };
   }, []);
 
   const startListening = useCallback(() => {
-    if (recognitionRef.current) {
-        persistentTranscript.current = ''; // Resetear memoria nuestra
-        setTranscript('');
-        setInterimTranscript('');
-        isManuallyStopped.current = false;
-        try {
-            recognitionRef.current.start();
-        } catch(e) { console.log("Ya activo"); }
-    } else {
-        alert("Navegador no compatible.");
-    }
+    setError(null);
+    isIntentionalStop.current = false;
+    try { recognitionRef.current?.start(); } catch (e) { console.error(e); }
   }, []);
 
   const stopListening = useCallback(() => {
-    if (recognitionRef.current) {
-        isManuallyStopped.current = true; // Bandera roja: NO REINICIAR
-        recognitionRef.current.stop();
-        setIsListening(false);
-    }
+    isIntentionalStop.current = true;
+    recognitionRef.current?.stop();
+    setIsListening(false);
   }, []);
 
-  return { isListening, transcript, interimTranscript, startListening, stopListening };
-};
+  const resetTranscript = useCallback(() => {
+    setTranscript('');
+    setInterimTranscript('');
+  }, []);
 
-export default useSpeechRecognition;
+  return { isListening, transcript, interimTranscript, startListening, stopListening, resetTranscript, error };
+};

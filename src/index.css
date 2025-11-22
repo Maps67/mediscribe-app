@@ -2,7 +2,6 @@
 @tailwind components;
 @tailwind utilities;
 
-/* Estilos globales adicionales para que la app se sienta nativa */
 body {
   background-color: #f8fafc;
   margin: 0;
@@ -11,29 +10,34 @@ body {
   -moz-osx-font-smoothing: grayscale;
 }
 
-/* Ocultar scrollbar pero mantener funcionalidad (opcional, estético) */
-::-webkit-scrollbar {
-  width: 8px;
-}
-::-webkit-scrollbar-track {
-  background: transparent;
-}
-::-webkit-scrollbar-thumb {
-  background: #cbd5e1;
-  border-radius: 4px;
-}
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 4px; }
 
-/* Agrega esto al final: */
 html {
   scroll-behavior: smooth;
-  -webkit-tap-highlight-color: transparent; /* Quita el brillo azul al tocar botones en móvil */
+  -webkit-tap-highlight-color: transparent;
 }
 
-/* Ocultar barra de scroll en contenedores horizontales (Action Board) */
-.scrollbar-hide::-webkit-scrollbar {
-    display: none;
+.scrollbar-hide::-webkit-scrollbar { display: none; }
+.scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+
+/* --- ANIMACIONES NUEVAS (Micrófono Vivo) --- */
+@keyframes mic-wave {
+  0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0.7); }
+  70% { transform: scale(1.05); box-shadow: 0 0 0 15px rgba(220, 38, 38, 0); }
+  100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(220, 38, 38, 0); }
 }
-.scrollbar-hide {
-    -ms-overflow-style: none;
-    scrollbar-width: none;
+
+.mic-active {
+  animation: mic-wave 1.5s infinite;
+}
+
+@keyframes fade-in-up {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in-up {
+  animation: fade-in-up 0.4s ease-out forwards;
 }
