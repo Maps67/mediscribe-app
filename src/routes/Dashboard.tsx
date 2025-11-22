@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise, MessageCircle, HelpCircle, ExternalLink, Calendar, ClipboardCheck } from 'lucide-react';
+import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise, MessageCircle, HelpCircle, ExternalLink, Calendar, ClipboardCheck, X, FileText } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -18,13 +18,17 @@ const Dashboard: React.FC = () => {
   const [greeting, setGreeting] = useState('');
   const [quote, setQuote] = useState('');
   
-  // ESTADO ACTUALIZADO: Ahora manejamos ambas métricas (Agenda vs Realidad)
+  // Estado para métricas numéricas
   const [stats, setStats] = useState({ 
       totalPatients: 0, 
-      appointmentsToday: 0, // Lo que está en agenda
-      consultationsDone: 0, // Lo que realmente ya trabajó hoy
+      appointmentsToday: 0, 
+      consultationsDoneCount: 0, 
       nextAppt: '---' 
   });
+
+  // Estado para la lista detallada de consultas de hoy (Modal)
+  const [todaysConsultationsList, setTodaysConsultationsList] = useState<any[]>([]);
+  const [isConsultationsModalOpen, setIsConsultationsModalOpen] = useState(false);
 
   useEffect(() => {
     fetchDashboardData();
@@ -70,12 +74,16 @@ const Dashboard: React.FC = () => {
         .gte('date_time', today.toISOString())
         .lt('date_time', tomorrow.toISOString());
 
-      // 4. Consultas Realizadas Hoy (Productividad / Ejecutado) - NUEVO
-      const { count: consultationsDoneCount } = await supabase
+      // 4. Consultas Realizadas Hoy (Productividad / Ejecutado)
+      // AQUI OBTENEMOS LA LISTA COMPLETA, NO SOLO EL CONTEO
+      const { data: consultationsTodayData, count: consultationsDoneCount } = await supabase
         .from('consultations')
-        .select('*', { count: 'exact', head: true })
+        .select('*, patients(name)', { count: 'exact' })
         .gte('created_at', today.toISOString())
-        .lt('created_at', tomorrow.toISOString());
+        .lt('created_at', tomorrow.toISOString())
+        .order('created_at', { ascending: false }); // Las más recientes arriba
+
+      setTodaysConsultationsList(consultationsTodayData || []);
 
       // 5. Siguiente Cita
       const { data: nextApptData } = await supabase
@@ -98,7 +106,7 @@ const Dashboard: React.FC = () => {
       setStats({ 
         totalPatients: patientsCount || 0, 
         appointmentsToday: appointmentsTodayCount || 0, 
-        consultationsDone: consultationsDoneCount || 0,
+        consultationsDoneCount: consultationsDoneCount || 0,
         nextAppt: nextApptString 
       });
 
@@ -140,14 +148,17 @@ const Dashboard: React.FC = () => {
             <p className="text-2xl font-bold text-slate-800">{stats.appointmentsToday}</p><p className="text-slate-400 text-xs font-bold uppercase">Citas Hoy</p>
          </div>
 
-         {/* 3. Productividad (Consultas Realizadas) - INDIGO (NUEVO) */}
-         <div onClick={() => navigate('/consultation')} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition-all group relative overflow-hidden">
+         {/* 3. Productividad (Consultas Realizadas) - INDIGO - AHORA ABRE MODAL */}
+         <div 
+            onClick={() => setIsConsultationsModalOpen(true)} 
+            className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition-all group relative overflow-hidden"
+         >
              {/* Indicador sutil de progreso */}
              <div className="absolute top-0 right-0 p-1">
-                <span className={`flex h-2 w-2 rounded-full ${stats.consultationsDone > 0 ? 'bg-indigo-500' : 'bg-slate-200'}`}></span>
+                <span className={`flex h-2 w-2 rounded-full ${stats.consultationsDoneCount > 0 ? 'bg-indigo-500' : 'bg-slate-200'}`}></span>
              </div>
             <div className="flex justify-between mb-2"><div className="bg-indigo-50 p-2 rounded-lg text-indigo-600"><ClipboardCheck size={18}/></div><ChevronRight className="text-slate-300 group-hover:text-indigo-500" size={16}/></div>
-            <p className="text-2xl font-bold text-slate-800">{stats.consultationsDone}</p><p className="text-slate-400 text-xs font-bold uppercase">Realizadas</p>
+            <p className="text-2xl font-bold text-slate-800">{stats.consultationsDoneCount}</p><p className="text-slate-400 text-xs font-bold uppercase">Realizadas</p>
          </div>
 
          {/* 4. Siguiente Cita */}
@@ -186,6 +197,58 @@ const Dashboard: React.FC = () => {
              </div>
         </div>
       </div>
+
+      {/* MODAL: LISTA DE CONSULTAS REALIZADAS HOY */}
+      {isConsultationsModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
+                <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                     <div>
+                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2">
+                            <ClipboardCheck className="text-indigo-600" size={20}/> Consultas de Hoy
+                        </h3>
+                        <p className="text-xs text-slate-500">{new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}</p>
+                     </div>
+                     <button onClick={() => setIsConsultationsModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm transition-colors"><X size={20} /></button>
+                </div>
+                
+                <div className="flex-1 p-0 overflow-y-auto bg-slate-50/50">
+                    {todaysConsultationsList.length > 0 ? (
+                        <div className="divide-y divide-slate-100">
+                            {todaysConsultationsList.map((consult) => (
+                                <div key={consult.id} className="p-4 bg-white hover:bg-indigo-50/50 transition-colors">
+                                    <div className="flex justify-between items-start mb-1">
+                                        <span className="font-bold text-slate-800">{consult.patients?.name || 'Paciente sin nombre'}</span>
+                                        <span className="text-xs font-mono bg-slate-100 text-slate-500 px-2 py-0.5 rounded border border-slate-200">
+                                            {new Date(consult.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        </span>
+                                    </div>
+                                    <p className="text-xs text-slate-500 line-clamp-2 mb-2">{consult.summary}</p>
+                                    <div className="flex justify-end">
+                                         <button 
+                                            onClick={() => {
+                                                navigate('/patients'); // O a donde prefieras ir para ver el detalle completo
+                                                setIsConsultationsModalOpen(false);
+                                            }}
+                                            className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
+                                         >
+                                            <FileText size={12}/> Ver en Expediente
+                                         </button>
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="flex flex-col items-center justify-center h-40 text-slate-400">
+                            <ClipboardCheck size={40} className="mb-2 opacity-20"/>
+                            <p className="text-sm">No has realizado consultas hoy.</p>
+                        </div>
+                    )}
+                </div>
+            </div>
+        </div>
+      )}
+
     </div>
   );
 };
