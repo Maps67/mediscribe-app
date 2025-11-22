@@ -1,8 +1,8 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise, MessageCircle, HelpCircle, ExternalLink, Calendar, ClipboardCheck, X, FileText, MapPin } from 'lucide-react';
+import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise, MessageCircle, HelpCircle, ExternalLink, Calendar, ClipboardCheck, X, FileText, MapPin, Bell, BellOff } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
-import { useAppointmentAlarms } from '../hooks/useAppointmentAlarms'; // <--- IMPORTACIÓN DEL HOOK
+import { useAppointmentAlarms } from '../hooks/useAppointmentAlarms';
 
 const TIPS_AND_QUOTES = [
   "La medicina es la más humana de las artes. - Edmund Pellegrino",
@@ -15,16 +15,15 @@ const TIPS_AND_QUOTES = [
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   
-  // --- ACTIVAR ALARMAS INTELIGENTES ---
-  useAppointmentAlarms(); 
-  // ------------------------------------
+  // --- ALARMAS INTELIGENTES CON CONTROLES ---
+  const { isSilent, toggleSound } = useAppointmentAlarms(); 
+  // ------------------------------------------
 
   const [loading, setLoading] = useState(true);
   const [doctorName, setDoctorName] = useState('');
   const [greeting, setGreeting] = useState('');
   const [quote, setQuote] = useState('');
   
-  // Estado para métricas numéricas
   const [stats, setStats] = useState({ 
       totalPatients: 0, 
       appointmentsToday: 0, 
@@ -32,11 +31,8 @@ const Dashboard: React.FC = () => {
       nextAppt: '---' 
   });
 
-  // Listas para Modales
   const [todaysConsultationsList, setTodaysConsultationsList] = useState<any[]>([]);
   const [todaysAppointmentsList, setTodaysAppointmentsList] = useState<any[]>([]);
-
-  // Estados de Modales
   const [isConsultationsModalOpen, setIsConsultationsModalOpen] = useState(false);
   const [isAppointmentsModalOpen, setIsAppointmentsModalOpen] = useState(false);
 
@@ -64,21 +60,17 @@ const Dashboard: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // 1. Perfil
       const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
       setDoctorName(profile?.full_name || 'Doctor');
 
-      // 2. Total Pacientes
       const { count: patientsCount } = await supabase.from('patients').select('*', { count: 'exact', head: true });
 
-      // DEFINIR RANGO DE HOY
       const today = new Date(); 
       today.setHours(0, 0, 0, 0); 
       const tomorrow = new Date(today); 
       tomorrow.setDate(tomorrow.getDate() + 1);
       const now = new Date();
 
-      // 3. Citas Hoy (Agenda Detallada)
       const { data: appointmentsTodayData } = await supabase
         .from('appointments')
         .select('*')
@@ -89,10 +81,8 @@ const Dashboard: React.FC = () => {
       const appointmentsList = appointmentsTodayData || [];
       setTodaysAppointmentsList(appointmentsList);
 
-      // Calculamos Pendientes (Futuras desde AHORA)
       const pendingAppointmentsCount = appointmentsList.filter(appt => new Date(appt.date_time) >= now).length;
 
-      // 4. Consultas Realizadas Hoy
       const { data: consultationsTodayData, count: consultationsDoneCount } = await supabase
         .from('consultations')
         .select('*, patients(name)', { count: 'exact' })
@@ -102,7 +92,6 @@ const Dashboard: React.FC = () => {
 
       setTodaysConsultationsList(consultationsTodayData || []);
 
-      // 5. Siguiente Cita
       const { data: nextApptData } = await supabase
         .from('appointments')
         .select('date_time')
@@ -135,13 +124,25 @@ const Dashboard: React.FC = () => {
   return (
     <div className="p-4 lg:p-6 max-w-6xl mx-auto">
       
-      {/* HERO SECTION */}
+      {/* HERO SECTION CON CONTROL DE ALARMA */}
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 lg:p-8 flex flex-col md:flex-row items-center justify-between mb-6 relative overflow-hidden">
           <div className="absolute top-0 left-0 w-1.5 h-full bg-brand-teal"></div>
+          
           <div className="flex-1 z-10 text-center md:text-left mb-4 md:mb-0">
-             <h2 className="text-2xl font-bold text-slate-800 mb-1">{greeting}, <span className="text-brand-teal">{doctorName.split(' ')[0]}</span></h2>
+             <div className="flex items-center justify-center md:justify-start gap-3 mb-1">
+                 <h2 className="text-2xl font-bold text-slate-800">{greeting}, <span className="text-brand-teal">{doctorName.split(' ')[0]}</span></h2>
+                 {/* BOTÓN DE CONFIGURACIÓN DE ALARMA */}
+                 <button 
+                    onClick={toggleSound}
+                    className={`p-1.5 rounded-full transition-all border ${isSilent ? 'bg-slate-100 text-slate-400 border-slate-200' : 'bg-indigo-50 text-indigo-600 border-indigo-100'}`}
+                    title={isSilent ? "Modo Silencio Activado (Solo visual)" : "Sonido Activado"}
+                 >
+                    {isSilent ? <BellOff size={16} /> : <Bell size={16} />}
+                 </button>
+             </div>
              <p className="text-slate-400 text-sm italic">"{quote}"</p>
           </div>
+          
           <div className="z-10">
              <button onClick={() => navigate('/consultation')} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-slate-900/20 flex items-center gap-2 hover:scale-105 transition-transform active:scale-95">
                 <Activity size={18} /> Iniciar Consulta
@@ -158,18 +159,12 @@ const Dashboard: React.FC = () => {
             <p className="text-2xl font-bold text-slate-800">{stats.totalPatients}</p><p className="text-slate-400 text-xs font-bold uppercase">Pacientes</p>
          </div>
 
-         <div 
-            onClick={() => setIsAppointmentsModalOpen(true)} 
-            className="bg-white p-4 rounded-xl border border-slate-200 hover:border-teal-300 cursor-pointer transition-all group"
-         >
+         <div onClick={() => setIsAppointmentsModalOpen(true)} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-teal-300 cursor-pointer transition-all group">
             <div className="flex justify-between mb-2"><div className="bg-teal-50 p-2 rounded-lg text-brand-teal"><Calendar size={18}/></div><ChevronRight className="text-slate-300 group-hover:text-brand-teal" size={16}/></div>
             <p className="text-2xl font-bold text-slate-800">{stats.appointmentsToday}</p><p className="text-slate-400 text-xs font-bold uppercase">Citas Pendientes</p>
          </div>
 
-         <div 
-            onClick={() => setIsConsultationsModalOpen(true)} 
-            className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition-all group relative overflow-hidden"
-         >
+         <div onClick={() => setIsConsultationsModalOpen(true)} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition-all group relative overflow-hidden">
              <div className="absolute top-0 right-0 p-1">
                 <span className={`flex h-2 w-2 rounded-full ${stats.consultationsDoneCount > 0 ? 'bg-indigo-500' : 'bg-slate-200'}`}></span>
              </div>

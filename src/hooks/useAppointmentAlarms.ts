@@ -1,18 +1,36 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
 export const useAppointmentAlarms = () => {
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  // Usamos un Ref para rastrear qué alertas ya sonaron y evitar duplicados en el mismo minuto
+  const [isSilent, setIsSilent] = useState(false);
   const alertedRef = useRef<Set<string>>(new Set());
 
+  // Cargar preferencia del médico al iniciar
   useEffect(() => {
-    // 1. Configurar Audio (Sonido de campana sutil)
-    audioRef.current = new Audio('https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3');
-    audioRef.current.volume = 0.6;
+    const savedPreference = localStorage.getItem('mediscribe_silent_mode');
+    setIsSilent(savedPreference === 'true');
 
-    // 2. Solicitar permiso para notificaciones nativas del sistema (Android/Windows/Mac)
+    // Cargar audio
+    audioRef.current = new Audio('/alarm.mp3'); 
+    audioRef.current.volume = 0.6;
+  }, []);
+
+  // Función para cambiar el modo (usada desde el Dashboard)
+  const toggleSound = () => {
+    const newState = !isSilent;
+    setIsSilent(newState);
+    localStorage.setItem('mediscribe_silent_mode', String(newState));
+    
+    // Feedback visual breve
+    toast(newState ? "🔕 Modo Silencio Activado" : "🔔 Sonido Activado", {
+      duration: 2000,
+    });
+  };
+
+  useEffect(() => {
+    // Solicitar permiso de notificación nativa
     if (Notification.permission !== "granted" && Notification.permission !== "denied") {
       Notification.requestPermission();
     }
@@ -21,12 +39,10 @@ export const useAppointmentAlarms = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
 
-      // Obtener rango del día actual
       const now = new Date();
       const todayStart = new Date(now.getFullYear(), now.getMonth(), now.getDate()).toISOString();
       const tomorrowStart = new Date(now.getFullYear(), now.getMonth(), now.getDate() + 1).toISOString();
 
-      // Consultar citas pendientes de hoy
       const { data: appointments } = await supabase
         .from('appointments')
         .select('*')
@@ -42,60 +58,93 @@ export const useAppointmentAlarms = () => {
         const diffMs = apptTime - currentTime;
         const diffInMinutes = Math.floor(diffMs / 60000);
 
-        // Clave única para identificar esta alerta específica (ID cita + minutos)
         const alertKey30 = `${appt.id}-30`;
         const alertKey15 = `${appt.id}-15`;
 
-        // --- ALERTA 30 MINUTOS ---
         if (diffInMinutes === 30 && !alertedRef.current.has(alertKey30)) {
-          triggerAlarm(appt.patient_name, 30);
+          triggerSmartAlarm(appt.patient_name, 30);
           alertedRef.current.add(alertKey30);
         }
 
-        // --- ALERTA 15 MINUTOS ---
         if (diffInMinutes === 15 && !alertedRef.current.has(alertKey15)) {
-          triggerAlarm(appt.patient_name, 15);
+          triggerSmartAlarm(appt.patient_name, 15);
           alertedRef.current.add(alertKey15);
         }
       });
     };
 
-    // Verificar cada 60 segundos
     const intervalId = setInterval(checkAppointments, 60000);
-    
-    // Verificar inmediatamente al montar
     checkAppointments();
 
     return () => clearInterval(intervalId);
-  }, []);
+  }, [isSilent]); // Se actualiza si cambia el modo silencio
 
-  const triggerAlarm = (patientName: string, minutes: number) => {
-    // A. Reproducir sonido
-    if (audioRef.current) {
-      audioRef.current.play().catch(e => console.log("El navegador bloqueó el autplay de audio (interacción requerida)."));
+  const triggerSmartAlarm = (patientName: string, minutes: number) => {
+    // 1. VIBRACIÓN (Solo móviles compatibles)
+    // Patrón: Vibrar 500ms, pausa 200ms, vibrar 500ms
+    if (navigator.vibrate) {
+      navigator.vibrate([500, 200, 500]);
     }
 
-    // B. Notificación en la App (Toast visual)
-    toast.info(`⏰ Cita en ${minutes} min`, {
-      description: `Paciente: ${patientName}. Prepárate para la consulta.`,
-      duration: 8000, // 8 segundos visible
-      action: {
-        label: 'Ver Agenda',
-        onClick: () => window.location.href = '/appointments'
-      },
-    });
+    // 2. SONIDO (Solo si NO está en silencio)
+    if (!isSilent && audioRef.current) {
+      audioRef.current.play().catch(e => console.log("Audio autoplay bloqueado", e));
+    }
 
-    // C. Notificación del Sistema Operativo (Funciona minimizado)
+    // 3. NOTIFICACIÓN INTERACTIVA (PERSISTENTE)
+    // Usamos duration: Infinity para que no se vaya hasta que el médico interactúe
+    toast.custom((t) => (
+      <div className="bg-white rounded-xl shadow-2xl border-l-4 border-indigo-500 p-4 w-full max-w-sm pointer-events-auto flex flex-col gap-3 animate-enter">
+        <div className="flex justify-between items-start">
+            <div>
+                <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                    ⏰ Cita en {minutes} min
+                </h4>
+                <p className="text-sm text-slate-600 mt-1">Paciente: <strong>{patientName}</strong></p>
+            </div>
+            {isSilent ? <span className="text-xs bg-slate-100 px-2 py-1 rounded text-slate-500">Silencio</span> : <span className="text-xs bg-indigo-100 text-indigo-600 px-2 py-1 rounded">Sonando</span>}
+        </div>
+        
+        <div className="flex gap-2 mt-1">
+            <button 
+                onClick={() => {
+                    toast.dismiss(t);
+                    if(audioRef.current) {
+                        audioRef.current.pause();
+                        audioRef.current.currentTime = 0;
+                    }
+                }}
+                className="flex-1 bg-indigo-600 text-white text-sm font-bold py-2 rounded-lg hover:bg-indigo-700 active:scale-95 transition-all"
+            >
+                Entendido / Parar
+            </button>
+            <button 
+                 onClick={() => {
+                    toast.dismiss(t);
+                     if(audioRef.current) {
+                        audioRef.current.pause();
+                        audioRef.current.currentTime = 0;
+                    }
+                    window.location.href = '/appointments';
+                 }}
+                 className="px-3 py-2 text-sm font-bold text-slate-500 hover:bg-slate-50 rounded-lg border border-slate-200"
+            >
+                Ver Agenda
+            </button>
+        </div>
+      </div>
+    ), { duration: Infinity, position: 'top-center' });
+
+    // 4. Notificación Nativa (Sistema Operativo)
     if (Notification.permission === "granted") {
-      try {
-        new Notification("MediScribe AI: Recordatorio", {
-          body: `Tu consulta con ${patientName} comienza en ${minutes} minutos.`,
-          icon: '/pwa-192x192.png', // Icono de la app
-          vibrate: [200, 100, 200] // Vibración en Android
-        });
-      } catch (e) {
-        console.log("Error en notificación nativa", e);
-      }
+      new Notification(`Cita en ${minutes} min: ${patientName}`, {
+        body: isSilent ? "Alerta silenciosa" : "Toca para abrir",
+        icon: '/pwa-192x192.png',
+        silent: isSilent // Respeta la decisión también en la notificación nativa
+      });
     }
   };
+
+  // Exponemos los controles para el Dashboard
+  return { isSilent, toggleSound };
 };
