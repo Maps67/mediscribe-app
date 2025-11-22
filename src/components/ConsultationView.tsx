@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown } from 'lucide-react';
+import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown, Edit2, Eye, PenTool, X, Save } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
@@ -24,10 +24,10 @@ const ConsultationView: React.FC = () => {
   
   // PERFIL CON PLAN
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile>({ 
-    full_name: 'Doctor', specialty: 'Medicina', license_number: '', phone: '', university: '', address: '', logo_url: '', signature_url: '', subscription_tier: 'basic' // Default seguro
+    full_name: 'Doctor', specialty: 'Medicina', license_number: '', phone: '', university: '', address: '', logo_url: '', signature_url: '', subscription_tier: 'basic' 
   });
 
-  // CHECK DE PLAN (Helpers)
+  // CHECK DE PLAN
   const isPro = doctorProfile.subscription_tier === 'pro' || doctorProfile.subscription_tier === 'enterprise';
 
   const [searchTerm, setSearchTerm] = useState('');
@@ -51,6 +51,12 @@ const ConsultationView: React.FC = () => {
   const [isChatLoading, setIsChatLoading] = useState(false);
   const [sessionKey, setSessionKey] = useState<CryptoKey | null>(null);
 
+  // Modales
+  const [isRxModalOpen, setIsRxModalOpen] = useState(false);
+  const [rxText, setRxText] = useState('');
+  const [isProcessingRx, setIsProcessingRx] = useState(false);
+  const [isSavingRx, setIsSavingRx] = useState(false);
+
   const textContainerRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
 
@@ -63,8 +69,7 @@ const ConsultationView: React.FC = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        // Si no tiene tier asignado en DB, asumimos 'basic' por seguridad, o 'pro' si es el piloto
-        if (data) setDoctorProfile({ ...data, subscription_tier: data.subscription_tier || 'pro' });
+        if (data) setDoctorProfile({ ...data, subscription_tier: data.subscription_tier || 'basic' });
     }
   };
 
@@ -140,7 +145,6 @@ const ConsultationView: React.FC = () => {
 
   const handleSharePDF = async () => {
     if (!generatedRecord) return;
-    // CANDADO PRO
     if (!isPro) {
         alert("🔒 Función Premium: Actualiza a PRO para enviar recetas por WhatsApp y generar PDFs legales.");
         return;
@@ -177,7 +181,6 @@ const ConsultationView: React.FC = () => {
   };
 
   const sendToWhatsApp = () => {
-    // CANDADO PRO
     if (!isPro) {
         alert("🔒 Función Premium: El envío directo requiere Plan PRO.");
         return;
@@ -186,6 +189,33 @@ const ConsultationView: React.FC = () => {
     if (!phone) return;
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(patientInstructions)}`;
     window.open(url, '_blank');
+  };
+
+  // RECETA RAPIDA
+  const handleGenerateRx = async () => {
+      if(!transcript) return;
+      setIsProcessingRx(true);
+      try {
+          const formattedRx = await GeminiMedicalService.generatePrescriptionOnly(transcript);
+          setRxText(formattedRx);
+      } catch (e) { alert("Error al generar receta"); } finally { setIsProcessingRx(false); stopListening(); }
+  };
+
+  const handleSaveRx = async () => {
+      if(!rxText || !selectedPatient) return;
+      setIsSavingRx(true);
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return;
+        await supabase.from('consultations').insert([{
+            doctor_id: user.id,
+            patient_id: selectedPatient.id,
+            transcript: "DICTADO DE RECETA: " + transcript, 
+            summary: rxText, 
+            status: 'completed'
+        }]);
+        setIsRxModalOpen(false);
+      } catch(e) { alert("Error guardando"); } finally { setIsSavingRx(false); }
   };
 
   const handleAskAI = async (e: React.FormEvent) => {
@@ -204,19 +234,26 @@ const ConsultationView: React.FC = () => {
   return (
     <div className="p-4 lg:p-6 max-w-6xl mx-auto space-y-4 flex flex-col h-[calc(100vh-4rem)] overflow-hidden">
       
+      {/* --- BARRA DE DIAGNÓSTICO (TEMPORAL) --- */}
+      <div className="bg-yellow-300 text-black font-bold text-center p-2 rounded-lg border-2 border-yellow-500 animate-pulse">
+        🔍 DEBUG MODE: Mi Plan es "{doctorProfile.subscription_tier}"
+      </div>
+      {/* --------------------------------------- */}
+
       {/* Header */}
       <div className="flex flex-col gap-4 shrink-0">
         <div className="flex justify-between items-center">
             <h2 className="text-xl lg:text-2xl font-bold text-slate-800">Consulta Inteligente</h2>
             {/* BADGE DE PLAN */}
             <div className="flex items-center gap-2">
-                {!isPro && <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-1 rounded font-bold">PLAN BÁSICO</span>}
-                {isPro && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded font-bold flex items-center gap-1"><Crown size={10}/> PRO</span>}
+                {!isPro && <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-1 rounded font-bold border border-slate-300">PLAN BÁSICO</span>}
+                {isPro && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded font-bold flex items-center gap-1 border border-amber-200"><Crown size={10}/> PRO</span>}
                 <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-500'}`}>
                     {isListening ? '● Grabando' : '● En Espera'}
                 </div>
             </div>
         </div>
+        {/* ... resto del header ... */}
         <div className="flex flex-col lg:flex-row gap-3 lg:gap-4">
             <div className="relative flex-1">
                 <div className={`flex items-center bg-white border rounded-lg px-3 py-2 shadow-sm ${selectedPatient ? 'border-green-500 bg-green-50' : 'border-slate-200'}`}>
@@ -245,7 +282,7 @@ const ConsultationView: React.FC = () => {
         {patientContext && <div className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-2 animate-fade-in-up"><History size={14} /><span><strong>Contexto Activo:</strong> La IA considerará el historial previo.</span></div>}
       </div>
 
-      {/* Contenido */}
+      {/* Contenido Principal */}
       <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1 min-h-0 overflow-hidden">
         <div className={`bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden lg:h-full transition-all duration-300 ${generatedRecord ? 'h-[30vh]' : 'flex-1'}`}>
           <div className="p-3 bg-orange-50 border-b border-orange-100 flex items-center gap-2 shrink-0">
@@ -287,7 +324,6 @@ const ConsultationView: React.FC = () => {
                        <>
                           <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
                              <span className="text-[10px] uppercase font-bold text-slate-400 ml-2">Nota Clínica SOAP</span>
-                             {/* El editar/ver siempre disponible, incluso basic */}
                              <button onClick={() => setIsEditingNote(!isEditingNote)} className={`flex items-center gap-2 px-3 py-1 rounded text-xs font-bold transition-colors ${isEditingNote ? 'bg-brand-teal text-white' : 'text-slate-500 hover:bg-slate-200'}`}>
                                {isEditingNote ? 'Ver' : 'Editar'}
                              </button>
@@ -311,38 +347,19 @@ const ConsultationView: React.FC = () => {
                           </div>
                           
                           <div className="p-3 border-t border-slate-100 flex flex-wrap justify-end items-center gap-2 bg-white shrink-0">
-                            
-                            {/* BOTÓN WHATSAPP - CON CANDADO */}
-                            <button 
-                                onClick={sendToWhatsApp} 
-                                className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm flex-1 justify-center md:flex-none ${isPro ? 'bg-[#25D366] text-white hover:bg-green-600' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
-                            >
+                            {/* BOTONES CON CANDADO */}
+                            <button onClick={sendToWhatsApp} className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm flex-1 justify-center md:flex-none ${isPro ? 'bg-[#25D366] text-white hover:bg-green-600' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
                                 {!isPro && <Lock size={12}/>} <Send size={14}/> WhatsApp
                             </button>
-
-                            {/* BOTÓN COMPARTIR - CON CANDADO */}
-                            <button 
-                                onClick={handleSharePDF} 
-                                disabled={isSharing || !isPro} 
-                                className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm flex-1 justify-center md:flex-none ${isPro ? 'bg-brand-teal text-white hover:bg-teal-600' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
-                            >
-                                {!isPro ? <Lock size={12}/> : (isSharing ? <RefreshCw size={14} className="animate-spin"/> : <Share2 size={14}/>)} 
-                                <span>Compartir</span>
+                            <button onClick={handleSharePDF} disabled={isSharing || !isPro} className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm flex-1 justify-center md:flex-none ${isPro ? 'bg-brand-teal text-white hover:bg-teal-600' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}>
+                                {!isPro ? <Lock size={12}/> : (isSharing ? <RefreshCw size={14} className="animate-spin"/> : <Share2 size={14}/>)} <span>Compartir</span>
                             </button>
-
-                            {/* BOTÓN PDF - CON CANDADO */}
                             {isPro ? (
-                                <PDFDownloadLink
-                                    document={<PrescriptionPDF doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty} license={doctorProfile.license_number} phone={doctorProfile.phone} university={doctorProfile.university} address={doctorProfile.address} logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url} patientName={selectedPatient?.name || "Paciente"} date={new Date().toLocaleDateString()} content={patientInstructions} />}
-                                    fileName={`Receta.pdf`}
-                                    className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-sm flex-1 justify-center md:flex-none"
-                                >
+                                <PDFDownloadLink document={<PrescriptionPDF doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty} license={doctorProfile.license_number} phone={doctorProfile.phone} university={doctorProfile.university} address={doctorProfile.address} logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url} patientName={selectedPatient?.name || "Paciente"} date={new Date().toLocaleDateString()} content={patientInstructions} />} fileName={`Receta.pdf`} className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-sm flex-1 justify-center md:flex-none">
                                     {({ loading }) => (loading ? '...' : <><Printer size={14}/> <span className="hidden sm:inline">PDF</span></>)}
                                 </PDFDownloadLink>
                             ) : (
-                                <button className="bg-slate-200 text-slate-400 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 cursor-not-allowed shadow-sm flex-1 justify-center md:flex-none">
-                                    <Lock size={12}/> <Printer size={14}/> PDF
-                                </button>
+                                <button className="bg-slate-200 text-slate-400 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 cursor-not-allowed shadow-sm flex-1 justify-center md:flex-none"><Lock size={12}/> <Printer size={14}/> PDF</button>
                             )}
                           </div>
                        </>
@@ -373,6 +390,60 @@ const ConsultationView: React.FC = () => {
           </div>
         </div>
       </div>
+
+      {/* MODAL RECETA RÁPIDA */}
+      {isRxModalOpen && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                        <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><PenTool className="text-brand-teal"/> Nueva Receta Rápida</h3>
+                        <button onClick={() => setIsRxModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm"><X size={24} /></button>
+                    </div>
+                    
+                    <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50">
+                        {!rxText ? (
+                            <div className="flex flex-col items-center justify-center h-full space-y-6 py-10">
+                                <div className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-red-100 text-red-600 animate-pulse scale-110' : 'bg-slate-200 text-slate-400'}`}>
+                                    <Mic size={48} />
+                                </div>
+                                <p className="text-center text-slate-600 max-w-md">
+                                    {isListening ? "Escuchando dictado..." : "Presione Iniciar y dicte los medicamentos e indicaciones."}
+                                </p>
+                                {transcript && (
+                                    <div className="w-full bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-600 italic">"{transcript}"</div>
+                                )}
+                                <div className="flex gap-4 w-full max-w-xs">
+                                    <button onClick={isListening ? stopListening : startListening} className={`flex-1 py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition-all ${isListening ? 'bg-white border-2 border-red-100 text-red-500 hover:bg-red-50' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg'}`}>
+                                        {isListening ? <><Square size={18}/> Detener</> : <><Mic size={18}/> Iniciar Dictado</>}
+                                    </button>
+                                    <button onClick={handleGenerateRx} disabled={!transcript || isListening} className="flex-1 bg-brand-teal text-white py-3 rounded-xl font-bold shadow-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
+                                        {isProcessingRx ? <RefreshCw className="animate-spin" size={18}/> : <RefreshCw size={18}/>} Generar
+                                    </button>
+                                </div>
+                            </div>
+                        ) : (
+                            <div className="h-full flex flex-col">
+                                <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Vista Previa de Receta</label>
+                                <textarea 
+                                    className="flex-1 w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-teal outline-none resize-none font-mono text-sm leading-relaxed bg-white shadow-sm"
+                                    value={rxText}
+                                    onChange={(e) => setRxText(e.target.value)}
+                                />
+                            </div>
+                        )}
+                    </div>
+
+                    {rxText && (
+                        <div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0">
+                            <button onClick={() => setRxText('')} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg font-medium transition-colors">Reintentar</button>
+                            <button onClick={handleSaveRx} disabled={isSavingRx} className="px-6 py-2 bg-brand-teal text-white rounded-lg font-bold shadow-lg hover:bg-teal-600 transition-colors flex items-center gap-2">
+                                {isSavingRx ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>} Guardar y Crear PDF
+                            </button>
+                        </div>
+                    )}
+                </div>
+            </div>
+        )}
     </div>
   );
 };
