@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown, Edit2, Eye, PenTool, X, Save, Image as ImageIcon, UploadCloud, Eye as EyeIcon, Trash2, ExternalLink } from 'lucide-react';
+import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown, Edit2, Eye, PenTool, X, Save, Image as ImageIcon, UploadCloud, Eye as EyeIcon, Trash2, ExternalLink, Info } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
@@ -36,13 +36,15 @@ const ConsultationView: React.FC = () => {
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientContext, setPatientContext] = useState<string>(''); 
+  const [lastConsultDate, setLastConsultDate] = useState<string>(''); // Para mostrar fecha en el contexto
 
-  // ESTADO DOCUMENTOS
+  // MODALES Y ESTADOS
   const [documents, setDocuments] = useState<any[]>([]);
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
+  const [isContextModalOpen, setIsContextModalOpen] = useState(false); // NUEVO: Modal de Contexto
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [newDocName, setNewDocName] = useState('');
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null); // Solo para imágenes
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
 
   const [generatedRecord, setGeneratedRecord] = useState<MedicalRecord | null>(null);
   const [isLoadingRecord, setIsLoadingRecord] = useState(false);
@@ -105,39 +107,36 @@ const ConsultationView: React.FC = () => {
     setSearchTerm(patient.name);
     setSearchResults([]);
     
-    const { data: consult } = await supabase.from('consultations').select('summary').eq('patient_id', patient.id).order('created_at', { ascending: false }).limit(1).single();
-    if (consult && consult.summary) setPatientContext(consult.summary);
-    else setPatientContext('');
+    // 1. Cargar Contexto Texto y Fecha
+    const { data: consult } = await supabase
+        .from('consultations')
+        .select('summary, created_at')
+        .eq('patient_id', patient.id)
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .single();
 
+    if (consult && consult.summary) {
+        setPatientContext(consult.summary);
+        setLastConsultDate(new Date(consult.created_at).toLocaleDateString());
+    } else {
+        setPatientContext('');
+        setLastConsultDate('');
+    }
+
+    // 2. Cargar Documentos
     fetchDocuments(patient.id);
   };
 
-  // --- LOGICA DE DOCUMENTOS SEGURA (Signed URLs) ---
   const fetchDocuments = async (patientId: string) => {
-      // 1. Traer la lista de la base de datos
       const { data: docs } = await supabase.from('patient_documents').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
-      
       if (!docs) return;
-
-      // 2. Generar URLs firmadas temporales para cada archivo (válidas por 1 hora)
       const docsWithUrls = await Promise.all(docs.map(async (doc) => {
-          // Si guardamos la ruta (path) en file_url, la usamos.
-          // Nota: El código anterior guardaba la URL publica erroneamente.
-          // Vamos a intentar extraer el path si es una URL completa, o usarla directo si es path.
           let path = doc.file_url;
-          if (path.includes('patient-files/')) {
-              path = path.split('patient-files/')[1]; 
-          }
-
-          // Pedir llave a Supabase
+          if (path.includes('patient-files/')) path = path.split('patient-files/')[1]; 
           const { data } = await supabase.storage.from('patient-files').createSignedUrl(path, 3600);
-          
-          return {
-              ...doc,
-              signedUrl: data?.signedUrl || null // Esta es la URL que sí abre
-          };
+          return { ...doc, signedUrl: data?.signedUrl || null };
       }));
-
       setDocuments(docsWithUrls);
   };
 
@@ -149,38 +148,21 @@ const ConsultationView: React.FC = () => {
     setDocuments([]);
   };
 
+  // ... (Upload, Delete, Record, Generate, Share, WhatsApp, AskAI sin cambios) ...
   const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0 || !selectedPatient) return;
     const file = event.target.files[0];
     if(!newDocName) { alert("Escribe un nombre para el estudio."); return; }
-
     setUploadingDoc(true);
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return;
-        
-        // 1. Subir al Bucket Privado
         const fileExt = file.name.split('.').pop();
         const fileName = `${selectedPatient.id}/${Date.now()}.${fileExt}`;
-        
-        const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('patient-files')
-            .upload(fileName, file);
-
+        const { error: uploadError, data: uploadData } = await supabase.storage.from('patient-files').upload(fileName, file);
         if(uploadError) throw uploadError;
-
-        // 2. Guardar en BD (Guardamos el PATH, no la URL pública)
-        // uploadData.path nos da la ruta interna exacta (ej: "uuid/foto.jpg")
-        await supabase.from('patient_documents').insert([{
-            doctor_id: user.id, 
-            patient_id: selectedPatient.id, 
-            name: newDocName, 
-            file_url: uploadData.path, // GUARDAMOS LA RUTA INTERNA
-            file_type: file.type.startsWith('image/') ? 'image' : 'file'
-        }]);
-        
-        setNewDocName('');
-        fetchDocuments(selectedPatient.id); // Recargar
+        await supabase.from('patient_documents').insert([{ doctor_id: user.id, patient_id: selectedPatient.id, name: newDocName, file_url: uploadData.path, file_type: file.type.startsWith('image/') ? 'image' : 'file' }]);
+        setNewDocName(''); fetchDocuments(selectedPatient.id);
     } catch (e) { alert("Error subiendo."); } finally { setUploadingDoc(false); }
   };
 
@@ -201,21 +183,14 @@ const ConsultationView: React.FC = () => {
     try {
       const { clinicalNote, patientInstructions, actionItems } = await GeminiMedicalService.generateSummary(transcript, specialty, patientContext);
       const patientId = selectedPatient ? selectedPatient.id : '00000000-0000-0000-0000-000000000000';
-      const newConsultation = await MedicalDataService.createConsultation({
-        patient_id: patientId, transcript, summary: clinicalNote, status: 'completed'
-      });
-      setGeneratedRecord({ ...newConsultation });
-      setEditableSummary(clinicalNote);
-      setPatientInstructions(patientInstructions);
-      setActionItems(actionItems);
-      setIsEditingNote(false); 
-      setActiveTab('record'); 
+      const newConsultation = await MedicalDataService.createConsultation({ patient_id: patientId, transcript, summary: clinicalNote, status: 'completed' });
+      setGeneratedRecord({ ...newConsultation }); setEditableSummary(clinicalNote); setPatientInstructions(patientInstructions); setActionItems(actionItems); setIsEditingNote(false); setActiveTab('record'); 
     } catch (e) { alert("Error: " + (e instanceof Error ? e.message : "Error desconocido")); } finally { setIsLoadingRecord(false); }
   };
 
   const handleSharePDF = async () => {
     if (!generatedRecord) return;
-    if (!isPro) { alert("🔒 Función Premium: Actualiza a PRO."); return; }
+    if (!isPro) { alert("🔒 Función Premium."); return; }
     setIsSharing(true);
     try {
       const blob = await pdf(<PrescriptionPDF doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty} license={doctorProfile.license_number} phone={doctorProfile.phone} university={doctorProfile.university} address={doctorProfile.address} logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url} patientName={selectedPatient?.name || "Paciente"} date={new Date().toLocaleDateString()} content={patientInstructions} />).toBlob();
@@ -234,31 +209,18 @@ const ConsultationView: React.FC = () => {
   const handleGenerateRx = async () => {
       if(!transcript) return;
       setIsProcessingRx(true);
-      try {
-          const formattedRx = await GeminiMedicalService.generatePrescriptionOnly(transcript);
-          setRxText(formattedRx);
-      } catch (e) { alert("Error"); } finally { setIsProcessingRx(false); stopListening(); }
+      try { const formattedRx = await GeminiMedicalService.generatePrescriptionOnly(transcript); setRxText(formattedRx); } catch (e) { alert("Error"); } finally { setIsProcessingRx(false); stopListening(); }
   };
 
   const handleSaveRx = async () => {
       if(!rxText || !selectedPatient) return;
       setIsSavingRx(true);
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
-        await supabase.from('consultations').insert([{ doctor_id: user.id, patient_id: selectedPatient.id, transcript: "DICTADO DE RECETA: " + transcript, summary: rxText, status: 'completed' }]);
-        setIsRxModalOpen(false);
-      } catch(e) { alert("Error"); } finally { setIsSavingRx(false); }
+      try { const { data: { user } } = await supabase.auth.getUser(); if (!user) return; await supabase.from('consultations').insert([{ doctor_id: user.id, patient_id: selectedPatient.id, transcript: "DICTADO DE RECETA: " + transcript, summary: rxText, status: 'completed' }]); setIsRxModalOpen(false); } catch(e) { alert("Error"); } finally { setIsSavingRx(false); }
   };
 
   const handleAskAI = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!chatInput.trim() || !sessionKey) return;
-    const q = chatInput; setChatInput(''); setChatMessages(p => [...p, { role: 'user', text: q }]); setIsChatLoading(true);
-    try {
-       const response = await GeminiMedicalService.generateSummary(`Contexto: ${transcript}. Pregunta: ${q}. Breve.`, specialty);
-       setChatMessages(p => [...p, { role: 'ai', text: response.clinicalNote }]);
-    } catch (e) { setChatMessages(p => [...p, { role: 'ai', text: "Error." }]); } finally { setIsChatLoading(false); }
+    e.preventDefault(); if (!chatInput.trim() || !sessionKey) return; const q = chatInput; setChatInput(''); setChatMessages(p => [...p, { role: 'user', text: q }]); setIsChatLoading(true);
+    try { const response = await GeminiMedicalService.generateSummary(`Contexto: ${transcript}. Pregunta: ${q}. Breve.`, specialty); setChatMessages(p => [...p, { role: 'ai', text: response.clinicalNote }]); } catch (e) { setChatMessages(p => [...p, { role: 'ai', text: "Error." }]); } finally { setIsChatLoading(false); }
   };
 
   return (
@@ -306,10 +268,19 @@ const ConsultationView: React.FC = () => {
         
         {patientContext && (
             <div className="flex gap-2 overflow-x-auto pb-1">
-                <div className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-2 animate-fade-in-up flex-1 min-w-[200px]">
-                    <History size={14} />
-                    <span className="truncate"><strong>Contexto:</strong> {patientContext.substring(0, 60)}...</span>
+                {/* CONTEXTO CLICKEABLE (SOLUCIÓN) */}
+                <div 
+                    onClick={() => setIsContextModalOpen(true)} 
+                    className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-2 animate-fade-in-up flex-1 min-w-[200px] cursor-pointer hover:bg-blue-100 transition-colors"
+                    title="Ver resumen completo"
+                >
+                    <History size={14} className="shrink-0" />
+                    <span className="truncate font-medium">
+                        <strong>Contexto ({lastConsultDate}):</strong> {patientContext.substring(0, 50)}... 
+                        <span className="text-[10px] ml-1 underline opacity-70">Ver más</span>
+                    </span>
                 </div>
+
                 <button onClick={() => setIsDocsModalOpen(true)} className="bg-white border border-slate-300 text-slate-700 px-3 py-1 rounded text-xs font-bold flex items-center gap-2 hover:bg-slate-50 shrink-0">
                     <ImageIcon size={14} /> Estudios ({documents.length})
                 </button>
@@ -343,7 +314,6 @@ const ConsultationView: React.FC = () => {
             <button onClick={() => setActiveTab('instructions')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap px-4 ${activeTab === 'instructions' ? 'bg-white text-brand-teal border-t-2 border-brand-teal' : 'text-slate-400 hover:text-slate-600'}`}>Paciente</button>
             <button onClick={() => setActiveTab('chat')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap px-4 ${activeTab === 'chat' ? 'bg-white text-brand-teal border-t-2 border-brand-teal' : 'text-slate-400 hover:text-slate-600'}`}>Chat IA</button>
           </div>
-          
           {generatedRecord && actionItems && (
             <div className="p-2 bg-slate-50 border-b border-slate-200 flex gap-2 overflow-x-auto shrink-0 scrollbar-hide">
                 {actionItems.next_appointment && <div className="flex items-center gap-2 bg-blue-50 border border-blue-100 text-blue-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"><Calendar size={14} /><div className="leading-tight"><p className="uppercase text-[8px] opacity-70">Cita</p><p className="font-bold">{actionItems.next_appointment}</p></div></div>}
@@ -351,7 +321,6 @@ const ConsultationView: React.FC = () => {
                 {actionItems.lab_tests_required.length > 0 && <div className="flex items-center gap-2 bg-purple-50 border border-purple-100 text-purple-700 px-3 py-1.5 rounded-lg text-xs font-medium shrink-0"><Beaker size={14} /><div className="leading-tight"><p className="uppercase text-[8px] opacity-70">Estudios</p><p className="truncate max-w-[100px] font-bold">{actionItems.lab_tests_required.length}</p></div></div>}
             </div>
           )}
-
           <div className="flex-1 relative bg-white overflow-hidden">
              {activeTab === 'record' && (
                 <div className="absolute inset-0 flex flex-col">
@@ -372,7 +341,7 @@ const ConsultationView: React.FC = () => {
                    )}
                 </div>
              )}
-
+             {/* Resto de tabs sin cambios */}
              {activeTab === 'instructions' && (
                <div className="absolute inset-0 flex flex-col">
                    {generatedRecord ? (
@@ -401,7 +370,6 @@ const ConsultationView: React.FC = () => {
                    )}
                </div>
              )}
-
              {activeTab === 'chat' && (
                <div className="absolute inset-0 flex flex-col bg-slate-50">
                   <div className="flex-1 p-4 overflow-y-auto space-y-3">
@@ -424,7 +392,26 @@ const ConsultationView: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL ESTUDIOS */}
+      {/* MODAL CONTEXTO COMPLETO (NUEVO) */}
+      {isContextModalOpen && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg overflow-hidden flex flex-col max-h-[80vh]">
+                    <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                        <h3 className="font-bold text-lg text-slate-800 flex items-center gap-2"><History className="text-blue-600"/> Contexto: Consulta Anterior</h3>
+                        <button onClick={() => setIsContextModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm"><X size={24} /></button>
+                    </div>
+                    <div className="flex-1 p-6 overflow-y-auto">
+                        <p className="text-xs text-slate-400 mb-4 font-bold uppercase">Fecha: {lastConsultDate}</p>
+                        <FormattedText content={patientContext} />
+                    </div>
+                    <div className="p-4 border-t border-slate-100 bg-slate-50 text-center">
+                        <button onClick={() => setIsContextModalOpen(false)} className="text-sm text-slate-500 font-medium hover:text-slate-800">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+      )}
+
+      {/* MODAL ESTUDIOS (Sin cambios) */}
       {isDocsModalOpen && (
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -436,7 +423,7 @@ const ConsultationView: React.FC = () => {
                         <div className="bg-white p-4 rounded-xl border border-slate-200 mb-6">
                             <label className="block text-sm font-medium text-slate-700 mb-2">Nuevo Estudio</label>
                             <div className="flex gap-2">
-                                <input type="text" value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="Ej. Radiografía" className="flex-1 p-2 border rounded-lg text-sm" />
+                                <input type="text" value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="Ej. Radiografía Tórax" className="flex-1 p-2 border rounded-lg text-sm" />
                                 <div className="relative overflow-hidden">
                                     <button className="bg-brand-teal text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">{uploadingDoc ? <RefreshCw className="animate-spin" size={16}/> : <UploadCloud size={16}/>} Subir</button>
                                     <input type="file" accept="image/*" onChange={handleUploadFile} disabled={uploadingDoc} className="absolute inset-0 opacity-0 cursor-pointer" />
@@ -473,7 +460,7 @@ const ConsultationView: React.FC = () => {
             </div>
       )}
 
-      {/* MODAL RECETA RÁPIDA (Sin cambios) */}
+      {/* MODAL RECETA (Sin cambios) */}
       {isRxModalOpen && (
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
