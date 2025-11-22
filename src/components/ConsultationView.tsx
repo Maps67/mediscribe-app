@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown, Edit2, Eye, PenTool, X, Save, Image as ImageIcon, UploadCloud, Eye as EyeIcon, Trash2 } from 'lucide-react';
+import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown, Edit2, Eye, PenTool, X, Save, Image as ImageIcon, UploadCloud, Eye as EyeIcon, Trash2, ExternalLink } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
@@ -37,12 +37,12 @@ const ConsultationView: React.FC = () => {
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [patientContext, setPatientContext] = useState<string>(''); 
 
-  // ESTADO NUEVO: DOCUMENTOS EN CONSULTA
+  // ESTADO DOCUMENTOS
   const [documents, setDocuments] = useState<any[]>([]);
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [newDocName, setNewDocName] = useState('');
-  const [previewUrl, setPreviewUrl] = useState<string | null>(null);
+  const [previewUrl, setPreviewUrl] = useState<string | null>(null); // Solo para imágenes
 
   const [generatedRecord, setGeneratedRecord] = useState<MedicalRecord | null>(null);
   const [isLoadingRecord, setIsLoadingRecord] = useState(false);
@@ -105,18 +105,40 @@ const ConsultationView: React.FC = () => {
     setSearchTerm(patient.name);
     setSearchResults([]);
     
-    // 1. Cargar Contexto Texto
     const { data: consult } = await supabase.from('consultations').select('summary').eq('patient_id', patient.id).order('created_at', { ascending: false }).limit(1).single();
     if (consult && consult.summary) setPatientContext(consult.summary);
     else setPatientContext('');
 
-    // 2. Cargar Documentos (Imágenes)
     fetchDocuments(patient.id);
   };
 
+  // --- LOGICA DE DOCUMENTOS SEGURA (Signed URLs) ---
   const fetchDocuments = async (patientId: string) => {
-      const { data } = await supabase.from('patient_documents').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
-      setDocuments(data || []);
+      // 1. Traer la lista de la base de datos
+      const { data: docs } = await supabase.from('patient_documents').select('*').eq('patient_id', patientId).order('created_at', { ascending: false });
+      
+      if (!docs) return;
+
+      // 2. Generar URLs firmadas temporales para cada archivo (válidas por 1 hora)
+      const docsWithUrls = await Promise.all(docs.map(async (doc) => {
+          // Si guardamos la ruta (path) en file_url, la usamos.
+          // Nota: El código anterior guardaba la URL publica erroneamente.
+          // Vamos a intentar extraer el path si es una URL completa, o usarla directo si es path.
+          let path = doc.file_url;
+          if (path.includes('patient-files/')) {
+              path = path.split('patient-files/')[1]; 
+          }
+
+          // Pedir llave a Supabase
+          const { data } = await supabase.storage.from('patient-files').createSignedUrl(path, 3600);
+          
+          return {
+              ...doc,
+              signedUrl: data?.signedUrl || null // Esta es la URL que sí abre
+          };
+      }));
+
+      setDocuments(docsWithUrls);
   };
 
   const handleClearPatient = () => {
@@ -127,7 +149,6 @@ const ConsultationView: React.FC = () => {
     setDocuments([]);
   };
 
-  // --- LOGICA SUBIDA DESDE CONSULTA ---
   const handleUploadFile = async (event: React.ChangeEvent<HTMLInputElement>) => {
     if (!event.target.files || event.target.files.length === 0 || !selectedPatient) return;
     const file = event.target.files[0];
@@ -137,16 +158,29 @@ const ConsultationView: React.FC = () => {
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if(!user) return;
+        
+        // 1. Subir al Bucket Privado
         const fileExt = file.name.split('.').pop();
         const fileName = `${selectedPatient.id}/${Date.now()}.${fileExt}`;
-        const { error: uploadError } = await supabase.storage.from('patient-files').upload(fileName, file);
+        
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('patient-files')
+            .upload(fileName, file);
+
         if(uploadError) throw uploadError;
-        const { data: { publicUrl } } = supabase.storage.from('patient-files').getPublicUrl(fileName);
+
+        // 2. Guardar en BD (Guardamos el PATH, no la URL pública)
+        // uploadData.path nos da la ruta interna exacta (ej: "uuid/foto.jpg")
         await supabase.from('patient_documents').insert([{
-            doctor_id: user.id, patient_id: selectedPatient.id, name: newDocName, file_url: publicUrl, file_type: file.type.startsWith('image/') ? 'image' : 'file'
+            doctor_id: user.id, 
+            patient_id: selectedPatient.id, 
+            name: newDocName, 
+            file_url: uploadData.path, // GUARDAMOS LA RUTA INTERNA
+            file_type: file.type.startsWith('image/') ? 'image' : 'file'
         }]);
+        
         setNewDocName('');
-        fetchDocuments(selectedPatient.id);
+        fetchDocuments(selectedPatient.id); // Recargar
     } catch (e) { alert("Error subiendo."); } finally { setUploadingDoc(false); }
   };
 
@@ -156,7 +190,6 @@ const ConsultationView: React.FC = () => {
     if(selectedPatient) fetchDocuments(selectedPatient.id);
   };
 
-  // ... (Resto de funciones: ToggleRecord, Generate, Share, etc. IGUALES) ...
   const handleToggleRecording = () => {
     if (!hasConsent && !isListening) return alert("Debe confirmar el consentimiento de privacidad.");
     isListening ? stopListening() : startListening();
@@ -271,20 +304,14 @@ const ConsultationView: React.FC = () => {
             </div>
         </div>
         
-        {/* BARRA DE CONTEXTO CON BOTÓN DE ESTUDIOS */}
         {patientContext && (
             <div className="flex gap-2 overflow-x-auto pb-1">
                 <div className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-2 animate-fade-in-up flex-1 min-w-[200px]">
                     <History size={14} />
                     <span className="truncate"><strong>Contexto:</strong> {patientContext.substring(0, 60)}...</span>
                 </div>
-                {/* BOTÓN NUEVO: ABRIR ESTUDIOS */}
-                <button 
-                    onClick={() => setIsDocsModalOpen(true)}
-                    className="bg-white border border-slate-300 text-slate-700 px-3 py-1 rounded text-xs font-bold flex items-center gap-2 hover:bg-slate-50 shrink-0"
-                >
-                    <ImageIcon size={14} /> 
-                    Estudios ({documents.length})
+                <button onClick={() => setIsDocsModalOpen(true)} className="bg-white border border-slate-300 text-slate-700 px-3 py-1 rounded text-xs font-bold flex items-center gap-2 hover:bg-slate-50 shrink-0">
+                    <ImageIcon size={14} /> Estudios ({documents.length})
                 </button>
             </div>
         )}
@@ -397,7 +424,7 @@ const ConsultationView: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL ESTUDIOS (DENTRO DE CONSULTA) */}
+      {/* MODAL ESTUDIOS */}
       {isDocsModalOpen && (
             <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
@@ -405,33 +432,30 @@ const ConsultationView: React.FC = () => {
                         <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><ImageIcon className="text-brand-teal"/> Estudios de {selectedPatient?.name}</h3>
                         <button onClick={() => setIsDocsModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm"><X size={24} /></button>
                     </div>
-                    
                     <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50">
-                        {/* Formulario de subida */}
                         <div className="bg-white p-4 rounded-xl border border-slate-200 mb-6">
                             <label className="block text-sm font-medium text-slate-700 mb-2">Nuevo Estudio</label>
                             <div className="flex gap-2">
                                 <input type="text" value={newDocName} onChange={e => setNewDocName(e.target.value)} placeholder="Ej. Radiografía" className="flex-1 p-2 border rounded-lg text-sm" />
                                 <div className="relative overflow-hidden">
-                                    <button className="bg-brand-teal text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">
-                                        {uploadingDoc ? <RefreshCw className="animate-spin" size={16}/> : <UploadCloud size={16}/>} Subir
-                                    </button>
+                                    <button className="bg-brand-teal text-white px-4 py-2 rounded-lg text-sm font-bold flex items-center gap-2">{uploadingDoc ? <RefreshCw className="animate-spin" size={16}/> : <UploadCloud size={16}/>} Subir</button>
                                     <input type="file" accept="image/*" onChange={handleUploadFile} disabled={uploadingDoc} className="absolute inset-0 opacity-0 cursor-pointer" />
                                 </div>
                             </div>
                         </div>
-
-                        {/* Galería */}
                         <div className="grid grid-cols-2 md:grid-cols-3 gap-4">
                             {documents.map(doc => (
-                                <div key={doc.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden group relative shadow-sm">
-                                    <div className="aspect-square bg-slate-100 flex items-center justify-center cursor-pointer" onClick={() => setPreviewUrl(doc.file_url)}>
-                                        <img src={doc.file_url} className="w-full h-full object-cover" />
+                                <div key={doc.id} className="bg-white rounded-xl border border-slate-200 overflow-hidden group relative shadow-sm cursor-pointer" onClick={() => doc.file_type === 'image' && setPreviewUrl(doc.signedUrl)}>
+                                    <div className="aspect-square bg-slate-100 flex items-center justify-center">
+                                        {doc.file_type === 'image' ? (
+                                            <img src={doc.signedUrl} className="w-full h-full object-cover" onError={(e) => e.currentTarget.src = ''} />
+                                        ) : (
+                                            <div className="text-center"><FileText size={32} className="text-slate-400 mx-auto mb-1"/><span className="text-[10px] text-slate-500 uppercase font-bold">Documento</span></div>
+                                        )}
                                     </div>
                                     <div className="p-2 text-xs font-bold truncate">{doc.name}</div>
-                                    <button onClick={() => handleDeleteDocument(doc.id)} className="absolute top-1 right-1 bg-white/90 p-1 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity">
-                                        <Trash2 size={12} />
-                                    </button>
+                                    <button onClick={(e) => { e.stopPropagation(); handleDeleteDocument(doc.id); }} className="absolute top-1 right-1 bg-white/90 p-1 rounded-full text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><Trash2 size={12} /></button>
+                                    {doc.file_type !== 'image' && <a href={doc.signedUrl} target="_blank" rel="noreferrer" className="absolute inset-0 flex items-center justify-center bg-black/20 opacity-0 group-hover:opacity-100 transition-opacity"><ExternalLink className="text-white"/></a>}
                                 </div>
                             ))}
                             {documents.length === 0 && <p className="col-span-full text-center text-slate-400 text-sm py-4">No hay estudios guardados.</p>}
@@ -441,7 +465,7 @@ const ConsultationView: React.FC = () => {
             </div>
       )}
 
-      {/* MODAL PREVISUALIZACIÓN IMAGEN */}
+      {/* MODAL PREVISUALIZACIÓN */}
       {previewUrl && (
             <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4" onClick={() => setPreviewUrl(null)}>
                 <button className="absolute top-4 right-4 text-white p-2"><X size={32} /></button>
