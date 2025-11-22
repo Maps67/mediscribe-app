@@ -32,7 +32,6 @@ export enum ViewState {
   DIGITAL_CARD
 }
 
-// NUEVO: Estructura para los Items de Acción
 export interface ActionItems {
   next_appointment: string | null;
   urgent_referral: boolean;
@@ -43,4 +42,19 @@ export interface GeminiResponse {
   clinicalNote: string;
   patientInstructions: string;
   actionItems: ActionItems;
+}
+
+// --- NUEVO: PERFIL MÉDICO CON NIVELES DE SUSCRIPCIÓN ---
+export interface DoctorProfile {
+  id?: string;
+  full_name: string;
+  specialty: string;
+  license_number: string;
+  phone: string;
+  university: string;
+  address: string;
+  logo_url: string;
+  signature_url: string;
+  website_url?: string;
+  subscription_tier: 'basic' | 'pro' | 'enterprise';
 }

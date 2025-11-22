@@ -1,13 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Edit2, Eye } from 'lucide-react';
+import { Mic, Square, RefreshCw, Send, FileText, Stethoscope, ChevronDown, User, Search, Calendar, AlertTriangle, Beaker, Printer, Share2, History, Lock, Crown } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { PDFDownloadLink, pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
-import FormattedText from './FormattedText'; // Importamos el renderizador bonito
+import FormattedText from './FormattedText';
 
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { MedicalDataService } from '../services/MedicalDataService';
-import { MedicalRecord, Patient, ActionItems } from '../types';
+import { MedicalRecord, Patient, ActionItems, DoctorProfile } from '../types';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 
 async function generateSessionKey(): Promise<CryptoKey> {
@@ -21,7 +21,14 @@ const ConsultationView: React.FC = () => {
   
   const [hasConsent, setHasConsent] = useState(false);
   const [specialty, setSpecialty] = useState("Medicina General");
-  const [doctorProfile, setDoctorProfile] = useState({ full_name: 'Doctor', specialty: 'Medicina', license_number: '', phone: '', university: '', address: '', logo_url: '', signature_url: '' });
+  
+  // PERFIL CON PLAN
+  const [doctorProfile, setDoctorProfile] = useState<DoctorProfile>({ 
+    full_name: 'Doctor', specialty: 'Medicina', license_number: '', phone: '', university: '', address: '', logo_url: '', signature_url: '', subscription_tier: 'basic' // Default seguro
+  });
+
+  // CHECK DE PLAN (Helpers)
+  const isPro = doctorProfile.subscription_tier === 'pro' || doctorProfile.subscription_tier === 'enterprise';
 
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState<Patient[]>([]);
@@ -37,7 +44,6 @@ const ConsultationView: React.FC = () => {
   const [actionItems, setActionItems] = useState<ActionItems | null>(null);
   
   const [activeTab, setActiveTab] = useState<'record' | 'instructions' | 'chat'>('record');
-  // ESTADO NUEVO: Controla si estamos editando o leyendo
   const [isEditingNote, setIsEditingNote] = useState(false);
 
   const [chatInput, setChatInput] = useState('');
@@ -57,7 +63,8 @@ const ConsultationView: React.FC = () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        if (data) setDoctorProfile(data);
+        // Si no tiene tier asignado en DB, asumimos 'basic' por seguridad, o 'pro' si es el piloto
+        if (data) setDoctorProfile({ ...data, subscription_tier: data.subscription_tier || 'pro' });
     }
   };
 
@@ -92,11 +99,8 @@ const ConsultationView: React.FC = () => {
         .limit(1)
         .single();
 
-    if (data && data.summary) {
-        setPatientContext(data.summary);
-    } else {
-        setPatientContext('');
-    }
+    if (data && data.summary) setPatientContext(data.summary);
+    else setPatientContext('');
   };
 
   const handleClearPatient = () => {
@@ -114,7 +118,6 @@ const ConsultationView: React.FC = () => {
   const generateRecord = async () => {
     if (!transcript) return;
     setIsLoadingRecord(true);
-    
     try {
       const { clinicalNote, patientInstructions, actionItems } = await GeminiMedicalService.generateSummary(transcript, specialty, patientContext);
       
@@ -130,25 +133,20 @@ const ConsultationView: React.FC = () => {
       setEditableSummary(clinicalNote);
       setPatientInstructions(patientInstructions);
       setActionItems(actionItems);
-      
-      // Al generar, mostramos primero el modo lectura bonito
       setIsEditingNote(false); 
-      
-      // Nota: Dependiendo de tu flujo, puedes dejarlo en 'record' o moverlo a 'instructions'
-      // Si quieres que el medico revise la nota primero, dejalo en 'record'
       setActiveTab('record'); 
-
-    } catch (e) {
-      alert("Error: " + (e instanceof Error ? e.message : "Error desconocido"));
-    } finally {
-      setIsLoadingRecord(false);
-    }
+    } catch (e) { alert("Error: " + (e instanceof Error ? e.message : "Error desconocido")); } finally { setIsLoadingRecord(false); }
   };
 
   const handleSharePDF = async () => {
     if (!generatedRecord) return;
-    setIsSharing(true);
+    // CANDADO PRO
+    if (!isPro) {
+        alert("🔒 Función Premium: Actualiza a PRO para enviar recetas por WhatsApp y generar PDFs legales.");
+        return;
+    }
 
+    setIsSharing(true);
     try {
       const blob = await pdf(
         <PrescriptionPDF 
@@ -174,17 +172,16 @@ const ConsultationView: React.FC = () => {
           title: 'Receta Médica',
           text: `Receta médica digital para ${selectedPatient?.name || 'Paciente'}.`
         });
-      } else {
-        alert("Tu dispositivo no soporta compartir archivos directos. Usa el botón de Imprimir/Descargar.");
-      }
-    } catch (error) {
-      console.log("Compartir cancelado", error);
-    } finally {
-      setIsSharing(false);
-    }
+      } else { alert("Tu dispositivo no soporta compartir archivos directos."); }
+    } catch (error) { console.log("Cancelado"); } finally { setIsSharing(false); }
   };
 
   const sendToWhatsApp = () => {
+    // CANDADO PRO
+    if (!isPro) {
+        alert("🔒 Función Premium: El envío directo requiere Plan PRO.");
+        return;
+    }
     const phone = selectedPatient?.phone || prompt("Ingrese el teléfono del paciente:");
     if (!phone) return;
     const url = `https://wa.me/${phone}?text=${encodeURIComponent(patientInstructions)}`;
@@ -198,15 +195,10 @@ const ConsultationView: React.FC = () => {
     setChatInput('');
     setChatMessages(p => [...p, { role: 'user', text: q }]);
     setIsChatLoading(true);
-
     try {
        const response = await GeminiMedicalService.generateSummary(`Contexto: ${transcript}. Pregunta: ${q}. Responde breve.`, specialty);
        setChatMessages(p => [...p, { role: 'ai', text: response.clinicalNote }]);
-    } catch (e) {
-       setChatMessages(p => [...p, { role: 'ai', text: "Error conectando con el asistente." }]);
-    } finally { 
-       setIsChatLoading(false); 
-    }
+    } catch (e) { setChatMessages(p => [...p, { role: 'ai', text: "Error conectando con el asistente." }]); } finally { setIsChatLoading(false); }
   };
 
   return (
@@ -216,8 +208,13 @@ const ConsultationView: React.FC = () => {
       <div className="flex flex-col gap-4 shrink-0">
         <div className="flex justify-between items-center">
             <h2 className="text-xl lg:text-2xl font-bold text-slate-800">Consulta Inteligente</h2>
-            <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-500'}`}>
-                {isListening ? '● Grabando' : '● En Espera'}
+            {/* BADGE DE PLAN */}
+            <div className="flex items-center gap-2">
+                {!isPro && <span className="text-[10px] bg-slate-200 text-slate-500 px-2 py-1 rounded font-bold">PLAN BÁSICO</span>}
+                {isPro && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-1 rounded font-bold flex items-center gap-1"><Crown size={10}/> PRO</span>}
+                <div className={`px-3 py-1 rounded-full text-xs font-bold uppercase ${isListening ? 'bg-red-100 text-red-600 animate-pulse' : 'bg-slate-100 text-slate-500'}`}>
+                    {isListening ? '● Grabando' : '● En Espera'}
+                </div>
             </div>
         </div>
         <div className="flex flex-col lg:flex-row gap-3 lg:gap-4">
@@ -245,44 +242,19 @@ const ConsultationView: React.FC = () => {
                 </select>
             </div>
         </div>
-        
-        {patientContext && (
-            <div className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-2 animate-fade-in-up">
-                <History size={14} />
-                <span><strong>Contexto Activo:</strong> La IA considerará el historial previo.</span>
-            </div>
-        )}
+        {patientContext && <div className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-2 animate-fade-in-up"><History size={14} /><span><strong>Contexto Activo:</strong> La IA considerará el historial previo.</span></div>}
       </div>
 
-      {/* Contenido Principal */}
+      {/* Contenido */}
       <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 flex-1 min-h-0 overflow-hidden">
-        
-        {/* COLUMNA 1 */}
         <div className={`bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden lg:h-full transition-all duration-300 ${generatedRecord ? 'h-[30vh]' : 'flex-1'}`}>
           <div className="p-3 bg-orange-50 border-b border-orange-100 flex items-center gap-2 shrink-0">
              <input type="checkbox" checked={hasConsent} onChange={(e) => setHasConsent(e.target.checked)} disabled={isListening} className="rounded text-brand-teal cursor-pointer w-5 h-5" />
              <span className="text-xs font-medium text-orange-800">Confirmo consentimiento.</span>
           </div>
-          
-          <div 
-            ref={textContainerRef} 
-            className="flex-1 min-h-0 p-4 bg-slate-50 overflow-y-auto font-mono text-sm leading-relaxed relative"
-          >
-             {transcript ? (
-               <div className="pb-4">
-                 <span className="text-slate-800 whitespace-pre-wrap">{transcript}</span>
-                 <span className="text-slate-400 italic ml-1">{interimTranscript}</span>
-               </div>
-             ) : isListening ? (
-               <p className="text-slate-400 italic animate-pulse">Escuchando...</p>
-             ) : (
-               <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60">
-                  <Mic size={40} className="mb-2"/>
-                  <p className="text-center text-sm">Listo para iniciar.</p>
-               </div>
-             )}
+          <div ref={textContainerRef} className="flex-1 min-h-0 p-4 bg-slate-50 overflow-y-auto font-mono text-sm leading-relaxed relative">
+             {transcript ? <div className="pb-4"><span className="text-slate-800 whitespace-pre-wrap">{transcript}</span><span className="text-slate-400 italic ml-1">{interimTranscript}</span></div> : isListening ? <p className="text-slate-400 italic animate-pulse">Escuchando...</p> : <div className="h-full flex flex-col items-center justify-center text-slate-400 opacity-60"><Mic size={40} className="mb-2"/><p className="text-center text-sm">Listo para iniciar.</p></div>}
           </div>
-
           <div className="p-4 border-t flex gap-3 bg-white shrink-0 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
             <button onClick={handleToggleRecording} disabled={!hasConsent} className={`flex-1 py-3 rounded-lg font-medium flex items-center justify-center gap-2 transition-all ${isListening ? 'bg-red-50 text-red-600 border border-red-200' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
               {isListening ? <><Square size={18}/> Parar</> : <><Mic size={18}/> Iniciar</>}
@@ -293,7 +265,6 @@ const ConsultationView: React.FC = () => {
           </div>
         </div>
 
-        {/* COLUMNA 2 */}
         <div className={`bg-white rounded-xl shadow-sm border border-slate-200 flex flex-col overflow-hidden lg:h-full relative ${generatedRecord ? 'flex-1' : 'hidden lg:flex'}`}>
            <div className="flex border-b bg-slate-50 shrink-0 overflow-x-auto">
             <button onClick={() => setActiveTab('record')} className={`flex-1 py-3 text-xs font-bold uppercase tracking-wider transition-colors whitespace-nowrap px-4 ${activeTab === 'record' ? 'bg-white text-brand-teal border-t-2 border-brand-teal' : 'text-slate-400 hover:text-slate-600'}`}>Expediente</button>
@@ -310,34 +281,19 @@ const ConsultationView: React.FC = () => {
           )}
 
           <div className="flex-1 relative bg-white overflow-hidden">
-             
-             {/* TAB 1: EXPEDIENTE (MODO LECTURA vs EDICIÓN) */}
              {activeTab === 'record' && (
                 <div className="absolute inset-0 flex flex-col">
                    {generatedRecord ? (
                        <>
-                          {/* BARRA DE HERRAMIENTAS (Editar / Guardar) */}
                           <div className="p-2 bg-slate-50 border-b border-slate-100 flex justify-between items-center shrink-0">
                              <span className="text-[10px] uppercase font-bold text-slate-400 ml-2">Nota Clínica SOAP</span>
-                             <button 
-                               onClick={() => setIsEditingNote(!isEditingNote)}
-                               className={`flex items-center gap-2 px-3 py-1 rounded text-xs font-bold transition-colors ${isEditingNote ? 'bg-brand-teal text-white' : 'text-slate-500 hover:bg-slate-200'}`}
-                             >
-                               {isEditingNote ? <><Eye size={14}/> Ver Vista Previa</> : <><Edit2 size={14}/> Editar Texto</>}
+                             {/* El editar/ver siempre disponible, incluso basic */}
+                             <button onClick={() => setIsEditingNote(!isEditingNote)} className={`flex items-center gap-2 px-3 py-1 rounded text-xs font-bold transition-colors ${isEditingNote ? 'bg-brand-teal text-white' : 'text-slate-500 hover:bg-slate-200'}`}>
+                               {isEditingNote ? 'Ver' : 'Editar'}
                              </button>
                           </div>
-
-                          {/* CONTENIDO (Toggle entre Textarea y FormattedText) */}
                           <div className="flex-1 overflow-y-auto p-4">
-                             {isEditingNote ? (
-                                <textarea 
-                                    className="w-full h-full text-sm text-slate-700 outline-none resize-none font-mono leading-relaxed bg-transparent" 
-                                    value={editableSummary} 
-                                    onChange={(e) => setEditableSummary(e.target.value)} 
-                                />
-                             ) : (
-                                <FormattedText content={editableSummary} />
-                             )}
+                             {isEditingNote ? <textarea className="w-full h-full text-sm text-slate-700 outline-none resize-none font-mono leading-relaxed bg-transparent" value={editableSummary} onChange={(e) => setEditableSummary(e.target.value)} /> : <FormattedText content={editableSummary} />}
                           </div>
                        </>
                    ) : (
@@ -346,7 +302,6 @@ const ConsultationView: React.FC = () => {
                 </div>
              )}
 
-             {/* TAB 2: INSTRUCCIONES (Mismo patrón si quisieras, por ahora editable por defecto) */}
              {activeTab === 'instructions' && (
                <div className="absolute inset-0 flex flex-col">
                    {generatedRecord ? (
@@ -356,31 +311,38 @@ const ConsultationView: React.FC = () => {
                           </div>
                           
                           <div className="p-3 border-t border-slate-100 flex flex-wrap justify-end items-center gap-2 bg-white shrink-0">
-                            <button onClick={handleSharePDF} disabled={isSharing} className="bg-brand-teal text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-teal-600 transition-colors shadow-sm flex-1 justify-center md:flex-none">
-                                {isSharing ? <RefreshCw size={14} className="animate-spin"/> : <Share2 size={14}/>} <span>Compartir</span>
+                            
+                            {/* BOTÓN WHATSAPP - CON CANDADO */}
+                            <button 
+                                onClick={sendToWhatsApp} 
+                                className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm flex-1 justify-center md:flex-none ${isPro ? 'bg-[#25D366] text-white hover:bg-green-600' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                            >
+                                {!isPro && <Lock size={12}/>} <Send size={14}/> WhatsApp
                             </button>
-                            {!isSharing && (
+
+                            {/* BOTÓN COMPARTIR - CON CANDADO */}
+                            <button 
+                                onClick={handleSharePDF} 
+                                disabled={isSharing || !isPro} 
+                                className={`px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 transition-colors shadow-sm flex-1 justify-center md:flex-none ${isPro ? 'bg-brand-teal text-white hover:bg-teal-600' : 'bg-slate-200 text-slate-400 cursor-not-allowed'}`}
+                            >
+                                {!isPro ? <Lock size={12}/> : (isSharing ? <RefreshCw size={14} className="animate-spin"/> : <Share2 size={14}/>)} 
+                                <span>Compartir</span>
+                            </button>
+
+                            {/* BOTÓN PDF - CON CANDADO */}
+                            {isPro ? (
                                 <PDFDownloadLink
-                                    document={
-                                        <PrescriptionPDF 
-                                            doctorName={doctorProfile.full_name}
-                                            specialty={doctorProfile.specialty}
-                                            license={doctorProfile.license_number}
-                                            phone={doctorProfile.phone}
-                                            university={doctorProfile.university}
-                                            address={doctorProfile.address}
-                                            logoUrl={doctorProfile.logo_url}
-                                            signatureUrl={doctorProfile.signature_url}
-                                            patientName={selectedPatient?.name || "Paciente"}
-                                            date={new Date().toLocaleDateString()}
-                                            content={patientInstructions}
-                                        />
-                                    }
+                                    document={<PrescriptionPDF doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty} license={doctorProfile.license_number} phone={doctorProfile.phone} university={doctorProfile.university} address={doctorProfile.address} logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url} patientName={selectedPatient?.name || "Paciente"} date={new Date().toLocaleDateString()} content={patientInstructions} />}
                                     fileName={`Receta.pdf`}
                                     className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 transition-colors shadow-sm flex-1 justify-center md:flex-none"
                                 >
                                     {({ loading }) => (loading ? '...' : <><Printer size={14}/> <span className="hidden sm:inline">PDF</span></>)}
                                 </PDFDownloadLink>
+                            ) : (
+                                <button className="bg-slate-200 text-slate-400 px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 cursor-not-allowed shadow-sm flex-1 justify-center md:flex-none">
+                                    <Lock size={12}/> <Printer size={14}/> PDF
+                                </button>
                             )}
                           </div>
                        </>
