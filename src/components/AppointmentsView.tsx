@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Calendar, Clock, Plus, Search, User, X, Save, Trash2, ExternalLink, MapPin, CalendarCheck } from 'lucide-react';
+import { Calendar, Clock, Plus, Search, User, X, Save, Trash2, ExternalLink, MapPin, CalendarCheck, RefreshCw } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Appointment, Patient } from '../types';
 import { MedicalDataService } from '../services/MedicalDataService';
@@ -25,6 +25,7 @@ const AppointmentsView: React.FC = () => {
   }, []);
 
   const loadData = async () => {
+    setLoading(true);
     try {
       const [apptData, patData] = await Promise.all([
         MedicalDataService.getAppointments(),
@@ -32,7 +33,11 @@ const AppointmentsView: React.FC = () => {
       ]);
       setAppointments(apptData);
       setPatients(patData);
-    } catch (e) { console.error(e); } finally { setLoading(false); }
+    } catch (e) { 
+        console.error(e); 
+    } finally { 
+        setLoading(false); 
+    }
   };
 
   const handleCreate = async (e: React.FormEvent) => {
@@ -41,13 +46,12 @@ const AppointmentsView: React.FC = () => {
     
     setIsSaving(true);
     try {
-      // Combinar fecha y hora en formato ISO
       const dateTime = new Date(`${date}T${time}`).toISOString();
       
       await MedicalDataService.createAppointment({
         patient_id: selectedPatientId,
         date_time: dateTime,
-        reason,
+        reason: reason || 'Consulta General',
         type,
         status: 'scheduled'
       });
@@ -55,8 +59,12 @@ const AppointmentsView: React.FC = () => {
       setIsModalOpen(false);
       // Reset form
       setReason(''); setSelectedPatientId(''); 
-      loadData(); // Recargar lista
-    } catch (e) { alert("Error al agendar"); } finally { setIsSaving(false); }
+      await loadData(); // Recargar lista con seguridad
+    } catch (e) { 
+        alert("Error al agendar. Verifique su conexión."); 
+    } finally { 
+        setIsSaving(false); 
+    }
   };
 
   const handleDelete = async (id: string) => {
@@ -67,17 +75,19 @@ const AppointmentsView: React.FC = () => {
     } catch (e) { alert("Error al eliminar"); }
   };
 
-  // --- GENERADOR DE ENLACES A CALENDARIOS EXTERNOS ---
+  // --- AQUÍ ESTÁ LA MAGIA DE GOOGLE CALENDAR ---
   const addToGoogleCalendar = (appt: Appointment) => {
-    if (!appt.patients) return;
+    if (!appt || !appt.date_time) return;
     
+    const patientName = appt.patients?.name || "Paciente";
     const startDate = new Date(appt.date_time);
-    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // Asumimos 1 hora de duración
+    const endDate = new Date(startDate.getTime() + 60 * 60 * 1000); // 1 hora de duración
     
+    // Formato YYYYMMDDTHHMMSSZ para Google
     const formatDate = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
     
-    const title = encodeURIComponent(`Consulta: ${appt.patients.name}`);
-    const details = encodeURIComponent(`Motivo: ${appt.reason || 'Consulta General'}\nTipo: ${appt.type === 'new' ? 'Primera vez' : 'Seguimiento'}`);
+    const title = encodeURIComponent(`Consulta: ${patientName}`);
+    const details = encodeURIComponent(`Motivo: ${appt.reason || 'Consulta'}\nTipo: ${appt.type === 'new' ? 'Primera vez' : 'Seguimiento'}`);
     const dates = `${formatDate(startDate)}/${formatDate(endDate)}`;
     
     const url = `https://calendar.google.com/calendar/render?action=TEMPLATE&text=${title}&dates=${dates}&details=${details}`;
@@ -101,7 +111,10 @@ const AppointmentsView: React.FC = () => {
       </div>
 
       {loading ? (
-        <div className="text-center py-20 text-slate-400">Cargando agenda...</div>
+        <div className="text-center py-20 text-slate-400 flex flex-col items-center">
+            <RefreshCw className="animate-spin mb-2"/>
+            Cargando agenda...
+        </div>
       ) : appointments.length === 0 ? (
         <div className="p-12 bg-slate-50 border border-dashed border-slate-300 rounded-xl text-center">
           <Calendar size={48} className="mx-auto text-slate-300 mb-3"/>
@@ -110,54 +123,65 @@ const AppointmentsView: React.FC = () => {
         </div>
       ) : (
         <div className="grid gap-4">
-          {appointments.map((appt) => (
-            <div key={appt.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 hover:shadow-md transition-shadow">
-              
-              {/* FECHA Y HORA */}
-              <div className="flex items-center gap-4 min-w-[180px]">
-                <div className="bg-slate-100 p-3 rounded-lg text-center min-w-[60px]">
-                    <span className="block text-xs font-bold text-slate-500 uppercase">{new Date(appt.date_time).toLocaleDateString('es-MX', { month: 'short' })}</span>
-                    <span className="block text-xl font-bold text-slate-800">{new Date(appt.date_time).getDate()}</span>
-                </div>
-                <div>
-                    <div className="flex items-center gap-1 text-slate-800 font-bold">
-                        <Clock size={16} className="text-brand-teal"/>
-                        {new Date(appt.date_time).toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' })}
+          {appointments.map((appt) => {
+            // Protección contra fechas inválidas
+            const dateObj = new Date(appt.date_time);
+            const isValidDate = !isNaN(dateObj.getTime());
+
+            return (
+                <div key={appt.id} className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-col md:flex-row items-center justify-between gap-4 hover:shadow-md transition-shadow">
+                
+                {/* FECHA Y HORA */}
+                <div className="flex items-center gap-4 min-w-[180px]">
+                    <div className="bg-slate-100 p-3 rounded-lg text-center min-w-[60px]">
+                        <span className="block text-xs font-bold text-slate-500 uppercase">
+                            {isValidDate ? dateObj.toLocaleDateString('es-MX', { month: 'short' }) : '-'}
+                        </span>
+                        <span className="block text-xl font-bold text-slate-800">
+                            {isValidDate ? dateObj.getDate() : '-'}
+                        </span>
                     </div>
-                    <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${appt.type === 'new' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
-                        {appt.type === 'new' ? 'Primera Vez' : 'Seguimiento'}
-                    </span>
+                    <div>
+                        <div className="flex items-center gap-1 text-slate-800 font-bold">
+                            <Clock size={16} className="text-brand-teal"/>
+                            {isValidDate ? dateObj.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' }) : '--:--'}
+                        </div>
+                        <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold uppercase ${appt.type === 'new' ? 'bg-purple-100 text-purple-700' : 'bg-blue-100 text-blue-700'}`}>
+                            {appt.type === 'new' ? 'Primera Vez' : 'Seguimiento'}
+                        </span>
+                    </div>
                 </div>
-              </div>
 
-              {/* DATOS PACIENTE */}
-              <div className="flex-1 border-l border-slate-100 pl-4 md:pl-0 md:border-0">
-                <h3 className="font-bold text-slate-800 flex items-center gap-2">
-                    <User size={18} className="text-slate-400"/> 
-                    {appt.patients?.name || "Paciente Desconocido"}
-                </h3>
-                <p className="text-sm text-slate-500 truncate">{appt.reason || "Sin motivo especificado"}</p>
-              </div>
+                {/* DATOS PACIENTE */}
+                <div className="flex-1 border-l border-slate-100 pl-4 md:pl-0 md:border-0 text-center md:text-left">
+                    <h3 className="font-bold text-slate-800 flex items-center justify-center md:justify-start gap-2">
+                        <User size={18} className="text-slate-400"/> 
+                        {appt.patients?.name || "Cargando..."}
+                    </h3>
+                    <p className="text-sm text-slate-500 truncate">{appt.reason || "Sin motivo especificado"}</p>
+                </div>
 
-              {/* ACCIONES */}
-              <div className="flex items-center gap-2">
-                <button 
-                    onClick={() => addToGoogleCalendar(appt)}
-                    className="px-4 py-2 text-xs font-bold bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 flex items-center gap-2 transition-colors"
-                    title="Añadir a Google Calendar"
-                >
-                    <CalendarCheck size={16} className="text-blue-600"/> <span className="hidden md:inline">Google Cal</span>
-                </button>
-                <button 
-                    onClick={() => handleDelete(appt.id)}
-                    className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
-                >
-                    <Trash2 size={18} />
-                </button>
-              </div>
+                {/* ACCIONES (AQUI ESTA EL BOTON GOOGLE) */}
+                <div className="flex items-center gap-2">
+                    <button 
+                        onClick={() => addToGoogleCalendar(appt)}
+                        className="px-4 py-2 text-xs font-bold bg-white border border-slate-200 text-slate-600 rounded-lg hover:bg-slate-50 flex items-center gap-2 transition-colors shadow-sm"
+                        title="Añadir a Google Calendar"
+                    >
+                        <CalendarCheck size={16} className="text-blue-600"/> 
+                        <span className="hidden md:inline">Google Cal</span>
+                    </button>
+                    <button 
+                        onClick={() => handleDelete(appt.id)}
+                        className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                    >
+                        <Trash2 size={18} />
+                    </button>
+                </div>
 
-            </div>
-          ))}
+                </div>
+            );
+          })}
         </div>
       )}
 
@@ -175,7 +199,7 @@ const AppointmentsView: React.FC = () => {
                     <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Paciente</label>
                     <select 
                         required
-                        className="w-full p-3 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-teal bg-white"
+                        className="w-full p-3 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-brand-teal bg-white text-slate-700"
                         value={selectedPatientId}
                         onChange={e => setSelectedPatientId(e.target.value)}
                     >

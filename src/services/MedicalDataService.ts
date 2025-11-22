@@ -4,23 +4,15 @@ import { Patient, Consultation, Appointment } from '../types';
 export class MedicalDataService {
   
   // --- PACIENTES ---
-
   static async searchPatients(query: string): Promise<Patient[]> {
     if (!query || query.length < 2) return [];
-    const { data, error } = await supabase
-      .from('patients')
-      .select('*')
-      .ilike('name', `%${query}%`)
-      .limit(5);
+    const { data, error } = await supabase.from('patients').select('*').ilike('name', `%${query}%`).limit(5);
     if (error) { console.error("Error búsqueda:", error); return []; }
     return data || [];
   }
 
   static async getPatients(): Promise<Patient[]> {
-    const { data, error } = await supabase
-      .from('patients')
-      .select('*')
-      .order('created_at', { ascending: false });
+    const { data, error } = await supabase.from('patients').select('*').order('created_at', { ascending: false });
     if (error) throw error;
     return data || [];
   }
@@ -28,11 +20,7 @@ export class MedicalDataService {
   static async createPatient(patient: Omit<Patient, 'id' | 'created_at' | 'doctor_id'>): Promise<Patient> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("No hay sesión activa.");
-    const { data, error } = await supabase
-      .from('patients')
-      .insert([{ ...patient, doctor_id: session.user.id }])
-      .select()
-      .single();
+    const { data, error } = await supabase.from('patients').insert([{ ...patient, doctor_id: session.user.id }]).select().single();
     if (error) throw error;
     return data;
   }
@@ -43,31 +31,40 @@ export class MedicalDataService {
   }
 
   // --- CONSULTAS ---
-
   static async createConsultation(consultation: Omit<Consultation, 'id' | 'created_at' | 'doctor_id'>): Promise<Consultation> {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) throw new Error("No sesión.");
-    const { data, error } = await supabase
-      .from('consultations')
-      .insert([{ ...consultation, doctor_id: session.user.id }])
-      .select()
-      .single();
+    const { data, error } = await supabase.from('consultations').insert([{ ...consultation, doctor_id: session.user.id }]).select().single();
     if (error) throw new Error(error.message);
     return data;
   }
 
-  // --- NUEVO: CITAS (AGENDA) ---
-
+  // --- CITAS (AGENDA) ---
   static async getAppointments(): Promise<Appointment[]> {
-    // Traemos las citas y "unimos" (join) con la tabla pacientes para saber el nombre
+    // CORRECCIÓN: Usamos un join explícito seguro
     const { data, error } = await supabase
       .from('appointments')
-      .select('*, patients(*)') 
-      .gte('date_time', new Date().toISOString()) // Solo citas futuras o de hoy en adelante
+      .select(`
+        *,
+        patients (
+          id,
+          name
+        )
+      `)
+      .gte('date_time', new Date().toISOString()) // Solo citas futuras
       .order('date_time', { ascending: true });
     
-    if (error) throw error;
-    return data || [];
+    if (error) {
+        console.error("Error al traer citas:", error);
+        return [];
+    }
+    
+    // Mapeamos para asegurar que la estructura coincida con lo que espera el frontend
+    // A veces supabase devuelve 'patients' como array o null si se borró el paciente
+    return (data || []).map((item: any) => ({
+        ...item,
+        patients: Array.isArray(item.patients) ? item.patients[0] : item.patients
+    }));
   }
 
   static async createAppointment(appointment: Omit<Appointment, 'id' | 'created_at' | 'doctor_id' | 'patients'>): Promise<Appointment> {
@@ -80,7 +77,10 @@ export class MedicalDataService {
       .select()
       .single();
       
-    if (error) throw error;
+    if (error) {
+        console.error("Error creando cita:", error);
+        throw error;
+    }
     return data;
   }
 
