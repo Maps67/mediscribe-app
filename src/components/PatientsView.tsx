@@ -7,6 +7,7 @@ import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
+import { useLocation } from 'react-router-dom'; // IMPORTANTE: Necesario para recibir la orden del Dashboard
 
 const PatientsView: React.FC = () => {
   // --- ESTADOS ---
@@ -38,7 +39,24 @@ const PatientsView: React.FC = () => {
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [generatingPdfId, setGeneratingPdfId] = useState<string | null>(null);
 
+  // HOOK DE UBICACIÓN PARA DETECTAR NAVEGACIÓN DESDE DASHBOARD
+  const location = useLocation();
+
   useEffect(() => { fetchPatients(); fetchProfile(); }, []);
+
+  // NUEVO EFECTO: ESCUCHA SI HAY UN ID DE PACIENTE EN LA NAVEGACIÓN
+  useEffect(() => {
+    if (!loading && patients.length > 0 && location.state && (location.state as any).openPatientId) {
+        const patientIdToOpen = (location.state as any).openPatientId;
+        const foundPatient = patients.find(p => p.id === patientIdToOpen);
+        
+        if (foundPatient) {
+            handlePatientSelect(foundPatient);
+            // Limpiamos el estado para que no se vuelva a abrir al recargar (opcional, pero buena práctica)
+            window.history.replaceState({}, document.title);
+        }
+    }
+  }, [loading, patients, location.state]);
 
   const fetchProfile = async () => {
       const { data: { user } } = await supabase.auth.getUser();

@@ -63,25 +63,30 @@ const Dashboard: React.FC = () => {
 
       // DEFINIR RANGO DE HOY (Local Time)
       const today = new Date(); 
-      today.setHours(0, 0, 0, 0);
+      today.setHours(0, 0, 0, 0); // Inicio de hoy
       const tomorrow = new Date(today); 
-      tomorrow.setDate(tomorrow.getDate() + 1);
+      tomorrow.setDate(tomorrow.getDate() + 1); // Inicio de mañana
+
+      // Definir "AHORA MISMO" para citas futuras solamente
+      const now = new Date();
 
       // 3. Citas Hoy (Agenda / Planeado)
+      // CORRECCIÓN: Solo mostrar citas pendientes desde AHORA en adelante para el día de hoy
+      // Si quieres ver TODAS las del día (incluso pasadas), usa 'today'. 
+      // Si quieres solo pendientes, usa 'now'. Según instrucción previa: "si no hay programadas para una hora posterior... cero"
       const { count: appointmentsTodayCount } = await supabase
         .from('appointments')
         .select('*', { count: 'exact', head: true })
-        .gte('date_time', today.toISOString())
-        .lt('date_time', tomorrow.toISOString());
+        .gte('date_time', now.toISOString()) // Solo citas futuras desde este momento
+        .lt('date_time', tomorrow.toISOString()); // Hasta terminar el día
 
       // 4. Consultas Realizadas Hoy (Productividad / Ejecutado)
-      // AQUI OBTENEMOS LA LISTA COMPLETA, NO SOLO EL CONTEO
       const { data: consultationsTodayData, count: consultationsDoneCount } = await supabase
         .from('consultations')
         .select('*, patients(name)', { count: 'exact' })
         .gte('created_at', today.toISOString())
         .lt('created_at', tomorrow.toISOString())
-        .order('created_at', { ascending: false }); // Las más recientes arriba
+        .order('created_at', { ascending: false }); 
 
       setTodaysConsultationsList(consultationsTodayData || []);
 
@@ -148,7 +153,7 @@ const Dashboard: React.FC = () => {
             <p className="text-2xl font-bold text-slate-800">{stats.appointmentsToday}</p><p className="text-slate-400 text-xs font-bold uppercase">Citas Hoy</p>
          </div>
 
-         {/* 3. Productividad (Consultas Realizadas) - INDIGO - AHORA ABRE MODAL */}
+         {/* 3. Productividad (Consultas Realizadas) - INDIGO - ABRE MODAL */}
          <div 
             onClick={() => setIsConsultationsModalOpen(true)} 
             className="bg-white p-4 rounded-xl border border-slate-200 hover:border-indigo-300 cursor-pointer transition-all group relative overflow-hidden"
@@ -225,10 +230,12 @@ const Dashboard: React.FC = () => {
                                     </div>
                                     <p className="text-xs text-slate-500 line-clamp-2 mb-2">{consult.summary}</p>
                                     <div className="flex justify-end">
+                                         {/* BOTÓN INTELIGENTE: NAVEGA Y ABRE EXPEDIENTE */}
                                          <button 
                                             onClick={() => {
-                                                navigate('/patients'); // O a donde prefieras ir para ver el detalle completo
                                                 setIsConsultationsModalOpen(false);
+                                                // PASAMOS EL ID DEL PACIENTE EN EL ESTADO DE LA NAVEGACIÓN
+                                                navigate('/patients', { state: { openPatientId: consult.patient_id } });
                                             }}
                                             className="text-[10px] font-bold text-indigo-600 hover:underline flex items-center gap-1"
                                          >
