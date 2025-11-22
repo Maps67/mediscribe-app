@@ -51,6 +51,7 @@ const ConsultationView: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => { generateSessionKey().then(setSessionKey); fetchDoctorProfile(); }, []);
+  
   const fetchDoctorProfile = async () => {
     const { data: { user } } = await supabase.auth.getUser();
     if (user) {
@@ -58,8 +59,10 @@ const ConsultationView: React.FC = () => {
         if (data) { setDoctorProfile({ ...data, subscription_tier: data.subscription_tier || 'basic' }); if (data.specialty) setSpecialty(data.specialty); }
     }
   };
+
   useEffect(() => { if (textContainerRef.current) textContainerRef.current.scrollTop = textContainerRef.current.scrollHeight; }, [transcript, interimTranscript]);
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, activeTab]);
+  
   useEffect(() => {
     const delayDebounceFn = setTimeout(async () => {
       if (searchTerm.length >= 2 && !selectedPatient) {
@@ -125,8 +128,19 @@ const ConsultationView: React.FC = () => {
     isListening ? stopListening() : startListening();
   };
 
+  // --- CORRECCIÓN CRÍTICA: VALIDACIÓN ANTI-ALUCINACIÓN ---
   const generateRecord = async () => {
-    if (!transcript) return toast.info("Grabe algo primero.");
+    // 1. Validación de longitud mínima
+    const cleanText = transcript.trim();
+    const wordCount = cleanText.split(/\s+/).length;
+
+    if (!cleanText || wordCount < 15) {
+      toast.warning("Dictado insuficiente", {
+        description: `Solo detectamos ${wordCount} palabras. Por favor dicte la consulta completa (mínimo 15 palabras) para generar un expediente real.`
+      });
+      return;
+    }
+
     setIsLoadingRecord(true);
     try {
       const { clinicalNote, patientInstructions, actionItems } = await GeminiMedicalService.generateSummary(transcript, specialty, patientContext);
@@ -135,6 +149,7 @@ const ConsultationView: React.FC = () => {
       setGeneratedRecord({ ...newConsultation }); setEditableSummary(clinicalNote); setPatientInstructions(patientInstructions); setActionItems(actionItems); setIsEditingNote(false); setActiveTab('record'); toast.success("Expediente generado.");
     } catch (e) { toast.error("Error al generar."); } finally { setIsLoadingRecord(false); }
   };
+  // -------------------------------------------------------
 
   const handleSharePDF = async () => {
     if (!generatedRecord || !isPro) return;
@@ -145,20 +160,24 @@ const ConsultationView: React.FC = () => {
       if (navigator.canShare && navigator.canShare({ files: [file] })) { await navigator.share({ files: [file], title: 'Receta' }); } else { toast.warning("No soportado."); }
     } catch (error) { console.log("Cancelado"); } finally { setIsSharing(false); }
   };
+
   const sendToWhatsApp = () => {
     if (!isPro) return;
     const phone = selectedPatient?.phone || prompt("Teléfono:");
     if (!phone) return;
     window.open(`https://wa.me/${phone}?text=${encodeURIComponent(patientInstructions)}`, '_blank');
   };
+
   const handleGenerateRx = async () => {
       if(!transcript) return; setIsProcessingRx(true);
       try { const formattedRx = await GeminiMedicalService.generatePrescriptionOnly(transcript); setRxText(formattedRx); } catch (e) { toast.error("Error al generar."); } finally { setIsProcessingRx(false); stopListening(); }
   };
+
   const handleSaveRx = async () => {
       if(!rxText || !selectedPatient) return; setIsSavingRx(true);
       try { const { data: { user } } = await supabase.auth.getUser(); if (!user) return; await supabase.from('consultations').insert([{ doctor_id: user.id, patient_id: selectedPatient.id, transcript: "DICTADO DE RECETA: " + transcript, summary: rxText, status: 'completed' }]); setIsRxModalOpen(false); toast.success("Receta guardada."); } catch(e) { toast.error("Error al guardar."); } finally { setIsSavingRx(false); }
   };
+
   const handleAskAI = async (e: React.FormEvent) => {
     e.preventDefault(); if (!chatInput.trim() || !sessionKey) return;
     const q = chatInput; setChatInput(''); setChatMessages(p => [...p, { role: 'user', text: q }]); setIsChatLoading(true);
