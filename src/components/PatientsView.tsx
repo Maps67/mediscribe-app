@@ -1,5 +1,6 @@
+// FIX FINAL v2 - Corrección de sintaxis y cierre de llaves
 import React, { useEffect, useState } from 'react';
-import { Search, Plus, Phone, Calendar, User, X, Save, FileText, ChevronLeft, Clock, Trash2, Printer, Send, RefreshCw, Mic, Square, PenTool, Share2, Image as ImageIcon, UploadCloud, Eye, ExternalLink, ChevronRight } from 'lucide-react';
+import { Search, Plus, Phone, Calendar, User, X, Save, FileText, ChevronLeft, Clock, Trash2, Printer, Send, RefreshCw, Mic, Square, PenTool, Share2, Image as ImageIcon, UploadCloud, ExternalLink, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Patient, Consultation } from '../types';
 import FormattedText from './FormattedText';
@@ -27,9 +28,9 @@ const PatientsView: React.FC = () => {
   const [doctorProfile, setDoctorProfile] = useState({ full_name: 'Doctor', specialty: 'Medicina', license_number: '', phone: '', university: '', address: '', logo_url: '', signature_url: '' });
 
   // Modales
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isRxModalOpen, setIsRxModalOpen] = useState(false);
-  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isModalOpen, setIsModalOpen] = useState(false); // Crear Paciente
+  const [isRxModalOpen, setIsRxModalOpen] = useState(false); // Receta Voz
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false); // Subir Foto
 
   const [newPatientName, setNewPatientName] = useState('');
   const [newPatientPhone, setNewPatientPhone] = useState('');
@@ -257,7 +258,7 @@ const PatientsView: React.FC = () => {
 
   const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
-  // VISTA DETALLE
+  // --- RENDER PRINCIPAL ---
   if (selectedPatient) {
     return (
       <div className="p-6 max-w-6xl mx-auto animate-fade-in-up">
@@ -316,21 +317,12 @@ const PatientsView: React.FC = () => {
                         <div className="px-6 py-4 border-t border-slate-100 bg-slate-50/50 flex flex-wrap justify-end gap-3">
                             {selectedPatient.phone && <a href={`https://wa.me/${selectedPatient.phone}?text=${encodeURIComponent(consultation.summary || '')}`} target="_blank" rel="noreferrer" className="px-4 py-2 bg-green-100 text-green-700 text-xs font-bold rounded-lg flex items-center gap-2"><Send size={16} /> WhatsApp</a>}
                             
-                            <button 
-                                onClick={() => handleSharePDF(consultation)} 
-                                disabled={generatingPdfId === consultation.id} 
-                                className="bg-brand-teal text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-teal-600 transition-colors shadow-sm"
-                            >
+                            <button onClick={() => handleSharePDF(consultation)} disabled={generatingPdfId === consultation.id} className="bg-brand-teal text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-teal-600 transition-colors shadow-sm">
                                 {generatingPdfId === consultation.id ? <RefreshCw size={16} className="animate-spin"/> : <Share2 size={16}/>} Compartir
                             </button>
 
-                            <button 
-                                onClick={() => handleDownloadPDF(consultation)} 
-                                disabled={generatingPdfId === consultation.id} 
-                                className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 shadow-sm"
-                            >
-                                {generatingPdfId === consultation.id ? <RefreshCw size={16} className="animate-spin"/> : <Printer size={16}/>} 
-                                Imprimir
+                            <button onClick={() => handleDownloadPDF(consultation)} disabled={generatingPdfId === consultation.id} className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 shadow-sm">
+                                {generatingPdfId === consultation.id ? <RefreshCw size={16} className="animate-spin"/> : <Printer size={16}/>} Imprimir
                             </button>
                         </div>
                     </div>
@@ -410,7 +402,6 @@ const PatientsView: React.FC = () => {
                         <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><PenTool className="text-brand-teal"/> Nueva Receta Rápida</h3>
                         <button onClick={() => setIsRxModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm"><X size={24} /></button>
                     </div>
-                    
                     <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50">
                         {!rxText ? (
                             <div className="flex flex-col items-center justify-center h-full space-y-6 py-10">
