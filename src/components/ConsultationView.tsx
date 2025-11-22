@@ -28,6 +28,7 @@ const ConsultationView: React.FC = () => {
   const [patientContext, setPatientContext] = useState<string>(''); 
   const [documents, setDocuments] = useState<any[]>([]);
   const [isDocsModalOpen, setIsDocsModalOpen] = useState(false);
+  const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false); // NUEVO ESTADO PARA EL MODAL DE HISTORIAL
   const [uploadingDoc, setUploadingDoc] = useState(false);
   const [newDocName, setNewDocName] = useState('');
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
@@ -213,9 +214,16 @@ const ConsultationView: React.FC = () => {
                 <select value={specialty} onChange={(e) => setSpecialty(e.target.value)} className="bg-transparent text-sm font-bold text-slate-700 outline-none cursor-pointer flex-1 w-full">{SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}{!SPECIALTIES.includes(doctorProfile.specialty) && doctorProfile.specialty !== 'Medicina' && (<option value={doctorProfile.specialty}>{doctorProfile.specialty}</option>)}</select>
             </div>
         </div>
+        {/* CORRECCIÓN: BARRA DE CONTEXTO CLICKEABLE */}
         {patientContext && (
             <div className="flex gap-2 overflow-x-auto pb-1">
-                <div className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-2 animate-fade-in-up flex-1 min-w-[200px]"><History size={14} /><span className="truncate"><strong>Contexto:</strong> {patientContext.substring(0, 60)}...</span></div>
+                <div 
+                  onClick={() => setIsHistoryModalOpen(true)}
+                  className="bg-blue-50 border border-blue-100 p-2 rounded text-xs text-blue-700 flex items-center gap-2 animate-fade-in-up flex-1 min-w-[200px] cursor-pointer hover:bg-blue-100 transition-colors"
+                >
+                    <History size={14} />
+                    <span className="truncate"><strong>Contexto:</strong> {patientContext.substring(0, 60)}...</span>
+                </div>
                 <button onClick={() => setIsDocsModalOpen(true)} className="bg-white border border-slate-300 text-slate-700 px-3 py-1 rounded text-xs font-bold flex items-center gap-2 hover:bg-slate-50 shrink-0"><ImageIcon size={14} /> Estudios ({documents.length})</button>
             </div>
         )}
@@ -296,6 +304,31 @@ const ConsultationView: React.FC = () => {
                 </div>
             </div>
       )}
+      
+      {/* NUEVO MODAL: HISTORIAL / CONTEXTO */}
+      {isHistoryModalOpen && (
+            <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+                <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+                    <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0">
+                         <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2">
+                            <History className="text-brand-teal"/> Historial / Contexto
+                         </h3>
+                         <button onClick={() => setIsHistoryModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm"><X size={24} /></button>
+                    </div>
+                    <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50">
+                        <div className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm">
+                            <p className="text-sm text-slate-700 font-mono whitespace-pre-wrap leading-relaxed">
+                                {patientContext || "No hay contexto histórico disponible."}
+                            </p>
+                        </div>
+                    </div>
+                     <div className="p-4 border-t border-slate-100 bg-white flex justify-end">
+                        <button onClick={() => setIsHistoryModalOpen(false)} className="bg-slate-900 text-white px-4 py-2 rounded-lg text-sm font-bold hover:bg-slate-800">Cerrar</button>
+                    </div>
+                </div>
+            </div>
+      )}
+
       {previewUrl && ( <div className="fixed inset-0 bg-black/95 z-[60] flex items-center justify-center p-4" onClick={() => setPreviewUrl(null)}> <button className="absolute top-4 right-4 text-white p-2"><X size={32} /></button> <img src={previewUrl} className="max-w-full max-h-[90vh] rounded-lg shadow-2xl" onClick={(e) => e.stopPropagation()} /> </div> )}
       {isRxModalOpen && ( <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm"> <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]"> <div className="p-5 border-b border-slate-100 flex justify-between items-center bg-slate-50 shrink-0"> <h3 className="font-bold text-xl text-slate-800 flex items-center gap-2"><PenTool className="text-brand-teal"/> Nueva Receta Rápida</h3> <button onClick={() => setIsRxModalOpen(false)} className="text-slate-400 hover:text-red-500 bg-white p-1 rounded-full shadow-sm"><X size={24} /></button> </div> <div className="flex-1 p-6 overflow-y-auto bg-slate-50/50"> {!rxText ? ( <div className="flex flex-col items-center justify-center h-full space-y-6 py-10"> <div className={`w-24 h-24 rounded-full flex items-center justify-center transition-all ${isListening ? 'bg-red-100 text-red-600 animate-pulse scale-110' : 'bg-slate-200 text-slate-400'}`}><Mic size={48} /></div> <p className="text-center text-slate-600 max-w-md">{isListening ? "Escuchando dictado..." : "Presione Iniciar y dicte los medicamentos e indicaciones."}</p> {transcript && <div className="w-full bg-white p-4 rounded-xl border border-slate-200 text-sm text-slate-600 italic">"{transcript}"</div>} <div className="flex gap-4 w-full max-w-xs"> <button onClick={isListening ? stopListening : startListening} className={`flex-1 py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition-all ${isListening ? 'bg-white border-2 border-red-100 text-red-500 hover:bg-red-50' : 'bg-slate-900 text-white hover:bg-slate-800 shadow-lg'}`}>{isListening ? <><Square size={18}/> Detener</> : <><Mic size={18}/> Iniciar Dictado</>}</button> <button onClick={handleGenerateRx} disabled={!transcript || isListening} className="flex-1 bg-brand-teal text-white py-3 rounded-xl font-bold shadow-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">{isProcessingRx ? <RefreshCw className="animate-spin" size={18}/> : <RefreshCw size={18}/>} Generar</button> </div> </div> ) : ( <div className="h-full flex flex-col"><label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Vista Previa de Receta</label><textarea className="flex-1 w-full p-4 border border-slate-200 rounded-xl focus:ring-2 focus:ring-brand-teal outline-none resize-none font-mono text-sm leading-relaxed bg-white shadow-sm" value={rxText} onChange={(e) => setRxText(e.target.value)} /></div> )} </div> {rxText && <div className="p-5 border-t border-slate-100 bg-white flex justify-end gap-3 shrink-0"><button onClick={() => setRxText('')} className="px-4 py-2 text-slate-500 hover:bg-slate-100 rounded-lg font-medium transition-colors">Reintentar</button><button onClick={handleSaveRx} disabled={isSavingRx} className="px-6 py-2 bg-brand-teal text-white rounded-lg font-bold shadow-lg hover:bg-teal-600 transition-colors flex items-center gap-2">{isSavingRx ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>} Guardar y Crear PDF</button></div>} </div> </div> )}
     </div>
