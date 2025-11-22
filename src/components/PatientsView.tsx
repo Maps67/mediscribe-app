@@ -272,7 +272,7 @@ const PatientsView: React.FC = () => {
             <button onClick={handleBackToList} className="flex items-center gap-2 text-slate-500 hover:text-brand-teal font-medium">
                 <ChevronLeft size={20} /> Volver
             </button>
-            <button onClick={() => {setRxText(''); setIsRxModalOpen(true);}} className="bg-slate-900 text-white px-5 py-2.5 rounded-lg font-bold shadow-lg flex items-center gap-2 hover:bg-slate-800 transition-transform active:scale-95">
+            <button onClick={() => {setRxText(''); setIsRxModalOpen(true);}} className="bg-slate-900 text-white px-5 py-2.5 rounded-lg font-bold shadow-lg flex items-center gap-2 hover:bg-slate-800 active:scale-95 transition-transform">
                 <PenTool size={18} /> Nueva Receta
             </button>
         </div>
@@ -336,7 +336,8 @@ const PatientsView: React.FC = () => {
                                 disabled={generatingPdfId === consultation.id} 
                                 className="bg-slate-800 text-white px-3 py-2 rounded-lg text-xs font-bold flex items-center gap-2 hover:bg-slate-700 shadow-sm"
                             >
-                                {generatingPdfId === consultation.id ? <RefreshCw size={16} className="animate-spin"/> : <Printer size={16}/>} Imprimir
+                                {generatingPdfId === consultation.id ? <RefreshCw size={16} className="animate-spin"/> : <Printer size={16}/>} 
+                                Imprimir
                             </button>
                         </div>
                     </div>
