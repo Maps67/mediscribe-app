@@ -1,13 +1,27 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Activity, FileText, ShieldCheck, Sparkles, Clock, ChevronRight } from 'lucide-react';
+import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
+
+// Banco de Frases y Tips
+const TIPS_AND_QUOTES = [
+  "La medicina es la más humana de las artes, la más artística de las ciencias. - Edmund Pellegrino",
+  "Donde quiera que se ama el arte de la medicina, se ama también a la humanidad. - Hipócrates",
+  "Tip: Usa el micrófono en ambientes con poco ruido para mayor precisión.",
+  "Tip: Puedes editar cualquier nota antes de guardarla en el historial.",
+  "El buen médico trata la enfermedad; el gran médico trata al paciente que tiene la enfermedad. - William Osler",
+  "Tip: Recuerda actualizar tu firma digital en Configuración para tus recetas.",
+  "La salud es el regalo más valioso. - Buda",
+  "Tip: Puedes compartir la receta por WhatsApp directamente desde el historial.",
+];
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [loading, setLoading] = useState(true);
   
   const [doctorName, setDoctorName] = useState('');
+  const [greeting, setGreeting] = useState('');
+  const [quote, setQuote] = useState('');
   const [stats, setStats] = useState({
     totalPatients: 0,
     consultationsToday: 0,
@@ -17,7 +31,24 @@ const Dashboard: React.FC = () => {
 
   useEffect(() => {
     fetchDashboardData();
+    determineGreeting();
+    // Seleccionar frase aleatoria
+    setQuote(TIPS_AND_QUOTES[Math.floor(Math.random() * TIPS_AND_QUOTES.length)]);
   }, []);
+
+  const determineGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) setGreeting('Buenos días');
+    else if (hour < 18) setGreeting('Buenas tardes');
+    else setGreeting('Buenas noches');
+  };
+
+  const getGreetingIcon = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return <Sunrise className="text-orange-400" size={32} />;
+    if (hour < 18) return <Sun className="text-yellow-500" size={32} />;
+    return <Moon className="text-indigo-400" size={32} />;
+  };
 
   const fetchDashboardData = async () => {
     try {
@@ -37,7 +68,6 @@ const Dashboard: React.FC = () => {
         .select('*', { count: 'exact', head: true })
         .gte('created_at', today.toISOString());
 
-      // Buscar próxima cita real
       const { data: nextApptData } = await supabase
         .from('appointments')
         .select('date_time')
@@ -50,7 +80,6 @@ const Dashboard: React.FC = () => {
       if (nextApptData) {
           const date = new Date(nextApptData.date_time);
           nextApptString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          // Si no es hoy, mostramos fecha
           if (date.getDate() !== new Date().getDate()) {
              nextApptString = date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + nextApptString;
           }
@@ -69,90 +98,108 @@ const Dashboard: React.FC = () => {
   if (loading) {
     return (
       <div className="p-6 max-w-6xl mx-auto animate-pulse">
-        <div className="h-8 bg-slate-200 rounded w-1/4 mb-6"></div>
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-           {[1,2,3,4].map(i => <div key={i} className="h-32 bg-slate-100 rounded-xl"></div>)}
+        <div className="h-40 bg-slate-100 rounded-xl mb-8"></div>
+        <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+           {[1,2,3,4].map(i => <div key={i} className="h-24 bg-slate-50 rounded-xl"></div>)}
         </div>
       </div>
     );
   }
 
   return (
-    <div className="p-6 max-w-6xl mx-auto">
-      <h2 className="text-2xl font-bold text-slate-800 mb-6">Panel Principal</h2>
+    <div className="p-4 lg:p-6 max-w-6xl mx-auto">
       
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-6 mb-8">
-         
-         {/* CARD 1: PACIENTES (CLICK -> PACIENTES) */}
-         <div 
-            onClick={() => navigate('/patients')}
-            className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer group"
-         >
-            <div className="flex items-center justify-between mb-4">
-               <div className="bg-blue-100 p-2 rounded-lg text-blue-600 group-hover:bg-blue-600 group-hover:text-white transition-colors"><Users size={24} /></div>
-               <ChevronRight className="text-slate-300 group-hover:text-blue-500" size={20}/>
-            </div>
-            <h3 className="text-slate-500 text-sm font-medium">Pacientes Totales</h3>
-            <p className="text-2xl font-bold text-slate-800">{stats.totalPatients}</p>
-         </div>
-
-         {/* CARD 2: CONSULTAS HOY (CLICK -> AGENDA) */}
-         <div 
-            onClick={() => navigate('/appointments')}
-            className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer group"
-         >
-            <div className="flex items-center justify-between mb-4">
-               <div className="bg-teal-100 p-2 rounded-lg text-brand-teal group-hover:bg-brand-teal group-hover:text-white transition-colors"><Activity size={24} /></div>
-               <ChevronRight className="text-slate-300 group-hover:text-brand-teal" size={20}/>
-            </div>
-            <h3 className="text-slate-500 text-sm font-medium">Consultas Hoy</h3>
-            <p className="text-2xl font-bold text-slate-800">{stats.consultationsToday}</p>
-         </div>
-
-         {/* CARD 3: PROXIMA CITA (CLICK -> AGENDA) */}
-         <div 
-            onClick={() => navigate('/appointments')}
-            className="bg-white p-6 rounded-xl shadow-sm border border-slate-200 hover:shadow-lg hover:-translate-y-1 transition-all cursor-pointer group"
-         >
-             <div className="flex items-center justify-between mb-4">
-               <div className="bg-purple-100 p-2 rounded-lg text-purple-600 group-hover:bg-purple-600 group-hover:text-white transition-colors"><Clock size={24} /></div>
-               <ChevronRight className="text-slate-300 group-hover:text-purple-500" size={20}/>
-            </div>
-            <h3 className="text-slate-500 text-sm font-medium">Próxima Cita</h3>
-            <p className="text-xl font-bold text-slate-800 truncate">{stats.nextAppt}</p>
-         </div>
-
-         {/* CARD 4: SISTEMA (NO CLICK) */}
-         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
-            <div className="flex items-center justify-between mb-4">
-               <div className="bg-orange-100 p-2 rounded-lg text-orange-600"><ShieldCheck size={24} /></div>
-               <span className="text-green-500 text-xs font-bold bg-green-50 px-2 py-1 rounded flex items-center gap-1">● Online</span>
-            </div>
-            <h3 className="text-slate-500 text-sm font-medium">Estado Sistema</h3>
-            <p className="text-xl font-bold text-slate-800">Encriptado</p>
-         </div>
-      </div>
-      
-      <div className="bg-white rounded-xl shadow-sm border border-slate-200 p-8 flex flex-col items-center justify-center text-center min-h-[300px] relative overflow-hidden">
-          <div className="absolute top-0 left-0 w-full h-2 bg-gradient-to-r from-brand-teal to-blue-600"></div>
-          <div className="absolute -right-10 -bottom-10 w-40 h-40 bg-brand-teal/5 rounded-full blur-3xl"></div>
-
-          <div className="p-4 bg-slate-50 rounded-full mb-6 animate-fade-in-up">
-             <Sparkles size={48} className="text-brand-teal opacity-80" />
+      {/* WELCOME HERO PERSONALIZADO */}
+      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 p-6 lg:p-8 flex flex-col md:flex-row items-center justify-between mb-8 relative overflow-hidden">
+          {/* Barra lateral de color */}
+          <div className="absolute top-0 left-0 w-2 h-full bg-brand-teal"></div>
+          
+          <div className="flex-1 z-10 text-center md:text-left mb-6 md:mb-0">
+             <div className="flex items-center justify-center md:justify-start gap-3 mb-2">
+                {getGreetingIcon()}
+                <h2 className="text-2xl lg:text-3xl font-bold text-slate-800">
+                    {greeting}, <span className="text-brand-teal">{doctorName.split(' ')[0]}</span>
+                </h2>
+             </div>
+             <p className="text-slate-500 italic text-sm lg:text-base max-w-xl mx-auto md:mx-0">
+                "{quote}"
+             </p>
           </div>
-          
-          <h3 className="text-2xl font-bold text-slate-800 mb-2">
-            Bienvenido, <span className="text-brand-teal">{doctorName}</span>
-          </h3>
-          
-          <p className="text-slate-500 max-w-lg mt-2 leading-relaxed">
-              Su consultorio inteligente está activo. Seleccione <span className="font-bold text-slate-700">Consulta IA</span> para comenzar.
-          </p>
 
-          <button onClick={() => navigate('/consultation')} className="mt-8 px-8 py-3 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 transition-all shadow-lg shadow-slate-900/20 flex items-center gap-2">
-            Comenzar Nueva Consulta <Activity size={18} />
-          </button>
+          <div className="z-10">
+             <button 
+                onClick={() => navigate('/consultation')}
+                className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-slate-900/20 flex items-center gap-2 hover:scale-105 transition-transform active:scale-95"
+             >
+                <Activity size={20} /> Iniciar Consulta
+             </button>
+          </div>
+
+          {/* Decoración de fondo */}
+          <div className="absolute -right-10 -top-10 w-64 h-64 bg-gradient-to-br from-brand-teal/10 to-blue-500/10 rounded-full blur-3xl pointer-events-none"></div>
       </div>
+      
+      {/* GRID DE ESTADÍSTICAS (Compacto en Móvil) */}
+      <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 mb-8">
+         
+         {/* PACIENTES */}
+         <div onClick={() => navigate('/patients')} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all cursor-pointer group">
+            <div className="flex items-center justify-between mb-2">
+               <div className="bg-blue-50 p-2 rounded-lg text-blue-600"><Users size={20} /></div>
+               <ChevronRight className="text-slate-300 group-hover:text-blue-500" size={16}/>
+            </div>
+            <p className="text-2xl font-bold text-slate-800">{stats.totalPatients}</p>
+            <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Pacientes</p>
+         </div>
+
+         {/* CONSULTAS HOY */}
+         <div onClick={() => navigate('/appointments')} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all cursor-pointer group">
+            <div className="flex items-center justify-between mb-2">
+               <div className="bg-teal-50 p-2 rounded-lg text-brand-teal"><Activity size={20} /></div>
+               <ChevronRight className="text-slate-300 group-hover:text-brand-teal" size={16}/>
+            </div>
+            <p className="text-2xl font-bold text-slate-800">{stats.consultationsToday}</p>
+            <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Consultas Hoy</p>
+         </div>
+
+         {/* PRÓXIMA CITA */}
+         <div onClick={() => navigate('/appointments')} className="bg-white p-4 rounded-xl shadow-sm border border-slate-200 hover:shadow-md transition-all cursor-pointer group">
+             <div className="flex items-center justify-between mb-2">
+               <div className="bg-purple-50 p-2 rounded-lg text-purple-600"><Clock size={20} /></div>
+               <ChevronRight className="text-slate-300 group-hover:text-purple-500" size={16}/>
+            </div>
+            <p className="text-xl font-bold text-slate-800 truncate">{stats.nextAppt}</p>
+            <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Próxima Cita</p>
+         </div>
+
+         {/* SISTEMA */}
+         <div className="bg-white p-4 rounded-xl shadow-sm border border-slate-200">
+            <div className="flex items-center justify-between mb-2">
+               <div className="bg-orange-50 p-2 rounded-lg text-orange-600"><ShieldCheck size={20} /></div>
+               <div className="h-2 w-2 bg-green-500 rounded-full animate-pulse" title="Online"></div>
+            </div>
+            <p className="text-xl font-bold text-slate-800">Seguro</p>
+            <p className="text-slate-400 text-xs font-medium uppercase tracking-wide">Estado</p>
+         </div>
+      </div>
+      
+      {/* ACCESOS RÁPIDOS INFERIORES */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <div className="bg-slate-900 text-white rounded-xl p-6 relative overflow-hidden">
+             <h3 className="font-bold text-lg mb-1">¿Necesitas Ayuda?</h3>
+             <p className="text-slate-300 text-xs mb-4 max-w-xs">Consulta nuestra guía de uso o contacta a soporte técnico.</p>
+             <button className="bg-white/10 text-white px-4 py-2 rounded-lg text-xs font-bold hover:bg-white/20 transition-colors cursor-not-allowed opacity-70">Ver Tutoriales (Pronto)</button>
+             <Sparkles className="absolute bottom-[-20px] right-[-20px] text-white/5 w-32 h-32" />
+        </div>
+        
+        <div className="bg-gradient-to-r from-brand-teal to-teal-600 text-white rounded-xl p-6 relative overflow-hidden cursor-pointer hover:shadow-lg transition-shadow" onClick={() => navigate('/card')}>
+             <h3 className="font-bold text-lg mb-1">Tarjeta Digital</h3>
+             <p className="text-teal-100 text-xs mb-4">Comparte tu perfil profesional con un QR.</p>
+             <div className="flex items-center gap-2 text-xs font-bold">Ver mi Tarjeta <ChevronRight size={14}/></div>
+             <Users className="absolute bottom-[-20px] right-[-20px] text-white/10 w-32 h-32" />
+        </div>
+      </div>
+
     </div>
   );
 };
