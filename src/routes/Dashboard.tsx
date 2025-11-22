@@ -1,5 +1,5 @@
 import React, { useEffect, useState } from 'react';
-import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise, MessageCircle, HelpCircle, ExternalLink } from 'lucide-react';
+import { Users, Activity, ShieldCheck, Sparkles, Clock, ChevronRight, Sun, Moon, Sunrise, MessageCircle, HelpCircle, ExternalLink, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useNavigate } from 'react-router-dom';
 
@@ -17,7 +17,8 @@ const Dashboard: React.FC = () => {
   const [doctorName, setDoctorName] = useState('');
   const [greeting, setGreeting] = useState('');
   const [quote, setQuote] = useState('');
-  const [stats, setStats] = useState({ totalPatients: 0, consultationsToday: 0, nextAppt: '---' });
+  // Renombrado consultationsToday a appointmentsToday para mayor claridad interna
+  const [stats, setStats] = useState({ totalPatients: 0, appointmentsToday: 0, nextAppt: '---' });
 
   useEffect(() => {
     fetchDashboardData();
@@ -34,7 +35,6 @@ const Dashboard: React.FC = () => {
 
   // --- TU NÚMERO DE SOPORTE (PIXEL ART STUDIO) ---
   const handleSupport = () => {
-    // REEMPLAZA ESTO CON TU NÚMERO REAL
     const YOUR_WHATSAPP = "523330583807"; 
     const message = "Hola Pixel Art, soy usuario de MediScribe y necesito ayuda.";
     window.open(`https://wa.me/${YOUR_WHATSAPP}?text=${encodeURIComponent(message)}`, '_blank');
@@ -44,20 +44,52 @@ const Dashboard: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      // 1. Perfil del Doctor
       const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
       setDoctorName(profile?.full_name || 'Doctor');
+
+      // 2. Total Pacientes
       const { count: patientsCount } = await supabase.from('patients').select('*', { count: 'exact', head: true });
-      const today = new Date(); today.setHours(0, 0, 0, 0);
-      const { count: todayConsul } = await supabase.from('consultations').select('*', { count: 'exact', head: true }).gte('created_at', today.toISOString());
-      const { data: nextApptData } = await supabase.from('appointments').select('date_time').gte('date_time', new Date().toISOString()).order('date_time', { ascending: true }).limit(1).single();
+
+      // 3. Citas Hoy (CORREGIDO: Ahora mira 'appointments' en lugar de 'consultations')
+      const today = new Date(); 
+      today.setHours(0, 0, 0, 0); // Inicio del día
+      
+      const tomorrow = new Date(today); 
+      tomorrow.setDate(tomorrow.getDate() + 1); // Fin del día (Inicio de mañana)
+
+      const { count: appointmentsTodayCount } = await supabase
+        .from('appointments')
+        .select('*', { count: 'exact', head: true })
+        .gte('date_time', today.toISOString())
+        .lt('date_time', tomorrow.toISOString());
+
+      // 4. Próxima Cita (Solo futuras)
+      const { data: nextApptData } = await supabase
+        .from('appointments')
+        .select('date_time')
+        .gte('date_time', new Date().toISOString())
+        .order('date_time', { ascending: true })
+        .limit(1)
+        .single();
       
       let nextApptString = 'Sin pendientes';
       if (nextApptData) {
           const date = new Date(nextApptData.date_time);
           nextApptString = date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
-          if (date.getDate() !== new Date().getDate()) nextApptString = date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + nextApptString;
+          // Si la cita no es hoy, agregar fecha
+          if (date.getDate() !== new Date().getDate()) {
+            nextApptString = date.toLocaleDateString([], { month: 'short', day: 'numeric' }) + ' ' + nextApptString;
+          }
       }
-      setStats({ totalPatients: patientsCount || 0, consultationsToday: todayConsul || 0, nextAppt: nextApptString, totalConsultations: 0 });
+
+      setStats({ 
+        totalPatients: patientsCount || 0, 
+        appointmentsToday: appointmentsTodayCount || 0, 
+        nextAppt: nextApptString 
+      });
+
     } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
@@ -88,8 +120,8 @@ const Dashboard: React.FC = () => {
             <p className="text-2xl font-bold text-slate-800">{stats.totalPatients}</p><p className="text-slate-400 text-xs font-bold uppercase">Pacientes</p>
          </div>
          <div onClick={() => navigate('/appointments')} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-teal-300 cursor-pointer transition-all group">
-            <div className="flex justify-between mb-2"><div className="bg-teal-50 p-2 rounded-lg text-brand-teal"><Activity size={18}/></div><ChevronRight className="text-slate-300 group-hover:text-brand-teal" size={16}/></div>
-            <p className="text-2xl font-bold text-slate-800">{stats.consultationsToday}</p><p className="text-slate-400 text-xs font-bold uppercase">Consultas Hoy</p>
+            <div className="flex justify-between mb-2"><div className="bg-teal-50 p-2 rounded-lg text-brand-teal"><Calendar size={18}/></div><ChevronRight className="text-slate-300 group-hover:text-brand-teal" size={16}/></div>
+            <p className="text-2xl font-bold text-slate-800">{stats.appointmentsToday}</p><p className="text-slate-400 text-xs font-bold uppercase">Citas Hoy</p>
          </div>
          <div onClick={() => navigate('/appointments')} className="bg-white p-4 rounded-xl border border-slate-200 hover:border-purple-300 cursor-pointer transition-all group">
              <div className="flex justify-between mb-2"><div className="bg-purple-50 p-2 rounded-lg text-purple-600"><Clock size={18}/></div><ChevronRight className="text-slate-300 group-hover:text-purple-500" size={16}/></div>
