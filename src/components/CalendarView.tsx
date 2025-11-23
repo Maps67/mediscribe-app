@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Calendar, dateFnsLocalizer, View } from 'react-big-calendar';
+import { Calendar, dateFnsLocalizer } from 'react-big-calendar';
 import format from 'date-fns/format';
 import parse from 'date-fns/parse';
 import startOfWeek from 'date-fns/startOfWeek';
@@ -10,13 +10,9 @@ import { AppointmentService } from '../services/AppointmentService';
 import { Appointment, Patient } from '../types';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { Plus, X, Calendar as CalendarIcon, Clock, User } from 'lucide-react';
+import { Plus, X, Calendar as CalendarIcon, User, Clock } from 'lucide-react';
 
-// Configuración de localización (Español)
-const locales = {
-  'es': es,
-};
-
+const locales = { 'es': es };
 const localizer = dateFnsLocalizer({
   format,
   parse,
@@ -30,9 +26,8 @@ const CalendarView: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [loading, setLoading] = useState(true);
   
-  // Estado del Modal
+  // Modal
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [selectedSlot, setSelectedSlot] = useState<{start: Date, end: Date} | null>(null);
   
   // Formulario
   const [formData, setFormData] = useState({
@@ -45,28 +40,33 @@ const CalendarView: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
 
   useEffect(() => {
-    fetchData();
+    loadData();
   }, []);
 
-  const fetchData = async () => {
+  const loadData = async () => {
+    setLoading(true);
     try {
-      setLoading(true);
-      const [citasData, pacientesData] = await Promise.all([
-        AppointmentService.getAppointments(),
-        supabase.from('patients').select('id, name')
-      ]);
+      // 1. Cargar Pacientes (Prioridad para el dropdown)
+      const { data: patientsData, error: patientsError } = await supabase
+        .from('patients')
+        .select('*')
+        .order('name');
+      
+      if (patientsError) throw patientsError;
+      setPatients(patientsData || []);
 
-      setAppointments(citasData);
-      if (pacientesData.data) setPatients(pacientesData.data as Patient[]);
+      // 2. Cargar Citas
+      const appointmentsData = await AppointmentService.getAppointments();
+      setAppointments(appointmentsData);
+
     } catch (error) {
-      console.error(error);
-      toast.error("Error al cargar la agenda");
+      console.error("Error cargando datos:", error);
+      toast.error("Error de conexión al cargar la agenda");
     } finally {
       setLoading(false);
     }
   };
 
-  // Convertir eventos de string a Date para el calendario
   const calendarEvents = appointments.map(app => ({
     id: app.id,
     title: app.patient?.name ? `${app.title} - ${app.patient.name}` : app.title,
@@ -76,8 +76,6 @@ const CalendarView: React.FC = () => {
   }));
 
   const handleSelectSlot = ({ start, end }: { start: Date; end: Date }) => {
-    setSelectedSlot({ start, end });
-    // Prellenar formulario con la hora seleccionada (ajuste ISO para input datetime-local)
     const toLocalISO = (date: Date) => {
       const tzOffset = date.getTimezoneOffset() * 60000;
       return new Date(date.getTime() - tzOffset).toISOString().slice(0, 16);
@@ -96,7 +94,7 @@ const CalendarView: React.FC = () => {
   const handleSave = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!formData.patientId || !formData.startTime || !formData.endTime) {
-      toast.error("Complete los campos obligatorios");
+      toast.error("Seleccione un paciente y las fechas");
       return;
     }
 
@@ -112,7 +110,10 @@ const CalendarView: React.FC = () => {
       });
       toast.success("Cita agendada correctamente");
       setIsModalOpen(false);
-      fetchData(); // Recargar calendario
+      
+      // Recargar solo citas para actualizar vista
+      const refreshCitas = await AppointmentService.getAppointments();
+      setAppointments(refreshCitas);
     } catch (error) {
       console.error(error);
       toast.error("Error al guardar la cita");
@@ -123,27 +124,15 @@ const CalendarView: React.FC = () => {
 
   const handleEventClick = (event: any) => {
     const app = event.resource as Appointment;
-    if(confirm(`¿Desea cancelar la cita de ${app.patient?.name || 'Paciente'}?`)) {
+    if(confirm(`¿Desea eliminar la cita de ${app.patient?.name || 'Paciente'}?`)) {
        AppointmentService.deleteAppointment(app.id)
-         .then(() => {
+         .then(async () => {
             toast.success("Cita eliminada");
-            fetchData();
+            const refreshCitas = await AppointmentService.getAppointments();
+            setAppointments(refreshCitas);
          })
          .catch(() => toast.error("Error al eliminar"));
     }
-  };
-
-  // Estilos personalizados para eventos
-  const eventStyleGetter = (event: any) => {
-    const style = {
-      backgroundColor: '#0d9488', // brand-teal
-      borderRadius: '4px',
-      opacity: 0.8,
-      color: 'white',
-      border: '0px',
-      display: 'block'
-    };
-    return { style };
   };
 
   return (
@@ -156,7 +145,7 @@ const CalendarView: React.FC = () => {
         <button 
           onClick={() => {
             const now = new Date();
-            const end = new Date(now.getTime() + 60*60*1000); // +1 hora
+            const end = new Date(now.getTime() + 30*60*1000); // 30 min por defecto
             handleSelectSlot({ start: now, end: end });
           }}
           className="bg-brand-teal text-white px-4 py-2 rounded-lg font-bold shadow-lg flex items-center gap-2 hover:bg-teal-600 transition-all"
@@ -176,27 +165,20 @@ const CalendarView: React.FC = () => {
             endAccessor="end"
             style={{ height: '100%' }}
             messages={{
-              next: "Sig",
-              previous: "Ant",
-              today: "Hoy",
-              month: "Mes",
-              week: "Semana",
-              day: "Día",
-              agenda: "Agenda",
+              next: "Sig", previous: "Ant", today: "Hoy",
+              month: "Mes", week: "Semana", day: "Día", agenda: "Agenda",
               noEventsInRange: "No hay citas en este rango"
             }}
             culture='es'
             selectable
             onSelectSlot={handleSelectSlot}
             onSelectEvent={handleEventClick}
-            eventPropGetter={eventStyleGetter}
-            views={['month', 'week', 'day', 'agenda']}
+            eventPropGetter={() => ({ style: { backgroundColor: '#0d9488', borderRadius: '4px', border: 'none' } })}
             defaultView='week'
           />
         )}
       </div>
 
-      {/* MODAL NUEVA CITA */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden">
@@ -210,7 +192,6 @@ const CalendarView: React.FC = () => {
             </div>
             
             <form onSubmit={handleSave} className="p-6 space-y-4">
-              {/* Selector Paciente */}
               <div>
                 <label className="block text-sm font-bold text-slate-700 mb-1 flex items-center gap-2">
                   <User size={16}/> Paciente
@@ -226,27 +207,26 @@ const CalendarView: React.FC = () => {
                     <option key={p.id} value={p.id}>{p.name}</option>
                   ))}
                 </select>
+                {patients.length === 0 && (
+                   <p className="text-xs text-red-400 mt-1">No se encontraron pacientes. Revise el Directorio.</p>
+                )}
               </div>
 
-              {/* Título */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Motivo / Título</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Motivo</label>
                 <input 
-                  type="text" 
-                  required 
+                  type="text" required 
                   className="w-full p-3 border border-slate-200 rounded-lg outline-none focus:border-brand-teal"
                   value={formData.title}
                   onChange={e => setFormData({...formData, title: e.target.value})}
                 />
               </div>
 
-              {/* Fechas */}
               <div className="grid grid-cols-2 gap-4">
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Inicio</label>
                   <input 
-                    type="datetime-local" 
-                    required 
+                    type="datetime-local" required 
                     className="w-full p-2 border border-slate-200 rounded-lg text-sm"
                     value={formData.startTime}
                     onChange={e => setFormData({...formData, startTime: e.target.value})}
@@ -255,8 +235,7 @@ const CalendarView: React.FC = () => {
                 <div>
                   <label className="block text-sm font-medium text-slate-700 mb-1">Fin</label>
                   <input 
-                    type="datetime-local" 
-                    required 
+                    type="datetime-local" required 
                     className="w-full p-2 border border-slate-200 rounded-lg text-sm"
                     value={formData.endTime}
                     onChange={e => setFormData({...formData, endTime: e.target.value})}
@@ -264,26 +243,21 @@ const CalendarView: React.FC = () => {
                 </div>
               </div>
 
-              {/* Notas */}
               <div>
-                <label className="block text-sm font-medium text-slate-700 mb-1">Notas Adicionales</label>
+                <label className="block text-sm font-medium text-slate-700 mb-1">Notas</label>
                 <textarea 
                   className="w-full p-3 border border-slate-200 rounded-lg outline-none resize-none h-20 text-sm"
-                  placeholder="Detalles previos..."
                   value={formData.notes}
                   onChange={e => setFormData({...formData, notes: e.target.value})}
                 />
               </div>
 
-              <div className="pt-2">
-                <button 
-                  type="submit" 
-                  disabled={isSaving}
-                  className="w-full bg-brand-teal text-white py-3 rounded-lg font-bold hover:bg-teal-600 shadow-md flex justify-center items-center gap-2"
-                >
-                  {isSaving ? 'Guardando...' : 'Confirmar Cita'}
-                </button>
-              </div>
+              <button 
+                type="submit" disabled={isSaving}
+                className="w-full bg-brand-teal text-white py-3 rounded-lg font-bold hover:bg-teal-600 shadow-md flex justify-center items-center gap-2 mt-2"
+              >
+                {isSaving ? 'Guardando...' : 'Confirmar Cita'}
+              </button>
             </form>
           </div>
         </div>
