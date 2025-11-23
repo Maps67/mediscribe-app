@@ -6,31 +6,35 @@ if (!API_KEY) {
   console.error("Falta la VITE_GEMINI_API_KEY en el archivo .env");
 }
 
-// URL directa a la API REST de Google (Bypasseando la librería para evitar errores de versión)
-const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent";
+// CAMBIO CRÍTICO: Usamos 'gemini-pro' en lugar de 'gemini-1.5-flash'.
+// Este modelo es el estándar universal y no debería dar error 404.
+const BASE_URL = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent";
 
 export const GeminiMedicalService = {
   
-  // 1. Generar Nota SOAP (Modo Fetch Directo)
+  // 1. Generar Nota SOAP
   async generateClinicalNote(transcript: string): Promise<GeminiResponse> {
     try {
+      // Ajustamos el prompt para ser ultra explícitos con el JSON, ya que Pro es más literal
       const prompt = `
-        Actúa como un médico experto. Transforma el siguiente dictado de consulta en un formato estructurado JSON.
+        Eres un asistente médico. Tu tarea es convertir el siguiente dictado en un objeto JSON.
         
         Dictado: "${transcript}"
 
-        Requisitos de salida (JSON estricto):
-        1. "clinicalNote": Redacta una nota clínica formal (Formato SOAP).
-        2. "patientInstructions": Redacta instrucciones claras para el paciente.
-        3. "actionItems": 
-           - "next_appointment": Sugerencia de fecha (texto) o null.
-           - "urgent_referral": boolean.
-           - "lab_tests_required": Array de strings.
-
-        Responde SOLO con el JSON válido, sin bloques de código markdown.
+        Responde ÚNICAMENTE con este JSON (sin markdown, sin explicaciones):
+        {
+          "clinicalNote": "Texto de la nota clínica formato SOAP",
+          "patientInstructions": "Instrucciones para el paciente",
+          "actionItems": {
+            "next_appointment": "Fecha sugerida o null",
+            "urgent_referral": false,
+            "lab_tests_required": []
+          }
+        }
       `;
 
-      // PETICIÓN DIRECTA SIN SDK
+      console.log("Conectando con Gemini Pro..."); // Log para verificar intento
+
       const response = await fetch(`${BASE_URL}?key=${API_KEY}`, {
         method: 'POST',
         headers: {
@@ -45,28 +49,30 @@ export const GeminiMedicalService = {
 
       if (!response.ok) {
         const errorData = await response.json();
-        console.error("Error API Google:", errorData);
-        throw new Error(`Error ${response.status}: ${errorData.error?.message || 'Fallo en la petición'}`);
+        console.error("Error detallado API Google:", errorData);
+        throw new Error(`Error ${response.status}: ${errorData.error?.message || 'Fallo desconocido'}`);
       }
 
       const data = await response.json();
-      // La estructura de respuesta REST es: data.candidates[0].content.parts[0].text
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
 
       if (!text) throw new Error("La IA respondió vacío.");
 
-      // Limpieza de JSON
-      const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      // Limpieza agresiva de JSON (Gemini Pro a veces añade ```json al inicio)
+      const cleanJson = text
+        .replace(/```json/g, '')
+        .replace(/```/g, '')
+        .trim();
       
       return JSON.parse(cleanJson) as GeminiResponse;
 
     } catch (error) {
-      console.error("Error FATAL en Gemini Service (Fetch):", error);
+      console.error("Error FATAL en Gemini Service:", error);
       throw error;
     }
   },
 
-  // 2. Generar solo Receta (Modo Fetch Directo)
+  // 2. Generar solo Receta
   async generatePrescriptionOnly(transcript: string): Promise<string> {
     try {
       const prompt = `
