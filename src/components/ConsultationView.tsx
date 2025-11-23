@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, Save, RefreshCw, FileText, Share2, Printer, Search, Calendar as CalendarIcon, X, Clock, MessageSquare, User, Send, AlertCircle } from 'lucide-react';
+import { Mic, Square, Save, RefreshCw, FileText, Share2, Printer, Search, Calendar as CalendarIcon, X, Clock, MessageSquare, User, Send } from 'lucide-react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { supabase } from '../lib/supabase';
@@ -60,7 +60,6 @@ const ConsultationView: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    console.log("Botón Generar Presionado");
     if (!transcript) { toast.error("No hay audio."); return; }
     if (!consentGiven) { toast.warning("Confirme consentimiento."); return; }
 
@@ -80,46 +79,55 @@ const ConsultationView: React.FC = () => {
     }
   };
 
+  // --- FUNCIÓN CORREGIDA: MANEJO DE SESIÓN Y ERRORES DETALLADOS ---
   const handleSaveConsultation = async () => {
-    if (!selectedPatient || !generatedNote) { toast.error("Faltan datos."); return; }
+    if (!selectedPatient || !generatedNote) { 
+        toast.error("Faltan datos (Paciente o Nota)."); 
+        return; 
+    }
+
     setIsSaving(true);
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if(!user) {
-            toast.error("Sesión expirada. Recargue.");
+        // 1. Verificar sesión activa ANTES de intentar guardar
+        const { data: { session }, error: authError } = await supabase.auth.getSession();
+        
+        if (authError || !session) {
+            console.error("Error de Auth:", authError);
+            toast.error("Tu sesión ha expirado. Por favor cierra sesión y vuelve a entrar.");
+            setIsSaving(false);
             return;
         }
 
-        console.log("Intentando guardar para:", selectedPatient.name);
+        const user = session.user;
+        console.log("Guardando con User ID:", user.id);
 
-        const payload = {
+        // 2. Intentar guardar
+        const { error } = await supabase.from('consultations').insert({
             doctor_id: user.id,
             patient_id: selectedPatient.id,
-            transcript: transcript || '', 
+            transcript: transcript || 'Sin transcripción', 
             summary: generatedNote.clinicalNote, 
             status: 'completed'
-        };
+        });
 
-        const { error } = await supabase.from('consultations').insert(payload);
-
+        // 3. Manejo explícito de errores de BD
         if (error) {
-            // AQUÍ ESTÁ EL CAMBIO CLAVE: Mostramos el error real en pantalla
-            console.error("Error Supabase:", error);
-            toast.error(`Error BD: ${error.message || error.details}`);
-            throw error;
+            console.error("Error REAL de Supabase:", error);
+            throw new Error(error.message || "Error al insertar en tabla");
         }
 
-        toast.success("Guardado en historial correctamente");
+        // 4. Éxito
+        toast.success("Consulta guardada correctamente");
         resetTranscript();
         setGeneratedNote(null);
         setSelectedPatient(null);
         setConsentGiven(false);
         setChatMessages([]);
+
     } catch (error: any) {
-        // Fallback si el error no vino de Supabase
-        if (!error.message?.includes("BD:")) {
-            toast.error("Error desconocido al guardar.");
-        }
+        console.error("Excepción capturada:", error);
+        // Muestra el error real en el Toast para facilitar el diagnóstico
+        toast.error(`Fallo al guardar: ${error.message || error}`);
     } finally {
         setIsSaving(false);
     }
