@@ -1,15 +1,16 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
-import { Toaster } from 'sonner'; // <--- IMPORTACIÓN CRÍTICA
+import { Toaster } from 'sonner';
 import Sidebar from './components/Sidebar';
 import ConsultationView from './components/ConsultationView';
 import DigitalCard from './components/DigitalCard';
 import PatientsView from './components/PatientsView';
 import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
-import Dashboard from './routes/Dashboard';
+import Dashboard from './pages/Dashboard'; // Asegúrate de que Dashboard esté en pages o components según donde lo creaste
 import CalendarView from './components/CalendarView';
+import PrivacyPolicy from './pages/PrivacyPolicy'; // <--- NUEVA IMPORTACIÓN
 import { Activity, Menu } from 'lucide-react';
 import { ViewState } from './types';
 
@@ -49,6 +50,8 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
             <Route path="/patients" element={<PatientsView />} />
             <Route path="/card" element={<DigitalCard />} />
             <Route path="/settings" element={<SettingsView />} />
+            {/* RUTA DE PRIVACIDAD */}
+            <Route path="/privacy" element={<PrivacyPolicy />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
@@ -78,7 +81,6 @@ const App: React.FC = () => {
   }
 
   if (!session) {
-    // También agregamos el Toaster aquí por si hay errores de login
     return (
         <>
             <Toaster position="top-center" richColors />
@@ -89,9 +91,7 @@ const App: React.FC = () => {
 
   return (
     <BrowserRouter>
-      {/* COMPONENTE DE NOTIFICACIONES GLOBAL */}
       <Toaster position="top-center" richColors closeButton />
-      
       <MainLayout session={session} onLogout={async () => await supabase.auth.signOut()} />
     </BrowserRouter>
   );
