@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Mic, Square, Save, RefreshCw, FileText, Share2, Printer, Search, Calendar as CalendarIcon, X, Clock, MessageSquare, User, AlertCircle } from 'lucide-react';
+import { Mic, Square, Save, RefreshCw, FileText, Share2, Printer, Search, Calendar as CalendarIcon, X, Clock, MessageSquare, User } from 'lucide-react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { supabase } from '../lib/supabase';
@@ -49,25 +49,33 @@ const ConsultationView: React.FC = () => {
   };
 
   const handleGenerate = async () => {
-    // 1. Validaciones con retroalimentación clara (Toasts)
+    console.log("Botón Generar Presionado"); // Debug
+    
+    // 1. Validaciones
     if (!transcript) {
-        toast.error("No hay audio transcrito para procesar.");
+        console.warn("Intento de generar sin transcripción");
+        toast.error("No hay audio transcrito. Por favor dicte algo primero.");
         return;
     }
     if (!consentGiven) {
-        toast.warning("⚠️ Debes marcar la casilla de consentimiento arriba del micrófono.", { duration: 4000 });
+        console.warn("Falta consentimiento");
+        toast.warning("⚠️ Marca la casilla 'Confirmo consentimiento' arriba del micrófono.");
         return;
     }
 
     setIsProcessing(true);
+    toast.info("Generando nota con IA..."); // Feedback inmediato
+
     try {
       const response = await GeminiMedicalService.generateClinicalNote(transcript);
+      if (!response) throw new Error("Respuesta vacía de IA");
+      
       setGeneratedNote(response);
-      setActiveTab('record'); // Enfocar pestaña principal
-      toast.success("Nota generada con éxito");
+      setActiveTab('record'); 
+      toast.success("Nota generada correctamente");
     } catch (error) {
-      console.error(error);
-      toast.error("Error al generar la nota.");
+      console.error("Error en generación:", error);
+      toast.error("Error al conectar con la IA. Revise su conexión.");
     } finally {
       setIsProcessing(false);
     }
@@ -234,14 +242,13 @@ const ConsultationView: React.FC = () => {
             <div className="flex w-full gap-3 z-20 relative">
                 <button 
                     onClick={isListening ? stopListening : startListening}
-                    disabled={!consentGiven && !isListening} // Solo deshabilitado si no hay consentimiento Y no está grabando (para poder detener)
+                    disabled={!consentGiven && !isListening} 
                     className={`flex-1 py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition-all text-white shadow-lg ${isListening ? 'bg-slate-800 hover:bg-slate-900' : 'bg-slate-900 hover:bg-slate-800 disabled:bg-slate-400'}`}
                 >
                     {isListening ? <><Square size={18}/> Detener</> : <><Mic size={18}/> Iniciar</>}
                 </button>
                 <button 
                     onClick={handleGenerate}
-                    // IMPORTANTE: Ya no deshabilitamos por !consentGiven, lo validamos dentro para dar feedback
                     disabled={!transcript || isListening || isProcessing}
                     className="flex-1 bg-brand-teal text-white py-3 rounded-xl font-bold hover:bg-teal-600 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2"
                 >
@@ -251,7 +258,7 @@ const ConsultationView: React.FC = () => {
         </div>
       </div>
 
-      {/* COLUMNA DERECHA: RESULTADOS CON PESTAÑAS VISIBLES SIEMPRE */}
+      {/* COLUMNA DERECHA: RESULTADOS */}
       <div className="w-full md:w-2/3 bg-slate-100 flex flex-col overflow-hidden">
          
          {/* BARRA DE PESTAÑAS */}
@@ -282,7 +289,6 @@ const ConsultationView: React.FC = () => {
          {/* CONTENIDO DE PESTAÑAS */}
          <div className="flex-1 overflow-y-auto p-6 relative">
             {!generatedNote ? (
-                // ESTADO VACÍO (Antes de generar)
                 <div className="h-full flex flex-col items-center justify-center text-slate-400 p-10 animate-fade-in-up">
                     <div className="bg-white p-6 rounded-full shadow-sm mb-4">
                         <FileText size={48} className="text-slate-300"/>
@@ -296,9 +302,8 @@ const ConsultationView: React.FC = () => {
                     </p>
                 </div>
             ) : (
-                // CONTENIDO GENERADO
                 <div className="animate-fade-in-up">
-                    {/* PESTAÑA 1: EXPEDIENTE + ACCIONES */}
+                    {/* PESTAÑA 1: EXPEDIENTE */}
                     {activeTab === 'record' && (
                         <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2 border-b pb-2"><FileText className="text-brand-teal"/> Nota Clínica (SOAP)</h3>
@@ -315,7 +320,7 @@ const ConsultationView: React.FC = () => {
                         </div>
                     )}
 
-                    {/* PESTAÑA 2: PACIENTE (RECETA) */}
+                    {/* PESTAÑA 2: PACIENTE */}
                     {activeTab === 'patient' && (
                          <div className="bg-white p-6 rounded-xl shadow-sm border border-slate-200">
                             <div className="flex justify-between items-center mb-4 border-b pb-2">

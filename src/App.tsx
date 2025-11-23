@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate, useNavigate, useLocation } from 'react-router-dom';
 import { supabase } from './lib/supabase';
+import { Toaster } from 'sonner'; // <--- IMPORTACIÓN CRÍTICA
 import Sidebar from './components/Sidebar';
 import ConsultationView from './components/ConsultationView';
 import DigitalCard from './components/DigitalCard';
@@ -8,7 +9,7 @@ import PatientsView from './components/PatientsView';
 import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
 import Dashboard from './routes/Dashboard';
-import CalendarView from './components/CalendarView'; // IMPORT NUEVO
+import CalendarView from './components/CalendarView';
 import { Activity, Menu } from 'lucide-react';
 import { ViewState } from './types';
 
@@ -20,7 +21,7 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
   const getCurrentView = (): ViewState => {
     switch (location.pathname) {
       case '/consultation': return ViewState.CONSULTATION;
-      case '/calendar': return ViewState.CALENDAR; // NUEVO CASO
+      case '/calendar': return ViewState.CALENDAR;
       case '/patients': return ViewState.PATIENTS;
       case '/card': return ViewState.DIGITAL_CARD;
       default: return ViewState.DASHBOARD;
@@ -40,11 +41,11 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
              <Menu size={24} />
            </button>
         </div>
-        <div className="flex-1 overflow-hidden h-full"> {/* Ajuste para scroll interno del calendario */}
+        <div className="flex-1 overflow-hidden h-full">
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/consultation" element={<ConsultationView />} />
-            <Route path="/calendar" element={<CalendarView />} /> {/* RUTA NUEVA */}
+            <Route path="/calendar" element={<CalendarView />} />
             <Route path="/patients" element={<PatientsView />} />
             <Route path="/card" element={<DigitalCard />} />
             <Route path="/settings" element={<SettingsView />} />
@@ -77,11 +78,20 @@ const App: React.FC = () => {
   }
 
   if (!session) {
-    return <AuthView authService={{ supabase }} onLoginSuccess={() => {}} />;
+    // También agregamos el Toaster aquí por si hay errores de login
+    return (
+        <>
+            <Toaster position="top-center" richColors />
+            <AuthView authService={{ supabase }} onLoginSuccess={() => {}} />
+        </>
+    );
   }
 
   return (
     <BrowserRouter>
+      {/* COMPONENTE DE NOTIFICACIONES GLOBAL */}
+      <Toaster position="top-center" richColors closeButton />
+      
       <MainLayout session={session} onLogout={async () => await supabase.auth.signOut()} />
     </BrowserRouter>
   );
