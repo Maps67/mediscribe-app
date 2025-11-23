@@ -3,108 +3,92 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 export const useSpeechRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [interimTranscript, setInterimTranscript] = useState('');
-  
   const recognitionRef = useRef<any>(null);
-  const isManuallyStopped = useRef(false);
-  
-  // Acumulador seguro de texto (La "Memoria" que nosotros controlamos, no el navegador)
-  const persistentTranscript = useRef(''); 
 
   useEffect(() => {
+    // Verificación de compatibilidad del navegador
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (SpeechRecognition) {
-      const recognition = new SpeechRecognition();
-      
-      // DETECCIÓN DE MÓVIL
-      // Si es móvil, desactivamos continuous para forzar limpieza de buffer
-      const isMobile = /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent);
-      
-      recognition.continuous = !isMobile; // PC: True (Continuo), Móvil: False (Frase por frase)
-      recognition.interimResults = true;
-      recognition.lang = 'es-MX';
+      recognitionRef.current = new SpeechRecognition();
+      recognitionRef.current.continuous = true; // Seguir escuchando aunque haya pausas
+      recognitionRef.current.interimResults = true; // CLAVE: Mostrar resultados mientras se habla
+      recognitionRef.current.lang = 'es-MX'; // Español México
 
-      recognition.onstart = () => {
-        setIsListening(true);
-        isManuallyStopped.current = false;
-      };
+      recognitionRef.current.onresult = (event: any) => {
+        let finalTranscript = '';
+        let interimTranscript = '';
 
-      recognition.onresult = (event: any) => {
-        let newInterim = '';
-        let newFinal = '';
-
-        // Si es PC (Continuous), la lógica es estándar
-        // Si es Móvil (No Continuous), el evento siempre trae texto fresco
         for (let i = event.resultIndex; i < event.results.length; ++i) {
           if (event.results[i].isFinal) {
-            newFinal += event.results[i][0].transcript + ' ';
+            finalTranscript += event.results[i][0].transcript + ' ';
           } else {
-            newInterim += event.results[i][0].transcript;
+            interimTranscript += event.results[i][0].transcript;
           }
         }
 
-        if (newFinal) {
-            // En móvil, acumulamos manualmente porque el navegador olvida al reiniciar
-            persistentTranscript.current += newFinal; 
-            setTranscript(persistentTranscript.current);
-        }
-        
-        setInterimTranscript(newInterim);
+        // Actualizamos el estado combinando lo guardado previamente + lo nuevo final + lo temporal
+        // Nota: En modo 'continuous', a veces es mejor acumular en el estado
+        setTranscript((prev) => {
+            // Si es un resultado nuevo (index 0), limpiamos o mantenemos lógica.
+            // Para simplificar visualmente, reconstruimos basado en el evento actual si es continuo,
+            // o simplemente mostramos lo que el navegador nos da.
+            
+            // Estrategia simple y robusta:
+            // El API a veces devuelve todo el buffer, a veces solo lo nuevo.
+            // Vamos a usar una estrategia visual directa:
+            const currentText = Array.from(event.results)
+                .map((result: any) => result[0].transcript)
+                .join('');
+            return currentText;
+        });
       };
 
-      recognition.onerror = (event: any) => {
-        // Ignoramos errores silenciosos
-        if (event.error !== 'no-speech') {
-            console.warn("Speech warning:", event.error);
-        }
-      };
-
-      recognition.onend = () => {
-        // EL TRUCO MAGICO:
-        // Si se cortó solo (porque terminó la frase en móvil) y NO lo paramos nosotros...
-        // ... LO REINICIAMOS INMEDIATAMENTE.
-        if (!isManuallyStopped.current) {
-            try {
-                recognition.start();
-            } catch (e) {
-                // Si falla el reinicio inmediato, esperamos un poco
-                setTimeout(() => {
-                    if (!isManuallyStopped.current) recognition.start();
-                }, 100);
-            }
-        } else {
+      recognitionRef.current.onerror = (event: any) => {
+        console.error("Error de reconocimiento de voz:", event.error);
+        if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
             setIsListening(false);
         }
       };
 
-      recognitionRef.current = recognition;
+      recognitionRef.current.onend = () => {
+        // Si se detiene solo pero el estado dice que seguimos escuchando, lo reiniciamos
+        // Esto evita cortes inesperados en Android
+        if (isListening) {
+            try {
+                recognitionRef.current.start();
+            } catch (e) {
+                setIsListening(false);
+            }
+        }
+      };
     }
-  }, []);
+  }, [isListening]);
 
   const startListening = useCallback(() => {
     if (recognitionRef.current) {
-        persistentTranscript.current = ''; // Resetear memoria nuestra
-        setTranscript('');
-        setInterimTranscript('');
-        isManuallyStopped.current = false;
-        try {
-            recognitionRef.current.start();
-        } catch(e) { console.log("Ya activo"); }
+      try {
+        setTranscript(''); // Limpiar anterior al iniciar nuevo
+        recognitionRef.current.start();
+        setIsListening(true);
+      } catch (error) {
+        console.error("Error al iniciar:", error);
+      }
     } else {
-        alert("Navegador no compatible.");
+        alert("Tu navegador no soporta reconocimiento de voz. Intenta con Chrome.");
     }
   }, []);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
-        isManuallyStopped.current = true; // Bandera roja: NO REINICIAR
-        recognitionRef.current.stop();
-        setIsListening(false);
+      recognitionRef.current.stop();
+      setIsListening(false);
     }
   }, []);
 
-  return { isListening, transcript, interimTranscript, startListening, stopListening };
-};
+  const resetTranscript = useCallback(() => {
+    setTranscript('');
+  }, []);
 
-export default useSpeechRecognition;
+  return { isListening, transcript, startListening, stopListening, resetTranscript };
+};
