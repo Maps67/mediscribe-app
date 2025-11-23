@@ -1,134 +1,66 @@
-import { GeminiResponse, ActionItems } from "../types";
+import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GeminiResponse } from "../types";
 
+// Inicialización segura de la API
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-
-export class GeminiMedicalService {
-  
-  private static async getBestAvailableModel(): Promise<string> {
-    try {
-      const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`;
-      const response = await fetch(listUrl);
-      if (!response.ok) throw new Error("Error validando API Key");
-      const data = await response.json();
-      const validModels = data.models?.filter((m: any) => m.supportedGenerationMethods?.includes("generateContent"));
-      const flashModel = validModels.find((m: any) => m.name.includes("flash"));
-      if (flashModel) return flashModel.name;
-      const proModel = validModels.find((m: any) => m.name.includes("pro"));
-      if (proModel) return proModel.name;
-      if (validModels.length > 0) return validModels[0].name;
-      throw new Error("Sin modelos disponibles.");
-    } catch (error) {
-      return "models/gemini-1.5-flash"; 
-    }
-  }
-
-  // --- NUEVA FUNCIÓN: SOLO RECETA (Modo Escribano) ---
-  static async generatePrescriptionOnly(transcript: string): Promise<string> {
-    if (!API_KEY) throw new Error("Falta API Key.");
-    const activeModelName = await this.getBestAvailableModel();
-    const URL = `https://generativelanguage.googleapis.com/v1beta/${activeModelName}:generateContent?key=${API_KEY}`;
-
-    try {
-      const prompt = `
-        Actúa como un Asistente Farmacéutico experto.
-        TU ÚNICA TAREA es formatear el dictado del médico en una Receta Médica Clara.
-        
-        REGLAS:
-        1. NO agregues diagnósticos ni saludos.
-        2. NO inventes medicamentos. Solo formatea lo que se dictó.
-        3. Estructura: Medicamento (Negrita) -> Indicaciones.
-        4. Si se mencionan cuidados generales (dieta, reposo), ponlos al final.
-
-        DICTADO DEL MÉDICO: "${transcript}"
-
-        FORMATO DE SALIDA DESEADO:
-        
-        💊 **Medicamentos:**
-        * **[Nombre Medicamento] [Dosis]:** [Frecuencia y Duración]
-        
-        📋 **Indicaciones Generales:**
-        * [Cuidados mencionados]
-      `;
-
-      const response = await fetch(URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
-
-      if (!response.ok) throw new Error("Error conectando con Google.");
-      const data = await response.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Error al generar texto.";
-
-    } catch (error: any) {
-      throw new Error(error.message);
-    }
-  }
-
-  // --- FUNCIÓN ORIGINAL (CONSULTA COMPLETA) ---
-  static async generateSummary(transcript: string, specialty: string = "Medicina General", historyContext: string = ""): Promise<GeminiResponse> {
-    if (!API_KEY) throw new Error("Falta API Key en Netlify.");
-    const activeModelName = await this.getBestAvailableModel();
-    const URL = `https://generativelanguage.googleapis.com/v1beta/${activeModelName}:generateContent?key=${API_KEY}`;
-
-    try {
-      const prompt = `
-        Actúa como un Médico Especialista en ${specialty}.
-        HISTORIAL PREVIO: "${historyContext || 'Sin historial relevante.'}"
-        TRANSCRIPCIÓN ACTUAL: "${transcript}"
-
-        TU TAREA (3 PARTES):
-        1. Nota SOAP Técnica (Para el expediente).
-        2. Indicaciones al Paciente (La Receta). PROHIBIDO SALUDAR. SE DIRECTO.
-        3. Action Items (JSON).
-
-        FORMATO OBLIGATORIO:
-        ### Resumen Clínico (${specialty})
-        **S (Subjetivo):** ...
-        **O (Objetivo):** ...
-        **A (Análisis):** ...
-        **P (Plan):** ...
-
-        --- SEPARADOR_INSTRUCCIONES ---
-
-        [Aquí las indicaciones de la receta]
-
-        --- SEPARADOR_JSON ---
-        { "next_appointment": null, "urgent_referral": false, "lab_tests_required": [] }
-      `;
-
-      const response = await fetch(URL, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
-      });
-
-      if (!response.ok) throw new Error("Error API Google");
-      const data = await response.json();
-      const fullText = data.candidates?.[0]?.content?.parts?.[0]?.text || "";
-      return this.parseResponse(fullText);
-
-    } catch (error: any) {
-      throw new Error(error.message);
-    }
-  }
-
-  private static parseResponse(fullText: string): GeminiResponse {
-    const parts = fullText.split("--- SEPARADOR_INSTRUCCIONES ---");
-    const clinicalNote = parts[0] ? parts[0].trim() : "Error formato.";
-    let patientInstructions = "";
-    let actionItems: ActionItems = { next_appointment: null, urgent_referral: false, lab_tests_required: [] };
-
-    if (parts[1]) {
-      const jsonParts = parts[1].split("--- SEPARADOR_JSON ---");
-      patientInstructions = jsonParts[0] ? jsonParts[0].trim() : "";
-      if (jsonParts[1]) {
-        try {
-          const cleanJson = jsonParts[1].replace(/```json/g, '').replace(/```/g, '').trim();
-          actionItems = JSON.parse(cleanJson);
-        } catch (e) { console.warn("JSON Fallido"); }
-      }
-    }
-    return { clinicalNote, patientInstructions, actionItems };
-  }
+if (!API_KEY) {
+  console.error("Falta la VITE_GEMINI_API_KEY en el archivo .env");
 }
+
+const genAI = new GoogleGenerativeAI(API_KEY);
+const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+
+export const GeminiMedicalService = {
+  
+  // 1. FUNCIÓN PRINCIPAL: Generar Nota SOAP + Instrucciones
+  async generateClinicalNote(transcript: string): Promise<GeminiResponse> {
+    try {
+      const prompt = `
+        Actúa como un médico experto. Transforma el siguiente dictado de consulta en un formato estructurado JSON.
+        
+        Dictado: "${transcript}"
+
+        Requisitos de salida (JSON estricto):
+        1. "clinicalNote": Redacta una nota clínica formal (Formato SOAP: Subjetivo, Objetivo, Análisis, Plan). Usa lenguaje médico técnico.
+        2. "patientInstructions": Redacta instrucciones claras y empáticas dirigidas directamente al paciente (Tú debes...). Incluye medicamentos (dosis/frecuencia) y cuidados generales. Usa lenguaje sencillo.
+        3. "actionItems": Extrae acciones futuras.
+           - "next_appointment": Sugerencia de fecha (texto) o null.
+           - "urgent_referral": boolean.
+           - "lab_tests_required": Array de strings con estudios solicitados.
+
+        Responde SOLO con el JSON válido, sin bloques de código markdown.
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+      
+      // Limpieza de respuesta para asegurar JSON válido
+      const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      
+      return JSON.parse(cleanJson) as GeminiResponse;
+    } catch (error) {
+      console.error("Error en Gemini Service:", error);
+      throw new Error("No se pudo generar la nota clínica.");
+    }
+  },
+
+  // 2. FUNCIÓN AUXILIAR: Generar solo Receta (Para el botón de Receta Rápida)
+  async generatePrescriptionOnly(transcript: string): Promise<string> {
+    try {
+      const prompt = `
+        Actúa como médico. Basado en este dictado: "${transcript}", genera SOLO el texto de una receta médica clara.
+        Incluye nombre del medicamento, dosis, frecuencia y duración.
+        Si hay indicaciones de cuidados (dieta, reposo), inclúyelas al final.
+        Formato texto plano, listo para imprimir.
+      `;
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      return response.text();
+    } catch (error) {
+      console.error("Error generando receta:", error);
+      throw error;
+    }
+  }
+};
