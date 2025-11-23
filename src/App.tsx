@@ -5,9 +5,10 @@ import Sidebar from './components/Sidebar';
 import ConsultationView from './components/ConsultationView';
 import DigitalCard from './components/DigitalCard';
 import PatientsView from './components/PatientsView';
-import SettingsView from './components/SettingsView'; // IMPORT NUEVO
+import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
 import Dashboard from './routes/Dashboard';
+import CalendarView from './components/CalendarView'; // IMPORT NUEVO
 import { Activity, Menu } from 'lucide-react';
 import { ViewState } from './types';
 
@@ -19,9 +20,9 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
   const getCurrentView = (): ViewState => {
     switch (location.pathname) {
       case '/consultation': return ViewState.CONSULTATION;
+      case '/calendar': return ViewState.CALENDAR; // NUEVO CASO
       case '/patients': return ViewState.PATIENTS;
       case '/card': return ViewState.DIGITAL_CARD;
-      // NO NECESITAMOS AGREGAR SETTINGS A VIEWSTATE, SOLO AL SIDEBAR
       default: return ViewState.DASHBOARD;
     }
   };
@@ -39,13 +40,14 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
              <Menu size={24} />
            </button>
         </div>
-        <div className="flex-1">
+        <div className="flex-1 overflow-hidden h-full"> {/* Ajuste para scroll interno del calendario */}
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/consultation" element={<ConsultationView />} />
+            <Route path="/calendar" element={<CalendarView />} /> {/* RUTA NUEVA */}
             <Route path="/patients" element={<PatientsView />} />
             <Route path="/card" element={<DigitalCard />} />
-            <Route path="/settings" element={<SettingsView />} /> {/* RUTA NUEVA */}
+            <Route path="/settings" element={<SettingsView />} />
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>

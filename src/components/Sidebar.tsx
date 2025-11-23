@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
-import { LayoutDashboard, Stethoscope, Users, Smartphone, LogOut, X, Settings, Download, Share } from 'lucide-react';
+import { LayoutDashboard, Stethoscope, Users, Smartphone, LogOut, X, Settings, Download, Share, Calendar } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 
 interface SidebarProps {
@@ -73,6 +73,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   const menuItems = [
     { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard' },
     { path: '/consultation', icon: <Stethoscope size={20} />, label: 'Consulta IA' },
+    { path: '/calendar', icon: <Calendar size={20} />, label: 'Agenda' }, // NUEVO ÍTEM
     { path: '/patients', icon: <Users size={20} />, label: 'Pacientes' },
     { path: '/card', icon: <Smartphone size={20} />, label: 'Tarjeta Digital' },
     { path: '/settings', icon: <Settings size={20} />, label: 'Configuración' },
@@ -124,7 +125,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           ))}
 
           {/* BOTÓN INTELIGENTE DE INSTALACIÓN */}
-          {/* Solo se muestra si NO estamos ya en modo App */}
           {!isStandalone && (
             <div className="mt-4">
                 <button
@@ -135,7 +135,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <span className="font-bold">Instalar App</span>
                 </button>
 
-                {/* Instrucciones especiales para iOS */}
                 {showIOSInstructions && (
                     <div className="mt-3 p-3 bg-slate-100 rounded-lg text-xs text-slate-600 border border-slate-200 animate-fade-in-up">
                         <p className="font-bold mb-2 text-slate-800">Para instalar en iPhone:</p>

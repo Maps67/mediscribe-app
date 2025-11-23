@@ -29,7 +29,8 @@ export enum ViewState {
   DASHBOARD,
   CONSULTATION,
   PATIENTS,
-  DIGITAL_CARD
+  DIGITAL_CARD,
+  CALENDAR // Nueva vista agregada
 }
 
 export interface ActionItems {
@@ -44,7 +45,6 @@ export interface GeminiResponse {
   actionItems: ActionItems;
 }
 
-// --- PERFIL MÉDICO CON NIVELES DE SUSCRIPCIÓN ---
 export interface DoctorProfile {
   id?: string;
   full_name: string;
@@ -59,14 +59,27 @@ export interface DoctorProfile {
   subscription_tier: 'basic' | 'pro' | 'enterprise';
 }
 
-// --- NUEVO: ADJUNTOS DE PACIENTES ---
 export interface PatientAttachment {
   id: string;
   created_at: string;
   patient_id: string;
-  name: string;        // Nombre original del archivo
-  file_path: string;   // Ruta interna en Storage
-  file_type: string;   // MIME type
+  name: string;
+  file_path: string;
+  file_type: string;
   size_bytes: number;
   doctor_id: string;
+}
+
+// --- NUEVO: INTERFAZ DE CITAS ---
+export interface Appointment {
+  id: string;
+  created_at: string;
+  doctor_id: string;
+  patient_id: string;
+  patient?: { name: string }; // Join para mostrar nombre en calendario
+  title: string;
+  start_time: string; // Supabase devuelve ISO Strings
+  end_time: string;
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  notes?: string;
 }
