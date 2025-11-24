@@ -1,16 +1,16 @@
 import React, { useState } from 'react';
-import { Activity, Mail, Lock, User, Stethoscope, ArrowRight, CheckCircle, AlertCircle } from 'lucide-react';
+import { Mail, Lock, User, Stethoscope, ArrowRight, AlertCircle } from 'lucide-react'; // Quitamos Activity
 import { toast } from 'sonner';
 
 interface AuthProps {
-  authService: any; // Tipo flexible para compatibilidad
+  authService: any;
   onLoginSuccess: () => void;
 }
 
 const AuthView: React.FC<AuthProps> = ({ authService, onLoginSuccess }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [loading, setLoading] = useState(false);
-  const [verificationSent, setVerificationSent] = useState(false); // NUEVO ESTADO
+  const [verificationSent, setVerificationSent] = useState(false);
 
   const [formData, setFormData] = useState({
     email: '',
@@ -25,7 +25,6 @@ const AuthView: React.FC<AuthProps> = ({ authService, onLoginSuccess }) => {
 
     try {
       if (isRegistering) {
-        // --- FLUJO DE REGISTRO ---
         const { error } = await authService.supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -38,13 +37,10 @@ const AuthView: React.FC<AuthProps> = ({ authService, onLoginSuccess }) => {
         });
 
         if (error) throw error;
-
-        // SI ES EXITOSO, ACTIVAMOS LA PANTALLA DE AVISO
         setVerificationSent(true);
         toast.success("Cuenta creada correctamente");
 
       } else {
-        // --- FLUJO DE LOGIN ---
         const { error } = await authService.supabase.auth.signInWithPassword({
           email: formData.email,
           password: formData.password,
@@ -64,7 +60,6 @@ const AuthView: React.FC<AuthProps> = ({ authService, onLoginSuccess }) => {
     }
   };
 
-  // --- VISTA DE ÉXITO / VERIFICACIÓN DE CORREO ---
   if (verificationSent) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 animate-fade-in-up">
@@ -87,7 +82,7 @@ const AuthView: React.FC<AuthProps> = ({ authService, onLoginSuccess }) => {
           <button 
             onClick={() => {
                 setVerificationSent(false);
-                setIsRegistering(false); // Mandar a pantalla de Login
+                setIsRegistering(false);
             }}
             className="w-full bg-brand-teal text-white py-3 rounded-xl font-bold hover:bg-teal-600 transition-all"
           >
@@ -98,18 +93,20 @@ const AuthView: React.FC<AuthProps> = ({ authService, onLoginSuccess }) => {
     );
   }
 
-  // --- VISTA FORMULARIO (LOGIN / REGISTRO) ---
   return (
-    <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row">
+    <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans">
       {/* Panel Izquierdo (Visual) */}
       <div className="hidden lg:flex lg:w-1/2 bg-slate-900 text-white flex-col justify-center p-12 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80')] bg-cover bg-center"></div>
         <div className="relative z-10 max-w-lg">
-          <div className="flex items-center gap-3 mb-8">
-            <div className="p-3 bg-brand-teal rounded-xl">
-              <Activity size={32} />
-            </div>
-            <h1 className="text-4xl font-bold tracking-tight">MediScribe AI</h1>
+          <div className="flex items-center gap-4 mb-8">
+            {/* LOGO CORREGIDO */}
+            <img 
+                src="/pwa-192x192.png" 
+                alt="Logo MediScribe" 
+                className="w-20 h-20 rounded-2xl bg-white p-1 shadow-lg object-cover"
+            />
+            <h1 className="text-5xl font-bold tracking-tight">MediScribe AI</h1>
           </div>
           <h2 className="text-3xl font-bold mb-4 leading-tight">El asistente clínico inteligente para médicos modernos.</h2>
           <p className="text-slate-400 text-lg">Automatice sus notas clínicas, gestione su agenda y recupere su tiempo con el poder de la IA.</p>
@@ -191,8 +188,9 @@ const AuthView: React.FC<AuthProps> = ({ authService, onLoginSuccess }) => {
             </button>
           </div>
           
+          {/* FOOTER CORREGIDO */}
           <div className="mt-8 pt-6 border-t border-slate-100 text-center text-xs text-slate-400">
-            &copy; {new Date().getFullYear()} MediScribe AI. v2.2 Secure.
+            &copy; {new Date().getFullYear()} MediScribe AI. Desarrollado por <span className="font-bold text-slate-500">Pixel Art Studio</span>.
           </div>
         </div>
       </div>
