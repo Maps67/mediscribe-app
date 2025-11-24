@@ -7,7 +7,6 @@ const PrivacyPolicy: React.FC = () => {
 
   return (
     <div className="p-4 lg:p-8 max-w-4xl mx-auto animate-fade-in-up font-sans">
-      {/* Botón Volver */}
       <button 
         onClick={() => navigate(-1)} 
         className="flex items-center gap-2 text-slate-500 hover:text-slate-800 mb-6 transition-colors font-medium"
@@ -17,7 +16,6 @@ const PrivacyPolicy: React.FC = () => {
 
       <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
         
-        {/* Encabezado */}
         <div className="bg-slate-50 p-8 border-b border-slate-100">
             <div className="flex items-center gap-4 mb-2">
                 <div className="p-3 bg-white rounded-xl shadow-sm text-teal-600">
@@ -30,11 +28,9 @@ const PrivacyPolicy: React.FC = () => {
             </div>
         </div>
 
-        {/* Contenido Legal */}
         <div className="p-8 text-slate-700 leading-relaxed space-y-6">
-            
             <p className="text-lg font-medium text-slate-800">
-                <strong>Pixel Art Studio</strong>, con domicilio en México, es el responsable del uso y protección de sus datos personales.
+                <strong>PixelArte Studio</strong>, con domicilio en México, es el responsable del uso y protección de sus datos personales.
             </p>
 
             <div>
@@ -61,12 +57,11 @@ const PrivacyPolicy: React.FC = () => {
             </div>
         </div>
 
-        {/* Footer con Copyright dentro del documento */}
         <div className="bg-slate-900 text-slate-400 p-8 text-center text-xs mt-4">
             <p className="mb-2">
-                © {new Date().getFullYear()} <span className="text-white font-bold">MediScribe AI</span>. Desarrollado por Pixel Art Studio.
+                © {new Date().getFullYear()} <span className="text-white font-bold">MediScribe AI</span>. Desarrollado por PixelArte Studio.
             </p>
-            <p>Todos los derechos reservados. v1.5 Pilot Ready.</p>
+            <p>Todos los derechos reservados. v2.4 Golden.</p>
         </div>
 
       </div>

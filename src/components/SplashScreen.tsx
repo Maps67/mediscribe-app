@@ -27,8 +27,7 @@ const SplashScreen: React.FC = () => {
 
       <div className="absolute bottom-8 text-center">
         <p className="text-xs text-slate-400 uppercase tracking-widest opacity-70">Powered by</p>
-        {/* TEXTO CORREGIDO */}
-        <p className="text-xs font-bold text-slate-500 dark:text-slate-300 mt-1">Pixel Art Studio</p>
+        <p className="text-xs font-bold text-slate-500 dark:text-slate-300 mt-1">PixelArte Studio</p>
       </div>
 
     </div>

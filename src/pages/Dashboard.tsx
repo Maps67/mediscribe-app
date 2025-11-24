@@ -78,7 +78,6 @@ const Dashboard: React.FC = () => {
     <div className="flex flex-col h-full font-sans text-slate-900 dark:text-slate-100">
       <div className="p-6 animate-fade-in-up flex-1 overflow-y-auto">
         
-        {/* HEADER DINÁMICO CON INSIGNIA DE SEGURIDAD */}
         <header className="mb-8 flex flex-col md:flex-row md:items-start justify-between gap-4">
             <div className="flex items-start gap-3">
                 <div className="mt-1 hidden md:block">
@@ -124,14 +123,12 @@ const Dashboard: React.FC = () => {
             <StatCard icon={Activity} title="Pendientes" value={stats.pending} color="bg-orange-500" />
         </div>
         
-        {/* MÓDULO INTELIGENCIA DE NEGOCIO */}
         <InsightsPanel />
 
-        {/* FOOTER CORREGIDO: PIXEL ART STUDIO */}
         <div className="mt-12 mb-6 text-center border-t border-slate-100 dark:border-slate-800 pt-8 pb-4">
             <p className="text-xs text-slate-400 mb-2">
             © {new Date().getFullYear()} <span className="font-bold text-slate-500 dark:text-slate-300">MediScribe AI</span>. 
-            Desarrollado por <span className="text-brand-teal font-bold">Pixel Art Studio</span>.
+            Desarrollado por <span className="text-brand-teal font-bold">PixelArte Studio</span>.
             </p>
             <div className="flex justify-center gap-4 text-[10px] text-slate-400">
                 <span>v2.4 Golden</span>

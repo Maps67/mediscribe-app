@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Mail, Lock, User, Stethoscope, ArrowRight, AlertCircle } from 'lucide-react'; // Quitamos Activity
+import { Mail, Lock, User, Stethoscope, ArrowRight, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface AuthProps {
@@ -100,7 +100,6 @@ const AuthView: React.FC<AuthProps> = ({ authService, onLoginSuccess }) => {
         <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80')] bg-cover bg-center"></div>
         <div className="relative z-10 max-w-lg">
           <div className="flex items-center gap-4 mb-8">
-            {/* LOGO CORREGIDO */}
             <img 
                 src="/pwa-192x192.png" 
                 alt="Logo MediScribe" 
@@ -188,9 +187,8 @@ const AuthView: React.FC<AuthProps> = ({ authService, onLoginSuccess }) => {
             </button>
           </div>
           
-          {/* FOOTER CORREGIDO */}
           <div className="mt-8 pt-6 border-t border-slate-100 text-center text-xs text-slate-400">
-            &copy; {new Date().getFullYear()} MediScribe AI. Desarrollado por <span className="font-bold text-slate-500">Pixel Art Studio</span>.
+            &copy; {new Date().getFullYear()} MediScribe AI. Desarrollado por <span className="font-bold text-slate-500">PixelArte Studio</span>.
           </div>
         </div>
       </div>
