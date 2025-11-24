@@ -1,12 +1,12 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Patient } from '../types';
+import { Patient, Consultation } from '../types';
 import { toast } from 'sonner';
-import { Plus, Search, Phone, Calendar, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, User, X } from 'lucide-react';
-// CORRECCIÓN AQUÍ: Agregamos llaves { } porque no es export default
+import { Plus, Search, Phone, Calendar, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, User, X, FileText, Printer, Share2, Send } from 'lucide-react';
 import { PatientAttachments } from './PatientAttachments';
 import PrescriptionPDF from './PrescriptionPDF';
 import { pdf } from '@react-pdf/renderer';
+import FormattedText from './FormattedText';
 
 const PatientsView: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -17,6 +17,11 @@ const PatientsView: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
+  // --- ESTADOS PARA HISTORIAL (RESTAURADOS) ---
+  const [history, setHistory] = useState<Consultation[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
+  const [doctorProfile, setDoctorProfile] = useState<any>(null);
+
   // --- ESTADOS DE TABLA INTELIGENTE ---
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
@@ -24,60 +29,110 @@ const PatientsView: React.FC = () => {
 
   useEffect(() => {
     fetchPatients();
+    fetchDoctorProfile();
   }, []);
+
+  // Cargar historial cuando se selecciona un paciente
+  useEffect(() => {
+      if (selectedPatient) {
+          fetchHistory(selectedPatient.id);
+      }
+  }, [selectedPatient]);
+
+  const fetchDoctorProfile = async () => {
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) {
+        const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+        setDoctorProfile(data);
+    }
+  };
 
   const fetchPatients = async () => {
     setLoading(true);
-    const { data, error } = await supabase
-      .from('patients')
-      .select('*')
-      .order('created_at', { ascending: false });
-    
-    if (error) toast.error('Error al cargar pacientes: ' + error.message);
+    const { data, error } = await supabase.from('patients').select('*').order('created_at', { ascending: false });
+    if (error) toast.error('Error al cargar pacientes');
     else setPatients(data || []);
     setLoading(false);
   };
 
+  const fetchHistory = async (patientId: string) => {
+    setLoadingHistory(true);
+    const { data, error } = await supabase
+        .from('consultations')
+        .select('*')
+        .eq('patient_id', patientId)
+        .order('created_at', { ascending: false });
+    
+    if (error) toast.error("Error cargando historial");
+    else setHistory(data || []);
+    setLoadingHistory(false);
+  };
+
   const handleCreatePatient = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newPatient.name.trim()) return toast.error("El nombre es obligatorio");
+    if (!newPatient.name.trim()) return toast.error("Nombre obligatorio");
     setIsSaving(true);
-    const { data, error } = await supabase.from('patients').insert([newPatient]).select();
+    const { data, error } = await supabase.from('patients').insert([{...newPatient, doctor_id: (await supabase.auth.getUser()).data.user?.id }]).select();
     setIsSaving(false);
     if (error) {
         toast.error('Error al crear: ' + error.message);
     } else {
-        toast.success('Paciente creado correctamente');
-        setPatients([...patients, data[0]]);
+        toast.success('Paciente creado');
+        setPatients([data[0], ...patients]);
         setIsModalOpen(false);
         setNewPatient({ name: '', phone: '' });
     }
   };
 
   const handleDeletePatient = async (id: string) => {
-      if(!confirm("¿Estás seguro de eliminar este paciente y todo su historial? Esta acción no se puede deshacer.")) return;
+      if(!confirm("¿Eliminar paciente y todo su historial?")) return;
       try {
-          const { error } = await supabase.from('patients').delete().eq('id', id);
-          if (error) throw error;
-          toast.success("Paciente eliminado");
+          await supabase.from('patients').delete().eq('id', id);
+          toast.success("Eliminado");
           setPatients(patients.filter(p => p.id !== id));
           setSelectedPatient(null);
-      } catch (error: any) {
-          toast.error("Error al eliminar: " + error.message);
+      } catch (e) { toast.error("Error al eliminar"); }
+  };
+
+  // --- PDF & COMPARTIR ---
+  const generatePdfBlob = async (consultation: Consultation) => {
+      if (!selectedPatient || !doctorProfile) return null;
+      return await pdf(
+        <PrescriptionPDF 
+            doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty}
+            license={doctorProfile.license_number} phone={doctorProfile.phone}
+            university={doctorProfile.university} address={doctorProfile.address}
+            logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url}
+            patientName={selectedPatient.name} date={new Date(consultation.created_at).toLocaleDateString()}
+            content={consultation.summary || "Sin contenido"}
+        />
+      ).toBlob();
+  };
+
+  const handlePrint = async (consultation: Consultation) => {
+      const blob = await generatePdfBlob(consultation);
+      if(blob) window.open(URL.createObjectURL(blob), '_blank');
+  };
+
+  const handleWhatsApp = async (consultation: Consultation) => {
+      if(!selectedPatient) return;
+      const blob = await generatePdfBlob(consultation);
+      if(blob) {
+          const file = new File([blob], `Receta-${selectedPatient.name}.pdf`, { type: 'application/pdf' });
+          if (navigator.canShare && navigator.canShare({ files: [file] })) {
+              await navigator.share({ files: [file], title: 'Receta Médica' });
+          } else {
+              toast.error("Dispositivo no soporta compartir directo.");
+          }
       }
   };
 
     const processedPatients = useMemo(() => {
-        let result = patients.filter(p =>
-            p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
-            (p.phone && p.phone.includes(searchTerm))
-        );
-
+        let result = patients.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || (p.phone && p.phone.includes(searchTerm)));
         if (sortConfig) {
             result.sort((a, b) => {
                 const aValue = a[sortConfig.key] || '';
                 const bValue = b[sortConfig.key] || '';
-
                 if (aValue < bValue) return sortConfig.direction === 'asc' ? -1 : 1;
                 if (aValue > bValue) return sortConfig.direction === 'asc' ? 1 : -1;
                 return 0;
@@ -87,32 +142,27 @@ const PatientsView: React.FC = () => {
     }, [patients, searchTerm, sortConfig]);
 
     const totalPages = Math.ceil(processedPatients.length / itemsPerPage);
-    const paginatedPatients = processedPatients.slice(
-        (currentPage - 1) * itemsPerPage,
-        currentPage * itemsPerPage
-    );
+    const paginatedPatients = processedPatients.slice((currentPage - 1) * itemsPerPage, currentPage * itemsPerPage);
 
     const handleSort = (key: keyof Patient) => {
-        let direction: 'asc' | 'desc' = 'asc';
-        if (sortConfig && sortConfig.key === key && sortConfig.direction === 'asc') {
-            direction = 'desc';
-        }
-        setSortConfig({ key, direction });
+        setSortConfig({ key, direction: sortConfig?.key === key && sortConfig.direction === 'asc' ? 'desc' : 'asc' });
     };
 
     const getSortIcon = (key: keyof Patient) => {
-        if (!sortConfig || sortConfig.key !== key) return <ChevronDown size={14} className="opacity-30 group-hover:opacity-70" />;
+        if (!sortConfig || sortConfig.key !== key) return <ChevronDown size={14} className="opacity-30" />;
         return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="text-brand-teal"/> : <ChevronDown size={14} className="text-brand-teal"/>;
     };
 
+  // --- VISTA DETALLE (CON HISTORIAL RESTAURADO) ---
   if (selectedPatient) {
       return (
           <div className="p-6 h-[calc(100vh-64px)] overflow-y-auto animate-fade-in-up bg-slate-50 dark:bg-slate-900">
-              <button onClick={() => setSelectedPatient(null)} className="mb-4 flex items-center gap-2 text-slate-500 hover:text-brand-teal font-bold transition-colors"><ChevronLeft size={20} /> Volver al Directorio</button>
+              <button onClick={() => setSelectedPatient(null)} className="mb-4 flex items-center gap-2 text-slate-500 dark:text-slate-400 hover:text-brand-teal font-bold transition-colors"><ChevronLeft size={20} /> Volver al Directorio</button>
               
-              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-6 flex justify-between items-center">
+              {/* HEADER PACIENTE */}
+              <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 p-6 mb-6 flex flex-col md:flex-row justify-between items-center gap-4">
                   <div className="flex items-center gap-4">
-                      <div className="w-16 h-16 rounded-full bg-brand-teal/10 flex items-center justify-center text-brand-teal font-bold text-2xl border-2 border-brand-teal/20">
+                      <div className="w-16 h-16 rounded-full bg-brand-teal/10 text-brand-teal flex items-center justify-center font-bold text-2xl border-2 border-brand-teal/20">
                           {selectedPatient.name.charAt(0).toUpperCase()}
                       </div>
                       <div>
@@ -123,9 +173,47 @@ const PatientsView: React.FC = () => {
                           </div>
                       </div>
                   </div>
-                   <button onClick={() => handleDeletePatient(selectedPatient.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 p-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-bold border border-transparent hover:border-red-200 dark:hover:border-red-800">Eliminar Paciente</button>
+                   <button onClick={() => handleDeletePatient(selectedPatient.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-bold border border-transparent hover:border-red-200 dark:hover:border-red-800">Eliminar Paciente</button>
               </div>
-              <PatientAttachments patientId={selectedPatient.id} />
+
+              {/* MÓDULO DE ADJUNTOS */}
+              <div className="mb-8">
+                <PatientAttachments patientId={selectedPatient.id} />
+              </div>
+
+              {/* --- HISTORIAL DE CONSULTAS (RESTAURADO) --- */}
+              <div className="mt-8">
+                  <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+                      <FileText className="text-brand-teal"/> Historial de Consultas ({history.length})
+                  </h3>
+                  
+                  {loadingHistory ? (
+                      <div className="text-center py-8 text-slate-400">Cargando historial...</div>
+                  ) : history.length === 0 ? (
+                      <div className="text-center py-10 bg-slate-100 dark:bg-slate-800/50 rounded-xl border border-dashed border-slate-300 dark:border-slate-700 text-slate-500">No hay consultas registradas aún.</div>
+                  ) : (
+                      <div className="space-y-4">
+                          {history.map((consultation) => (
+                              <div key={consultation.id} className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm overflow-hidden group hover:shadow-md transition-shadow">
+                                  <div className="bg-slate-50 dark:bg-slate-700/30 p-4 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                                      <div className="font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
+                                          <Calendar size={16} className="text-brand-teal"/>
+                                          {new Date(consultation.created_at).toLocaleDateString()}
+                                          <span className="text-xs font-normal text-slate-400 ml-2">{new Date(consultation.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}</span>
+                                      </div>
+                                      <div className="flex gap-2">
+                                          <button onClick={() => handleWhatsApp(consultation)} className="p-2 bg-green-100 dark:bg-green-900/30 text-green-700 dark:text-green-400 rounded hover:bg-green-200 transition-colors text-xs font-bold flex items-center gap-1"><Send size={14}/> WhatsApp</button>
+                                          <button onClick={() => handlePrint(consultation)} className="p-2 bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-300 rounded hover:bg-slate-300 transition-colors text-xs font-bold flex items-center gap-1"><Printer size={14}/> PDF</button>
+                                      </div>
+                                  </div>
+                                  <div className="p-5 text-slate-600 dark:text-slate-300 text-sm leading-relaxed">
+                                      <FormattedText content={consultation.summary || "Sin notas disponibles."} />
+                                  </div>
+                              </div>
+                          ))}
+                      </div>
+                  )}
+              </div>
           </div>
       );
   }
@@ -145,13 +233,7 @@ const PatientsView: React.FC = () => {
       <div className="mb-4 shrink-0 relative">
         <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 bg-white dark:bg-slate-800 shadow-sm focus-within:ring-2 focus-within:ring-brand-teal transition-all">
             <Search className="text-slate-400 mr-3" size={20} />
-            <input 
-                type="text" 
-                placeholder="Buscar por nombre o teléfono..." 
-                className="flex-1 outline-none text-slate-700 dark:text-slate-200 bg-transparent placeholder:text-slate-400 text-sm font-medium"
-                value={searchTerm} 
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} 
-            />
+            <input type="text" placeholder="Buscar..." className="flex-1 outline-none text-slate-700 dark:text-slate-200 bg-transparent placeholder:text-slate-400 text-sm font-medium" value={searchTerm} onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} />
         </div>
       </div>
 
@@ -160,9 +242,8 @@ const PatientsView: React.FC = () => {
               <div className="flex-1 flex items-center justify-center text-slate-400 font-medium animate-pulse">Cargando directorio...</div>
           ) : processedPatients.length === 0 ? (
               <div className="flex-1 flex flex-col items-center justify-center text-slate-400 p-10">
-                <div className="bg-slate-100 dark:bg-slate-700/50 p-4 rounded-full mb-3"><Search size={30} className="text-slate-300 dark:text-slate-500"/></div>
-                <p className="font-medium">No se encontraron pacientes.</p>
-                <p className="text-sm">Intente otra búsqueda o agregue uno nuevo.</p>
+                <Search size={30} className="text-slate-300 dark:text-slate-500 mb-2"/>
+                <p>No se encontraron pacientes.</p>
               </div>
           ) : (
               <>
@@ -171,7 +252,7 @@ const PatientsView: React.FC = () => {
                         <thead className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-700 text-xs uppercase text-slate-500 dark:text-slate-400 font-bold tracking-wider">
                             <tr>
                                 <th onClick={() => handleSort('name')} className="p-4 cursor-pointer group hover:text-brand-teal transition-colors select-none"><div className="flex items-center gap-2">Paciente {getSortIcon('name')}</div></th>
-                                <th className="p-4 select-none hidden md:table-cell"><div className="flex items-center gap-2">Contacto</div></th>
+                                <th className="p-4 select-none hidden md:table-cell">Contacto</th>
                                 <th onClick={() => handleSort('created_at')} className="p-4 cursor-pointer group hover:text-brand-teal transition-colors select-none hidden sm:table-cell"><div className="flex items-center gap-2">Registro {getSortIcon('created_at')}</div></th>
                                 <th className="p-4 text-center w-24 select-none">Acciones</th>
                             </tr>
@@ -181,7 +262,7 @@ const PatientsView: React.FC = () => {
                                 <tr key={patient.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group">
                                     <td className="p-4">
                                         <div className="flex items-center gap-3">
-                                            <div className="w-10 h-10 rounded-full bg-brand-teal/10 text-brand-teal flex items-center justify-center font-bold text-sm border border-brand-teal/20 shrink-0 group-hover:bg-brand-teal group-hover:text-white transition-colors">
+                                            <div className="w-10 h-10 rounded-full bg-brand-teal/10 text-brand-teal flex items-center justify-center font-bold text-sm border border-brand-teal/20 shrink-0">
                                                 {patient.name.charAt(0).toUpperCase()}
                                             </div>
                                             <div>
@@ -190,30 +271,21 @@ const PatientsView: React.FC = () => {
                                             </div>
                                         </div>
                                     </td>
-                                    <td className="p-4 hidden md:table-cell">
-                                        {patient.phone ? <span className="flex items-center gap-2 text-sm font-medium"><Phone size={14} className="text-slate-400"/>{patient.phone}</span> : <span className="text-slate-400 text-sm italic">Sin teléfono</span>}
-                                    </td>
-                                    <td className="p-4 hidden sm:table-cell">
-                                        <span className="flex items-center gap-2 text-sm"><Calendar size={14} className="text-slate-400"/>{new Date(patient.created_at).toLocaleDateString()}</span>
-                                    </td>
+                                    <td className="p-4 hidden md:table-cell">{patient.phone || <span className="text-slate-400 italic">Sin teléfono</span>}</td>
+                                    <td className="p-4 hidden sm:table-cell"><span className="text-sm">{new Date(patient.created_at).toLocaleDateString()}</span></td>
                                     <td className="p-4 text-center">
-                                        <button onClick={() => setSelectedPatient(patient)} className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-brand-teal hover:text-white transition-all shadow-sm active:scale-95" title="Ver Expediente">
-                                            <Eye size={18} />
-                                        </button>
+                                        <button onClick={() => setSelectedPatient(patient)} className="p-2 bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 rounded-lg hover:bg-brand-teal hover:text-white transition-all shadow-sm active:scale-95"><Eye size={18} /></button>
                                     </td>
                                 </tr>
                             ))}
                         </tbody>
                     </table>
                 </div>
-                
                 <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between shrink-0 text-sm">
-                    <span className="text-slate-500 dark:text-slate-400 font-medium">
-                        Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, processedPatients.length)} de {processedPatients.length}
-                    </span>
+                    <span className="text-slate-500 dark:text-slate-400">Página {currentPage} de {totalPages || 1}</span>
                     <div className="flex gap-2">
-                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300"><ChevronLeft size={18}/></button>
-                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg disabled:opacity-50 disabled:cursor-not-allowed hover:bg-slate-100 dark:hover:bg-slate-700 transition-colors text-slate-600 dark:text-slate-300"><ChevronRight size={18}/></button>
+                        <button onClick={() => setCurrentPage(p => Math.max(1, p - 1))} disabled={currentPage === 1} className="p-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg disabled:opacity-50 hover:bg-slate-100 dark:hover:bg-slate-700"><ChevronLeft size={18}/></button>
+                        <button onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))} disabled={currentPage === totalPages || totalPages === 0} className="p-2 border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 rounded-lg disabled:opacity-50 hover:bg-slate-100 dark:hover:bg-slate-700"><ChevronRight size={18}/></button>
                     </div>
                 </div>
               </>
