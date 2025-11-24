@@ -6,7 +6,7 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt', // CAMBIO: 'prompt' permite avisar al usuario
+      registerType: 'prompt',
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'masked-icon.svg'],
       manifest: {
         name: 'MediScribe AI - Asistente Clínico',
@@ -36,17 +36,20 @@ export default defineConfig({
         ]
       },
       workbox: {
+        // AUMENTAMOS EL LÍMITE A 5MB (5 * 1024 * 1024)
+        maximumFileSizeToCacheInBytes: 5000000, 
         cleanupOutdatedCaches: true,
         skipWaiting: false,
         clientsClaim: true,
       },
       devOptions: {
-        enabled: true // Permite probar el PWA en desarrollo local si se requiere
+        enabled: true
       }
     })
   ],
   build: {
-    chunkSizeWarningLimit: 1600,
+    // También aumentamos el aviso de advertencia de construcción normal
+    chunkSizeWarningLimit: 5000,
   },
   define: {
     global: 'window',
