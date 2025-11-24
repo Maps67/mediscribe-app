@@ -14,28 +14,26 @@ import Dashboard from './pages/Dashboard';
 import CalendarView from './components/CalendarView';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import ReloadPrompt from './components/ReloadPrompt';
-import SplashScreen from './components/SplashScreen'; // <--- NUEVO IMPORT
-import { Menu } from 'lucide-react';
+import SplashScreen from './components/SplashScreen';
+// --- NUEVO IMPORT ---
+import MobileTabBar from './components/MobileTabBar';
 import { ViewState } from './types';
 
+// --- LAYOUT PRINCIPAL MODIFICADO ---
 const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session }) => {
-  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  // Ya no necesitamos estado de sidebar open para móvil
   
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300">
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
-      <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col min-h-screen">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative">
+      
+      {/* SIDEBAR: AHORA SOLO VISIBLE EN ESCRITORIO (hidden md:flex) */}
+      <div className="hidden md:flex z-20">
+        <Sidebar isOpen={true} onClose={() => {}} />
+      </div>
+
+      <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950">
         
-        {/* HEADER MÓVIL */}
-        <div className="md:hidden bg-slate-900 dark:bg-slate-950 text-white p-4 flex items-center justify-between sticky top-0 z-40 shadow-md">
-           <div className="flex items-center gap-3">
-             <img src="/pwa-192x192.png" alt="Logo" className="h-8 w-8 rounded-lg bg-white/10 p-0.5 object-cover"/>
-             <span className="font-bold text-lg tracking-tight">MediScribe AI</span>
-           </div>
-           <button onClick={() => setIsSidebarOpen(true)} className="text-white p-2 hover:bg-slate-800 rounded-lg transition-colors">
-             <Menu size={24} />
-           </button>
-        </div>
+        {/* --- HEADER MÓVIL VIEJO ELIMINADO --- */}
         
         <div className="flex-1 overflow-hidden h-full">
           <Routes>
@@ -49,18 +47,23 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
+
+        {/* --- NUEVA BARRA INFERIOR MÓVIL (Solo visible en móvil) --- */}
+        <MobileTabBar />
+
       </main>
     </div>
   );
 };
+// ------------------------------------
 
 const App: React.FC = () => {
+  // ... (El resto de la lógica de sesión y splash screen se mantiene IGUAL)
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
-  const [showSplash, setShowSplash] = useState(true); // CONTROL DEL SPLASH
+  const [showSplash, setShowSplash] = useState(true);
 
   useEffect(() => {
-    // 1. Lógica de Supabase (Carga de sesión)
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
@@ -69,39 +72,13 @@ const App: React.FC = () => {
       setSession(session);
       setLoading(false);
     });
-
-    // 2. Lógica del Splash Screen (Temporizador)
-    const timer = setTimeout(() => {
-        setShowSplash(false);
-    }, 2500); // 2.5 segundos de duración
-
-    return () => {
-        subscription.unsubscribe();
-        clearTimeout(timer);
-    };
+    const timer = setTimeout(() => setShowSplash(false), 2500);
+    return () => { subscription.unsubscribe(); clearTimeout(timer); };
   }, []);
 
-  // SI EL SPLASH ESTÁ ACTIVO, MOSTRAMOS SOLO EL SPLASH
-  if (showSplash) {
-      return (
-        <ThemeProvider>
-            <SplashScreen />
-        </ThemeProvider>
-      );
-  }
+  if (showSplash) return <ThemeProvider><SplashScreen /></ThemeProvider>;
+  if (!session) return <ThemeProvider><Toaster position="top-center" richColors /><ReloadPrompt /><AuthView authService={{ supabase }} onLoginSuccess={() => {}} /></ThemeProvider>;
 
-  // SI NO HAY SESIÓN (LOGIN)
-  if (!session) {
-    return (
-        <ThemeProvider>
-            <Toaster position="top-center" richColors />
-            <ReloadPrompt /> 
-            <AuthView authService={{ supabase }} onLoginSuccess={() => {}} />
-        </ThemeProvider>
-    );
-  }
-
-  // APP PRINCIPAL
   return (
     <ThemeProvider>
         <BrowserRouter>
