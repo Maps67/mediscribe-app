@@ -3,85 +3,97 @@ import { useState, useEffect, useRef, useCallback } from 'react';
 export const useSpeechRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  
+  // Usamos refs para mantener el control total sin depender de re-renderizados
   const recognitionRef = useRef<any>(null);
+  const isListeningRef = useRef(false); // Referencia "verdadera" del estado
 
   useEffect(() => {
-    // Verificación de compatibilidad del navegador
+    // 1. Configuración Inicial
     const SpeechRecognition = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     
     if (SpeechRecognition) {
-      recognitionRef.current = new SpeechRecognition();
-      recognitionRef.current.continuous = true; // Seguir escuchando aunque haya pausas
-      recognitionRef.current.interimResults = true; // CLAVE: Mostrar resultados mientras se habla
-      recognitionRef.current.lang = 'es-MX'; // Español México
+      const recognition = new SpeechRecognition();
+      recognition.continuous = true; // Escucha continua
+      recognition.interimResults = true; // Resultados en tiempo real
+      recognition.lang = 'es-MX';
 
-      recognitionRef.current.onresult = (event: any) => {
-        let finalTranscript = '';
-        let interimTranscript = '';
+      // --- EVENTOS ---
 
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            finalTranscript += event.results[i][0].transcript + ' ';
-          } else {
-            interimTranscript += event.results[i][0].transcript;
-          }
+      recognition.onresult = (event: any) => {
+        // Si por alguna razón llega audio pero el sistema cree que está apagado, abortar.
+        if (!isListeningRef.current) {
+            recognition.abort();
+            return;
         }
 
-        // Actualizamos el estado combinando lo guardado previamente + lo nuevo final + lo temporal
-        // Nota: En modo 'continuous', a veces es mejor acumular en el estado
-        setTranscript((prev) => {
-            // Si es un resultado nuevo (index 0), limpiamos o mantenemos lógica.
-            // Para simplificar visualmente, reconstruimos basado en el evento actual si es continuo,
-            // o simplemente mostramos lo que el navegador nos da.
-            
-            // Estrategia simple y robusta:
-            // El API a veces devuelve todo el buffer, a veces solo lo nuevo.
-            // Vamos a usar una estrategia visual directa:
-            const currentText = Array.from(event.results)
-                .map((result: any) => result[0].transcript)
-                .join('');
-            return currentText;
-        });
+        let currentText = '';
+        for (let i = 0; i < event.results.length; i++) {
+            currentText += event.results[i][0].transcript;
+        }
+        setTranscript(currentText);
       };
 
-      recognitionRef.current.onerror = (event: any) => {
-        console.error("Error de reconocimiento de voz:", event.error);
+      recognition.onerror = (event: any) => {
+        console.warn("Speech API Error:", event.error);
+        // Si hay error de permisos o red, matar proceso
         if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
+            setIsListening(false);
+            isListeningRef.current = false;
+        }
+      };
+
+      recognition.onend = () => {
+        // Lógica Anti-Zombie:
+        // Solo reiniciamos si el usuario NO ha dado orden de parar.
+        if (isListeningRef.current) {
+            try {
+                recognition.start();
+            } catch (e) {
+                // Si falla el reinicio, apagamos todo
+                setIsListening(false);
+                isListeningRef.current = false;
+            }
+        } else {
+            // Asegurar que el estado visual esté apagado
             setIsListening(false);
         }
       };
 
-      recognitionRef.current.onend = () => {
-        // Si se detiene solo pero el estado dice que seguimos escuchando, lo reiniciamos
-        // Esto evita cortes inesperados en Android
-        if (isListening) {
-            try {
-                recognitionRef.current.start();
-            } catch (e) {
-                setIsListening(false);
-            }
-        }
-      };
+      recognitionRef.current = recognition;
     }
-  }, [isListening]);
+
+    // 2. LIMPIEZA NUCLEAR AL SALIR (Desmontar componente)
+    return () => {
+        if (recognitionRef.current) {
+            recognitionRef.current.abort(); // Corta el micrófono inmediatamente
+            recognitionRef.current = null;
+        }
+        isListeningRef.current = false;
+    };
+  }, []);
+
+  // --- FUNCIONES DE CONTROL ---
 
   const startListening = useCallback(() => {
-    if (recognitionRef.current) {
+    if (recognitionRef.current && !isListeningRef.current) {
       try {
-        setTranscript(''); // Limpiar anterior al iniciar nuevo
+        setTranscript(''); // Limpiar texto anterior
         recognitionRef.current.start();
+        isListeningRef.current = true;
         setIsListening(true);
       } catch (error) {
         console.error("Error al iniciar:", error);
       }
-    } else {
-        alert("Tu navegador no soporta reconocimiento de voz. Intenta con Chrome.");
     }
   }, []);
 
   const stopListening = useCallback(() => {
     if (recognitionRef.current) {
-      recognitionRef.current.stop();
+      // .abort() es clave: Mata la conexión con el hardware inmediatamente
+      // a diferencia de .stop() que espera a que dejes de hablar.
+      recognitionRef.current.abort(); 
+      isListeningRef.current = false;
       setIsListening(false);
     }
   }, []);
