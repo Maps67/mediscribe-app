@@ -13,12 +13,36 @@ import { AppointmentService } from '../services/AppointmentService';
 type TabType = 'record' | 'patient' | 'chat';
 interface ChatMessage { role: 'user' | 'ai'; text: string; }
 
-// Lista de Especialidades Comunes para el Selector
+// LISTA AMPLIADA DE ESPECIALIDADES
 const SPECIALTIES = [
-    "Medicina General", "Cardiología", "Pediatría", "Ginecología", 
-    "Dermatología", "Traumatología", "Psiquiatría", "Neurología", 
-    "Gastroenterología", "Oftalmología", "Otorrinolaringología", 
-    "Neumología", "Urología", "Endocrinología"
+    "Medicina General",
+    "Cardiología",
+    "Cirugía General",
+    "Cirugía de Columna",
+    "Cirugía de Mano",
+    "Cirugía Oncológica",
+    "Cirugía Pediátrica",
+    "Cirugía Plástica y Reconstructiva",
+    "Dermatología",
+    "Endocrinología",
+    "Gastroenterología",
+    "Geriatría",
+    "Ginecología y Obstetricia",
+    "Medicina del Deporte",
+    "Medicina Interna",
+    "Nefrología",
+    "Neumología",
+    "Neurocirugía",
+    "Neurología",
+    "Oftalmología",
+    "Otorrinolaringología",
+    "Pediatría",
+    "Psiquiatría",
+    "Reumatología",
+    "Traumatología y Ortopedia",
+    "Traumatología: Artroscopia",
+    "Urología",
+    "Urgencias Médicas"
 ];
 
 const ConsultationView: React.FC = () => {
@@ -36,7 +60,7 @@ const ConsultationView: React.FC = () => {
   const [activeTab, setActiveTab] = useState<TabType>('record');
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   
-  // NUEVO: Estado de Especialidad
+  // Estado de Especialidad
   const [selectedSpecialty, setSelectedSpecialty] = useState('Medicina General');
 
   // Edición In-Situ
@@ -76,8 +100,9 @@ const ConsultationView: React.FC = () => {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         if (data) {
             setDoctorProfile(data as DoctorProfile);
-            // INTELIGENTE: Si el doctor tiene especialidad definida, usarla por defecto
-            if (data.specialty && data.specialty !== 'Medicina General') {
+            // Si la especialidad del perfil está en nuestra lista, la seleccionamos.
+            // Si no, mantenemos Medicina General o la que tenga el perfil si coincide parcialmente.
+            if (data.specialty && SPECIALTIES.includes(data.specialty)) {
                 setSelectedSpecialty(data.specialty);
             }
         }
@@ -101,10 +126,9 @@ const ConsultationView: React.FC = () => {
     if (!consentGiven) { toast.warning("Confirme consentimiento."); return; }
 
     setIsProcessing(true);
-    toast.info(`Generando análisis de ${selectedSpecialty}...`); // Feedback visual
+    toast.info(`Generando análisis de ${selectedSpecialty}...`);
     
     try {
-      // Pasamos la especialidad seleccionada al servicio
       const response = await GeminiMedicalService.generateClinicalNote(transcript, selectedSpecialty);
       setGeneratedNote(response);
       setEditableInstructions(response.patientInstructions);
@@ -161,7 +185,7 @@ const ConsultationView: React.FC = () => {
       setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
       setIsChatting(true);
       try {
-          const context = `NOTA (${selectedSpecialty}): ${generatedNote.clinicalNote}\n\nINSTRUCCIONES: ${editableInstructions}`;
+          const context = `NOTA (${selectedSpecialty}): ${generatedNote.clinicalNote}\n\nINSTRUCCIONES ACTUALES: ${editableInstructions}`;
           const reply = await GeminiMedicalService.chatWithContext(context, userMsg);
           setChatMessages(prev => [...prev, { role: 'ai', text: reply }]);
       } catch (error) { toast.error("Error en el chat"); } finally { setIsChatting(false); }
@@ -254,7 +278,7 @@ const ConsultationView: React.FC = () => {
       `}>
         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Consulta Inteligente</h2>
         
-        {/* SELECTOR DE ESPECIALIDAD (NUEVO) */}
+        {/* SELECTOR DE ESPECIALIDAD */}
         <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/50 flex flex-col gap-2">
             <label className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase flex items-center gap-1">
                 <Stethoscope size={14}/> Modo Especialista
@@ -262,7 +286,7 @@ const ConsultationView: React.FC = () => {
             <select 
                 value={selectedSpecialty}
                 onChange={(e) => setSelectedSpecialty(e.target.value)}
-                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500"
+                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
             >
                 {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
