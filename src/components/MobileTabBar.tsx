@@ -13,6 +13,7 @@ const MobileTabBar: React.FC = () => {
   ];
 
   return (
+    // CORRECCIÓN CLAVE: pb-[env(safe-area-inset-bottom)] para iPhone X+
     <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 pb-[env(safe-area-inset-bottom)] z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.03)]">
       <div className="flex justify-around items-end h-14 px-1">
         {tabs.map((tab) => (
