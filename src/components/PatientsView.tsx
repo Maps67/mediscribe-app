@@ -2,8 +2,9 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Patient } from '../types';
 import { toast } from 'sonner';
-import { Plus, Search, Phone, Calendar, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, User } from 'lucide-react';
-import PatientAttachments from './PatientAttachments';
+import { Plus, Search, Phone, Calendar, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, User, X } from 'lucide-react';
+// CORRECCIÓN AQUÍ: Agregamos llaves { } porque no es export default
+import { PatientAttachments } from './PatientAttachments';
 import PrescriptionPDF from './PrescriptionPDF';
 import { pdf } from '@react-pdf/renderer';
 
@@ -19,7 +20,7 @@ const PatientsView: React.FC = () => {
   // --- ESTADOS DE TABLA INTELIGENTE ---
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
-  const [sortConfig, setSortConfig] = useState<{ key: keyof Patient; direction: 'asc' | 'desc' } | null>({ key: 'created_at', direction: 'desc' }); // Default: más recientes primero
+  const [sortConfig, setSortConfig] = useState<{ key: keyof Patient; direction: 'asc' | 'desc' } | null>({ key: 'created_at', direction: 'desc' });
 
   useEffect(() => {
     fetchPatients();
@@ -66,15 +67,12 @@ const PatientsView: React.FC = () => {
       }
   };
 
-    // --- LÓGICA DE TABLA INTELIGENTE (Filtrado, Ordenado, Paginado) ---
     const processedPatients = useMemo(() => {
-        // 1. Filtrar
         let result = patients.filter(p =>
             p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
             (p.phone && p.phone.includes(searchTerm))
         );
 
-        // 2. Ordenar
         if (sortConfig) {
             result.sort((a, b) => {
                 const aValue = a[sortConfig.key] || '';
@@ -85,11 +83,9 @@ const PatientsView: React.FC = () => {
                 return 0;
             });
         }
-
         return result;
     }, [patients, searchTerm, sortConfig]);
 
-    // 3. Paginar
     const totalPages = Math.ceil(processedPatients.length / itemsPerPage);
     const paginatedPatients = processedPatients.slice(
         (currentPage - 1) * itemsPerPage,
@@ -104,16 +100,12 @@ const PatientsView: React.FC = () => {
         setSortConfig({ key, direction });
     };
 
-    // Renderizado de icono de ordenamiento
     const getSortIcon = (key: keyof Patient) => {
         if (!sortConfig || sortConfig.key !== key) return <ChevronDown size={14} className="opacity-30 group-hover:opacity-70" />;
         return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="text-brand-teal"/> : <ChevronDown size={14} className="text-brand-teal"/>;
     };
 
-
-  // --- VISTA DETALLE DEL PACIENTE (Modal Existente) ---
   if (selectedPatient) {
-      // (Este bloque se mantiene casi igual, solo pequeños ajustes visuales)
       return (
           <div className="p-6 h-[calc(100vh-64px)] overflow-y-auto animate-fade-in-up bg-slate-50 dark:bg-slate-900">
               <button onClick={() => setSelectedPatient(null)} className="mb-4 flex items-center gap-2 text-slate-500 hover:text-brand-teal font-bold transition-colors"><ChevronLeft size={20} /> Volver al Directorio</button>
@@ -133,12 +125,11 @@ const PatientsView: React.FC = () => {
                   </div>
                    <button onClick={() => handleDeletePatient(selectedPatient.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30 p-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-bold border border-transparent hover:border-red-200 dark:hover:border-red-800">Eliminar Paciente</button>
               </div>
-              <PatientAttachments patientId={selectedPatient.id} patientName={selectedPatient.name} />
+              <PatientAttachments patientId={selectedPatient.id} />
           </div>
       );
   }
 
-  // --- VISTA PRINCIPAL: TABLA INTELIGENTE ---
   return (
     <div className="p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 animate-fade-in-up overflow-hidden">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 shrink-0">
@@ -151,7 +142,6 @@ const PatientsView: React.FC = () => {
         </button>
       </div>
 
-      {/* Barra de Búsqueda */}
       <div className="mb-4 shrink-0 relative">
         <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-xl px-3 py-3 bg-white dark:bg-slate-800 shadow-sm focus-within:ring-2 focus-within:ring-brand-teal transition-all">
             <Search className="text-slate-400 mr-3" size={20} />
@@ -160,12 +150,11 @@ const PatientsView: React.FC = () => {
                 placeholder="Buscar por nombre o teléfono..." 
                 className="flex-1 outline-none text-slate-700 dark:text-slate-200 bg-transparent placeholder:text-slate-400 text-sm font-medium"
                 value={searchTerm} 
-                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} // Reset a página 1 al buscar
+                onChange={(e) => { setSearchTerm(e.target.value); setCurrentPage(1); }} 
             />
         </div>
       </div>
 
-      {/* TABLA DE DATOS */}
       <div className="flex-1 bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden flex flex-col">
           {loading ? (
               <div className="flex-1 flex items-center justify-center text-slate-400 font-medium animate-pulse">Cargando directorio...</div>
@@ -177,7 +166,6 @@ const PatientsView: React.FC = () => {
               </div>
           ) : (
               <>
-                {/* Contenedor con scroll horizontal para móviles */}
                 <div className="flex-1 overflow-auto md:overflow-y-auto scrollbar-thin scrollbar-thumb-slate-200 dark:scrollbar-thumb-slate-700">
                     <table className="w-full text-left border-collapse">
                         <thead className="bg-slate-50 dark:bg-slate-900/50 sticky top-0 z-10 border-b border-slate-200 dark:border-slate-700 text-xs uppercase text-slate-500 dark:text-slate-400 font-bold tracking-wider">
@@ -219,7 +207,6 @@ const PatientsView: React.FC = () => {
                     </table>
                 </div>
                 
-                {/* PAGINACIÓN */}
                 <div className="p-4 border-t border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-900/50 flex items-center justify-between shrink-0 text-sm">
                     <span className="text-slate-500 dark:text-slate-400 font-medium">
                         Mostrando {(currentPage - 1) * itemsPerPage + 1} - {Math.min(currentPage * itemsPerPage, processedPatients.length)} de {processedPatients.length}
@@ -233,7 +220,6 @@ const PatientsView: React.FC = () => {
           )}
       </div>
 
-      {/* MODAL CREAR PACIENTE (Sin cambios funcionales, solo estilo actualizado) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in-up">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-700">
@@ -260,8 +246,5 @@ const PatientsView: React.FC = () => {
     </div>
   );
 };
-
-// Importación necesaria para el icono X del modal
-import { X } from 'lucide-react';
 
 export default PatientsView;
