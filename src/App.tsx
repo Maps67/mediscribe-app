@@ -11,29 +11,29 @@ import PatientsView from './components/PatientsView';
 import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
 import Dashboard from './pages/Dashboard';
+import ReportsView from './pages/ReportsView'; // <--- IMPORTAR LA NUEVA VISTA
 import CalendarView from './components/CalendarView';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import ReloadPrompt from './components/ReloadPrompt';
 import SplashScreen from './components/SplashScreen';
-// --- NUEVO IMPORT ---
 import MobileTabBar from './components/MobileTabBar';
-import { ViewState } from './types';
+import { Menu } from 'lucide-react';
 
-// --- LAYOUT PRINCIPAL MODIFICADO ---
 const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session }) => {
-  // Ya no necesitamos estado de sidebar open para móvil
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative">
       
-      {/* SIDEBAR: AHORA SOLO VISIBLE EN ESCRITORIO (hidden md:flex) */}
+      {/* SIDEBAR ESCRITORIO */}
       <div className="hidden md:flex z-20">
         <Sidebar isOpen={true} onClose={() => {}} />
       </div>
 
+      {/* SIDEBAR MÓVIL (Drawer) */}
+      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+
       <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950">
-        
-        {/* --- HEADER MÓVIL VIEJO ELIMINADO --- */}
         
         <div className="flex-1 overflow-hidden h-full">
           <Routes>
@@ -41,6 +41,7 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
             <Route path="/consultation" element={<ConsultationView />} />
             <Route path="/calendar" element={<CalendarView />} />
             <Route path="/patients" element={<PatientsView />} />
+            <Route path="/reports" element={<ReportsView />} /> {/* <--- RUTA CONECTADA */}
             <Route path="/card" element={<DigitalCard />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -48,17 +49,15 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
           </Routes>
         </div>
 
-        {/* --- NUEVA BARRA INFERIOR MÓVIL (Solo visible en móvil) --- */}
+        {/* BARRA INFERIOR MÓVIL */}
         <MobileTabBar />
 
       </main>
     </div>
   );
 };
-// ------------------------------------
 
 const App: React.FC = () => {
-  // ... (El resto de la lógica de sesión y splash screen se mantiene IGUAL)
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
