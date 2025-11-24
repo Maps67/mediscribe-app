@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, Save, RefreshCw, FileText, Share2, Printer, Search, Calendar as CalendarIcon, X, Clock, MessageSquare, User, Send, Edit2, Check } from 'lucide-react';
+import { Mic, Square, Save, RefreshCw, FileText, Share2, Printer, Search, Calendar as CalendarIcon, X, Clock, MessageSquare, User, Send, Edit2, Check, ArrowLeft } from 'lucide-react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { supabase } from '../lib/supabase';
@@ -47,10 +47,8 @@ const ConsultationView: React.FC = () => {
     fetchDoctorProfile();
   }, []);
 
-  // Auto-scroll chat
+  // Auto-scrolls
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, activeTab]);
-  
-  // Auto-scroll transcripción en vivo
   useEffect(() => { 
       if (isListening && transcriptEndRef.current) {
           transcriptEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -73,10 +71,8 @@ const ConsultationView: React.FC = () => {
   // --- FUNCIÓN CANDADO DE SEGURIDAD ---
   const handleToggleRecording = () => {
       if (isListening) {
-          // Siempre permitir detener
           stopListening();
       } else {
-          // Solo permitir iniciar si hay consentimiento explícito
           if (!consentGiven) {
               toast.warning("⚠️ Por ley, debe marcar la casilla de consentimiento primero.");
               return;
@@ -87,7 +83,6 @@ const ConsultationView: React.FC = () => {
 
   const handleGenerate = async () => {
     if (!transcript) { toast.error("No hay audio."); return; }
-    // Doble verificación por seguridad
     if (!consentGiven) { toast.warning("Confirme consentimiento."); return; }
 
     setIsProcessing(true);
@@ -111,9 +106,12 @@ const ConsultationView: React.FC = () => {
     if (!selectedPatient || !generatedNote) { toast.error("Faltan datos."); return; }
     setIsSaving(true);
     try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if(!user || !user.id) { toast.error("Sesión inválida"); return; }
-
+        const { data: { session }, error: authError } = await supabase.auth.getSession();
+        if (authError || !session) {
+            toast.error("Sesión expirada."); return;
+        }
+        
+        const user = session.user;
         const { error } = await supabase.from('consultations').insert({
             doctor_id: user.id,
             patient_id: selectedPatient.id,
@@ -219,7 +217,7 @@ const ConsultationView: React.FC = () => {
                 text: `Hola ${selectedPatient.name}, aquí está tu receta médica.`
             });
         } else {
-            toast.error("Tu dispositivo no soporta compartir archivos. Usa Imprimir.");
+            toast.error("Usa Imprimir para guardar PDF.");
         }
     } catch (error) {
         console.log("Compartir cancelado", error);
@@ -230,10 +228,17 @@ const ConsultationView: React.FC = () => {
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] overflow-hidden bg-slate-50 dark:bg-slate-900 animate-fade-in-up transition-colors duration-300">
-      {/* IZQUIERDA: GRABACIÓN */}
-      <div className="w-full md:w-1/3 p-4 flex flex-col gap-4 border-r border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto shrink-0 z-20 shadow-sm">
+      
+      {/* --- COLUMNA IZQUIERDA: GRABACIÓN --- */}
+      {/* CLASE CLAVE: 'hidden md:flex' si hay nota, para ocultarlo en móvil */}
+      <div className={`
+          w-full md:w-1/3 p-4 flex flex-col gap-4 border-r border-slate-200 dark:border-slate-800 
+          bg-white dark:bg-slate-900 overflow-y-auto shrink-0 z-20 shadow-sm transition-all duration-300
+          ${generatedNote ? 'hidden md:flex' : 'flex'}
+      `}>
         <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Consulta Inteligente</h2>
         
+        {/* Selector Paciente */}
         <div className="relative z-30">
             <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-800 focus-within:ring-2 focus-within:ring-brand-teal transition-all">
                 <Search className="text-slate-400 mr-2" size={18} />
@@ -249,50 +254,47 @@ const ConsultationView: React.FC = () => {
             )}
         </div>
         
+        {/* Checkbox Consentimiento */}
         <div className={`flex items-center gap-2 p-3 rounded-lg border transition-colors ${consentGiven ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}>
             <input type="checkbox" id="consent" checked={consentGiven} onChange={(e) => setConsentGiven(e.target.checked)} className="w-5 h-5 text-brand-teal rounded focus:ring-brand-teal cursor-pointer"/>
             <label htmlFor="consent" className="text-sm text-slate-700 dark:text-slate-300 leading-tight cursor-pointer select-none">Confirmo consentimiento verbal.</label>
         </div>
 
+        {/* Micrófono */}
         <div className={`flex-1 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-4 transition-all relative overflow-hidden ${isListening ? 'border-red-400 bg-red-50 dark:bg-red-900/10' : 'border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/50'}`}>
-            
             <div className={`w-24 h-24 rounded-full flex items-center justify-center mb-4 transition-all z-10 ${isListening ? 'bg-red-500 text-white animate-pulse shadow-xl shadow-red-500/30 scale-110' : 'bg-white dark:bg-slate-700 text-slate-300 dark:text-slate-500 shadow-sm'}`}>
                 <Mic size={40} />
             </div>
-            
             <p className="text-center font-medium text-slate-600 dark:text-slate-400 mb-4 z-10">{isListening ? "Escuchando..." : "Listo para iniciar."}</p>
-            
             {transcript && (
-                <div className="w-full flex-1 overflow-y-auto bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-300 italic mb-4 z-10 shadow-inner">
+                <div className="w-full flex-1 overflow-y-auto bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 text-sm text-slate-600 dark:text-slate-300 italic mb-4 z-10 shadow-inner max-h-40">
                     "{transcript}"
                     <div ref={transcriptEndRef} />
                 </div>
             )}
-
             <div className="flex w-full gap-3 z-10 mt-auto">
-                <button 
-                    onClick={handleToggleRecording} 
-                    disabled={!consentGiven && !isListening} 
-                    className={`flex-1 py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition-all text-white shadow-lg ${
-                        isListening 
-                            ? 'bg-red-600 hover:bg-red-700 animate-pulse' 
-                            : 'bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed'
-                    }`}
-                >
-                    {isListening ? <><Square size={18}/> Detener</> : <><Mic size={18}/> Iniciar</>}
-                </button>
-                
-                <button onClick={handleGenerate} disabled={!transcript || isListening || isProcessing} className="flex-1 bg-brand-teal text-white py-3 rounded-xl font-bold hover:bg-teal-600 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">
-                    {isProcessing ? <RefreshCw className="animate-spin" size={18}/> : <RefreshCw size={18}/>} Generar
-                </button>
+                <button onClick={handleToggleRecording} disabled={!consentGiven && !isListening} className={`flex-1 py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition-all text-white shadow-lg ${isListening ? 'bg-red-600 hover:bg-red-700 animate-pulse' : 'bg-slate-900 hover:bg-slate-800 disabled:bg-slate-300 disabled:cursor-not-allowed'}`}>{isListening ? <><Square size={18}/> Detener</> : <><Mic size={18}/> Iniciar</>}</button>
+                <button onClick={handleGenerate} disabled={!transcript || isListening || isProcessing} className="flex-1 bg-brand-teal text-white py-3 rounded-xl font-bold hover:bg-teal-600 shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2">{isProcessing ? <RefreshCw className="animate-spin" size={18}/> : <RefreshCw size={18}/>} Generar</button>
             </div>
         </div>
       </div>
 
-      {/* DERECHA: RESULTADOS */}
-      <div className="w-full md:w-2/3 bg-slate-100 dark:bg-slate-950 flex flex-col overflow-hidden border-l border-slate-200 dark:border-slate-800">
-         <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 shadow-sm z-10">
-            {[ {id: 'record', icon: FileText, label: 'EXPEDIENTE'}, {id: 'patient', icon: User, label: 'PACIENTE'}, {id: 'chat', icon: MessageSquare, label: 'CHAT IA'} ].map(tab => (
+      {/* --- COLUMNA DERECHA: RESULTADOS --- */}
+      {/* CLASE CLAVE: 'hidden' si NO hay nota, 'flex h-full' si la hay (en móvil) */}
+      <div className={`
+          w-full md:w-2/3 bg-slate-100 dark:bg-slate-950 flex flex-col overflow-hidden border-l border-slate-200 dark:border-slate-800
+          ${!generatedNote ? 'hidden md:flex' : 'flex h-full'}
+      `}>
+         <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 shadow-sm z-10 items-center">
+            {/* BOTÓN ATRÁS SOLO MÓVIL */}
+            <button 
+                onClick={() => setGeneratedNote(null)} // Volver a grabar
+                className="md:hidden p-4 text-slate-500 hover:text-brand-teal border-r border-slate-100 dark:border-slate-800"
+            >
+                <ArrowLeft size={20} />
+            </button>
+
+            {[ {id: 'record', icon: FileText, label: 'EXPEDIENTE'}, {id: 'patient', icon: User, label: 'PACIENTE'}, {id: 'chat', icon: MessageSquare, label: 'CHAT'} ].map(tab => (
                 <button key={tab.id} onClick={() => setActiveTab(tab.id as TabType)} className={`flex-1 py-4 px-2 flex items-center justify-center gap-2 text-sm font-bold transition-all border-b-4 ${activeTab === tab.id ? 'text-brand-teal border-brand-teal bg-teal-50/30 dark:bg-teal-900/20' : 'text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800'}`}>
                     <tab.icon size={18}/> <span className="hidden sm:inline">{tab.label}</span>
                 </button>
@@ -316,8 +318,8 @@ const ConsultationView: React.FC = () => {
                                 <FormattedText content={generatedNote.clinicalNote} />
                             </div>
                             <div className="flex flex-wrap gap-3 justify-end pt-6 mt-6 border-t border-slate-100 dark:border-slate-800">
-                                <button onClick={handleOpenAppointmentModal} className="bg-indigo-600 text-white px-4 py-3 rounded-lg font-bold shadow-md hover:bg-indigo-700 flex items-center gap-2 transition-transform active:scale-95"><CalendarIcon size={18} /> Agendar Seguimiento</button>
-                                <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-lg font-bold shadow-md hover:bg-teal-600 flex items-center gap-2 transition-transform active:scale-95">{isSaving ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>} Guardar en Historial</button>
+                                <button onClick={handleOpenAppointmentModal} className="bg-indigo-600 text-white px-4 py-3 rounded-lg font-bold shadow-md hover:bg-indigo-700 flex items-center gap-2 transition-transform active:scale-95"><CalendarIcon size={18} /> Agendar</button>
+                                <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-lg font-bold shadow-md hover:bg-teal-600 flex items-center gap-2 transition-transform active:scale-95">{isSaving ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>} Guardar</button>
                             </div>
                         </div>
                     )}
@@ -326,16 +328,16 @@ const ConsultationView: React.FC = () => {
                     {activeTab === 'patient' && (
                          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col h-full">
                             <div className="flex justify-between items-center mb-4 border-b dark:border-slate-700 pb-2 shrink-0">
-                                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Share2 className="text-brand-teal"/> Indicaciones / Receta</h3>
+                                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Share2 className="text-brand-teal"/> Indicaciones</h3>
                                 <div className="flex gap-2">
-                                    <button onClick={() => setIsEditingInstructions(!isEditingInstructions)} className={`p-2 rounded transition-colors flex gap-2 items-center text-sm font-bold ${isEditingInstructions ? 'bg-green-100 text-green-700' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`} title="Editar receta">{isEditingInstructions ? <><Check size={16}/> Terminar</> : <><Edit2 size={16}/> Editar</>}</button>
-                                    <button onClick={handleShareWhatsApp} className="p-2 bg-green-500 hover:bg-green-600 text-white rounded flex gap-2 items-center text-sm font-bold shadow-sm transition-colors" title="Enviar PDF por WhatsApp"><Send size={16} /> WhatsApp</button>
+                                    <button onClick={() => setIsEditingInstructions(!isEditingInstructions)} className={`p-2 rounded transition-colors flex gap-2 items-center text-sm font-bold ${isEditingInstructions ? 'bg-green-100 text-green-700' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`} title="Editar receta">{isEditingInstructions ? <Check size={16}/> : <Edit2 size={16}/>}</button>
+                                    <button onClick={handleShareWhatsApp} className="p-2 bg-green-500 hover:bg-green-600 text-white rounded flex gap-2 items-center text-sm font-bold shadow-sm transition-colors" title="Enviar WhatsApp"><Send size={16} /></button>
                                     <button onClick={handlePrint} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-400 flex gap-1 items-center text-sm font-medium border border-slate-200 dark:border-slate-700"><Printer size={16}/></button>
                                 </div>
                             </div>
                             <div className="flex-1 overflow-y-auto dark:text-slate-300">
                                 {isEditingInstructions ? (
-                                    <textarea className="w-full h-full p-4 border-2 border-brand-teal rounded-lg outline-none resize-none bg-slate-50 dark:bg-slate-800 dark:text-white font-mono text-sm focus:ring-2 focus:ring-teal-200 transition-all" value={editableInstructions} onChange={(e) => setEditableInstructions(e.target.value)} placeholder="Escriba o dicte las indicaciones aquí..."/>
+                                    <textarea className="w-full h-full p-4 border-2 border-brand-teal rounded-lg outline-none resize-none bg-slate-50 dark:bg-slate-800 dark:text-white font-mono text-sm focus:ring-2 focus:ring-teal-200 transition-all" value={editableInstructions} onChange={(e) => setEditableInstructions(e.target.value)} placeholder="Edita aquí..."/>
                                 ) : (
                                     <FormattedText content={editableInstructions} />
                                 )}
