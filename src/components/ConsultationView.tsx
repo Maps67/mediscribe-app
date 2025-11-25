@@ -11,7 +11,9 @@ import PrescriptionPDF from './PrescriptionPDF';
 import { AppointmentService } from '../services/AppointmentService';
 
 type TabType = 'record' | 'patient' | 'chat';
-interface ChatMessage { role: 'user' | 'ai'; text: string; }
+
+// CAMBIO 1: Estandarización de la interfaz con la API de Google (ai -> model)
+interface ChatMessage { role: 'user' | 'model'; text: string; }
 
 // LISTA DE ESPECIALIDADES OFICIAL
 const SPECIALTIES = [
@@ -132,7 +134,8 @@ const ConsultationView: React.FC = () => {
       setGeneratedNote(response);
       setEditableInstructions(response.patientInstructions);
       setActiveTab('record');
-      setChatMessages([{ role: 'ai', text: `Nota de ${selectedSpecialty} generada. ¿Alguna duda sobre el caso?` }]);
+      // CAMBIO 2: Inicializar mensaje con el rol 'model' correcto
+      setChatMessages([{ role: 'model', text: `Nota de ${selectedSpecialty} generada. ¿Alguna duda sobre el caso?` }]);
       toast.success("Éxito al generar");
     } catch (error) {
       console.error(error);
@@ -176,18 +179,33 @@ const ConsultationView: React.FC = () => {
     }
   };
 
+  // CAMBIO 3: Función de Chat actualizada con Memoria
   const handleChatSend = async (e?: React.FormEvent) => {
       e?.preventDefault();
       if (!chatInput.trim() || !generatedNote) return;
+      
       const userMsg = chatInput;
       setChatInput('');
+      
+      // 1. UI Optimista
       setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
       setIsChatting(true);
+      
       try {
+          // Contexto completo
           const context = `NOTA (${selectedSpecialty}): ${generatedNote.clinicalNote}\n\nINSTRUCCIONES ACTUALES: ${editableInstructions}`;
-          const reply = await GeminiMedicalService.chatWithContext(context, userMsg);
-          setChatMessages(prev => [...prev, { role: 'ai', text: reply }]);
-      } catch (error) { toast.error("Error en el chat"); } finally { setIsChatting(false); }
+          
+          // 2. Llamada al servicio pasando el historial (chatMessages)
+          const reply = await GeminiMedicalService.chatWithContext(context, chatMessages, userMsg);
+          
+          // 3. Respuesta de la IA con rol 'model'
+          setChatMessages(prev => [...prev, { role: 'model', text: reply }]);
+      } catch (error) { 
+          console.error(error);
+          toast.error("Error en el chat"); 
+      } finally { 
+          setIsChatting(false); 
+      }
   };
 
   const handleOpenAppointmentModal = () => {
@@ -246,7 +264,6 @@ const ConsultationView: React.FC = () => {
     try {
         const blob = await pdf(
             <PrescriptionPDF 
-                // BLINDAJE: Mismos valores por defecto
                 doctorName={doctorProfile.full_name || 'Dr. Desconocido'} 
                 specialty={doctorProfile.specialty || 'Medicina General'}
                 license={doctorProfile.license_number || ''} 
@@ -397,7 +414,7 @@ const ConsultationView: React.FC = () => {
 
                     {/* PACIENTE */}
                     {activeTab === 'patient' && (
-                         <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col h-full">
+                          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col h-full">
                             <div className="flex justify-between items-center mb-4 border-b dark:border-slate-700 pb-2 shrink-0">
                                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Share2 className="text-brand-teal"/> Indicaciones</h3>
                                 <div className="flex gap-2">
@@ -413,7 +430,7 @@ const ConsultationView: React.FC = () => {
                                     <FormattedText content={editableInstructions} />
                                 )}
                             </div>
-                         </div>
+                          </div>
                     )}
 
                     {/* CHAT IA */}
