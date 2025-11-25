@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 interface AuthProps {
   authService: any;
   onLoginSuccess: () => void;
-  // Props para comunicación con App.tsx
   forceResetMode?: boolean;
   onPasswordResetSuccess?: () => void;
 }
@@ -34,14 +33,12 @@ const AuthView: React.FC<AuthProps> = ({
     termsAccepted: false 
   });
 
-  // Detectar cambios desde el padre (App.tsx)
   useEffect(() => {
     if (forceResetMode) {
       setIsResettingPassword(true);
     }
   }, [forceResetMode]);
 
-  // --- MANEJO DE LOGIN Y REGISTRO ---
   const handleAuth = async (e: React.FormEvent) => {
     e.preventDefault();
     if (isRegistering && !formData.termsAccepted) {
@@ -79,7 +76,6 @@ const AuthView: React.FC<AuthProps> = ({
     }
   };
 
-  // --- SOLICITUD DE RECUPERACIÓN ---
   const handleRecoveryRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -98,7 +94,6 @@ const AuthView: React.FC<AuthProps> = ({
     }
   };
 
-  // --- ACTUALIZAR CONTRASEÑA ---
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
@@ -122,7 +117,6 @@ const AuthView: React.FC<AuthProps> = ({
     }
   };
 
-  // --- FEEDBACK VISUAL ---
   if (verificationSent) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 animate-fade-in-up">
@@ -151,7 +145,6 @@ const AuthView: React.FC<AuthProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans">
-      {/* --- PANEL IZQUIERDO (RESTAURADO) --- */}
       <div className="hidden lg:flex lg:w-1/2 bg-slate-900 text-white flex-col justify-center p-12 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80')] bg-cover bg-center"></div>
         <div className="relative z-10 max-w-lg">
@@ -166,7 +159,6 @@ const AuthView: React.FC<AuthProps> = ({
           <h2 className="text-3xl font-bold mb-4 leading-tight">El asistente clínico inteligente para médicos modernos.</h2>
           <p className="text-slate-400 text-lg">Automatice sus notas clínicas, gestione su agenda y recupere su tiempo con el poder de la IA.</p>
           
-          {/* BLOQUE RESTAURADO: INDICADORES DE CONFIANZA */}
           <div className="mt-12 flex gap-8">
             <div className="flex flex-col gap-2">
                 <span className="text-2xl font-bold text-brand-teal">NOM-004</span>
@@ -181,16 +173,12 @@ const AuthView: React.FC<AuthProps> = ({
                 <span className="text-sm text-slate-400">Seguro y Privado</span>
             </div>
           </div>
-          {/* FIN BLOQUE RESTAURADO */}
-
         </div>
       </div>
 
-      {/* --- PANEL DERECHO (FORMULARIO LÓGICO V3.0) --- */}
       <div className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md space-y-8 animate-fade-in-up">
           
-          {/* MODO: NUEVA CONTRASEÑA */}
           {isResettingPassword ? (
              <>
                <div className="text-center">
@@ -212,7 +200,6 @@ const AuthView: React.FC<AuthProps> = ({
               </form>
              </>
           ) : isRecovering ? (
-             /* MODO: SOLICITUD DE RECUPERACIÓN */
              <>
                <div className="text-center lg:text-left">
                 <button onClick={() => setIsRecovering(false)} className="mb-4 text-slate-500 hover:text-slate-700 flex items-center gap-2 text-sm font-medium transition-colors"><ArrowLeft size={16} /> Volver</button>
@@ -233,7 +220,6 @@ const AuthView: React.FC<AuthProps> = ({
               </form>
              </>
           ) : (
-             /* MODO: LOGIN NORMAL */
              <>
                 <div className="text-center lg:text-left">
                   <h2 className="text-3xl font-bold text-slate-900">{isRegistering ? 'Alta de Médico' : 'Bienvenido de nuevo'}</h2>
@@ -263,7 +249,10 @@ const AuthView: React.FC<AuthProps> = ({
              </>
           )}
 
-          <div className="mt-8 pt-6 border-t border-slate-100 text-center text-xs text-slate-400">&copy; 2025 MediScribe AI. Desarrollado por Pixel Art Studio.</div>
+          {/* CORRECCIÓN: PIE DE PÁGINA CON NOMBRE CORRECTO Y VERSIÓN */}
+          <div className="mt-8 pt-6 border-t border-slate-100 text-center text-xs text-slate-400">
+            &copy; {new Date().getFullYear()} MediScribe AI <span className="text-slate-300">v2.1</span>. Desarrollado por <span className="font-bold text-slate-500">PixelArte Studio</span>.
+          </div>
         </div>
       </div>
     </div>
