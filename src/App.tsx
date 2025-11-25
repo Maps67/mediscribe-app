@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
+import { Session } from '@supabase/supabase-js'; // IMPORTANTE: Tipado oficial
 import { supabase } from './lib/supabase';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from './context/ThemeContext';
 
+// Components & Pages
 import Sidebar from './components/Sidebar';
 import ConsultationView from './components/ConsultationView';
 import DigitalCard from './components/DigitalCard';
@@ -18,13 +20,21 @@ import ReloadPrompt from './components/ReloadPrompt';
 import SplashScreen from './components/SplashScreen';
 import MobileTabBar from './components/MobileTabBar';
 
-const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session }) => {
+// INTERFACES ESTRICTAS
+interface MainLayoutProps {
+  session: Session | null;
+  onLogout: () => Promise<void>;
+}
+
+const MainLayout: React.FC<MainLayoutProps> = ({ session }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative">
       
       {/* SIDEBAR ESCRITORIO */}
+      {/* Nota de Arquitectura: Renderizamos condicionalmente en CSS. 
+          En un futuro, considera usar useMediaQuery para evitar montar el componente si no es desktop */}
       <div className="hidden md:flex z-20">
         <Sidebar isOpen={true} onClose={() => {}} />
       </div>
@@ -34,7 +44,7 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
 
       <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950">
         
-        <div className="flex-1 overflow-hidden h-full">
+        <div className="flex-1 overflow-hidden h-full pb-16 md:pb-0"> {/* Padding bottom para evitar que MobileTabBar tape contenido */}
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/consultation" element={<ConsultationView />} />
@@ -44,12 +54,16 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
             <Route path="/card" element={<DigitalCard />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
+            {/* Redirección por defecto */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
         </div>
 
         {/* BARRA INFERIOR MÓVIL */}
-        <MobileTabBar />
+        {/* Solo visible en móvil vía CSS interno del componente, pero aquí lo aseguramos semánticamente */}
+        <div className="md:hidden">
+          <MobileTabBar />
+        </div>
 
       </main>
     </div>
@@ -57,45 +71,67 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
 };
 
 const App: React.FC = () => {
-  const [session, setSession] = useState<any>(null);
+  // TIPADO ESTRICTO: Ya no usamos 'any'
+  const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   
-  // NUEVO: Estado para detectar si el usuario viene de "Recuperar Contraseña"
+  // Estado para detectar flujo crítico de recuperación
   const [isRecoveryFlow, setIsRecoveryFlow] = useState(false);
 
   useEffect(() => {
-    // 1. Obtener sesión inicial
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setSession(session);
-      setLoading(false);
-    });
+    let mounted = true;
 
-    // 2. Escuchar eventos de autenticación (Login, Logout, Recuperación)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
-      console.log("Auth Event:", event); // Log para depuración
+    // 1. Obtener sesión inicial
+    const initSession = async () => {
+      try {
+        const { data: { session: initialSession } } = await supabase.auth.getSession();
+        if (mounted) {
+          setSession(initialSession);
+          setLoading(false);
+        }
+      } catch (error) {
+        console.error('Error crítico al inicializar sesión:', error);
+      }
+    };
+
+    initSession();
+
+    // 2. Escuchar eventos de autenticación
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+      console.log("[Auth Security] Event:", event); 
+
+      if (!mounted) return;
 
       if (event === 'PASSWORD_RECOVERY') {
-        setIsRecoveryFlow(true); // ¡Activar bloqueo!
+        setIsRecoveryFlow(true);
       } else if (event === 'SIGNED_OUT') {
         setIsRecoveryFlow(false);
         setSession(null);
-      } else if (event === 'SIGNED_IN') {
-        setSession(session);
+      } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
+        setSession(newSession);
+        // Si acabamos de loguearnos, aseguramos que el flag de recuperación se apague
+        setIsRecoveryFlow(false); 
       }
       
-      setSession(session);
       setLoading(false);
     });
 
-    const timer = setTimeout(() => setShowSplash(false), 2500);
-    return () => { subscription.unsubscribe(); clearTimeout(timer); };
+    const splashTimer = setTimeout(() => {
+      if (mounted) setShowSplash(false);
+    }, 2500);
+
+    return () => { 
+      mounted = false;
+      subscription.unsubscribe(); 
+      clearTimeout(splashTimer); 
+    };
   }, []);
 
   if (showSplash) return <ThemeProvider><SplashScreen /></ThemeProvider>;
 
-  // LÓGICA MAESTRA DE PROTECCIÓN:
-  // Si no hay sesión O estamos en flujo de recuperación -> Mostramos AuthView
+  // PROTECCIÓN DE RUTAS: 
+  // Si no hay sesión o estamos recuperando contraseña, forzamos AuthView
   if (!session || isRecoveryFlow) {
     return (
       <ThemeProvider>
@@ -103,11 +139,10 @@ const App: React.FC = () => {
         <ReloadPrompt />
         <AuthView 
           authService={{ supabase }} 
-          onLoginSuccess={() => {}} 
-          forceResetMode={isRecoveryFlow} // Avisamos a AuthView que muestre el form de "Nueva Password"
+          onLoginSuccess={() => { /* La redirección la maneja el useEffect 'SIGNED_IN' */ }} 
+          forceResetMode={isRecoveryFlow}
           onPasswordResetSuccess={() => {
-             setIsRecoveryFlow(false); // Desbloqueamos la App tras el éxito
-             // Opcional: window.location.reload(); para limpiar estados
+             setIsRecoveryFlow(false);
           }}
         />
       </ThemeProvider>
@@ -116,11 +151,17 @@ const App: React.FC = () => {
 
   return (
     <ThemeProvider>
-        <BrowserRouter>
+      <BrowserRouter>
         <Toaster position="top-center" richColors closeButton />
         <ReloadPrompt />
-        <MainLayout session={session} onLogout={async () => await supabase.auth.signOut()} />
-        </BrowserRouter>
+        <MainLayout 
+          session={session} 
+          onLogout={async () => {
+            const { error } = await supabase.auth.signOut();
+            if (error) console.error("Error al cerrar sesión:", error);
+          }} 
+        />
+      </BrowserRouter>
     </ThemeProvider>
   );
 };
