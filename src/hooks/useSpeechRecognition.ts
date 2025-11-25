@@ -6,56 +6,73 @@ interface IWindow extends Window {
 }
 
 export const useSpeechRecognition = () => {
-  // Estado UI
+  // --- ESTADOS ---
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
+  const [isAPISupported, setIsAPISupported] = useState(false); // NUEVO: Estado para el botón
   
-  // Refs
+  // --- REFS (Buffer Persistente) ---
   const recognitionRef = useRef<any>(null);
+  // finalTranscriptRef guarda todo el texto que la IA ya ha confirmado como final.
+  const finalTranscriptRef = useRef(''); 
   const isUserInitiatedStop = useRef(false);
-  
-  // Almacén de texto confirmado (Buffer Maestro)
-  const finalTranscriptRef = useRef('');
 
+  // --- FUNCIÓN: INICIALIZACIÓN Y EVENTOS ---
   const setupRecognition = useCallback(() => {
     const { webkitSpeechRecognition, SpeechRecognition } = window as unknown as IWindow;
     const SpeechRecognitionAPI = SpeechRecognition || webkitSpeechRecognition;
 
-    if (!SpeechRecognitionAPI) return null;
+    if (!SpeechRecognitionAPI) {
+      setIsAPISupported(false);
+      return null;
+    }
 
-    const recognition = new SpeechRecognitionAPI();
+    setIsAPISupported(true); // API detectada
     
-    // VOLVEMOS A TRUE: Confiamos en el filtrado por índice en lugar del reinicio forzado
-    recognition.continuous = true; 
+    const recognition = new SpeechRecognitionAPI();
+    recognition.continuous = true; // MANTENEMOS TRUE: Fundamental para la estabilidad en dictados largos
     recognition.interimResults = true;
     recognition.lang = 'es-MX';
+    recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
       setIsListening(true);
     };
 
-    // LÓGICA DE FILTRADO MATEMÁTICO (El corazón del fix)
+    // --- LÓGICA DE DEDUPLICACIÓN POR LONGITUD (FIX) ---
     recognition.onresult = (event: any) => {
-        let interimContent = '';
-
-        // TRUCO CLAVE: Usamos 'event.resultIndex'
-        // Esto le dice al bucle: "No leas todo desde el principio, lee solo lo nuevo".
-        for (let i = event.resultIndex; i < event.results.length; ++i) {
+        let currentInterim = '';
+        let fullFinalTextFromEvent = '';
+        
+        // 1. Recorrer todos los resultados que el navegador envía (desde 0)
+        for (let i = 0; i < event.results.length; ++i) {
           const result = event.results[i];
           
           if (result.isFinal) {
-            // Solo si Android confirma que la frase terminó, la guardamos
-            const prev = finalTranscriptRef.current;
-            const spacer = (prev && !prev.endsWith(' ')) ? ' ' : '';
-            finalTranscriptRef.current += spacer + result[0].transcript;
+            // Concatenar el texto final que el navegador ha acumulado
+            fullFinalTextFromEvent += result[0].transcript;
           } else {
-            // Si es provisional, lo guardamos temporalmente para mostrarlo
-            interimContent += result[0].transcript;
+            // Texto interino actual
+            currentInterim = result[0].transcript;
           }
         }
+        
+        // 2. DEDUPLICACIÓN: Comparamos longitudes
+        const currentConfirmedLength = finalTranscriptRef.current.length;
+        
+        if (fullFinalTextFromEvent.length > currentConfirmedLength) {
+            // Extraer solo la parte nueva que ha confirmado la API
+            const newlyConfirmedText = fullFinalTextFromEvent.substring(currentConfirmedLength);
+            
+            // Añadir el nuevo texto final. Aplicamos lógica de espaciado.
+            const prev = finalTranscriptRef.current;
+            const spacer = (prev && !prev.endsWith(' ') && newlyConfirmedText.length > 0) ? ' ' : '';
+            finalTranscriptRef.current += spacer + newlyConfirmedText;
+        }
 
-        // Renderizamos: Lo Final (Seguro) + Lo Interino (Borrador)
-        setTranscript(finalTranscriptRef.current + (interimContent ? ' ' + interimContent : ''));
+        // 3. Renderizar: Lo Final (Seguro) + Lo Interino (Borrador)
+        const displayInterim = currentInterim.trim() ? ' ' + currentInterim.trim() : '';
+        setTranscript(finalTranscriptRef.current + displayInterim);
     };
 
     recognition.onerror = (event: any) => {
@@ -64,24 +81,19 @@ export const useSpeechRecognition = () => {
         setIsListening(false);
         isUserInitiatedStop.current = true;
       }
-      // Ignoramos 'no-speech' para que el onend reinicie el servicio automáticamente
     };
 
     recognition.onend = () => {
-      // Si el navegador corta por silencio natural (después de mucho tiempo)
-      // y el usuario NO pidió parar, reiniciamos suavemente.
+      // BUCLE SUAVE DE REINICIO
       if (!isUserInitiatedStop.current) {
-          console.log("Reinicio automático por timeout del navegador...");
-          try {
-            recognition.start();
-          } catch (e) {
-            // Si falla, esperamos un poco antes de reintentar
-            setTimeout(() => {
-              if (!isUserInitiatedStop.current) {
-                  try { recognition.start(); } catch(e){}
-              }
-            }, 500);
-          }
+         console.log("Reinicio automático por timeout del navegador...");
+         try {
+           recognition.start();
+         } catch (e) {
+           setTimeout(() => {
+             if (!isUserInitiatedStop.current) recognition.start();
+           }, 500);
+         }
       } else {
         setIsListening(false);
       }
@@ -90,16 +102,14 @@ export const useSpeechRecognition = () => {
     return recognition;
   }, []);
 
-  // --- CONTROLES ---
+  // --- MÉTODOS PÚBLICOS ---
 
   const startListening = useCallback(() => {
-    finalTranscriptRef.current = ''; // Limpiar buffer al iniciar nueva sesión
+    finalTranscriptRef.current = '';
     setTranscript('');
     isUserInitiatedStop.current = false;
     
-    if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch(e){}
-    }
+    if (recognitionRef.current) recognitionRef.current.stop();
 
     const recognition = setupRecognition();
     if (recognition) {
@@ -113,11 +123,8 @@ export const useSpeechRecognition = () => {
   }, [setupRecognition]);
 
   const stopListening = useCallback(() => {
-    isUserInitiatedStop.current = true; // Bandera manual
-    if (recognitionRef.current) {
-        try { recognitionRef.current.stop(); } catch(e){}
-    }
-    // Al parar, aseguramos que se muestre lo último confirmado
+    isUserInitiatedStop.current = true;
+    if (recognitionRef.current) recognitionRef.current.stop();
     setTranscript(finalTranscriptRef.current);
     setIsListening(false);
   }, []);
@@ -132,15 +139,14 @@ export const useSpeechRecognition = () => {
       setTranscript(text);
   }, []);
 
-  // Cleanup
+  // Inicialización del hook al montar
   useEffect(() => {
-      return () => {
-          isUserInitiatedStop.current = true;
-          if (recognitionRef.current) {
-              try { recognitionRef.current.stop(); } catch(e){}
-          }
-      };
-  }, []);
+    setupRecognition();
+    return () => {
+        isUserInitiatedStop.current = true;
+        if (recognitionRef.current) recognitionRef.current.stop();
+    };
+  }, [setupRecognition]);
 
   return { 
     isListening, 
@@ -148,6 +154,7 @@ export const useSpeechRecognition = () => {
     startListening, 
     stopListening, 
     resetTranscript, 
-    setTranscript: setTranscriptManual 
+    setTranscript: setTranscriptManual,
+    isAPISupported // <--- EXPORTADO PARA HABILITAR EL BOTÓN
   };
 };

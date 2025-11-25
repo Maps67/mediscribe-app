@@ -4,7 +4,10 @@ import {
   Calendar as CalendarIcon, X, Clock, MessageSquare, User, Send, 
   Edit2, Check, ArrowLeft, AlertTriangle, Stethoscope, AlertCircle, Trash2 
 } from 'lucide-react';
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+
+// CAMBIO CRÍTICO 1: Extraemos isAPISupported del hook
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
+
 import { GeminiMedicalService, ChatMessage } from '../services/GeminiMedicalService';
 import { supabase } from '../lib/supabase';
 import { Patient, GeminiResponse, DoctorProfile } from '../types';
@@ -13,6 +16,7 @@ import { toast } from 'sonner';
 import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
 import { AppointmentService } from '../services/AppointmentService';
+import QuickRxModal from './QuickRxModal'; // Importamos el modal de receta
 
 type TabType = 'record' | 'patient' | 'chat';
 
@@ -29,8 +33,8 @@ const SPECIALTIES = [
 ];
 
 const ConsultationView: React.FC = () => {
-  // --- HOOKS & STATE ---
-  const { isListening, transcript, startListening, stopListening, resetTranscript, setTranscript } = useSpeechRecognition();
+  // CAMBIO CRÍTICO 2: Extracción de isAPISupported
+  const { isListening, transcript, startListening, stopListening, resetTranscript, setTranscript, isAPISupported } = useSpeechRecognition();
   
   // Estado de Datos
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -56,6 +60,9 @@ const ConsultationView: React.FC = () => {
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [nextApptDate, setNextApptDate] = useState('');
 
+  // Nuevo estado para el Modal de Receta
+  const [isQuickRxModalOpen, setIsQuickRxModalOpen] = useState(false); 
+  
   // Chat IA
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
@@ -102,7 +109,7 @@ const ConsultationView: React.FC = () => {
     }
 
     return () => { mounted = false; };
-  }, []);
+  }, [setTranscript]); // Añadimos setTranscript como dependencia por si acaso.
 
   // 2. Auto-Scroll & Auto-Save
   useEffect(() => { 
@@ -112,6 +119,8 @@ const ConsultationView: React.FC = () => {
     // Backup en SessionStorage (Persistencia ante refresh accidental)
     if (transcript) {
         sessionStorage.setItem('mediscribe_draft_transcript', transcript);
+    } else {
+        sessionStorage.removeItem('mediscribe_draft_transcript');
     }
   }, [transcript, isListening]);
 
@@ -149,6 +158,18 @@ const ConsultationView: React.FC = () => {
       }
   };
 
+  // NUEVO HANDLER: Abrir modal de Receta Rápida (Botón)
+  const handleQuickRx = () => {
+    if (!selectedPatient) {
+        toast.error("Seleccione un paciente para la receta.");
+        return;
+    }
+    // Si ya hay un transcript, lo usamos, si no, iniciamos la grabación (Opción A)
+    // O simplemente abrimos el modal para que el usuario dicte allí (Opción B)
+    // Usaremos Opción B para que la dictación ocurra DENTRO del modal
+    setIsQuickRxModalOpen(true);
+  };
+
   const handleGenerate = async () => {
     if (!transcript) { toast.error("No hay audio para analizar."); return; }
     if (!consentGiven) { toast.warning("Confirme consentimiento del paciente."); return; }
@@ -161,8 +182,6 @@ const ConsultationView: React.FC = () => {
     toast.info(`Analizando como: ${selectedSpecialty}...`);
     
     try {
-      // Nota: GeminiMedicalService debe ser actualizado para aceptar signal si queremos cancelación real a nivel de fetch
-      // Por ahora, simulamos la gestión del estado en el frontend.
       const response = await GeminiMedicalService.generateClinicalNote(transcript, selectedSpecialty);
       
       setGeneratedNote(response);
@@ -441,212 +460,236 @@ const ConsultationView: React.FC = () => {
                     {isProcessing ? 'Analizando...' : 'Generar'}
                 </button>
             </div>
+
+            {/* BOTÓN EXTRA: RECETA RÁPIDA */}
+            <div className='w-full mt-2'>
+                {/* CAMBIO CRÍTICO: Usamos isAPISupported para habilitar el botón */}
+                <button 
+                    onClick={handleQuickRx} 
+                    // El botón está inactivo si no hay paciente seleccionado O si la API de voz no está disponible.
+                    disabled={!selectedPatient || !isAPISupported} 
+                    className='w-full py-2 rounded-xl text-brand-teal font-bold border border-brand-teal/50 hover:bg-teal-50 dark:hover:bg-teal-900/20 transition-colors disabled:opacity-50 disabled:cursor-not-allowed disabled:border-slate-300 dark:disabled:border-slate-700'
+                >
+                   <Mic size={16} className='inline mr-2' /> Nueva Receta por Voz
+                </button>
+            </div>
         </div>
       </div>
 
       {/* PANEL DERECHO: RESULTADOS */}
+      {/* ... (El resto del JSX que no fue modificado) ... */}
       <div className={`
           w-full md:w-2/3 bg-slate-100 dark:bg-slate-950 flex flex-col overflow-hidden border-l border-slate-200 dark:border-slate-800
           ${!generatedNote ? 'hidden md:flex' : 'flex h-full'}
       `}>
-         {/* TABS HEADER */}
-         <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 shadow-sm z-10 items-center">
-            <button onClick={() => setGeneratedNote(null)} className="md:hidden p-4 text-slate-500 hover:text-brand-teal border-r border-slate-100 dark:border-slate-800">
-                <ArrowLeft size={20} />
-            </button>
-            {[ 
-                {id: 'record', icon: FileText, label: 'EXPEDIENTE'}, 
-                {id: 'patient', icon: User, label: 'RECETA / PACIENTE'}, 
-                {id: 'chat', icon: MessageSquare, label: 'ASISTENTE IA'} 
-            ].map(tab => (
-                <button 
-                    key={tab.id} 
-                    onClick={() => setActiveTab(tab.id as TabType)} 
-                    disabled={!generatedNote && tab.id !== 'record'} // Deshabilitar tabs si no hay datos
-                    className={`flex-1 py-4 px-2 flex items-center justify-center gap-2 text-sm font-bold transition-all border-b-4 
-                    ${activeTab === tab.id 
-                        ? 'text-brand-teal border-brand-teal bg-teal-50/30 dark:bg-teal-900/20' 
-                        : 'text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed'
-                    }`}
-                >
-                    <tab.icon size={18}/> <span className="hidden sm:inline">{tab.label}</span>
-                </button>
-            ))}
-         </div>
+          {/* TABS HEADER */}
+          <div className="flex border-b border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 shadow-sm z-10 items-center">
+             <button onClick={() => setGeneratedNote(null)} className="md:hidden p-4 text-slate-500 hover:text-brand-teal border-r border-slate-100 dark:border-slate-800">
+                 <ArrowLeft size={20} />
+             </button>
+             {[ 
+                 {id: 'record', icon: FileText, label: 'EXPEDIENTE'}, 
+                 {id: 'patient', icon: User, label: 'RECETA / PACIENTE'}, 
+                 {id: 'chat', icon: MessageSquare, label: 'ASISTENTE IA'} 
+             ].map(tab => (
+                 <button 
+                     key={tab.id} 
+                     onClick={() => setActiveTab(tab.id as TabType)} 
+                     disabled={!generatedNote && tab.id !== 'record'} // Deshabilitar tabs si no hay datos
+                     className={`flex-1 py-4 px-2 flex items-center justify-center gap-2 text-sm font-bold transition-all border-b-4 
+                     ${activeTab === tab.id 
+                         ? 'text-brand-teal border-brand-teal bg-teal-50/30 dark:bg-teal-900/20' 
+                         : 'text-slate-500 dark:text-slate-400 border-transparent hover:bg-slate-50 dark:hover:bg-slate-800 disabled:opacity-50 disabled:cursor-not-allowed'
+                     }`}
+                 >
+                     <tab.icon size={18}/> <span className="hidden sm:inline">{tab.label}</span>
+                 </button>
+             ))}
+          </div>
 
-         <div className="flex-1 overflow-y-auto p-6 relative">
-            {!generatedNote ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-600 p-10 animate-fade-in-up select-none">
-                    <div className="bg-white dark:bg-slate-800 p-6 rounded-full shadow-sm mb-4">
-                        <FileText size={48} className="text-slate-300 dark:text-slate-500"/>
-                    </div>
-                    <h3 className="text-lg font-bold text-slate-600 dark:text-slate-300 mb-2">Esperando resultados...</h3>
-                    <p className="text-center text-sm max-w-md">
-                        1. Seleccione un paciente.<br/>
-                        2. Grabe la consulta.<br/>
-                        3. Genere la nota clínica con IA.
-                    </p>
-                </div>
-            ) : (
-                <div className="animate-fade-in-up h-full flex flex-col max-w-4xl mx-auto w-full">
-                    
-                    {/* DISCLAIMER MÉDICO */}
-                    <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 p-3 rounded-lg flex items-start gap-3 mb-4 shrink-0">
-                        <AlertTriangle className="text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" size={18} />
-                        <div>
-                            <p className="text-xs font-bold text-amber-800 dark:text-amber-200">Protocolo: {selectedSpecialty}</p>
-                            <p className="text-[10px] text-amber-700 dark:text-amber-300/80 mt-0.5 leading-snug">
-                                La IA sugiere una estructura basada en el audio. El profesional médico debe validar toda la información antes de guardar.
-                            </p>
-                        </div>
-                    </div>
+          <div className="flex-1 overflow-y-auto p-6 relative">
+             {!generatedNote ? (
+                 <div className="h-full flex flex-col items-center justify-center text-slate-400 dark:text-slate-600 p-10 animate-fade-in-up select-none">
+                     <div className="bg-white dark:bg-slate-800 p-6 rounded-full shadow-sm mb-4">
+                         <FileText size={48} className="text-slate-300 dark:text-slate-500"/>
+                     </div>
+                     <h3 className="text-lg font-bold text-slate-600 dark:text-slate-300 mb-2">Esperando resultados...</h3>
+                     <p className="text-center text-sm max-w-md">
+                         1. Seleccione un paciente.<br/>
+                         2. Grabe la consulta.<br/>
+                         3. Genere la nota clínica con IA.
+                     </p>
+                 </div>
+             ) : (
+                 <div className="animate-fade-in-up h-full flex flex-col max-w-4xl mx-auto w-full">
+                     
+                     {/* DISCLAIMER MÉDICO */}
+                     <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800/50 p-3 rounded-lg flex items-start gap-3 mb-4 shrink-0">
+                         <AlertTriangle className="text-amber-500 dark:text-amber-400 shrink-0 mt-0.5" size={18} />
+                         <div>
+                             <p className="text-xs font-bold text-amber-800 dark:text-amber-200">Protocolo: {selectedSpecialty}</p>
+                             <p className="text-[10px] text-amber-700 dark:text-amber-300/80 mt-0.5 leading-snug">
+                                 La IA sugiere una estructura basada en el audio. El profesional médico debe validar toda la información antes de guardar.
+                             </p>
+                         </div>
+                     </div>
 
-                    {/* VISTA: EXPEDIENTE (SOAP) */}
-                    {activeTab === 'record' && (
-                        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col h-full">
-                            <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2 border-b dark:border-slate-700 pb-2">
-                                <FileText className="text-brand-teal"/> Nota Clínica Estructurada
-                            </h3>
-                            
-                            <div className="dark:text-slate-300 flex-1 overflow-y-auto pr-2">
-                                {generatedNote.clinicalNote ? (
-                                    <FormattedText content={generatedNote.clinicalNote} />
-                                ) : (
-                                    <div className="flex flex-col items-center justify-center py-8 text-slate-400">
-                                        <AlertCircle size={32} className="mb-2 opacity-50"/>
-                                        <p className="text-sm font-medium">Información insuficiente.</p>
-                                    </div>
-                                )}
-                            </div>
+                     {/* VISTA: EXPEDIENTE (SOAP) */}
+                     {activeTab === 'record' && (
+                         <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col h-full">
+                             <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2 border-b dark:border-slate-700 pb-2">
+                                 <FileText className="text-brand-teal"/> Nota Clínica Estructurada
+                             </h3>
+                             
+                             <div className="dark:text-slate-300 flex-1 overflow-y-auto pr-2">
+                                 {generatedNote.clinicalNote ? (
+                                     <FormattedText content={generatedNote.clinicalNote} />
+                                 ) : (
+                                     <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                                         <AlertCircle size={32} className="mb-2 opacity-50"/>
+                                         <p className="text-sm font-medium">Información insuficiente.</p>
+                                     </div>
+                                 )}
+                             </div>
 
-                            <div className="flex flex-wrap gap-3 justify-end pt-6 mt-6 border-t border-slate-100 dark:border-slate-800 shrink-0">
-                                <button onClick={handleOpenAppointmentModal} className="bg-indigo-600 text-white px-4 py-3 rounded-lg font-bold shadow-md hover:bg-indigo-700 flex items-center gap-2 transition-transform active:scale-95">
-                                    <CalendarIcon size={18} /> Agendar Cita
-                                </button>
-                                <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-lg font-bold shadow-md hover:bg-teal-600 flex items-center gap-2 transition-transform active:scale-95 disabled:opacity-70 disabled:cursor-wait">
-                                    {isSaving ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>} 
-                                    {isSaving ? 'Guardando...' : 'Finalizar y Guardar'}
-                                </button>
-                            </div>
-                        </div>
-                    )}
+                             <div className="flex flex-wrap gap-3 justify-end pt-6 mt-6 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                                 <button onClick={handleOpenAppointmentModal} className="bg-indigo-600 text-white px-4 py-3 rounded-lg font-bold shadow-md hover:bg-indigo-700 flex items-center gap-2 transition-transform active:scale-95">
+                                     <CalendarIcon size={18} /> Agendar Cita
+                                 </button>
+                                 <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-lg font-bold shadow-md hover:bg-teal-600 flex items-center gap-2 transition-transform active:scale-95 disabled:opacity-70 disabled:cursor-wait">
+                                     {isSaving ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>} 
+                                     {isSaving ? 'Guardando...' : 'Finalizar y Guardar'}
+                                 </button>
+                             </div>
+                         </div>
+                     )}
 
-                    {/* VISTA: PACIENTE / RECETA */}
-                    {activeTab === 'patient' && (
-                          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col h-full">
-                            <div className="flex justify-between items-center mb-4 border-b dark:border-slate-700 pb-2 shrink-0 flex-wrap gap-2">
-                                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                                    <Share2 className="text-brand-teal"/> Plan y Receta
-                                </h3>
-                                <div className="flex gap-2">
-                                    <button 
-                                        onClick={() => setIsEditingInstructions(!isEditingInstructions)} 
-                                        className={`p-2 rounded transition-colors flex gap-2 items-center text-sm font-bold ${isEditingInstructions ? 'bg-green-100 text-green-700' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`} 
-                                        title={isEditingInstructions ? "Guardar edición" : "Editar texto"}
-                                    >
-                                        {isEditingInstructions ? <Check size={16}/> : <Edit2 size={16}/>}
-                                        <span className="hidden sm:inline">{isEditingInstructions ? 'Terminar' : 'Editar'}</span>
-                                    </button>
-                                    
-                                    <button onClick={handleShareWhatsApp} className="p-2 bg-green-500 hover:bg-green-600 text-white rounded flex gap-2 items-center text-sm font-bold shadow-sm transition-colors" title="Enviar WhatsApp">
-                                        <Send size={16} /> <span className="hidden sm:inline">WhatsApp</span>
-                                    </button>
-                                    
-                                    <button onClick={handlePrint} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-400 flex gap-1 items-center text-sm font-medium border border-slate-200 dark:border-slate-700" title="Imprimir PDF">
-                                        <Printer size={16}/>
-                                    </button>
-                                </div>
-                            </div>
-                            
-                            <div className="flex-1 overflow-y-auto dark:text-slate-300">
-                                {isEditingInstructions ? (
-                                    <textarea 
-                                        className="w-full h-full p-4 border-2 border-brand-teal rounded-lg outline-none resize-none bg-slate-50 dark:bg-slate-800 dark:text-white font-mono text-sm focus:ring-2 focus:ring-teal-200 transition-all" 
-                                        value={editableInstructions} 
-                                        onChange={(e) => setEditableInstructions(e.target.value)} 
-                                        placeholder="Escriba aquí las indicaciones..."
-                                    />
-                                ) : (
-                                    <div className="prose dark:prose-invert max-w-none">
-                                        <FormattedText content={editableInstructions} />
-                                    </div>
-                                )}
-                            </div>
-                          </div>
-                    )}
+                     {/* VISTA: PACIENTE / RECETA */}
+                     {activeTab === 'patient' && (
+                           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col h-full">
+                             <div className="flex justify-between items-center mb-4 border-b dark:border-slate-700 pb-2 shrink-0 flex-wrap gap-2">
+                                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                                     <Share2 className="text-brand-teal"/> Plan y Receta
+                                 </h3>
+                                 <div className="flex gap-2">
+                                     <button 
+                                         onClick={() => setIsEditingInstructions(!isEditingInstructions)} 
+                                         className={`p-2 rounded transition-colors flex gap-2 items-center text-sm font-bold ${isEditingInstructions ? 'bg-green-100 text-green-700' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`} 
+                                         title={isEditingInstructions ? "Guardar edición" : "Editar texto"}
+                                     >
+                                         {isEditingInstructions ? <Check size={16}/> : <Edit2 size={16}/>}
+                                         <span className="hidden sm:inline">{isEditingInstructions ? 'Terminar' : 'Editar'}</span>
+                                     </button>
+                                     
+                                     <button onClick={handleShareWhatsApp} className="p-2 bg-green-500 hover:bg-green-600 text-white rounded flex gap-2 items-center text-sm font-bold shadow-sm transition-colors" title="Enviar WhatsApp">
+                                         <Send size={16} /> <span className="hidden sm:inline">WhatsApp</span>
+                                     </button>
+                                     
+                                     <button onClick={handlePrint} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-400 flex gap-1 items-center text-sm font-medium border border-slate-200 dark:border-slate-700" title="Imprimir PDF">
+                                         <Printer size={16}/>
+                                     </button>
+                                 </div>
+                             </div>
+                             
+                             <div className="flex-1 overflow-y-auto dark:text-slate-300">
+                                 {isEditingInstructions ? (
+                                     <textarea 
+                                         className="w-full h-full p-4 border-2 border-brand-teal rounded-lg outline-none resize-none bg-slate-50 dark:bg-slate-800 dark:text-white font-mono text-sm focus:ring-2 focus:ring-teal-200 transition-all" 
+                                         value={editableInstructions} 
+                                         onChange={(e) => setEditableInstructions(e.target.value)} 
+                                         placeholder="Escriba aquí las indicaciones..."
+                                     />
+                                 ) : (
+                                     <div className="prose dark:prose-invert max-w-none">
+                                         <FormattedText content={editableInstructions} />
+                                     </div>
+                                 )}
+                             </div>
+                           </div>
+                     )}
 
-                    {/* VISTA: CHAT */}
-                    {activeTab === 'chat' && (
-                        <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
-                            <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950/50">
-                                {chatMessages.map((msg, i) => (
-                                    <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
-                                        <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-slate-800 dark:bg-brand-teal text-white rounded-br-none' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-bl-none shadow-sm'}`}>
-                                            <FormattedText content={msg.text} />
-                                        </div>
-                                    </div>
-                                ))}
-                                {isChatting && (
-                                    <div className="flex justify-start">
-                                        <div className="bg-slate-200 dark:bg-slate-800 p-3 rounded-2xl text-xs text-slate-500 dark:text-slate-400 animate-pulse">
-                                            Consultando literatura médica...
-                                        </div>
-                                    </div>
-                                )}
-                                <div ref={chatEndRef} />
-                            </div>
-                            <form onSubmit={handleChatSend} className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex gap-2">
-                                <input 
-                                    type="text" 
-                                    placeholder="Pregunte sobre interacciones, dosis o diagnósticos diferenciales..." 
-                                    className="flex-1 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-brand-teal dark:text-white transition-all text-sm" 
-                                    value={chatInput} 
-                                    onChange={e => setChatInput(e.target.value)} 
-                                    disabled={isChatting}
-                                />
-                                <button type="submit" disabled={!chatInput.trim() || isChatting} className="p-3 bg-brand-teal text-white rounded-xl hover:bg-teal-600 disabled:opacity-50 transition-colors">
-                                    <Send size={20}/>
-                                </button>
-                            </form>
-                        </div>
-                    )}
-                </div>
-            )}
-         </div>
+                     {/* VISTA: CHAT */}
+                     {activeTab === 'chat' && (
+                         <div className="flex flex-col h-full bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden">
+                             <div className="flex-1 overflow-y-auto p-4 space-y-4 bg-slate-50 dark:bg-slate-950/50">
+                                 {chatMessages.map((msg, i) => (
+                                     <div key={i} className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'}`}>
+                                         <div className={`max-w-[85%] p-3 rounded-2xl text-sm leading-relaxed ${msg.role === 'user' ? 'bg-slate-800 dark:bg-brand-teal text-white rounded-br-none' : 'bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-200 rounded-bl-none shadow-sm'}`}>
+                                             <FormattedText content={msg.text} />
+                                         </div>
+                                     </div>
+                                 ))}
+                                 {isChatting && (
+                                     <div className="flex justify-start">
+                                         <div className="bg-slate-200 dark:bg-slate-800 p-3 rounded-2xl text-xs text-slate-500 dark:text-slate-400 animate-pulse">
+                                             Consultando literatura médica...
+                                         </div>
+                                     </div>
+                                 )}
+                                 <div ref={chatEndRef} />
+                             </div>
+                             <form onSubmit={handleChatSend} className="p-3 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex gap-2">
+                                 <input 
+                                     type="text" 
+                                     placeholder="Pregunte sobre interacciones, dosis o diagnósticos diferenciales..." 
+                                     className="flex-1 p-3 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl outline-none focus:ring-2 focus:ring-brand-teal dark:text-white transition-all text-sm" 
+                                     value={chatInput} 
+                                     onChange={e => setChatInput(e.target.value)} 
+                                     disabled={isChatting}
+                                 />
+                                 <button type="submit" disabled={!chatInput.trim() || isChatting} className="p-3 bg-brand-teal text-white rounded-xl hover:bg-teal-600 disabled:opacity-50 transition-colors">
+                                     <Send size={20}/>
+                                 </button>
+                             </form>
+                         </div>
+                     )}
+                 </div>
+             )}
+          </div>
       </div>
 
-      {/* MODAL CITA */}
-      {isAppointmentModalOpen && (
-          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm animate-fade-in-up dark:border dark:border-slate-800">
-                  <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-                      <h3 className="font-bold text-slate-800 dark:text-white">Cita de Seguimiento</h3>
-                      <button onClick={() => setIsAppointmentModalOpen(false)}>
-                          <X size={20} className="text-slate-400 hover:text-red-500"/>
-                      </button>
-                  </div>
-                  <div className="p-6 space-y-4">
-                      <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                          <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold">Paciente</p>
-                          <p className="text-lg font-medium text-slate-800 dark:text-white">{selectedPatient?.name}</p>
-                      </div>
-                      <div>
-                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-2">
-                              <Clock size={16}/> Fecha y Hora
-                          </label>
-                          <input 
-                              type="datetime-local" 
-                              className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-indigo-500 dark:bg-slate-800 dark:text-white" 
-                              value={nextApptDate} 
-                              onChange={(e) => setNextApptDate(e.target.value)}
-                          />
-                      </div>
-                      <button onClick={handleConfirmAppointment} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-lg mt-2 transition-colors">
-                          Confirmar Cita
-                      </button>
-                  </div>
-              </div>
-          </div>
+      {/* MODAL CITA */}
+      {isAppointmentModalOpen && (
+          <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+              <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-sm animate-fade-in-up dark:border dark:border-slate-800">
+                  <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
+                      <h3 className="font-bold text-slate-800 dark:text-white">Cita de Seguimiento</h3>
+                      <button onClick={() => setIsAppointmentModalOpen(false)}>
+                          <X size={20} className="text-slate-400 hover:text-red-500"/>
+                      </button>
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <div className="bg-slate-50 dark:bg-slate-800 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                          <p className="text-xs text-slate-500 dark:text-slate-400 uppercase font-bold">Paciente</p>
+                          <p className="text-lg font-medium text-slate-800 dark:text-white">{selectedPatient?.name}</p>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1 flex items-center gap-2">
+                              <Clock size={16}/> Fecha y Hora
+                          </label>
+                          <input 
+                              type="datetime-local" 
+                              className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg outline-none focus:border-indigo-500 dark:bg-slate-800 dark:text-white" 
+                              value={nextApptDate} 
+                              onChange={(e) => setNextApptDate(e.target.value)}
+                          />
+                      </div>
+                      <button onClick={handleConfirmAppointment} className="w-full bg-indigo-600 text-white py-3 rounded-lg font-bold hover:bg-indigo-700 shadow-lg mt-2 transition-colors">
+                          Confirmar Cita
+                      </button>
+                  </div>
+              </div>
+          </div>
+      )}
+      {/* Nuevo Modal de Receta Rápida */}
+      {isQuickRxModalOpen && selectedPatient && doctorProfile && (
+          <QuickRxModal
+              isOpen={isQuickRxModalOpen}
+              onClose={() => setIsQuickRxModalOpen(false)}
+              initialTranscript={transcript} // Podemos pasar el transcript actual para reutilizar
+              patientName={selectedPatient.name}
+              doctorProfile={doctorProfile} // Pasamos el perfil del doctor para el PDF
+          />
       )}
     </div>
   );
