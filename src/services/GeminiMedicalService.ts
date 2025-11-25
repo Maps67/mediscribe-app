@@ -1,7 +1,7 @@
 // @ts-ignore
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-// --- DEFINICIONES LOCALES (Para no depender de archivos externos rotos) ---
+// --- DEFINICIONES LOCALES (Para evitar errores de importación) ---
 export interface GeminiResponse {
   clinicalNote: string;
   patientInstructions: string;
@@ -17,128 +17,140 @@ export interface FollowUpMessage {
   message: string;
 }
 
-// --- FUNCIÓN DE LIMPIEZA DE JSON (Anti-Errores) ---
-const cleanAndParseJSON = (rawText: string): any => {
-  try {
-    return JSON.parse(rawText);
-  } catch (e) {
-    // Si falla, intentamos extraer solo el bloque JSON usando Regex
-    const jsonMatch = rawText.match(/\{[\s\S]*\}/);
-    if (jsonMatch) {
-      try {
-        return JSON.parse(jsonMatch[0]);
-      } catch (e2) {
-        console.error("Fallo limpieza JSON:", rawText);
-        throw new Error("La IA devolvió un formato inválido.");
-      }
-    }
-    throw new Error("No se encontró JSON válido en la respuesta.");
-  }
-};
-
 export const GeminiMedicalService = {
 
-  // 1. RECETA RÁPIDA (Fetch Nativo - Indestructible)
-  async generateQuickRx(transcript: string, specialty: string = 'Medicina General'): Promise<string> {
-    if (!API_KEY) return "ERROR CRÍTICO: Falta API Key en .env";
-
+  // 1. AUTO-DESCUBRIMIENTO (EL RADAR QUE SOLUCIONA EL 404)
+  // Pregunta a Google qué modelo está vivo antes de intentar usarlo.
+  async getBestAvailableModel(): Promise<string> {
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `ERES UN EXPERTO EN ${specialty}. REDACTA UNA RECETA MÉDICA FORMAL.
-                DICTADO: "${transcript}"
-                SALIDA: Solo texto plano con medicamentos y dosis. Sin saludos.`
-              }]
-            }]
-          })
-        }
+      const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`;
+      const response = await fetch(listUrl);
+      
+      if (!response.ok) {
+          console.warn("Fallo el radar, usando modelo seguro por defecto.");
+          return "gemini-pro"; 
+      }
+      
+      const data = await response.json();
+      const validModels = (data.models || []).filter((m: any) => 
+        m.supportedGenerationMethods?.includes("generateContent")
       );
 
-      if (!response.ok) throw new Error(`Error HTTP: ${response.status}`);
-      const data = await response.json();
-      const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "Error en generación.";
+      if (validModels.length === 0) return "gemini-pro";
+
+      // Prioridad 1: Flash (Rápido)
+      const flashModel = validModels.find((m: any) => m.name.includes("flash"));
+      if (flashModel) return flashModel.name.replace('models/', '');
+
+      // Prioridad 2: Pro (Estándar)
+      const proModel = validModels.find((m: any) => m.name.includes("pro"));
+      if (proModel) return proModel.name.replace('models/', '');
+
+      // Prioridad 3: Lo que sea que haya
+      return validModels[0].name.replace('models/', '');
+
+    } catch (error) {
+      return "gemini-pro";
+    }
+  },
+
+  // 2. RECETA RÁPIDA (Conectada al Radar)
+  async generateQuickRx(transcript: string, specialty: string = 'Medicina General'): Promise<string> {
+    if (!API_KEY) return "ERROR: Falta API KEY.";
+
+    try {
+      // Paso 1: Usar el Radar
+      const modelName = await this.getBestAvailableModel();
+      console.log(`🤖 IA Conectada usando: ${modelName}`);
+
+      const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
       
+      const prompt = `
+        ACTÚA COMO: Asistente Médico experto en ${specialty}.
+        TAREA: Redactar receta formal basada en: "${transcript}"
+        SALIDA: Texto plano limpio. Sin saludos.
+      `;
+
+      const response = await fetch(URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+
+      if (!response.ok) throw new Error(`Error ${response.status} en modelo ${modelName}`);
+
+      const data = await response.json();
+      let text = data.candidates?.[0]?.content?.parts?.[0]?.text || "Error al generar.";
       return text.replace(/\*\*/g, "").replace(/#/g, "").trim();
 
     } catch (error: any) {
-      console.error("QuickRx Error:", error);
+      console.error("Error QuickRx:", error);
       return `Error: ${error.message}`;
     }
   },
 
-  // 2. CONSULTA COMPLETA (SOAP)
+  // 3. CONSULTA COMPLETA (Conectada al Radar)
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General"): Promise<GeminiResponse> {
-    if (!API_KEY) throw new Error("Falta configuración de API Key.");
+    if (!API_KEY) throw new Error("Falta API KEY.");
 
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{
-              parts: [{
-                text: `
-                  ACTÚA COMO MÉDICO ESPECIALISTA EN ${specialty}.
-                  ANALIZA ESTE DICTADO: "${transcript}"
-                  
-                  TU MISIÓN: Generar un objeto JSON válido.
-                  FORMATO ESTRICTO:
-                  {
-                    "clinicalNote": "Nota SOAP detallada",
-                    "patientInstructions": "Lista de indicaciones",
-                    "actionItems": {
-                      "next_appointment": null,
-                      "urgent_referral": false,
-                      "lab_tests_required": []
-                    }
-                  }
-                `
-              }]
-            }]
-          })
-        }
-      );
+      const modelName = await this.getBestAvailableModel();
+      const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
 
-      if (!response.ok) throw new Error(`Google API Error: ${response.status}`);
+      const prompt = `
+        ACTÚA COMO: Médico Especialista en ${specialty}.
+        ANALIZA: "${transcript}"
+        GENERA JSON ESTRICTO:
+        {
+          "clinicalNote": "Nota SOAP técnica.",
+          "patientInstructions": "Indicaciones claras.",
+          "actionItems": { "next_appointment": null, "urgent_referral": false, "lab_tests_required": [] }
+        }
+      `;
+
+      const response = await fetch(URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+
+      if (!response.ok) throw new Error(`Error ${response.status}`);
 
       const data = await response.json();
       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text;
+      
+      if (!rawText) throw new Error("IA vacía");
 
-      if (!rawText) throw new Error("Respuesta vacía de la IA");
-
-      // Usamos el limpiador blindado
-      return cleanAndParseJSON(rawText);
+      // Limpieza JSON
+      const cleanJson = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+      try {
+        return JSON.parse(cleanJson);
+      } catch (e) {
+        // Intento de rescate de JSON si falla el parseo directo
+        const match = cleanJson.match(/\{[\s\S]*\}/);
+        if (match) return JSON.parse(match[0]);
+        throw e;
+      }
 
     } catch (error: any) {
-      console.error("🔥 Error en Servicio IA:", error);
+      console.error("Error SOAP:", error);
       throw error;
     }
   },
 
-  // 3. CHAT
+  // 4. CHAT (Conectado al Radar)
   async chatWithContext(context: string, userMessage: string): Promise<string> {
-    if (!API_KEY) return "Error: Sin API Key";
     try {
-      const response = await fetch(
-        `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: `Contexto: ${context}. Pregunta: ${userMessage}` }] }]
-          })
-        }
-      );
+      const modelName = await this.getBestAvailableModel();
+      const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
+      
+      const response = await fetch(URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: `CTX: ${context}. USER: ${userMessage}` }] }] })
+      });
       const data = await response.json();
-      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Sin respuesta";
-    } catch (e) { return "Error de conexión"; }
+      return data.candidates?.[0]?.content?.parts?.[0]?.text || "Error.";
+    } catch (e) { return "Error chat."; }
   }
 };
