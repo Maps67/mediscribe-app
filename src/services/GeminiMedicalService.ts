@@ -1,10 +1,21 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
+// 1. OBTENCIÓN SEGURA DE LA CLAVE
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
 
-// Inicializamos Gemini
-const genAI = new GoogleGenerativeAI(API_KEY);
-const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+let model: any = null;
+
+// 2. INICIALIZACIÓN CONDICIONAL (Evita pantalla blanca si falta la key)
+if (API_KEY) {
+    try {
+        const genAI = new GoogleGenerativeAI(API_KEY);
+        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+    } catch (error) {
+        console.error("Error fatal al iniciar Gemini:", error);
+    }
+} else {
+    console.error("🚨 CRÍTICO: No se encontró VITE_GEMINI_API_KEY en el archivo .env");
+}
 
 // --- INTERFACES ---
 interface ConsultationResponse {
@@ -16,89 +27,91 @@ interface ConsultationResponse {
 export const GeminiMedicalService = {
   
   /**
-   * Genera una Receta Rápida (QuickRx) INTELIGENTE.
-   * AHORA: Interpreta, completa dosis estándar si faltan y agrega recomendaciones de seguridad.
-   * MANTIENE: Limpieza de saludos y datos del doctor (que ya están en el PDF).
+   * Módulo 1: RECETA RÁPIDA (QuickRx)
+   * Especializado en completar dosis y formatear para PDF.
    */
   async generateQuickRx(transcript: string, specialty: string = 'Medicina General'): Promise<string> {
+    // Verificaciones de Seguridad
+    if (!API_KEY) return "ERROR DE SISTEMA: Falta configurar la API KEY en el archivo .env. Contacte a soporte.";
+    if (!model) return "ERROR DE CONEXIÓN: El modelo de IA no está disponible. Verifique su internet.";
+
     try {
         const prompt = `
-        ACTÚA COMO: Un Asistente Médico Experto en ${specialty}.
+        ROL: Eres un Asistente Médico Experto en ${specialty}.
+        TAREA: Redactar una receta médica formal basada en este dictado: "${transcript}"
         
-        CONTEXTO:
-        El doctor ha dictado una orden rápida: "${transcript}"
-        Tu trabajo es redactar el cuerpo de la receta médica para imprimir en PDF.
+        INSTRUCCIONES CLÍNICAS (PROACTIVAS):
+        1. Identifica los medicamentos. Si el doctor omitió la dosis o frecuencia, SUGIERE la posología estándar segura.
+        2. Agrega recomendaciones breves de seguridad (ej: "Tomar con alimentos", "Hidratación").
         
-        OBJETIVO:
-        Transforma ese dictado breve en una prescripción profesional, completa y segura.
+        REGLAS DE FORMATO (PARA PDF):
+        - NO saludes ni te despidas.
+        - NO inventes nombre de doctor, fecha ni firma (ya existen en el papel).
+        - NO uses Markdown de títulos (#).
         
-        INSTRUCCIONES DE REDACCIÓN INTELIGENTE:
-        1. DETECTA el medicamento. Si el doctor no dijo la dosis o frecuencia, SUGIERE la posología estándar para un adulto (ej: Paracetamol -> 500mg c/8h).
-        2. AGREGA recomendaciones breves de seguridad o farmacovigilancia (ej: "No exceder dosis", "Tomar con alimentos", "Hidratación").
-        3. USA un lenguaje técnico pero claro para el paciente.
+        SALIDA ESPERADA:
+        [Nombre Medicamento] [Concentración] [Forma]
+        Indicación: [Dosis, Frecuencia, Duración]
         
-        REGLAS DE FORMATO (ESTRICTAS):
-        - NO pongas saludos, ni despedidas ("Hola", "Aquí está").
-        - NO inventes datos del doctor, ni fecha, ni firma (El PDF ya tiene membrete).
-        - NO uses Markdown de títulos (como # o ##). Usa mayúsculas o negritas simples si es necesario.
-        
-        ESTRUCTURA ESPERADA DE SALIDA:
-        [Nombre Medicamento] [Concentración] [Forma Farmacéutica]
-        Indicación: [Instrucciones detalladas de toma]
-        
-        Notas/Recomendaciones:
-        - [Consejo práctico 1]
-        - [Consejo de seguridad o alarma]
+        Notas:
+        - [Recomendación 1]
+        - [Recomendación 2]
         `;
 
         const result = await model.generateContent(prompt);
         const response = result.response;
         let text = response.text();
 
-        // Limpieza de seguridad post-IA
-        text = text.replace(/#/g, "").replace(/---/g, ""); // Quitar markdown de títulos grandes
-        text = text.replace(/\[.*?\]/g, (match) => match); // Respetar corchetes si la IA los usa para dosis
-        
+        // Limpieza final
+        text = text.replace(/#/g, "").replace(/\*\*/g, "").replace(/---/g, ""); 
         return text.trim();
 
-    } catch (error) {
-        console.error("Error generando QuickRx:", error);
-        return "Error al generar la receta. Por favor, revise el dictado.";
+    } catch (error: any) {
+        console.error("❌ Error en QuickRx:", error);
+        return `ERROR AL PROCESAR: ${error.message || "Intente dictar nuevamente."}`;
     }
   },
 
   /**
-   * Genera la Consulta Completa (SOAP + Receta + Recomendaciones).
+   * Módulo 2: CONSULTA COMPLETA (SOAP)
+   * Genera el expediente completo.
    */
   async generateConsultationNote(transcript: string, specialty: string): Promise<ConsultationResponse> {
+    // Verificaciones de Seguridad
+    if (!API_KEY) {
+        return {
+            soapNote: "ERROR CRÍTICO: Falta API Key.",
+            prescription: "No se puede generar receta sin API Key.",
+            recommendations: "Verifique archivo .env"
+        };
+    }
+
     try {
       const prompt = `
-        Eres un asistente médico experto en ${specialty}.
-        Analiza la siguiente transcripción de una consulta médica:
-        "${transcript}"
+        Experto en ${specialty}. Analiza este audio transcrito: "${transcript}"
 
-        Genera un objeto JSON ESTRICTO con la siguiente estructura (sin bloques de código, solo el JSON):
+        Genera un JSON ESTRICTO con esta estructura:
         {
-          "soapNote": "Redacta la nota clínica en formato SOAP (Subjetivo, Objetivo, Análisis, Plan). Formal y profesional.",
-          "prescription": "SOLO el listado de medicamentos e indicaciones de toma. Completa con dosis estándar si no se mencionan explícitamente.",
-          "recommendations": "Recomendaciones no farmacológicas (dieta, ejercicios, alarmas) claras para el paciente."
+          "soapNote": "Nota clínica SOAP completa y formal.",
+          "prescription": "Listado de medicamentos con dosis corregidas y claras.",
+          "recommendations": "Recomendaciones no farmacológicas (dieta, alarmas, cuidados)."
         }
       `;
 
       const result = await model.generateContent(prompt);
       const response = result.response;
-      const text = response.text();
+      let text = response.text();
 
-      // Limpiar el texto para asegurar que sea JSON válido
-      const cleanJson = text.replace(/```json/g, "").replace(/```/g, "").trim();
+      // Limpieza agresiva para evitar errores de JSON
+      text = text.replace(/```json/g, "").replace(/```/g, "").trim();
       
-      return JSON.parse(cleanJson);
+      return JSON.parse(text);
 
-    } catch (error) {
-      console.error("Error en Gemini Full Consult:", error);
+    } catch (error: any) {
+      console.error("❌ Error en FullConsult:", error);
       return {
-        soapNote: "Error al generar nota. Revise la transcripción.",
-        prescription: "Error al generar receta.",
+        soapNote: `Error al generar la nota: ${error.message}`,
+        prescription: "Intente generar la receta manualmente o verifique su conexión.",
         recommendations: "No disponibles."
       };
     }
