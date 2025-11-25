@@ -9,7 +9,7 @@ export const useSpeechRecognition = () => {
   // --- ESTADOS ---
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [isAPISupported, setIsAPISupported] = useState(false); // NUEVO: Estado para el botón
+  const [isAPISupported, setIsAPISupported] = useState(false); // Bandera para el botón
   
   // --- REFS (Buffer Persistente) ---
   const recognitionRef = useRef<any>(null);
@@ -27,10 +27,10 @@ export const useSpeechRecognition = () => {
       return null;
     }
 
-    setIsAPISupported(true); // API detectada
+    setIsAPISupported(true); // API detectada y soportada
     
     const recognition = new SpeechRecognitionAPI();
-    recognition.continuous = true; // MANTENEMOS TRUE: Fundamental para la estabilidad en dictados largos
+    recognition.continuous = true; // MANTENEMOS TRUE: Para estabilidad y evitar cortes abruptos
     recognition.interimResults = true;
     recognition.lang = 'es-MX';
     recognition.maxAlternatives = 1;
@@ -39,7 +39,7 @@ export const useSpeechRecognition = () => {
       setIsListening(true);
     };
 
-    // --- LÓGICA DE DEDUPLICACIÓN POR LONGITUD (FIX) ---
+    // --- LÓGICA DE DEDUPLICACIÓN POR LONGITUD (FIX CRÍTICO) ---
     recognition.onresult = (event: any) => {
         let currentInterim = '';
         let fullFinalTextFromEvent = '';
@@ -49,10 +49,9 @@ export const useSpeechRecognition = () => {
           const result = event.results[i];
           
           if (result.isFinal) {
-            // Concatenar el texto final que el navegador ha acumulado
             fullFinalTextFromEvent += result[0].transcript;
           } else {
-            // Texto interino actual
+            // Nota: Aquí se asume que solo hay un resultado interino
             currentInterim = result[0].transcript;
           }
         }
@@ -86,14 +85,14 @@ export const useSpeechRecognition = () => {
     recognition.onend = () => {
       // BUCLE SUAVE DE REINICIO
       if (!isUserInitiatedStop.current) {
-         console.log("Reinicio automático por timeout del navegador...");
-         try {
-           recognition.start();
-         } catch (e) {
-           setTimeout(() => {
-             if (!isUserInitiatedStop.current) recognition.start();
-           }, 500);
-         }
+          console.log("Reinicio automático por timeout del navegador...");
+          try {
+            recognition.start();
+          } catch (e) {
+            setTimeout(() => {
+              if (!isUserInitiatedStop.current) recognition.start();
+            }, 500);
+          }
       } else {
         setIsListening(false);
       }
@@ -155,6 +154,6 @@ export const useSpeechRecognition = () => {
     stopListening, 
     resetTranscript, 
     setTranscript: setTranscriptManual,
-    isAPISupported // <--- EXPORTADO PARA HABILITAR EL BOTÓN
+    isAPISupported 
   };
 };
