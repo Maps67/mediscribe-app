@@ -1,16 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import { Calendar, dateFnsLocalizer, ToolbarProps, EventProps } from 'react-big-calendar';
-import format from 'date-fns/format';
-import parse from 'date-fns/parse';
-import startOfWeek from 'date-fns/startOfWeek';
-import getDay from 'date-fns/getDay';
-import es from 'date-fns/locale/es';
+// CORRECCIÓN DE IMPORTACIONES DATE-FNS
+import { format, parse, startOfWeek, getDay } from 'date-fns';
+import { es } from 'date-fns/locale';
 import 'react-big-calendar/lib/css/react-big-calendar.css';
 import { AppointmentService } from '../services/AppointmentService';
 import { Appointment, Patient } from '../types';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-import { Plus, X, Calendar as CalendarIcon, User, Smartphone, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
+import { Plus, X, Calendar as CalendarIcon, Smartphone, Trash2, ChevronLeft, ChevronRight } from 'lucide-react';
 import './CalendarDarkOverrides.css';
 import { generateGoogleCalendarUrl, downloadIcsFile } from '../utils/calendarUtils';
 
@@ -133,9 +131,7 @@ const CalendarView: React.FC = () => {
     resource: app
   }));
 
-  // --- LÓGICA DE CLIC EN ESPACIO VACÍO ---
   const handleSelectSlot = ({ start, end, action }: { start: Date; end: Date; action: string }) => {
-    // Ajuste de Zona Horaria Local
     const toLocalISO = (date: Date) => {
       const offset = date.getTimezoneOffset() * 60000;
       return new Date(date.getTime() - offset).toISOString().slice(0, 16);
@@ -144,15 +140,13 @@ const CalendarView: React.FC = () => {
     let finalStart = start;
     let finalEnd = end;
 
-    // Si estamos en vista mensual y seleccionan un día, suele venir a las 00:00
-    // Vamos a poner una hora decente por defecto (ej: 9:00 AM) si es click de día completo
     if (action === 'click' || action === 'select') {
         const isMidnight = start.getHours() === 0 && start.getMinutes() === 0;
         if (isMidnight) {
             finalStart = new Date(start);
-            finalStart.setHours(9, 0, 0); // 9:00 AM
+            finalStart.setHours(9, 0, 0); 
             finalEnd = new Date(finalStart);
-            finalEnd.setMinutes(30); // 9:30 AM
+            finalEnd.setMinutes(30); 
         }
     }
 
@@ -193,7 +187,8 @@ const CalendarView: React.FC = () => {
         start_time: new Date(formData.startTime).toISOString(),
         end_time: new Date(formData.endTime).toISOString(),
         notes: formData.notes,
-        status: 'scheduled'
+        // CORRECCIÓN: Forzamos el tipado literal para evitar error de string genérico
+        status: 'scheduled' as 'scheduled' 
       };
 
       if(formData.id) {
@@ -250,7 +245,6 @@ const CalendarView: React.FC = () => {
           <h2 className="text-xl md:text-2xl font-bold text-slate-800 dark:text-white">Agenda Médica</h2>
           <p className="text-slate-500 dark:text-slate-400 text-sm hidden md:block">Gestión visual de pacientes.</p>
         </div>
-        {/* El botón superior sigue existiendo como alternativa */}
         <button 
           onClick={() => {
             const now = new Date();
@@ -275,18 +269,17 @@ const CalendarView: React.FC = () => {
             style={{ height: '100%' }}
             messages={{ next: "Sig", previous: "Ant", today: "Hoy", month: "Mes", week: "Semana", day: "Día", agenda: "Agenda" }}
             culture='es'
-            selectable={true} // CLAVE: Permite seleccionar espacios vacíos
-            onSelectSlot={handleSelectSlot} // CLAVE: La función que abre el modal
+            selectable={true} 
+            onSelectSlot={handleSelectSlot} 
             onSelectEvent={handleSelectEvent}
             eventPropGetter={eventStyleGetter}
             defaultView='month'
             components={{ toolbar: CustomToolbar, event: CustomEvent }}
-            longPressThreshold={10} // Optimización táctil
+            longPressThreshold={10} 
           />
         )}
       </div>
 
-      {/* MODAL */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-200 dark:border-slate-700 animate-fade-in-up">
