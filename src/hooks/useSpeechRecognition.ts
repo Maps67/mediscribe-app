@@ -10,39 +10,13 @@ export const useSpeechRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   
-  // Refs de Lógica
+  // Refs
   const recognitionRef = useRef<any>(null);
-  const masterTranscriptRef = useRef(''); 
   const isUserInitiatedStop = useRef(false);
   
-  // Ref para el Bloqueo de Pantalla (Wake Lock)
-  const wakeLockRef = useRef<any>(null);
+  // Almacén de texto confirmado (Buffer Maestro)
+  const finalTranscriptRef = useRef('');
 
-  // --- FUNCIÓN: GESTIÓN DE PANTALLA (WAKE LOCK) ---
-  const requestWakeLock = async () => {
-    try {
-      if ('wakeLock' in navigator) {
-        wakeLockRef.current = await (navigator as any).wakeLock.request('screen');
-        console.log('Pantalla bloqueada (Wake Lock activo)');
-      }
-    } catch (err) {
-      console.warn('No se pudo bloquear la pantalla:', err);
-    }
-  };
-
-  const releaseWakeLock = async () => {
-    try {
-      if (wakeLockRef.current) {
-        await wakeLockRef.current.release();
-        wakeLockRef.current = null;
-        console.log('Pantalla desbloqueada');
-      }
-    } catch (err) {
-      console.warn('Error al liberar pantalla:', err);
-    }
-  };
-
-  // --- FUNCIÓN: MOTOR DE RECONOCIMIENTO ---
   const setupRecognition = useCallback(() => {
     const { webkitSpeechRecognition, SpeechRecognition } = window as unknown as IWindow;
     const SpeechRecognitionAPI = SpeechRecognition || webkitSpeechRecognition;
@@ -50,126 +24,130 @@ export const useSpeechRecognition = () => {
     if (!SpeechRecognitionAPI) return null;
 
     const recognition = new SpeechRecognitionAPI();
-    // Mantenemos false para evitar el bug de duplicación de Android
-    recognition.continuous = false; 
+    
+    // VOLVEMOS A TRUE: Confiamos en el filtrado por índice en lugar del reinicio forzado
+    recognition.continuous = true; 
     recognition.interimResults = true;
     recognition.lang = 'es-MX';
-    recognition.maxAlternatives = 1;
 
+    recognition.onstart = () => {
+      setIsListening(true);
+    };
+
+    // LÓGICA DE FILTRADO MATEMÁTICO (El corazón del fix)
     recognition.onresult = (event: any) => {
-        let currentFinal = '';
-        let currentInterim = '';
-  
-        for (let i = 0; i < event.results.length; ++i) {
-          if (event.results[i].isFinal) {
-            currentFinal += event.results[i][0].transcript;
+        let interimContent = '';
+
+        // TRUCO CLAVE: Usamos 'event.resultIndex'
+        // Esto le dice al bucle: "No leas todo desde el principio, lee solo lo nuevo".
+        for (let i = event.resultIndex; i < event.results.length; ++i) {
+          const result = event.results[i];
+          
+          if (result.isFinal) {
+            // Solo si Android confirma que la frase terminó, la guardamos
+            const prev = finalTranscriptRef.current;
+            const spacer = (prev && !prev.endsWith(' ')) ? ' ' : '';
+            finalTranscriptRef.current += spacer + result[0].transcript;
           } else {
-            currentInterim += event.results[i][0].transcript;
+            // Si es provisional, lo guardamos temporalmente para mostrarlo
+            interimContent += result[0].transcript;
           }
         }
 
-        if (currentFinal) {
-            // Lógica inteligente de espaciado
-            const prev = masterTranscriptRef.current;
-            // Solo agrega espacio si no lo tiene y si no está vacío
-            const spacer = (prev && !prev.endsWith(' ')) ? ' ' : '';
-            masterTranscriptRef.current += spacer + currentFinal;
-        }
-
-        const displayInterim = currentInterim.trim() ? ' ' + currentInterim.trim() : '';
-        setTranscript(masterTranscriptRef.current + displayInterim);
+        // Renderizamos: Lo Final (Seguro) + Lo Interino (Borrador)
+        setTranscript(finalTranscriptRef.current + (interimContent ? ' ' + interimContent : ''));
     };
 
     recognition.onerror = (event: any) => {
-      // Si el error es de permisos, ahí sí paramos todo
-      if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
-        isUserInitiatedStop.current = true;
+      console.warn("Speech Error:", event.error);
+      if (event.error === 'not-allowed') {
         setIsListening(false);
-        releaseWakeLock();
+        isUserInitiatedStop.current = true;
       }
+      // Ignoramos 'no-speech' para que el onend reinicie el servicio automáticamente
     };
 
     recognition.onend = () => {
-      // BUCLE DE REINICIO
+      // Si el navegador corta por silencio natural (después de mucho tiempo)
+      // y el usuario NO pidió parar, reiniciamos suavemente.
       if (!isUserInitiatedStop.current) {
-         // Reinicio INMEDIATO (0ms delay) para minimizar la pérdida de audio
-         try {
-           recognition.start();
-         } catch (e) {
-           // Si falla el inmediato, reintentamos en 150ms
-           setTimeout(() => {
-               if (!isUserInitiatedStop.current) recognition.start();
-           }, 150);
-         }
+          console.log("Reinicio automático por timeout del navegador...");
+          try {
+            recognition.start();
+          } catch (e) {
+            // Si falla, esperamos un poco antes de reintentar
+            setTimeout(() => {
+              if (!isUserInitiatedStop.current) {
+                  try { recognition.start(); } catch(e){}
+              }
+            }, 500);
+          }
       } else {
         setIsListening(false);
-        releaseWakeLock(); // Liberamos pantalla al terminar
       }
     };
 
     return recognition;
   }, []);
 
-  // --- MÉTODOS PÚBLICOS ---
+  // --- CONTROLES ---
 
   const startListening = useCallback(() => {
-    masterTranscriptRef.current = '';
+    finalTranscriptRef.current = ''; // Limpiar buffer al iniciar nueva sesión
     setTranscript('');
     isUserInitiatedStop.current = false;
     
-    if (recognitionRef.current) recognitionRef.current.stop();
+    if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch(e){}
+    }
 
     const recognition = setupRecognition();
     if (recognition) {
         recognitionRef.current = recognition;
         try {
             recognition.start();
-            setIsListening(true);
-            requestWakeLock(); // <--- SOLICITAMOS PANTALLA ENCENDIDA
         } catch (e) {
-            console.error(e);
+            console.error("Error start:", e);
         }
     }
   }, [setupRecognition]);
 
   const stopListening = useCallback(() => {
-    isUserInitiatedStop.current = true;
-    if (recognitionRef.current) recognitionRef.current.stop();
-    
-    // Aseguramos que el estado final sea consistente
-    setTranscript(masterTranscriptRef.current);
+    isUserInitiatedStop.current = true; // Bandera manual
+    if (recognitionRef.current) {
+        try { recognitionRef.current.stop(); } catch(e){}
+    }
+    // Al parar, aseguramos que se muestre lo último confirmado
+    setTranscript(finalTranscriptRef.current);
     setIsListening(false);
-    releaseWakeLock(); // <--- LIBERAMOS PANTALLA
   }, []);
 
   const resetTranscript = useCallback(() => {
-    masterTranscriptRef.current = '';
+    finalTranscriptRef.current = '';
     setTranscript('');
   }, []);
 
   const setTranscriptManual = useCallback((text: string) => {
-      masterTranscriptRef.current = text;
+      finalTranscriptRef.current = text;
       setTranscript(text);
   }, []);
 
-  // Limpieza al salir de la pantalla
+  // Cleanup
   useEffect(() => {
-      // Re-adquirir Wake Lock si la app vuelve de segundo plano y seguía grabando
-      const handleVisibilityChange = () => {
-        if (document.visibilityState === 'visible' && isListening) {
-          requestWakeLock();
-        }
-      };
-
-      document.addEventListener('visibilitychange', handleVisibilityChange);
-
       return () => {
           isUserInitiatedStop.current = true;
-          if (recognitionRef.current) recognitionRef.current.stop();
-          releaseWakeLock();
-          document.removeEventListener('visibilitychange', handleVisibilityChange);
+          if (recognitionRef.current) {
+              try { recognitionRef.current.stop(); } catch(e){}
+          }
       };
-  }, [isListening]);
+  }, []);
 
-  return { isListening, transcript, startListening, stopListening, resetTranscript, setTranscript: setTranscriptManual };
+  return { 
+    isListening, 
+    transcript, 
+    startListening, 
+    stopListening, 
+    resetTranscript, 
+    setTranscript: setTranscriptManual 
+  };
 };
