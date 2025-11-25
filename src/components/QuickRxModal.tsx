@@ -21,34 +21,28 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
   const [isSaving, setIsSaving] = useState(false);
   const [step, setStep] = useState<'record' | 'edit'>('record');
 
-  // Efecto para pasar el transcript al textarea si se desea edición en tiempo real (opcional)
-  // O bien, esperamos a generar con IA. En este caso, usaremos IA para formatear.
-
   const handleGenerate = async () => {
       if (!transcript) {
           toast.error("No hay nada grabado para procesar");
           return;
       }
+      
       setIsProcessing(true);
+      
       try {
-          // Si el servicio no tiene el método exacto, usamos un prompt directo aquí o el método genérico
-          // Asumimos que GeminiMedicalService tiene un método para limpiar texto o usamos generateClinicalNote como base
-          // Para asegurar funcionamiento, usamos una llamada simulada si no existe el método específico, 
-          // pero idealmente deberías tener generatePrescriptionOnly en tu servicio.
+          // --- CONEXIÓN CORREGIDA ---
+          // Llamamos al método exacto que creamos en el servicio: generateQuickRx
+          // Pasamos también la especialidad para darle contexto médico preciso a la IA.
+          const specialty = doctorProfile?.specialty || 'Medicina General';
           
-          let formattedText = "";
-          try {
-             formattedText = await GeminiMedicalService.generatePrescriptionOnly(transcript);
-          } catch (e) {
-             // Fallback si el método específico no existe en tu versión actual del servicio
-             formattedText = transcript; 
-          }
+          const formattedText = await GeminiMedicalService.generateQuickRx(transcript, specialty);
           
           setRxText(formattedText);
           setStep('edit');
       } catch (error) {
-          toast.error("Error al generar receta");
-          setRxText(transcript); // Fallback al texto crudo
+          console.error(error);
+          toast.error("La IA no respondió, se usará el texto crudo.");
+          setRxText(transcript); // Fallback de seguridad
           setStep('edit');
       } finally {
           setIsProcessing(false);
@@ -67,18 +61,15 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
               doctor_id: user.id,
               patient_id: patientId,
               transcript: "DICTADO RÁPIDO DE RECETA: " + transcript,
-              summary: rxText, // Guardamos la receta editada como el resumen
+              summary: rxText, // Guardamos la receta procesada por IA
               status: 'completed'
           });
 
           if (error) throw error;
           
           toast.success("Receta guardada en historial");
-          
-          // Opcional: Generar PDF automático aquí si se desea
           onClose();
-          // Forzar recarga de historial si es necesario (el componente padre lo hará al notar cambios o manual)
-          window.location.reload(); // Simple refresh para ver el cambio en historial
+          window.location.reload(); 
       } catch (e) {
           toast.error("Error al guardar");
       } finally {
@@ -132,7 +123,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
                                 {isListening ? "Escuchando dictado..." : "Presione Iniciar para dictar"}
                             </p>
                             <p className="text-sm text-slate-500 dark:text-slate-400">
-                                Dicte los medicamentos, dosis e indicaciones. La IA lo formateará automáticamente.
+                                Dicte los medicamentos. La IA completará dosis y recomendaciones automáticamente.
                             </p>
                         </div>
 
@@ -155,14 +146,14 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
                                 disabled={!transcript || isListening || isProcessing} 
                                 className="flex-1 bg-brand-teal text-white py-3 rounded-xl font-bold shadow-lg hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed flex justify-center items-center gap-2 transition-all active:scale-95"
                              >
-                                {isProcessing ? <RefreshCw className="animate-spin" size={18}/> : <RefreshCw size={18}/>} Generar Receta
+                                {isProcessing ? <RefreshCw className="animate-spin" size={18}/> : <RefreshCw size={18}/>} Generar con IA
                              </button>
                         </div>
                     </div>
                 ) : (
                     <div className="h-full flex flex-col">
                         <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2 block flex justify-between">
-                            <span>Edición de Receta</span>
+                            <span>Edición de Receta (IA)</span>
                             <span className="text-brand-teal cursor-pointer hover:underline" onClick={() => { setStep('record'); setRxText(''); resetTranscript(); }}>Grabar de nuevo</span>
                         </label>
                         <textarea
