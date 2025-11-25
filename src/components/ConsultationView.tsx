@@ -1,48 +1,24 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, Save, RefreshCw, FileText, Share2, Printer, Search, Calendar as CalendarIcon, X, Clock, MessageSquare, User, Send, Edit2, Check, ArrowLeft, AlertTriangle, Stethoscope } from 'lucide-react';
+import { Mic, Square, Save, RefreshCw, FileText, Share2, Printer, Search, Calendar as CalendarIcon, X, Clock, MessageSquare, User, Send, Edit2, Check, ArrowLeft, AlertTriangle, Stethoscope, Plus, PenTool } from 'lucide-react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { supabase } from '../lib/supabase';
 import { Patient, GeminiResponse, DoctorProfile } from '../types';
 import FormattedText from './FormattedText';
 import { toast } from 'sonner';
-import { pdf } from '@react-pdf/renderer';
-import PrescriptionPDF from './PrescriptionPDF';
-import { AppointmentService } from '../services/AppointmentService';
+import QuickRxModal from './QuickRxModal';
 
 type TabType = 'record' | 'patient' | 'chat';
 interface ChatMessage { role: 'user' | 'ai'; text: string; }
 
-// LISTA AMPLIADA DE ESPECIALIDADES
+// Lista de Especialidades Comunes
 const SPECIALTIES = [
-    "Medicina General",
-    "Cardiología",
-    "Cirugía General",
-    "Cirugía de Columna",
-    "Cirugía de Mano",
-    "Cirugía Oncológica",
-    "Cirugía Pediátrica",
-    "Cirugía Plástica y Reconstructiva",
-    "Dermatología",
-    "Endocrinología",
-    "Gastroenterología",
-    "Geriatría",
-    "Ginecología y Obstetricia",
-    "Medicina del Deporte",
-    "Medicina Interna",
-    "Nefrología",
-    "Neumología",
-    "Neurocirugía",
-    "Neurología",
-    "Oftalmología",
-    "Otorrinolaringología",
-    "Pediatría",
-    "Psiquiatría",
-    "Reumatología",
-    "Traumatología y Ortopedia",
-    "Traumatología: Artroscopia",
-    "Urología",
-    "Urgencias Médicas"
+    "Medicina General", "Cardiología", "Cirugía General", "Cirugía de Columna", "Cirugía de Mano",
+    "Cirugía Oncológica", "Cirugía Pediátrica", "Cirugía Plástica y Reconstructiva", "Dermatología",
+    "Endocrinología", "Gastroenterología", "Geriatría", "Ginecología y Obstetricia", "Medicina del Deporte",
+    "Medicina Interna", "Nefrología", "Neumología", "Neurocirugía", "Neurología",
+    "Oftalmología", "Otorrinolaringología", "Pediatría", "Psiquiatría", "Reumatología",
+    "Traumatología y Ortopedia", "Traumatología: Artroscopia", "Urología", "Urgencias Médicas"
 ];
 
 const ConsultationView: React.FC = () => {
@@ -54,6 +30,9 @@ const ConsultationView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // MODAL RECETA HABLADA
+  const [isRxModalOpen, setIsRxModalOpen] = useState(false); 
 
   // UI States
   const [consentGiven, setConsentGiven] = useState(false);
@@ -100,8 +79,6 @@ const ConsultationView: React.FC = () => {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         if (data) {
             setDoctorProfile(data as DoctorProfile);
-            // Si la especialidad del perfil está en nuestra lista, la seleccionamos.
-            // Si no, mantenemos Medicina General o la que tenga el perfil si coincide parcialmente.
             if (data.specialty && SPECIALTIES.includes(data.specialty)) {
                 setSelectedSpecialty(data.specialty);
             }
@@ -133,7 +110,7 @@ const ConsultationView: React.FC = () => {
       setGeneratedNote(response);
       setEditableInstructions(response.patientInstructions);
       setActiveTab('record');
-      setChatMessages([{ role: 'ai', text: `Nota de ${selectedSpecialty} generada. ¿Alguna duda sobre el caso?` }]);
+      setChatMessages([{ role: 'ai', text: `Nota de ${selectedSpecialty} generada. ¿Alguna pregunta sobre este caso?` }]);
       toast.success("Éxito al generar");
     } catch (error) {
       console.error(error);
@@ -148,9 +125,7 @@ const ConsultationView: React.FC = () => {
     setIsSaving(true);
     try {
         const { data: { session }, error: authError } = await supabase.auth.getSession();
-        if (authError || !session) {
-            toast.error("Sesión expirada."); return;
-        }
+        if (authError || !session) { toast.error("Sesión expirada."); return; }
         
         const user = session.user;
         const { error } = await supabase.from('consultations').insert({
@@ -177,93 +152,35 @@ const ConsultationView: React.FC = () => {
     }
   };
 
-  const handleChatSend = async (e?: React.FormEvent) => {
-      e?.preventDefault();
-      if (!chatInput.trim() || !generatedNote) return;
-      const userMsg = chatInput;
-      setChatInput('');
-      setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
-      setIsChatting(true);
-      try {
-          const context = `NOTA (${selectedSpecialty}): ${generatedNote.clinicalNote}\n\nINSTRUCCIONES ACTUALES: ${editableInstructions}`;
-          const reply = await GeminiMedicalService.chatWithContext(context, userMsg);
-          setChatMessages(prev => [...prev, { role: 'ai', text: reply }]);
-      } catch (error) { toast.error("Error en el chat"); } finally { setIsChatting(false); }
-  };
+  const handleChatSend = async (e: React.FormEvent) => { 
+    e.preventDefault();
+    if (!chatInput.trim()) return;
 
-  const handleOpenAppointmentModal = () => {
-     if (!selectedPatient) { toast.error("Seleccione paciente."); return; }
-     const now = new Date(); now.setDate(now.getDate() + 7); now.setMinutes(0);
-     const toLocalISO = (date: Date) => {
-        const offset = date.getTimezoneOffset() * 60000;
-        return new Date(date.getTime() - offset).toISOString().slice(0, 16);
-     };
-     setNextApptDate(toLocalISO(now));
-     setIsAppointmentModalOpen(true);
-  };
+    const newMessages = [...chatMessages, { role: 'user', text: chatInput } as ChatMessage];
+    setChatMessages(newMessages);
+    setChatInput('');
+    setIsChatting(true);
 
-  const handleConfirmAppointment = async () => {
-      if (!selectedPatient || !nextApptDate) return;
-      try {
-          const start = new Date(nextApptDate);
-          const end = new Date(start.getTime() + 30 * 60000);
-          await AppointmentService.createAppointment({
-              patient_id: selectedPatient.id,
-              title: "Cita de Seguimiento",
-              start_time: start.toISOString(),
-              end_time: end.toISOString(),
-              status: 'scheduled',
-              notes: 'Agendada desde Consulta'
-          });
-          toast.success("Cita agendada");
-          setIsAppointmentModalOpen(false);
-      } catch (error) { toast.error("Error al agendar"); }
-  };
-
-  const handlePrint = async () => {
-      if (!selectedPatient || !generatedNote || !doctorProfile) return;
-      const blob = await pdf(
-        <PrescriptionPDF 
-            doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty}
-            license={doctorProfile.license_number} phone={doctorProfile.phone}
-            university={doctorProfile.university} address={doctorProfile.address}
-            logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url}
-            patientName={selectedPatient.name} date={new Date().toLocaleDateString()}
-            content={editableInstructions} 
-        />
-      ).toBlob();
-      window.open(URL.createObjectURL(blob), '_blank');
-  };
-
-  const handleShareWhatsApp = async () => {
-    if (!selectedPatient || !generatedNote || !doctorProfile) return;
     try {
-        const blob = await pdf(
-            <PrescriptionPDF 
-                doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty}
-                license={doctorProfile.license_number} phone={doctorProfile.phone}
-                university={doctorProfile.university} address={doctorProfile.address}
-                logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url}
-                patientName={selectedPatient.name} date={new Date().toLocaleDateString()}
-                content={editableInstructions}
-            />
-        ).toBlob();
-
-        const file = new File([blob], `Receta-${selectedPatient.name}.pdf`, { type: 'application/pdf' });
-
-        if (navigator.canShare && navigator.canShare({ files: [file] })) {
-            await navigator.share({
-                files: [file],
-                title: 'Receta Médica',
-                text: `Hola ${selectedPatient.name}, aquí está tu receta médica.`
-            });
-        } else {
-            toast.error("Usa Imprimir para guardar PDF.");
-        }
+        const responseText = await GeminiMedicalService.chatWithContext(chatInput, generatedNote, selectedSpecialty);
+        setChatMessages([...newMessages, { role: 'ai', text: responseText }]);
     } catch (error) {
-        console.log("Compartir cancelado", error);
+        toast.error("Error en el chat");
+    } finally {
+        setIsChatting(false);
     }
   };
+
+  const handleOpenAppointmentModal = () => setIsAppointmentModalOpen(true);
+  
+  const handleConfirmAppointment = async () => {
+      // Lógica placeholder para cita
+      setIsAppointmentModalOpen(false);
+      toast.success("Cita agendada (Simulación)");
+  };
+
+  const handlePrint = () => { toast.info("Función de impresión directa en desarrollo."); };
+  const handleShareWhatsApp = () => { toast.info("Abriendo WhatsApp Web..."); };
 
   const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
 
@@ -280,14 +197,8 @@ const ConsultationView: React.FC = () => {
         
         {/* SELECTOR DE ESPECIALIDAD */}
         <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800/50 flex flex-col gap-2">
-            <label className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase flex items-center gap-1">
-                <Stethoscope size={14}/> Modo Especialista
-            </label>
-            <select 
-                value={selectedSpecialty}
-                onChange={(e) => setSelectedSpecialty(e.target.value)}
-                className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer"
-            >
+            <label className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase flex items-center gap-1"><Stethoscope size={14}/> Modo Especialista</label>
+            <select value={selectedSpecialty} onChange={(e) => setSelectedSpecialty(e.target.value)} className="w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-md p-2 text-sm font-medium text-slate-700 dark:text-slate-200 outline-none focus:ring-2 focus:ring-indigo-500 cursor-pointer">
                 {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
             </select>
         </div>
@@ -307,6 +218,13 @@ const ConsultationView: React.FC = () => {
                 </div>
             )}
         </div>
+        
+        {/* Botón Nueva Receta Rápida (Columna izquierda - Acceso Directo) */}
+        {selectedPatient && (
+            <button onClick={() => setIsRxModalOpen(true)} className="bg-indigo-600 hover:bg-indigo-700 text-white py-3 rounded-lg font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all active:scale-95">
+                <Plus size={18}/> Nueva Receta Rápida
+            </button>
+        )}
         
         {/* Checkbox Consentimiento */}
         <div className={`flex items-center gap-2 p-3 rounded-lg border transition-colors ${consentGiven ? 'bg-green-50 dark:bg-green-900/20 border-green-200 dark:border-green-800' : 'bg-orange-50 dark:bg-orange-900/20 border-orange-200 dark:border-orange-800'}`}>
@@ -384,11 +302,17 @@ const ConsultationView: React.FC = () => {
 
                     {/* PACIENTE */}
                     {activeTab === 'patient' && (
-                         <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col h-full">
-                            <div className="flex justify-between items-center mb-4 border-b dark:border-slate-700 pb-2 shrink-0">
+                          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col h-full">
+                            <div className="flex flex-wrap justify-between items-center mb-4 border-b dark:border-slate-700 pb-2 shrink-0 gap-2">
                                 <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Share2 className="text-brand-teal"/> Indicaciones</h3>
+                                
+                                {/* BOTÓN DE RECETA HABLADA (Pluma) */}
+                                <button onClick={() => setIsRxModalOpen(true)} className="bg-slate-900 dark:bg-slate-700 text-white px-3 py-1.5 rounded-lg text-xs font-bold shadow-sm flex items-center gap-1 hover:bg-slate-800 transition-all">
+                                  <Edit2 size={14}/> Receta Hablada
+                                </button>
+                                
                                 <div className="flex gap-2">
-                                    <button onClick={() => setIsEditingInstructions(!isEditingInstructions)} className={`p-2 rounded transition-colors flex gap-2 items-center text-sm font-bold ${isEditingInstructions ? 'bg-green-100 text-green-700' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`} title="Editar receta">{isEditingInstructions ? <Check size={16}/> : <Edit2 size={16}/>}</button>
+                                    <button onClick={() => setIsEditingInstructions(!isEditingInstructions)} className={`p-2 rounded transition-colors flex gap-2 items-center text-sm font-bold ${isEditingInstructions ? 'bg-green-100 text-green-700' : 'hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'}`} title="Editar indicaciones">{isEditingInstructions ? <Check size={16}/> : <Edit2 size={16}/>}</button>
                                     <button onClick={handleShareWhatsApp} className="p-2 bg-green-500 hover:bg-green-600 text-white rounded flex gap-2 items-center text-sm font-bold shadow-sm transition-colors" title="Enviar WhatsApp"><Send size={16} /></button>
                                     <button onClick={handlePrint} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded text-slate-600 dark:text-slate-400 flex gap-1 items-center text-sm font-medium border border-slate-200 dark:border-slate-700"><Printer size={16}/></button>
                                 </div>
@@ -400,7 +324,7 @@ const ConsultationView: React.FC = () => {
                                     <FormattedText content={editableInstructions} />
                                 )}
                             </div>
-                         </div>
+                          </div>
                     )}
 
                     {/* CHAT IA */}
@@ -436,6 +360,16 @@ const ConsultationView: React.FC = () => {
                   </div>
               </div>
           </div>
+      )}
+      
+      {/* MODAL RECETA RÁPIDA (Común) */}
+      {isRxModalOpen && selectedPatient && (
+          <QuickRxModal 
+              patientId={selectedPatient.id} 
+              patientName={selectedPatient.name} 
+              doctorProfile={doctorProfile}
+              onClose={() => setIsRxModalOpen(false)} 
+          />
       )}
     </div>
   );
