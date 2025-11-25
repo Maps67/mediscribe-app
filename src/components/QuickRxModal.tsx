@@ -6,12 +6,12 @@ import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
+import { DoctorProfile } from '../types'; // Importamos el tipo correcto
 
-// INTERFAZ CORREGIDA: Coincide exactamente con lo que envía PatientsView
 interface QuickRxModalProps {
   patientId: string;
   patientName: string;
-  doctorProfile: any;
+  doctorProfile: DoctorProfile; // Tipado fuerte en lugar de 'any'
   onClose: () => void;
 }
 
@@ -21,9 +21,11 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [step, setStep] = useState<'record' | 'edit'>('record');
+  
+  // Fecha formateada para México/Latam
   const todayStr = new Date().toLocaleDateString('es-MX', { year: 'numeric', month: '2-digit', day: '2-digit' });
 
-  // Limpieza al cerrar
+  // Limpieza al cerrar el componente (evita que el micrófono se quede abierto)
   useEffect(() => {
     return () => { stopListening(); };
   }, []);
@@ -31,46 +33,53 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
   // --- LÓGICA DE GENERACIÓN (Paso 1 -> Paso 2) ---
   const handleGenerate = async () => {
       if (!transcript) { toast.error("No hay audio grabado"); return; }
+      
       setIsProcessing(true);
       stopListening();
       
       try {
           const specialty = doctorProfile?.specialty || 'Medicina General';
-          // Usamos el servicio de IA
+          
+          // Llamada al servicio "Cero Robot" que configuramos
           const formattedText = await GeminiMedicalService.generateQuickRx(transcript, specialty);
+          
           setRxText(formattedText);
-          setStep('edit'); // Pasamos a la vista grande
+          setStep('edit'); // Transición a la vista de edición
       } catch (error) {
           console.error(error);
-          setRxText(transcript); 
+          toast.error("Error conectando con IA, usando texto crudo.");
+          setRxText(transcript); // Fallback: pone el texto tal cual se escuchó
           setStep('edit');
       } finally {
           setIsProcessing(false);
       }
   };
 
-  // --- LÓGICA DE GUARDADO ---
+  // --- LÓGICA DE GUARDADO EN BASE DE DATOS ---
   const handleSaveToHistory = async () => {
       if (!rxText.trim()) return;
       setIsSaving(true);
       try {
           const { data: { user } } = await supabase.auth.getUser();
-          if (!user) throw new Error("No usuario");
+          if (!user) throw new Error("Sesión no válida");
 
           const { error } = await supabase.from('consultations').insert({
               doctor_id: user.id,
               patient_id: patientId,
-              transcript: "RECETA RÁPIDA (VOZ): " + transcript,
-              summary: rxText,
+              transcript: "RECETA RÁPIDA (VOZ): " + transcript, // Guardamos el original por auditoría
+              summary: rxText, // Guardamos la receta final
               status: 'completed'
           });
 
           if (error) throw error;
+          
           toast.success("Receta guardada en historial");
-          window.dispatchEvent(new Event('consultationSaved')); // Actualizar lista padre
+          // Evento personalizado para actualizar la lista de consultas sin recargar
+          window.dispatchEvent(new Event('consultationSaved')); 
           onClose();
       } catch (e) {
-          toast.error("Error al guardar");
+          console.error(e);
+          toast.error("Error al guardar en historial");
       } finally {
           setIsSaving(false);
       }
@@ -89,6 +98,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
           address={doctorProfile.address || ''}
           logoUrl={doctorProfile.logo_url} 
           signatureUrl={doctorProfile.signature_url}
+          
           patientName={patientName} 
           date={todayStr}
           content={rxText || "Sin contenido"}
@@ -111,7 +121,8 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
 
   const handleShareWhatsApp = () => {
       if (!rxText.trim()) return;
-      const message = `*Receta para ${patientName}*\nFecha: ${todayStr}\n\n${rxText}\n\nAtte: ${doctorProfile?.full_name || 'Su Médico'}`;
+      // Formato amigable para WhatsApp
+      const message = `*Receta Médica para ${patientName}*\n📅 Fecha: ${todayStr}\n\n${rxText}\n\nAtte: ${doctorProfile?.full_name || 'Su Médico'}`;
       window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -133,10 +144,10 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
                     {transcript && <div className="w-full p-3 bg-slate-50 dark:bg-slate-800 rounded-lg text-xs text-slate-500 italic max-h-24 overflow-y-auto">"{transcript}"</div>}
                     
                     <div className="flex gap-3 w-full">
-                        <button onClick={isListening ? stopListening : startListening} className={`flex-1 py-3 rounded-xl font-bold flex justify-center gap-2 ${isListening ? 'bg-white border-2 border-red-100 text-red-500' : 'bg-slate-900 text-white'}`}>
+                        <button onClick={isListening ? stopListening : startListening} className={`flex-1 py-3 rounded-xl font-bold flex justify-center items-center gap-2 transition-all ${isListening ? 'bg-white border-2 border-red-100 text-red-500' : 'bg-slate-900 text-white hover:bg-slate-800'}`}>
                             {isListening ? <><Square size={18}/> Parar</> : <><Mic size={18}/> Dictar</>}
                         </button>
-                        <button onClick={handleGenerate} disabled={!transcript || isProcessing} className="flex-1 bg-brand-teal text-white py-3 rounded-xl font-bold shadow-lg disabled:opacity-50 flex justify-center gap-2">
+                        <button onClick={handleGenerate} disabled={!transcript || isProcessing} className="flex-1 bg-brand-teal text-white py-3 rounded-xl font-bold shadow-lg disabled:opacity-50 hover:bg-teal-600 flex justify-center items-center gap-2 transition-all">
                             {isProcessing ? <RefreshCw className="animate-spin" size={18}/> : <RefreshCw size={18}/>} Procesar
                         </button>
                     </div>
@@ -154,17 +165,17 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
                         <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><FileText className="text-brand-teal"/> Editor de Receta</h2>
                         <p className="text-sm text-slate-500">Paciente: <b>{patientName}</b></p>
                     </div>
-                    <button onClick={onClose} className="p-2 hover:bg-slate-100 rounded-full"><X size={24} className="text-slate-400"/></button>
+                    <button onClick={onClose} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={24} className="text-slate-400"/></button>
                 </div>
 
                 {/* Área de Texto */}
                 <div className="flex-1 p-6 bg-slate-100 dark:bg-slate-950 overflow-y-auto">
                     <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 h-full flex flex-col min-h-[500px]">
                         <textarea 
-                            className="flex-1 w-full border-none focus:ring-0 text-lg leading-relaxed resize-none bg-transparent outline-none font-mono text-slate-700 dark:text-slate-200"
+                            className="flex-1 w-full border-none focus:ring-0 text-lg leading-relaxed resize-none bg-transparent outline-none font-mono text-slate-700 dark:text-slate-200 placeholder:text-slate-300"
                             value={rxText}
                             onChange={(e) => setRxText(e.target.value)}
-                            placeholder="Escriba aquí..."
+                            placeholder="Aquí aparecerá la receta generada..."
                             autoFocus
                         />
                     </div>
@@ -173,17 +184,17 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ patientId, patientName, doc
                 {/* Footer Acciones */}
                 <div className="p-4 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-950 flex flex-col md:flex-row justify-between gap-4">
                     <div className="flex gap-3">
-                        <button onClick={handleShareWhatsApp} className="flex items-center gap-2 px-4 py-2 bg-green-50 text-green-600 hover:bg-green-100 border border-green-200 rounded-xl font-bold transition-colors">
+                        <button onClick={handleShareWhatsApp} className="flex items-center gap-2 px-4 py-2 bg-green-50 dark:bg-green-900/20 text-green-600 dark:text-green-400 hover:bg-green-100 dark:hover:bg-green-900/30 border border-green-200 dark:border-green-800 rounded-xl font-bold transition-colors">
                             <Share2 size={18}/> WhatsApp
                         </button>
-                        <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 bg-blue-50 text-blue-600 hover:bg-blue-100 border border-blue-200 rounded-xl font-bold transition-colors">
+                        <button onClick={handleDownloadPdf} className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 hover:bg-blue-100 dark:hover:bg-blue-900/30 border border-blue-200 dark:border-blue-800 rounded-xl font-bold transition-colors">
                             <Download size={18}/> PDF
                         </button>
                     </div>
                     <div className="flex gap-3">
-                        <button onClick={() => {setStep('record'); setRxText(''); resetTranscript();}} className="px-4 py-2 text-slate-500 hover:text-brand-teal font-bold">Grabar de nuevo</button>
-                        <button onClick={handleSaveToHistory} disabled={isSaving} className="px-6 py-2 bg-brand-teal text-white rounded-xl font-bold shadow-md hover:bg-teal-600 flex items-center gap-2">
-                            {isSaving ? <RefreshCw className="animate-spin"/> : <Save size={18}/>} Guardar
+                        <button onClick={() => {setStep('record'); setRxText(''); resetTranscript();}} className="px-4 py-2 text-slate-500 hover:text-brand-teal font-bold transition-colors">Grabar de nuevo</button>
+                        <button onClick={handleSaveToHistory} disabled={isSaving} className="px-6 py-2 bg-brand-teal text-white rounded-xl font-bold shadow-md hover:bg-teal-600 flex items-center gap-2 transition-transform active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed">
+                            {isSaving ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>} Guardar
                         </button>
                     </div>
                 </div>
