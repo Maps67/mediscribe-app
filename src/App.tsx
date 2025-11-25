@@ -11,13 +11,12 @@ import PatientsView from './components/PatientsView';
 import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
 import Dashboard from './pages/Dashboard';
-import ReportsView from './pages/ReportsView'; // <--- IMPORTAR LA NUEVA VISTA
+import ReportsView from './pages/ReportsView';
 import CalendarView from './components/CalendarView';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import ReloadPrompt from './components/ReloadPrompt';
 import SplashScreen from './components/SplashScreen';
 import MobileTabBar from './components/MobileTabBar';
-import { Menu } from 'lucide-react';
 
 const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
@@ -41,7 +40,7 @@ const MainLayout: React.FC<{ session: any; onLogout: () => void }> = ({ session 
             <Route path="/consultation" element={<ConsultationView />} />
             <Route path="/calendar" element={<CalendarView />} />
             <Route path="/patients" element={<PatientsView />} />
-            <Route path="/reports" element={<ReportsView />} /> {/* <--- RUTA CONECTADA */}
+            <Route path="/reports" element={<ReportsView />} />
             <Route path="/card" element={<DigitalCard />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
@@ -61,22 +60,60 @@ const App: React.FC = () => {
   const [session, setSession] = useState<any>(null);
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
+  // NUEVO: Estado para bloquear el acceso si es recuperación
+  const [isRecoveryFlow, setIsRecoveryFlow] = useState(false); 
 
   useEffect(() => {
+    // 1. Obtener sesión inicial
     supabase.auth.getSession().then(({ data: { session } }) => {
       setSession(session);
       setLoading(false);
     });
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+
+    // 2. Escuchar cambios de estado
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
+      console.log("Auth Event:", event); // Debug
+
+      if (event === 'PASSWORD_RECOVERY') {
+        setIsRecoveryFlow(true); // ¡ACTIVAR BLOQUEO!
+      } else if (event === 'SIGNED_OUT') {
+        setIsRecoveryFlow(false);
+        setSession(null);
+      } else if (event === 'SIGNED_IN') {
+        // Si es login normal, no hacemos nada extra, solo setSession abajo
+        setSession(session);
+      }
+      
+      // Siempre actualizamos la sesión, pero el flag isRecoveryFlow decidirá qué mostrar
       setSession(session);
       setLoading(false);
     });
+
     const timer = setTimeout(() => setShowSplash(false), 2500);
     return () => { subscription.unsubscribe(); clearTimeout(timer); };
   }, []);
 
   if (showSplash) return <ThemeProvider><SplashScreen /></ThemeProvider>;
-  if (!session) return <ThemeProvider><Toaster position="top-center" richColors /><ReloadPrompt /><AuthView authService={{ supabase }} onLoginSuccess={() => {}} /></ThemeProvider>;
+
+  // LOGICA CRITICA: Si no hay sesión O estamos en flujo de recuperación, mostramos AuthView
+  if (!session || isRecoveryFlow) {
+    return (
+      <ThemeProvider>
+        <Toaster position="top-center" richColors />
+        <ReloadPrompt />
+        <AuthView 
+          authService={{ supabase }} 
+          onLoginSuccess={() => {}} 
+          // Pasamos el control al hijo para que sepa que debe mostrar el reset
+          forceResetMode={isRecoveryFlow} 
+          onPasswordResetSuccess={() => {
+            setIsRecoveryFlow(false); // Desbloquear la App tras cambiar password
+            // Opcional: Forzar recarga o dejar que el usuario entre
+          }}
+        />
+      </ThemeProvider>
+    );
+  }
 
   return (
     <ThemeProvider>
