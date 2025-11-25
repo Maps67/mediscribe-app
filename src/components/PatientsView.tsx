@@ -2,11 +2,12 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { supabase } from '../lib/supabase';
 import { Patient, Consultation } from '../types';
 import { toast } from 'sonner';
-import { Plus, Search, Phone, Calendar, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, User, X, FileText, Printer, Share2, Send } from 'lucide-react';
+import { Plus, Search, Phone, Calendar, Eye, ChevronDown, ChevronUp, ChevronLeft, ChevronRight, User, X, FileText, Printer, Share2, Send, Mic } from 'lucide-react';
 import { PatientAttachments } from './PatientAttachments';
 import PrescriptionPDF from './PrescriptionPDF';
 import { pdf } from '@react-pdf/renderer';
 import FormattedText from './FormattedText';
+import QuickRxModal from './QuickRxModal'; // <--- IMPORTACIÓN NUEVA
 
 const PatientsView: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
@@ -17,12 +18,15 @@ const PatientsView: React.FC = () => {
   const [isSaving, setIsSaving] = useState(false);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
 
-  // --- ESTADOS PARA HISTORIAL (RESTAURADOS) ---
+  // Estado para el Modal de Receta Rápida
+  const [isQuickRxOpen, setIsQuickRxOpen] = useState(false);
+
+  // --- ESTADOS PARA HISTORIAL ---
   const [history, setHistory] = useState<Consultation[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
   const [doctorProfile, setDoctorProfile] = useState<any>(null);
 
-  // --- ESTADOS DE TABLA INTELIGENTE ---
+  // --- ESTADOS DE TABLA ---
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 10;
   const [sortConfig, setSortConfig] = useState<{ key: keyof Patient; direction: 'asc' | 'desc' } | null>({ key: 'created_at', direction: 'desc' });
@@ -30,9 +34,13 @@ const PatientsView: React.FC = () => {
   useEffect(() => {
     fetchPatients();
     fetchDoctorProfile();
-  }, []);
+    
+    // Escuchar evento de actualización cuando QuickRx guarda algo
+    const handleUpdate = () => { if (selectedPatient) fetchHistory(selectedPatient.id); };
+    window.addEventListener('consultationSaved', handleUpdate);
+    return () => window.removeEventListener('consultationSaved', handleUpdate);
+  }, [selectedPatient]);
 
-  // Cargar historial cuando se selecciona un paciente
   useEffect(() => {
       if (selectedPatient) {
           fetchHistory(selectedPatient.id);
@@ -153,7 +161,7 @@ const PatientsView: React.FC = () => {
         return sortConfig.direction === 'asc' ? <ChevronUp size={14} className="text-brand-teal"/> : <ChevronDown size={14} className="text-brand-teal"/>;
     };
 
-  // --- VISTA DETALLE (CON HISTORIAL RESTAURADO) ---
+  // --- VISTA DETALLE ---
   if (selectedPatient) {
       return (
           <div className="p-6 h-[calc(100vh-64px)] overflow-y-auto animate-fade-in-up bg-slate-50 dark:bg-slate-900">
@@ -173,7 +181,20 @@ const PatientsView: React.FC = () => {
                           </div>
                       </div>
                   </div>
-                   <button onClick={() => handleDeletePatient(selectedPatient.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-bold border border-transparent hover:border-red-200 dark:hover:border-red-800">Eliminar Paciente</button>
+                  
+                  <div className="flex gap-3">
+                      {/* BOTÓN RECETA RÁPIDA INTEGRADO */}
+                      <button 
+                        onClick={() => setIsQuickRxOpen(true)} 
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white px-4 py-2 rounded-lg font-bold shadow-md flex items-center gap-2 transition-colors active:scale-95"
+                      >
+                        <Mic size={18} /> Nueva Receta (Voz)
+                      </button>
+                      
+                      <button onClick={() => handleDeletePatient(selectedPatient.id)} className="text-red-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 p-2 rounded-lg flex items-center gap-2 transition-colors text-sm font-bold border border-transparent hover:border-red-200 dark:hover:border-red-800">
+                        <span className="hidden sm:inline">Eliminar</span> <X size={18} className="sm:hidden"/>
+                      </button>
+                  </div>
               </div>
 
               {/* MÓDULO DE ADJUNTOS */}
@@ -181,7 +202,7 @@ const PatientsView: React.FC = () => {
                 <PatientAttachments patientId={selectedPatient.id} />
               </div>
 
-              {/* --- HISTORIAL DE CONSULTAS (RESTAURADO) --- */}
+              {/* HISTORIAL DE CONSULTAS */}
               <div className="mt-8">
                   <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
                       <FileText className="text-brand-teal"/> Historial de Consultas ({history.length})
@@ -214,10 +235,21 @@ const PatientsView: React.FC = () => {
                       </div>
                   )}
               </div>
+
+              {/* RENDERIZADO CONDICIONAL DEL MODAL (AISLAMIENTO) */}
+              {isQuickRxOpen && (
+                <QuickRxModal 
+                    patientId={selectedPatient.id}
+                    patientName={selectedPatient.name}
+                    doctorProfile={doctorProfile}
+                    onClose={() => setIsQuickRxOpen(false)}
+                />
+              )}
           </div>
       );
   }
 
+  // ... (Resto del componente Lista de Pacientes igual que antes) ...
   return (
     <div className="p-6 h-full flex flex-col bg-slate-50 dark:bg-slate-900 animate-fade-in-up overflow-hidden">
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4 shrink-0">
