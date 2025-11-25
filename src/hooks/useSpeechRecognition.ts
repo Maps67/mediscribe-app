@@ -1,16 +1,5 @@
 import { useState, useEffect, useRef, useCallback } from 'react';
 
-// --- TIPADO ESTRICTO PARA WEB SPEECH API ---
-interface SpeechRecognitionErrorEvent extends Event {
-  error: 'no-speech' | 'aborted' | 'audio-capture' | 'network' | 'not-allowed' | 'service-not-allowed' | 'bad-grammar' | 'language-not-supported';
-  message: string;
-}
-
-interface SpeechRecognitionEvent extends Event {
-  resultIndex: number;
-  results: SpeechRecognitionResultList;
-}
-
 interface IWindow extends Window {
   webkitSpeechRecognition: any;
   SpeechRecognition: any;
@@ -20,80 +9,81 @@ export const useSpeechRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   
-  // Refs para mantener estado síncrono dentro de los listeners
+  // USAMOS REFS PARA PERSISTENCIA "A PRUEBA DE BALAS"
+  // Esto evita que el texto se borre si el componente se re-renderiza o el mic se reinicia
   const recognitionRef = useRef<any>(null);
-  const userStoppedRef = useRef(false); // Flag crítico: ¿Fue el usuario o el navegador?
+  const committedTextRef = useRef(''); // Texto confirmado (Final)
+  const userStoppedRef = useRef(false); // ¿El usuario pidió parar?
 
   useEffect(() => {
-    // 1. Detección de API (Soporte Cruzado)
     const { webkitSpeechRecognition, SpeechRecognition } = window as unknown as IWindow;
     const SpeechRecognitionAPI = SpeechRecognition || webkitSpeechRecognition;
 
     if (!SpeechRecognitionAPI) {
-      console.warn("Speech Recognition API no soportada en este navegador.");
+      console.warn("Speech API no soportada.");
       return;
     }
 
     const recognition = new SpeechRecognitionAPI();
-    recognition.continuous = true;      // Escucha continua
-    recognition.interimResults = true;  // Resultados parciales (mientras habla)
-    recognition.lang = 'es-MX';         // Configuración regional
-    recognition.maxAlternatives = 1;
+    recognition.continuous = true;
+    recognition.interimResults = true;
+    recognition.lang = 'es-MX';
 
-    // --- EVENT LISTENERS ---
-
-    recognition.onstart = () => {
-      setIsListening(true);
-      userStoppedRef.current = false;
-    };
-
-    recognition.onresult = (event: SpeechRecognitionEvent) => {
-      // Reconstrucción inteligente del transcript
-      // Evita duplicados reconstruyendo desde el índice 0 del buffer actual
-      let finalTranscript = '';
+    // --- MANEJO DE RESULTADOS (LÓGICA ANDROID) ---
+    recognition.onresult = (event: any) => {
       let interimTranscript = '';
+      let newFinalTranscript = '';
 
-      for (let i = 0; i < event.results.length; i++) {
+      // Iteramos SOLO sobre los nuevos resultados devueltos por la API
+      for (let i = event.resultIndex; i < event.results.length; ++i) {
         const result = event.results[i];
+        
+        // Si el resultado es FINAL (Android confirmó la frase)
         if (result.isFinal) {
-          finalTranscript += result[0].transcript;
+          newFinalTranscript += result[0].transcript;
         } else {
+          // Si es INTERINO (Android está adivinando todavía)
           interimTranscript += result[0].transcript;
         }
       }
-      
-      // Combinamos lo que ya teníamos confirmado + lo nuevo
-      // NOTA: Para este caso de uso simple, reemplazamos todo para mantener sincronía
-      // Si la app crece, deberíamos usar un acumulador fuera del evento.
-      let currentBuffer = '';
-      for (let i = 0; i < event.results.length; i++) {
-          currentBuffer += event.results[i][0].transcript;
+
+      // 1. Agregamos lo final al "Disco Duro" (Ref)
+      if (newFinalTranscript) {
+        // Añadimos un espacio para que no se pegue con lo anterior
+        const prev = committedTextRef.current;
+        // Lógica para evitar espacios dobles
+        const spacer = prev.length > 0 && !prev.endsWith(' ') ? ' ' : '';
+        committedTextRef.current += spacer + newFinalTranscript;
       }
-      setTranscript(currentBuffer);
+
+      // 2. Actualizamos la UI: Lo confirmado + Lo que se está hablando ahora
+      // Esto elimina el parpadeo y la duplicación
+      setTranscript(committedTextRef.current + (interimTranscript ? ' ' + interimTranscript : ''));
     };
 
-    recognition.onerror = (event: SpeechRecognitionErrorEvent) => {
-      console.warn("Speech Recognition Error:", event.error);
-      
+    recognition.onerror = (event: any) => {
+      // Ignoramos 'no-speech' porque usaremos reinicio automático
+      if (event.error !== 'no-speech') {
+          console.warn("Error de voz:", event.error);
+      }
       if (event.error === 'not-allowed') {
         setIsListening(false);
-        userStoppedRef.current = true; // Bloqueo permanente si no hay permiso
+        userStoppedRef.current = true;
       }
-      // 'no-speech' es común si hay silencio. Lo ignoramos para que el onend reinicie.
     };
 
     recognition.onend = () => {
-      // LÓGICA CRÍTICA DE RECONEXIÓN
+      // LÓGICA DE "INMORTALIDAD"
+      // Si el usuario NO pulsó "Detener", reiniciamos inmediatamente.
+      // Android suele cortar el mic cada 10-15 segundos para ahorrar batería.
       if (!userStoppedRef.current) {
-        // Si el usuario NO paró, intentamos reiniciar (Keep-Alive)
-        console.log("Reinicio automático del micrófono...");
         try {
-            recognition.start();
+          recognition.start();
         } catch (e) {
-            // Si falla el reinicio inmediato, esperamos un poco
-            setTimeout(() => {
-                if(!userStoppedRef.current) recognition.start();
-            }, 300);
+          // Si falla el reinicio inmediato, esperamos 200ms
+          setTimeout(() => {
+             if (!userStoppedRef.current) recognition.start();
+          }, 200);
         }
       } else {
         setIsListening(false);
@@ -103,37 +93,42 @@ export const useSpeechRecognition = () => {
     recognitionRef.current = recognition;
 
     return () => {
-      // Cleanup al desmontar componente
       userStoppedRef.current = true;
-      if (recognitionRef.current) {
-        recognitionRef.current.stop();
-      }
+      if (recognitionRef.current) recognitionRef.current.stop();
     };
   }, []);
 
-  // --- MÉTODOS PÚBLICOS ---
+  // --- CONTROLES ---
 
   const startListening = useCallback(() => {
     if (recognitionRef.current && !isListening) {
-      userStoppedRef.current = false; // Reset flag
+      userStoppedRef.current = false;
       try {
         recognitionRef.current.start();
+        setIsListening(true);
       } catch (e) {
-        console.error("Intento de doble inicio ignorado:", e);
+        console.error("Error al iniciar:", e);
       }
     }
   }, [isListening]);
 
   const stopListening = useCallback(() => {
-    if (recognitionRef.current && isListening) {
-      userStoppedRef.current = true; // Señalizamos parada intencional
+    if (recognitionRef.current) {
+      userStoppedRef.current = true; // BANDERA CRÍTICA
       recognitionRef.current.stop();
       setIsListening(false);
     }
-  }, [isListening]);
+  }, []);
 
   const resetTranscript = useCallback(() => {
     setTranscript('');
+    committedTextRef.current = ''; // Limpiamos también el buffer interno
+  }, []);
+
+  // Permite inyectar texto manualmente (para recuperar borradores)
+  const setTranscriptManual = useCallback((text: string) => {
+      setTranscript(text);
+      committedTextRef.current = text;
   }, []);
 
   return {
@@ -142,6 +137,6 @@ export const useSpeechRecognition = () => {
     startListening,
     stopListening,
     resetTranscript,
-    setTranscript // Necesario para recuperar borradores
+    setTranscript: setTranscriptManual 
   };
 };
