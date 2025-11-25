@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
-import { Mic, Square, Save, RefreshCw, FileText, Share2, Printer, Search, Calendar as CalendarIcon, X, Clock, MessageSquare, User, Send, Edit2, Check, ArrowLeft, AlertTriangle, Stethoscope } from 'lucide-react';
+import { Mic, Square, Save, RefreshCw, FileText, Share2, Printer, Search, Calendar as CalendarIcon, X, Clock, MessageSquare, User, Send, Edit2, Check, ArrowLeft, AlertTriangle, Stethoscope, AlertCircle } from 'lucide-react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
-import { GeminiMedicalService } from '../services/GeminiMedicalService';
+import { GeminiMedicalService, ChatMessage } from '../services/GeminiMedicalService';
 import { supabase } from '../lib/supabase';
 import { Patient, GeminiResponse, DoctorProfile } from '../types';
 import FormattedText from './FormattedText';
@@ -11,9 +11,6 @@ import PrescriptionPDF from './PrescriptionPDF';
 import { AppointmentService } from '../services/AppointmentService';
 
 type TabType = 'record' | 'patient' | 'chat';
-
-// CAMBIO 1: Estandarización de la interfaz con la API de Google (ai -> model)
-interface ChatMessage { role: 'user' | 'model'; text: string; }
 
 // LISTA DE ESPECIALIDADES OFICIAL
 const SPECIALTIES = [
@@ -129,12 +126,14 @@ const ConsultationView: React.FC = () => {
     toast.info(`Generando análisis de ${selectedSpecialty}...`);
     
     try {
-      // Conexión con el servicio v5.0 blindado
       const response = await GeminiMedicalService.generateClinicalNote(transcript, selectedSpecialty);
+      
+      // DEBUG: Ver qué llega realmente en la consola
+      console.log("Respuesta Gemini:", response); 
+
       setGeneratedNote(response);
       setEditableInstructions(response.patientInstructions);
       setActiveTab('record');
-      // CAMBIO 2: Inicializar mensaje con el rol 'model' correcto
       setChatMessages([{ role: 'model', text: `Nota de ${selectedSpecialty} generada. ¿Alguna duda sobre el caso?` }]);
       toast.success("Éxito al generar");
     } catch (error) {
@@ -179,26 +178,18 @@ const ConsultationView: React.FC = () => {
     }
   };
 
-  // CAMBIO 3: Función de Chat actualizada con Memoria
   const handleChatSend = async (e?: React.FormEvent) => {
       e?.preventDefault();
       if (!chatInput.trim() || !generatedNote) return;
       
       const userMsg = chatInput;
       setChatInput('');
-      
-      // 1. UI Optimista
       setChatMessages(prev => [...prev, { role: 'user', text: userMsg }]);
       setIsChatting(true);
       
       try {
-          // Contexto completo
           const context = `NOTA (${selectedSpecialty}): ${generatedNote.clinicalNote}\n\nINSTRUCCIONES ACTUALES: ${editableInstructions}`;
-          
-          // 2. Llamada al servicio pasando el historial (chatMessages)
           const reply = await GeminiMedicalService.chatWithContext(context, chatMessages, userMsg);
-          
-          // 3. Respuesta de la IA con rol 'model'
           setChatMessages(prev => [...prev, { role: 'model', text: reply }]);
       } catch (error) { 
           console.error(error);
@@ -241,7 +232,6 @@ const ConsultationView: React.FC = () => {
       if (!selectedPatient || !generatedNote || !doctorProfile) return;
       const blob = await pdf(
         <PrescriptionPDF 
-            // BLINDAJE: Valores por defecto para evitar crashes si faltan datos en perfil
             doctorName={doctorProfile.full_name || 'Dr. Desconocido'} 
             specialty={doctorProfile.specialty || 'Medicina General'}
             license={doctorProfile.license_number || ''} 
@@ -398,13 +388,24 @@ const ConsultationView: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* EXPEDIENTE */}
+                    {/* EXPEDIENTE (AQUÍ ESTÁ LA CORRECCIÓN) */}
                     {activeTab === 'record' && (
                         <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
                             <h3 className="font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2 border-b dark:border-slate-700 pb-2"><FileText className="text-brand-teal"/> Nota Clínica (SOAP)</h3>
-                            <div className="dark:text-slate-300">
-                                <FormattedText content={generatedNote.clinicalNote} />
+                            
+                            {/* FALLBACK DE UI PARA DATOS VACÍOS */}
+                            <div className="dark:text-slate-300 min-h-[100px]">
+                                {generatedNote.clinicalNote ? (
+                                    <FormattedText content={generatedNote.clinicalNote} />
+                                ) : (
+                                    <div className="flex flex-col items-center justify-center py-8 text-slate-400">
+                                        <AlertCircle size={32} className="mb-2 opacity-50"/>
+                                        <p className="text-sm font-medium">Información insuficiente para generar la nota SOAP.</p>
+                                        <p className="text-xs">El audio fue muy breve. Intente dictar síntomas completos.</p>
+                                    </div>
+                                )}
                             </div>
+
                             <div className="flex flex-wrap gap-3 justify-end pt-6 mt-6 border-t border-slate-100 dark:border-slate-800">
                                 <button onClick={handleOpenAppointmentModal} className="bg-indigo-600 text-white px-4 py-3 rounded-lg font-bold shadow-md hover:bg-indigo-700 flex items-center gap-2 transition-transform active:scale-95"><CalendarIcon size={18} /> Agendar</button>
                                 <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-lg font-bold shadow-md hover:bg-teal-600 flex items-center gap-2 transition-transform active:scale-95">{isSaving ? <RefreshCw className="animate-spin" size={18}/> : <Save size={18}/>} Guardar</button>
