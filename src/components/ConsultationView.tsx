@@ -13,7 +13,7 @@ import { AppointmentService } from '../services/AppointmentService';
 type TabType = 'record' | 'patient' | 'chat';
 interface ChatMessage { role: 'user' | 'ai'; text: string; }
 
-// LISTA AMPLIADA DE ESPECIALIDADES
+// LISTA DE ESPECIALIDADES OFICIAL
 const SPECIALTIES = [
     "Medicina General",
     "Cardiología",
@@ -100,8 +100,6 @@ const ConsultationView: React.FC = () => {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         if (data) {
             setDoctorProfile(data as DoctorProfile);
-            // Si la especialidad del perfil está en nuestra lista, la seleccionamos.
-            // Si no, mantenemos Medicina General o la que tenga el perfil si coincide parcialmente.
             if (data.specialty && SPECIALTIES.includes(data.specialty)) {
                 setSelectedSpecialty(data.specialty);
             }
@@ -129,6 +127,7 @@ const ConsultationView: React.FC = () => {
     toast.info(`Generando análisis de ${selectedSpecialty}...`);
     
     try {
+      // Conexión con el servicio v5.0 blindado
       const response = await GeminiMedicalService.generateClinicalNote(transcript, selectedSpecialty);
       setGeneratedNote(response);
       setEditableInstructions(response.patientInstructions);
@@ -224,11 +223,18 @@ const ConsultationView: React.FC = () => {
       if (!selectedPatient || !generatedNote || !doctorProfile) return;
       const blob = await pdf(
         <PrescriptionPDF 
-            doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty}
-            license={doctorProfile.license_number} phone={doctorProfile.phone}
-            university={doctorProfile.university} address={doctorProfile.address}
-            logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url}
-            patientName={selectedPatient.name} date={new Date().toLocaleDateString()}
+            // BLINDAJE: Valores por defecto para evitar crashes si faltan datos en perfil
+            doctorName={doctorProfile.full_name || 'Dr. Desconocido'} 
+            specialty={doctorProfile.specialty || 'Medicina General'}
+            license={doctorProfile.license_number || ''} 
+            phone={doctorProfile.phone || ''}
+            university={doctorProfile.university || ''} 
+            address={doctorProfile.address || ''}
+            logoUrl={doctorProfile.logo_url || undefined} 
+            signatureUrl={doctorProfile.signature_url || undefined}
+            
+            patientName={selectedPatient.name} 
+            date={new Date().toLocaleDateString()}
             content={editableInstructions} 
         />
       ).toBlob();
@@ -240,11 +246,18 @@ const ConsultationView: React.FC = () => {
     try {
         const blob = await pdf(
             <PrescriptionPDF 
-                doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty}
-                license={doctorProfile.license_number} phone={doctorProfile.phone}
-                university={doctorProfile.university} address={doctorProfile.address}
-                logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url}
-                patientName={selectedPatient.name} date={new Date().toLocaleDateString()}
+                // BLINDAJE: Mismos valores por defecto
+                doctorName={doctorProfile.full_name || 'Dr. Desconocido'} 
+                specialty={doctorProfile.specialty || 'Medicina General'}
+                license={doctorProfile.license_number || ''} 
+                phone={doctorProfile.phone || ''}
+                university={doctorProfile.university || ''} 
+                address={doctorProfile.address || ''}
+                logoUrl={doctorProfile.logo_url || undefined} 
+                signatureUrl={doctorProfile.signature_url || undefined}
+
+                patientName={selectedPatient.name} 
+                date={new Date().toLocaleDateString()}
                 content={editableInstructions}
             />
         ).toBlob();
