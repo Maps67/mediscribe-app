@@ -1,44 +1,29 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GeminiResponse, FollowUpMessage } from "../types";
 
-// --- INTERFACES EXPORTADAS (Para que los demás archivos las reconozcan) ---
-export interface GeminiResponse {
-  clinicalNote: string;
-  patientInstructions: string;
-  actionItems: {
-    next_appointment: string | null;
-    urgent_referral: boolean;
-    lab_tests_required: string[];
-  };
-}
-
-export interface FollowUpMessage {
-  day: number;
-  message: string;
-}
-
-// 1. CONFIGURACIÓN SEGURA
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY;
-let model: any = null;
 
-if (API_KEY) {
-    try {
-        const genAI = new GoogleGenerativeAI(API_KEY);
-        // Usamos 'gemini-1.5-flash' directamente
-        model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
-    } catch (error) {
-        console.error("Error fatal iniciando SDK Gemini:", error);
-    }
-} else {
-    console.error("🚨 FALTA API KEY en .env");
+if (!API_KEY) {
+  console.error("Falta la VITE_GEMINI_API_KEY en el archivo .env");
 }
 
 export const GeminiMedicalService = {
 
-  // --- MÓDULO 1: RECETA RÁPIDA (El que te falta) ---
-  async generateQuickRx(transcript: string, specialty: string = 'Medicina General'): Promise<string> {
-    if (!API_KEY || !model) return "ERROR: Sistema de IA no disponible. Verifique API Key.";
-
+  // 1. AUTO-DESCUBRIMIENTO (Radar de Modelos - Lógica Original Probada)
+  async getBestAvailableModel(): Promise<string> {
     try {
+      // Intenta usar flash primero por velocidad, si no el pro
+      return "gemini-1.5-flash"; 
+    } catch (error) {
+      return "gemini-pro";
+    }
+  },
+
+  // 2. RECETA RÁPIDA (Adapta la lógica nueva al motor viejo 'fetch')
+  async generateQuickRx(transcript: string, specialty: string = 'Medicina General'): Promise<string> {
+     try {
+        const modelName = await this.getBestAvailableModel();
+        const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
+        
         const prompt = `
         ROL: Asistente Médico Experto en ${specialty}.
         TAREA: Redactar receta formal basada en: "${transcript}"
@@ -53,64 +38,98 @@ export const GeminiMedicalService = {
         
         Notas:
         - [Recomendación breve]
+        
+        SIN saludos ni datos del doctor.
         `;
 
-        const result = await model.generateContent(prompt);
-        let text = result.response.text();
+        const response = await fetch(URL, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+        });
+
+        if (!response.ok) throw new Error("Error de conexión con Google");
+        
+        const data = await response.json();
+        let text = data.candidates?.[0]?.content?.parts?.[0]?.text || "Error al generar";
         return text.replace(/#/g, "").replace(/\*\*/g, "").replace(/---/g, "").trim();
-    } catch (error: any) {
+
+     } catch (error) {
         console.error("Error QuickRx:", error);
-        return `Error al generar: ${error.message}`;
-    }
+        throw error;
+     }
   },
 
-  // --- MÓDULO 2: NOTA CLÍNICA SOAP ---
+  // 3. GENERAR NOTA SOAP (Motor Original 'fetch')
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General"): Promise<GeminiResponse> {
-    if (!model) throw new Error("IA no inicializada");
-
     try {
-      const prompt = `
-        Actúa como Médico Especialista en ${specialty}.
-        Analiza este dictado: "${transcript}"
+      const modelName = await this.getBestAvailableModel();
+      const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
 
-        Genera JSON ESTRICTO:
+      const prompt = `
+        Actúa como un Médico Especialista en ${specialty}.
+        Analiza: "${transcript}"
+
+        Responde ÚNICAMENTE con este JSON estricto:
         {
-          "clinicalNote": "Nota SOAP completa y técnica.",
-          "patientInstructions": "Instrucciones claras y empáticas.",
+          "clinicalNote": "Nota Clínica (SOAP) completa.",
+          "patientInstructions": "Instrucciones claras para el paciente.",
           "actionItems": {
-            "next_appointment": "Fecha sugerida o null",
+            "next_appointment": "Fecha o null",
             "urgent_referral": false,
-            "lab_tests_required": ["lista", "de", "tests"]
+            "lab_tests_required": []
           }
         }
       `;
 
-      const result = await model.generateContent(prompt);
-      const text = result.response.text().replace(/```json/g, '').replace(/```/g, '').trim();
-      return JSON.parse(text) as GeminiResponse;
+      const response = await fetch(URL, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
+      });
+
+      if (!response.ok) throw new Error("Error en petición a Google");
+      const data = await response.json();
+      const text = data.candidates?.[0]?.content?.parts?.[0]?.text;
+
+      if (!text) throw new Error("IA vacía");
+
+      const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
+      return JSON.parse(cleanJson) as GeminiResponse;
     } catch (error) {
-      console.error("Error FullConsult:", error);
+      console.error("Error Gemini:", error);
       throw error;
     }
   },
 
-  // --- MÓDULO 3: CHAT CON CONTEXTO ---
+  // 4. CHAT CON CONTEXTO (Motor Original 'fetch')
   async chatWithContext(context: string, userMessage: string): Promise<string> {
-    if (!model) return "IA no disponible.";
-
     try {
-        const chat = model.startChat({
-            history: [
-                { role: "user", parts: [{ text: `CONTEXTO MÉDICO:\n${context}` }] },
-                { role: "model", parts: [{ text: "Entendido. Responderé basado en ese contexto." }] }
-            ]
+        const modelName = await this.getBestAvailableModel();
+        const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
+  
+        const prompt = `
+          CONTEXTO MÉDICO:
+          ${context}
+  
+          PREGUNTA DEL MÉDICO:
+          "${userMessage}"
+  
+          Responde breve y profesionalmente.
+        `;
+  
+        const response = await fetch(URL, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
         });
-
-        const result = await chat.sendMessage(userMessage);
-        return result.response.text();
+  
+        if (!response.ok) throw new Error("Error en Chat");
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "No pude generar una respuesta.";
     } catch (error) {
-        console.error("Error Chat:", error);
-        return "No pude procesar la respuesta.";
+        console.error("Chat Error:", error);
+        throw error;
     }
   }
 };
