@@ -19,6 +19,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import ReloadPrompt from './components/ReloadPrompt';
 import SplashScreen from './components/SplashScreen';
 import MobileTabBar from './components/MobileTabBar';
+import TermsOfService from './pages/TermsOfService'; // <--- IMPORTACIÓN RECUPERADA
 
 // INTERFACES ESTRICTAS
 interface MainLayoutProps {
@@ -55,6 +56,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session }) => {
             <Route path="/card" element={<DigitalCard />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
+            {/* RUTA DE TÉRMINOS LEGALES (Recuperada) */}
+            <Route path="/terms" element={<TermsOfService />} />
             {/* Redirección por defecto */}
             <Route path="*" element={<Navigate to="/" replace />} />
           </Routes>
