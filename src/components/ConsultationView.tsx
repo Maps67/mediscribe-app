@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { 
   Mic, Square, Save, RefreshCw, FileText, Printer, Search, 
   X, MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
-  Stethoscope, Trash2, Share2 
+  Stethoscope, Trash2, Share2, Download 
 } from 'lucide-react';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
 import { GeminiMedicalService, ChatMessage, GeminiResponse } from '../services/GeminiMedicalService';
@@ -436,15 +436,16 @@ const ConsultationView: React.FC = () => {
                           </div>
                       )}
 
-                      {/* Pestaña: Plan / Receta (CON BOTONES AGREGADOS) */}
+                      {/* Pestaña: Plan / Receta (4 BOTONES AHORA) */}
                       {activeTab === 'patient' && (
                           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 overflow-hidden">
                               <div className="flex justify-between items-center mb-4 pb-2 border-b dark:border-slate-800">
                                   <h3 className="font-bold text-lg dark:text-white">Instrucciones y Plan</h3>
                                   
-                                  {/* AQUÍ ESTÁN LOS BOTONES SOLICITADOS */}
+                                  {/* --- ZONA DE BOTONES (4 ICONOS) --- */}
                                   <div className="flex gap-2">
-                                      {/* WhatsApp (Verde) */}
+                                      
+                                      {/* 1. WhatsApp (Verde) */}
                                       <button 
                                           onClick={handleWhatsAppShare}
                                           className="p-2 bg-green-50 text-green-600 hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400 rounded-lg transition-colors border border-green-200 dark:border-green-800"
@@ -453,20 +454,29 @@ const ConsultationView: React.FC = () => {
                                           <Share2 size={18} />
                                       </button>
                                       
-                                      {/* Editar (Gris/Indigo) */}
+                                      {/* 2. Descargar PDF (Azul/Icono Descarga) - NUEVO AGREGADO */}
+                                      <button 
+                                          onClick={handlePrint} 
+                                          className="p-2 bg-blue-50 text-blue-600 hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400 rounded-lg transition-colors border border-blue-200 dark:border-blue-800"
+                                          title="Descargar PDF"
+                                      >
+                                          <Download size={18}/>
+                                      </button>
+
+                                      {/* 3. Editar (Gris) */}
                                       <button 
                                           onClick={()=>setIsEditingInstructions(!isEditingInstructions)} 
-                                          className={`p-2 rounded-lg transition-colors border ${isEditingInstructions ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'}`}
+                                          className={`p-2 rounded-lg transition-colors border ${isEditingInstructions ? 'bg-indigo-50 text-indigo-700 border-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-300' : 'bg-slate-50 text-slate-600 border-slate-200 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'}`}
                                           title={isEditingInstructions ? "Guardar edición" : "Editar texto"}
                                       >
                                           {isEditingInstructions ? <Check size={18}/> : <Edit2 size={18}/>}
                                       </button>
                                       
-                                      {/* PDF (Gris) */}
+                                      {/* 4. Imprimir (Gris) */}
                                       <button 
                                           onClick={handlePrint} 
                                           className="p-2 bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300 rounded-lg transition-colors border border-slate-200 dark:border-slate-700"
-                                          title="Descargar PDF"
+                                          title="Imprimir"
                                       >
                                           <Printer size={18}/>
                                       </button>
