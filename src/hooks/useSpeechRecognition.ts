@@ -9,7 +9,13 @@ interface IWindow extends Window {
 export const useSpeechRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
-  const [isAPISupported, setIsAPISupported] = useState(false);
+  
+  // OPTIMIZACIÓN: Detección síncrona inicial para evitar parpadeos del mensaje de error
+  const [isAPISupported, setIsAPISupported] = useState(() => {
+    if (typeof window === 'undefined') return false;
+    const { webkitSpeechRecognition, SpeechRecognition } = window as unknown as IWindow;
+    return !!(SpeechRecognition || webkitSpeechRecognition);
+  });
   
   const recognitionRef = useRef<any>(null);
   const finalTranscriptRef = useRef(''); // Memoria a largo plazo
@@ -20,6 +26,7 @@ export const useSpeechRecognition = () => {
     const { webkitSpeechRecognition, SpeechRecognition } = window as unknown as IWindow;
     const SpeechRecognitionAPI = SpeechRecognition || webkitSpeechRecognition;
 
+    // Doble verificación de seguridad
     if (!SpeechRecognitionAPI) {
       setIsAPISupported(false);
       return null;
@@ -39,9 +46,8 @@ export const useSpeechRecognition = () => {
     };
 
     /**
-     * LÓGICA CORE CORREGIDA (FIX BUCLE INFINITO)
-     * En lugar de comparar longitudes de string, iteramos desde el 'resultIndex'.
-     * Esto garantiza que solo procesamos los NUEVOS fragmentos que llegan.
+     * LÓGICA CORE (FIX BUCLE INFINITO)
+     * Iteramos desde resultIndex para procesar solo nuevos fragmentos.
      */
     recognition.onresult = (event: any) => {
       let interimTranscript = '';
@@ -52,7 +58,6 @@ export const useSpeechRecognition = () => {
 
         if (event.results[i].isFinal) {
           // Si es final, lo guardamos en la memoria permanente
-          // Agregamos un espacio natural si no lo tiene
           const prev = finalTranscriptRef.current;
           const spacer = (prev && !prev.endsWith(' ')) ? ' ' : '';
           finalTranscriptRef.current += spacer + transcriptSegment;
@@ -62,12 +67,13 @@ export const useSpeechRecognition = () => {
         }
       }
 
-      // Actualizamos el estado UI: Lo permanente + Lo que estás diciendo ahora mismo
+      // Actualizamos el estado UI
       setTranscript(finalTranscriptRef.current + interimTranscript);
     };
 
     recognition.onerror = (event: any) => {
       console.warn("Speech API Error:", event.error);
+      // 'not-allowed' = Permiso denegado. 'service-not-allowed' = Sin internet o sin soporte.
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setIsListening(false);
         isUserInitiatedStop.current = true;
@@ -76,8 +82,6 @@ export const useSpeechRecognition = () => {
 
     /**
      * AUTO-RESTART ROBUSTO
-     * Si la API se corta sola (por silencio), la reiniciamos automáticamente
-     * A MENOS QUE el usuario haya pulsado "Detener".
      */
     recognition.onend = () => {
       if (!isUserInitiatedStop.current) {
@@ -85,7 +89,6 @@ export const useSpeechRecognition = () => {
             console.log("Reiniciando escucha por silencio...");
             recognition.start();
           } catch (e) {
-            // Si falla el reinicio inmediato, esperamos un poco
             setTimeout(() => {
               if (!isUserInitiatedStop.current && recognitionRef.current) {
                   try { recognition.start(); } catch(err) { console.error("Fallo reintento", err); }
@@ -103,17 +106,14 @@ export const useSpeechRecognition = () => {
   // --- CONTROLES PÚBLICOS ---
 
   const startListening = useCallback(() => {
-    // 1. Limpieza de estado previo
     finalTranscriptRef.current = '';
     setTranscript('');
     isUserInitiatedStop.current = false;
     
-    // 2. Detener instancia anterior si existe (zombie prevention)
     if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch(e) {}
     }
 
-    // 3. Crear nueva instancia limpia
     const recognition = setupRecognition();
     if (recognition) {
         recognitionRef.current = recognition;
@@ -127,11 +127,10 @@ export const useSpeechRecognition = () => {
   }, [setupRecognition]);
 
   const stopListening = useCallback(() => {
-    isUserInitiatedStop.current = true; // Marcar parada manual
+    isUserInitiatedStop.current = true;
     if (recognitionRef.current) {
         try { recognitionRef.current.stop(); } catch(e) {}
     }
-    // Al parar, aseguramos que el transcript final sea lo único que queda
     setTranscript(finalTranscriptRef.current);
     setIsListening(false);
   }, []);
@@ -141,13 +140,11 @@ export const useSpeechRecognition = () => {
     setTranscript('');
   }, []);
 
-  // Permite editar el texto manualmente desde el textarea sin romper la memoria de la IA
   const setTranscriptManual = useCallback((text: string) => {
       finalTranscriptRef.current = text;
       setTranscript(text);
   }, []);
 
-  // Limpieza al desmontar componente
   useEffect(() => {
     return () => {
         isUserInitiatedStop.current = true;
