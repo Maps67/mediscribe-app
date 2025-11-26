@@ -25,37 +25,47 @@ export interface MedicationItem {
   notes: string;     
 }
 
-// --- UTILIDADES DE LIMPIEZA (EL ESCÁNER MEJORADO) ---
+// --- UTILIDADES DE LIMPIEZA ---
 
 const sanitizeInput = (input: string): string => input.replace(/ignore previous|system override/gi, "[BLOQUEADO]").trim();
 
 /**
- * ESCÁNER TITANIO: Limpia Markdown, espacios y busca llaves JSON
+ * PARSER HÍBRIDO (TITANIO):
+ * Intenta extraer JSON. Si falla, NO rompe la app; devuelve el texto crudo
+ * formateado como si fuera una nota válida.
  */
 const extractJSON = (text: string): any => {
   try {
-    // 1. Eliminación de Markdown típico (```json ... ```)
+    // 1. Limpieza de Markdown (```json ... ```)
     let clean = text.replace(/```json/gi, '').replace(/```/g, '').trim();
 
-    // 2. Búsqueda quirúrgica del objeto o array
-    // Buscamos la primera llave '{' o corchete '[' y el último '}' o ']'
+    // 2. Búsqueda quirúrgica de llaves
     const firstBrace = clean.search(/[{[]/);
-    const lastBrace = clean.search(/[}\]]$/); // Busca al final, ajustado abajo
+    const lastBrace = clean.search(/[}\]]$/);
 
-    // Si encontramos estructura, recortamos todo lo que esté fuera
-    if (firstBrace !== -1) {
-       // Buscamos el cierre real desde el final
-       const lastClosing = clean.lastIndexOf(clean[firstBrace] === '{' ? '}' : ']');
-       if (lastClosing !== -1) {
-           clean = clean.substring(firstBrace, lastClosing + 1);
-       }
+    if (firstBrace !== -1 && lastBrace !== -1) {
+       // Intentamos recortar lo que está fuera de las llaves
+       const candidate = clean.substring(firstBrace, lastBrace + 1);
+       return JSON.parse(candidate);
     }
 
-    // 3. Intento de Parseo
-    return JSON.parse(clean);
+    // Si no hay llaves, forzamos el error para ir al catch (Plan B)
+    throw new Error("No JSON found");
+
   } catch (e) {
-    console.error("CRASH ESCÁNER JSON. Texto recibido:", text);
-    throw new Error("La IA devolvió datos ilegibles. Intente de nuevo.");
+    console.warn("⚠️ Fallo parseo JSON. Activando modo Híbrido (Texto Plano).");
+    
+    // PLAN B (HÍBRIDO): Devolvemos el texto sucio dentro de la estructura válida.
+    // Esto evita el "Error IA" y muestra lo que la IA respondió.
+    return {
+        clinicalNote: text || "No se pudo generar texto.",
+        patientInstructions: "Por favor, genere las instrucciones manualmente o intente de nuevo.",
+        actionItems: { 
+            next_appointment: null, 
+            urgent_referral: false, 
+            lab_tests_required: [] 
+        }
+    };
   }
 };
 
@@ -64,59 +74,56 @@ export const GeminiMedicalService = {
   async callGeminiAPI(payload: any): Promise<string> {
     if (!API_KEY) throw new Error("API Key faltante.");
     
-    // Usamos flash por defecto por velocidad, pro como fallback si hiciera falta
     const URL = `https://generativelanguage.googleapis.com/v1beta/models/gemini-1.5-flash:generateContent?key=${API_KEY}`;
 
-    const response = await fetch(URL, {
-      method: 'POST', 
-      headers: { 'Content-Type': 'application/json' }, 
-      body: JSON.stringify(payload)
-    });
+    try {
+        const response = await fetch(URL, {
+          method: 'POST', 
+          headers: { 'Content-Type': 'application/json' }, 
+          body: JSON.stringify(payload)
+        });
 
-    if (!response.ok) {
-        const err = await response.json().catch(() => ({}));
-        console.error("Gemini Error:", err);
-        throw new Error(`Error API: ${response.status}`);
+        if (!response.ok) {
+            const err = await response.json().catch(() => ({}));
+            throw new Error(`Error Google: ${err.error?.message || response.status}`);
+        }
+        
+        const data = await response.json();
+        return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
+    } catch (error: any) {
+        console.error("Error de Red:", error);
+        throw new Error(error.message || "Error de conexión");
     }
-    
-    const data = await response.json();
-    return data.candidates?.[0]?.content?.parts?.[0]?.text || "";
   },
 
   async generateQuickRxJSON(transcript: string): Promise<MedicationItem[]> {
-    const prompt = `
-      ROL: Médico. 
-      TAREA: Extraer medicamentos de: "${sanitizeInput(transcript)}". 
-      FORMATO: JSON Array puro (sin markdown).
-      Estructura: [{"drug":"", "details":"", "frequency":"", "duration":"", "notes":""}]
-    `;
+    const prompt = `ROL: Médico. TAREA: Extraer medicamentos de: "${sanitizeInput(transcript)}". SALIDA: JSON Array puro: [{"drug":"", "details":"", "frequency":"", "duration":"", "notes":""}].`;
     try {
       const res = await this.callGeminiAPI({ contents: [{ parts: [{ text: prompt }] }] });
-      return extractJSON(res);
-    } catch (e) { console.error(e); return []; }
+      // Para la receta intentamos ser estrictos, si falla devolvemos array vacío
+      try {
+          const clean = res.replace(/```json/gi, '').replace(/```/g, '').trim();
+          const start = clean.indexOf('[');
+          const end = clean.lastIndexOf(']');
+          if (start !== -1 && end !== -1) return JSON.parse(clean.substring(start, end + 1));
+          return JSON.parse(clean);
+      } catch { return []; }
+    } catch (e) { return []; }
   },
 
   async generateClinicalNote(transcript: string, specialty: string): Promise<GeminiResponse> {
     const prompt = `
       ACTÚA: Médico ${specialty}. 
       ANALIZA: "${sanitizeInput(transcript)}". 
-      SALIDA OBLIGATORIA: Solamente un objeto JSON válido (RFC 8259), sin bloques de código markdown, sin texto introductorio.
-      
-      JSON SCHEMA:
-      {
-        "clinicalNote": "Texto SOAP completo y formateado.",
-        "patientInstructions": "Lista de indicaciones claras.",
-        "actionItems": {
-            "next_appointment": "YYYY-MM-DD" o null,
-            "urgent_referral": boolean,
-            "lab_tests_required": ["..."]
-        }
-      }
+      SALIDA: Objeto JSON (RFC8259).
+      SCHEMA: { "clinicalNote": "SOAP completo", "patientInstructions": "Indicaciones", "actionItems": {...} }
     `;
-    try {
-      const res = await this.callGeminiAPI({ contents: [{ parts: [{ text: prompt }] }] });
-      return extractJSON(res);
-    } catch (e) { console.error(e); throw e; }
+    
+    // Llamada a la API
+    const rawText = await this.callGeminiAPI({ contents: [{ parts: [{ text: prompt }] }] });
+    
+    // Aquí aplicamos el parser híbrido que evita el crash
+    return extractJSON(rawText);
   },
 
   async chatWithContext(ctx: string, history: ChatMessage[], msg: string): Promise<string> {
