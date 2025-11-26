@@ -1,11 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, FileText, Trash2, Edit2, X, Save, Eye, Calendar, Clock, FileCode } from 'lucide-react';
+import { Search, UserPlus, FileText, Trash2, Edit2, X, Save, Eye, Calendar, Clock, FileCode, Share2, Printer, Download } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Patient, DoctorProfile } from '../types';
 import { toast } from 'sonner';
 import PatientAttachments from './PatientAttachments';
 import QuickRxModal from './QuickRxModal';
-import FormattedText from './FormattedText'; // Reutilizamos esto para que el texto se vea bonito
+import FormattedText from './FormattedText'; 
+import { pdf } from '@react-pdf/renderer';
+import PrescriptionPDF from './PrescriptionPDF';
 
 // FIX: Interfaz local para extender Patient y evitar errores de TS
 interface PatientData extends Partial<Patient> {
@@ -38,7 +40,7 @@ const PatientsView: React.FC = () => {
   // Estados de selección
   const [editingPatient, setEditingPatient] = useState<PatientData | null>(null);
   const [selectedPatientForRx, setSelectedPatientForRx] = useState<PatientData | null>(null);
-  const [viewingPatient, setViewingPatient] = useState<PatientData | null>(null); // Paciente del que vemos historial
+  const [viewingPatient, setViewingPatient] = useState<PatientData | null>(null); 
   
   // Datos
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
@@ -86,7 +88,7 @@ const PatientsView: React.FC = () => {
       setViewingPatient(patient);
       setIsHistoryOpen(true);
       setLoadingHistory(true);
-      setPatientHistory([]); // Limpiar anterior
+      setPatientHistory([]); 
 
       try {
           const { data, error } = await supabase
@@ -105,6 +107,51 @@ const PatientsView: React.FC = () => {
       }
   };
 
+  // --- ACCIONES INDIVIDUALES DE NOTA ---
+  
+  const handleShareNoteWhatsApp = (consultation: ConsultationRecord) => {
+      if (!viewingPatient) return;
+      
+      const drName = doctorProfile?.full_name || 'su médico';
+      // Extraemos un fragmento limpio para el mensaje (opcionalmente podrías parsear mejor)
+      const message = `*Historial Médico - Dr. ${drName}*\n*Paciente:* ${viewingPatient.name}\n*Fecha:* ${new Date(consultation.created_at).toLocaleDateString()}\n\n${consultation.summary}\n\n*Saludos.*`;
+      
+      const encodedMessage = encodeURIComponent(message);
+      let whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
+      
+      if (viewingPatient.phone) {
+          const cleanPhone = viewingPatient.phone.replace(/\D/g, '');
+          if (cleanPhone.length >= 10) whatsappUrl = `https://wa.me/${cleanPhone}?text=${encodedMessage}`;
+      }
+      window.open(whatsappUrl, '_blank');
+  };
+
+  const handlePrintNote = async (consultation: ConsultationRecord) => {
+      if (!viewingPatient || !doctorProfile) return;
+      
+      try {
+          const blob = await pdf(
+            <PrescriptionPDF 
+                doctorName={doctorProfile.full_name} 
+                specialty={doctorProfile.specialty} 
+                license={doctorProfile.license_number} 
+                phone={doctorProfile.phone} 
+                university={doctorProfile.university} 
+                address={doctorProfile.address} 
+                logoUrl={doctorProfile.logo_url} 
+                signatureUrl={doctorProfile.signature_url} 
+                patientName={viewingPatient.name} 
+                date={new Date(consultation.created_at).toLocaleDateString()} 
+                content={consultation.summary} 
+            />
+          ).toBlob();
+          window.open(URL.createObjectURL(blob), '_blank');
+      } catch (e) {
+          toast.error("Error generando PDF");
+      }
+  };
+
+  // ... (Resto de funciones CRUD: handleSubmit, resetForm, handleDelete, openEditModal) ...
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -177,6 +224,7 @@ const PatientsView: React.FC = () => {
 
   return (
     <div className="p-6 max-w-7xl mx-auto pb-24 md:pb-6">
+      {/* HEADER */}
       <div className="flex justify-between items-center mb-8">
         <div>
           <h1 className="text-2xl font-bold text-slate-800 dark:text-white">Pacientes</h1>
@@ -194,6 +242,7 @@ const PatientsView: React.FC = () => {
         </button>
       </div>
 
+      {/* TABLA */}
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         <div className="p-4 border-b border-slate-100 dark:border-slate-700">
           <div className="relative">
@@ -266,7 +315,7 @@ const PatientsView: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL 1: EDICIÓN/CREACIÓN (Datos Personales) */}
+      {/* MODAL 1: EDICIÓN/CREACIÓN */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
@@ -276,7 +325,7 @@ const PatientsView: React.FC = () => {
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* ... (Formulario de datos personales igual que antes) ... */}
+                {/* ... Campos formulario ... */}
                 <div className="col-span-2">
                     <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre Completo</label>
                     <input required className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
@@ -320,7 +369,7 @@ const PatientsView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 2: HISTORIAL CLÍNICO (NUEVO) */}
+      {/* MODAL 2: HISTORIAL CLÍNICO MEJORADO */}
       {isHistoryOpen && viewingPatient && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col">
@@ -354,12 +403,35 @@ const PatientsView: React.FC = () => {
                         {patientHistory.map((consultation) => (
                             <div key={consultation.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                                 <div className="bg-slate-50 dark:bg-slate-950 p-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                                    <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
-                                        <Calendar size={16} className="text-brand-teal"/>
-                                        {new Date(consultation.created_at).toLocaleDateString()}
-                                        <span className="text-slate-300">|</span>
-                                        <Clock size={16} className="text-brand-teal"/>
-                                        {new Date(consultation.created_at).toLocaleTimeString()}
+                                    
+                                    {/* FECHA Y HORA */}
+                                    <div className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-300">
+                                        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 rounded border dark:border-slate-700">
+                                            <Calendar size={14} className="text-brand-teal"/>
+                                            {new Date(consultation.created_at).toLocaleDateString()}
+                                        </div>
+                                        <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 rounded border dark:border-slate-700">
+                                            <Clock size={14} className="text-brand-teal"/>
+                                            {new Date(consultation.created_at).toLocaleTimeString([], {hour: '2-digit', minute:'2-digit'})}
+                                        </div>
+                                    </div>
+
+                                    {/* BOTONES DE ACCIÓN INDIVIDUALES */}
+                                    <div className="flex gap-2">
+                                        <button 
+                                            onClick={() => handleShareNoteWhatsApp(consultation)}
+                                            className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded border border-transparent hover:border-green-200 transition-colors"
+                                            title="Enviar por WhatsApp"
+                                        >
+                                            <Share2 size={16}/>
+                                        </button>
+                                        <button 
+                                            onClick={() => handlePrintNote(consultation)}
+                                            className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-transparent hover:border-blue-200 transition-colors"
+                                            title="Descargar PDF"
+                                        >
+                                            <Download size={16}/>
+                                        </button>
                                     </div>
                                 </div>
                                 <div className="p-5 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
