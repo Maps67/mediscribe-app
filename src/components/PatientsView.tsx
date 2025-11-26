@@ -1,16 +1,17 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, FileText, Trash2, Edit2, X, Save } from 'lucide-react';
+import { Search, UserPlus, FileText, Trash2, Edit2, X, Save, Eye, Calendar, Clock, FileCode } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Patient, DoctorProfile } from '../types';
 import { toast } from 'sonner';
 import PatientAttachments from './PatientAttachments';
 import QuickRxModal from './QuickRxModal';
+import FormattedText from './FormattedText'; // Reutilizamos esto para que el texto se vea bonito
 
-// FIX: Interfaz local para extender Patient y evitar errores de TS si types.ts está desactualizado
+// FIX: Interfaz local para extender Patient y evitar errores de TS
 interface PatientData extends Partial<Patient> {
   id: string;
   name: string;
-  age: number | string; // Flexible para evitar choques
+  age: number | string; 
   gender: string;
   phone?: string;
   email?: string;
@@ -18,15 +19,31 @@ interface PatientData extends Partial<Patient> {
   created_at?: string;
 }
 
+// Interfaz para el historial de consultas
+interface ConsultationRecord {
+    id: string;
+    created_at: string;
+    summary: string;
+    transcript: string;
+}
+
 const PatientsView: React.FC = () => {
   const [patients, setPatients] = useState<PatientData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingPatient, setEditingPatient] = useState<PatientData | null>(null);
-  const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   
-  // Estado para QuickRx desde la vista de pacientes
+  // Modales
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
+  
+  // Estados de selección
+  const [editingPatient, setEditingPatient] = useState<PatientData | null>(null);
   const [selectedPatientForRx, setSelectedPatientForRx] = useState<PatientData | null>(null);
+  const [viewingPatient, setViewingPatient] = useState<PatientData | null>(null); // Paciente del que vemos historial
+  
+  // Datos
+  const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
+  const [patientHistory, setPatientHistory] = useState<ConsultationRecord[]>([]);
+  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -43,7 +60,6 @@ const PatientsView: React.FC = () => {
   }, []);
 
   const fetchPatients = async () => {
-    // Usamos 'any' en el select para evitar conflictos si la DB tiene campos que TS desconoce
     const { data, error } = await supabase
       .from('patients')
       .select('*')
@@ -65,6 +81,30 @@ const PatientsView: React.FC = () => {
     }
   };
 
+  // --- LÓGICA NUEVA: Cargar Historial ---
+  const handleViewHistory = async (patient: PatientData) => {
+      setViewingPatient(patient);
+      setIsHistoryOpen(true);
+      setLoadingHistory(true);
+      setPatientHistory([]); // Limpiar anterior
+
+      try {
+          const { data, error } = await supabase
+            .from('consultations')
+            .select('*')
+            .eq('patient_id', patient.id)
+            .order('created_at', { ascending: false });
+
+          if (error) throw error;
+          setPatientHistory(data || []);
+      } catch (error) {
+          console.error(error);
+          toast.error("Error al cargar el expediente");
+      } finally {
+          setLoadingHistory(false);
+      }
+  };
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     try {
@@ -73,7 +113,7 @@ const PatientsView: React.FC = () => {
 
       const patientData = {
         name: formData.name,
-        age: parseInt(formData.age) || 0, // Fallback seguro
+        age: parseInt(formData.age) || 0, 
         gender: formData.gender,
         phone: formData.phone,
         email: formData.email,
@@ -106,7 +146,7 @@ const PatientsView: React.FC = () => {
   };
 
   const handleDelete = async (id: string) => {
-    if (!confirm('¿Estás seguro de eliminar este paciente?')) return;
+    if (!confirm('¿Estás seguro de eliminar este paciente y todo su historial?')) return;
     try {
       const { error } = await supabase.from('patients').delete().eq('id', id);
       if (error) throw error;
@@ -193,12 +233,20 @@ const PatientsView: React.FC = () => {
                     <p className="text-xs text-slate-400">{patient.email}</p>
                   </td>
                   <td className="p-4">
-                    {/* FIX: Eliminadas las clases sm:opacity-0 para que los botones sean siempre visibles */}
                     <div className="flex items-center justify-center gap-2">
-                      <button onClick={() => setSelectedPatientForRx(patient)} className="p-2 text-brand-teal hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-lg transition-colors" title="Crear Receta">
+                      {/* BOTÓN NUEVO: Ver Expediente */}
+                      <button 
+                        onClick={() => handleViewHistory(patient)} 
+                        className="p-2 text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors" 
+                        title="Ver Expediente Completo"
+                      >
+                        <Eye size={18} />
+                      </button>
+
+                      <button onClick={() => setSelectedPatientForRx(patient)} className="p-2 text-brand-teal hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-lg transition-colors" title="Crear Receta Rápida">
                         <FileText size={18} />
                       </button>
-                      <button onClick={() => openEditModal(patient)} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Editar">
+                      <button onClick={() => openEditModal(patient)} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Editar Datos">
                         <Edit2 size={18} />
                       </button>
                       <button onClick={() => handleDelete(patient.id)} className="p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Eliminar">
@@ -218,7 +266,7 @@ const PatientsView: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL EDICIÓN/CREACIÓN */}
+      {/* MODAL 1: EDICIÓN/CREACIÓN (Datos Personales) */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
@@ -228,6 +276,7 @@ const PatientsView: React.FC = () => {
             </div>
             
             <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
+                {/* ... (Formulario de datos personales igual que antes) ... */}
                 <div className="col-span-2">
                     <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre Completo</label>
                     <input required className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
@@ -271,7 +320,61 @@ const PatientsView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL RECETA RÁPIDA (Conectado al backend seguro) */}
+      {/* MODAL 2: HISTORIAL CLÍNICO (NUEVO) */}
+      {isHistoryOpen && viewingPatient && (
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col">
+            
+            {/* Header Historial */}
+            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
+              <div>
+                <h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                    <FileText className="text-brand-teal"/> Expediente Clínico
+                </h3>
+                <p className="text-sm text-slate-500 dark:text-slate-400">Paciente: <span className="font-bold">{viewingPatient.name}</span></p>
+              </div>
+              <button onClick={() => setIsHistoryOpen(false)} className="p-2 bg-white dark:bg-slate-800 rounded-full text-slate-400 hover:text-red-500 shadow-sm transition-colors"><X size={24}/></button>
+            </div>
+
+            {/* Cuerpo Historial */}
+            <div className="flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-900">
+                {loadingHistory ? (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
+                        <div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-teal"></div>
+                        <p>Cargando historial...</p>
+                    </div>
+                ) : patientHistory.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-70">
+                        <FileCode size={64} strokeWidth={1} className="mb-4"/>
+                        <p className="text-lg">No hay consultas registradas aún.</p>
+                        <p className="text-sm">Realice una nueva consulta desde el menú principal.</p>
+                    </div>
+                ) : (
+                    <div className="space-y-6">
+                        {patientHistory.map((consultation) => (
+                            <div key={consultation.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
+                                <div className="bg-slate-50 dark:bg-slate-950 p-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+                                    <div className="flex items-center gap-2 text-sm font-medium text-slate-600 dark:text-slate-300">
+                                        <Calendar size={16} className="text-brand-teal"/>
+                                        {new Date(consultation.created_at).toLocaleDateString()}
+                                        <span className="text-slate-300">|</span>
+                                        <Clock size={16} className="text-brand-teal"/>
+                                        {new Date(consultation.created_at).toLocaleTimeString()}
+                                    </div>
+                                </div>
+                                <div className="p-5 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
+                                    <FormattedText content={consultation.summary} />
+                                </div>
+                            </div>
+                        ))}
+                    </div>
+                )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 3: RECETA RÁPIDA (Existente) */}
       {selectedPatientForRx && doctorProfile && (
           <QuickRxModal
             isOpen={!!selectedPatientForRx}
