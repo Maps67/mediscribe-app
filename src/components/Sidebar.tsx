@@ -17,7 +17,6 @@ import {
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
 
-// Definición manual para el evento PWA (no estándar en TS)
 interface BeforeInstallPromptEvent extends Event {
   prompt: () => Promise<void>;
   userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
@@ -40,26 +39,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   useEffect(() => {
     let mounted = true;
 
-    // 1. Detección de Plataforma y Modo de Visualización
     const checkEnvironment = () => {
       const isDeviceIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
       setIsIOS(isDeviceIOS);
-
       const isApp = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
       setIsStandalone(isApp);
     };
 
-    // 2. Carga de Perfil Segura
     const fetchProfile = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
         if (user && mounted) {
-          const { data } = await supabase
-            .from('profiles')
-            .select('full_name, specialty')
-            .eq('id', user.id)
-            .single();
-          
+          const { data } = await supabase.from('profiles').select('full_name, specialty').eq('id', user.id).single();
           if (data && mounted) {
             setProfile({ 
               name: data.full_name || 'Doctor(a)', 
@@ -68,19 +59,17 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           }
         }
       } catch (error) {
-        console.error("Error cargando perfil sidebar:", error);
+        console.error("Error cargando perfil:", error);
       }
     };
 
     checkEnvironment();
     fetchProfile();
 
-    // 3. Captura del evento de instalación PWA
     const handler = (e: Event) => {
       e.preventDefault();
       setDeferredPrompt(e as BeforeInstallPromptEvent);
     };
-
     window.addEventListener('beforeinstallprompt', handler);
 
     return () => {
@@ -91,16 +80,13 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   
   const handleLogout = async () => { 
     await supabase.auth.signOut(); 
-    // No es necesario redirigir aquí, App.tsx escucha el evento onAuthStateChange
   };
 
   const handleInstallClick = () => {
     if (deferredPrompt) {
       deferredPrompt.prompt();
       deferredPrompt.userChoice.then((choiceResult) => {
-        if (choiceResult.outcome === 'accepted') {
-          setDeferredPrompt(null);
-        }
+        if (choiceResult.outcome === 'accepted') setDeferredPrompt(null);
       });
     } else if (isIOS) {
       setShowIOSInstructions(!showIOSInstructions);
@@ -110,7 +96,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
   };
 
   const menuItems = [
-    { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard', end: true }, // 'end' evita match parcial
+    { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard', end: true }, 
     { path: '/consultation', icon: <Stethoscope size={20} />, label: 'Consulta IA' },
     { path: '/calendar', icon: <Calendar size={20} />, label: 'Agenda' },
     { path: '/patients', icon: <Users size={20} />, label: 'Pacientes' },
@@ -120,7 +106,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
 
   return (
     <>
-      {/* Overlay Móvil */}
       {isOpen && (
         <div 
           className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm" 
@@ -138,32 +123,22 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           md:translate-x-0 flex flex-col
         `}
       >
-        {/* HEADER */}
         <div className="p-6 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center space-x-3">
-            <img 
-              src="/pwa-192x192.png" 
-              alt="MediScribe Logo" 
-              className="h-10 w-10 rounded-xl shadow-sm object-cover bg-slate-50" 
-            />
+            <img src="/pwa-192x192.png" alt="Logo" className="h-10 w-10 rounded-xl shadow-sm object-cover bg-slate-50" />
             <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">MediScribe</span>
           </div>
-          <button 
-            onClick={onClose} 
-            className="md:hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"
-            aria-label="Cerrar menú"
-          >
+          <button onClick={onClose} className="md:hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
             <X size={24} />
           </button>
         </div>
 
-        {/* NAV ITEMS */}
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
           {menuItems.map((item) => (
             <NavLink
               key={item.path}
               to={item.path}
-              end={item.end} // IMPORTANTE: Para que / no quede activo estando en /consultation
+              end={item.end}
               onClick={onClose}
               className={({ isActive }) =>
                 `flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 font-medium ${
@@ -178,22 +153,14 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
             </NavLink>
           ))}
 
-          {/* MODO OSCURO TOGGLE */}
-          <button
-            onClick={toggleTheme}
-            className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 mt-2 font-medium"
-          >
+          <button onClick={toggleTheme} className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 mt-2 font-medium">
             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             <span>{theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}</span>
           </button>
 
-          {/* INSTALACIÓN PWA */}
           {!isStandalone && (
             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <button 
-                  onClick={handleInstallClick} 
-                  className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 bg-slate-900 dark:bg-slate-800 text-white shadow-lg active:scale-95"
-                >
+                <button onClick={handleInstallClick} className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 bg-slate-900 dark:bg-slate-800 text-white shadow-lg active:scale-95">
                   <Download size={20} />
                   <span className="font-bold">Instalar App</span>
                 </button>
@@ -208,7 +175,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
           )}
         </nav>
 
-        {/* FOOTER USER PROFILE */}
         <div className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900 z-10">
           <div className="flex items-center p-3 mb-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
               <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900 flex items-center justify-center text-brand-teal font-bold text-xs shrink-0">
@@ -219,13 +185,19 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose }) => {
                   <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate uppercase tracking-wide">{profile.specialty}</p>
               </div>
           </div>
-          <button 
-            onClick={handleLogout} 
-            className="flex items-center justify-center space-x-2 px-4 py-2 w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-sm font-medium"
-          >
+          <button onClick={handleLogout} className="flex items-center justify-center space-x-2 px-4 py-2 w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-sm font-medium">
             <LogOut size={18} />
             <span>Cerrar Sesión</span>
           </button>
+
+          {/* AVISO LEGAL INTEGRADO */}
+          <div className="mt-4 text-[10px] text-slate-400 text-center leading-tight opacity-70 hover:opacity-100 transition-opacity">
+            <p className="font-bold">Clasificación: Software de Gestión (EHR)</p>
+            <NavLink to="/terms" className="underline hover:text-brand-teal mt-1 block">
+                Términos y Responsabilidad
+            </NavLink>
+          </div>
+
         </div>
       </aside>
     </>
