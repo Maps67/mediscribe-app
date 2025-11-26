@@ -1,20 +1,32 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, FileText, Trash2, Edit2, X, Save, Plus } from 'lucide-react';
+import { Search, UserPlus, FileText, Trash2, Edit2, X, Save } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Patient, DoctorProfile } from '../types';
 import { toast } from 'sonner';
 import PatientAttachments from './PatientAttachments';
 import QuickRxModal from './QuickRxModal';
 
+// FIX: Interfaz local para extender Patient y evitar errores de TS si types.ts está desactualizado
+interface PatientData extends Partial<Patient> {
+  id: string;
+  name: string;
+  age: number | string; // Flexible para evitar choques
+  gender: string;
+  phone?: string;
+  email?: string;
+  history?: string;
+  created_at?: string;
+}
+
 const PatientsView: React.FC = () => {
-  const [patients, setPatients] = useState<Patient[]>([]);
+  const [patients, setPatients] = useState<PatientData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [editingPatient, setEditingPatient] = useState<Patient | null>(null);
+  const [editingPatient, setEditingPatient] = useState<PatientData | null>(null);
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   
   // Estado para QuickRx desde la vista de pacientes
-  const [selectedPatientForRx, setSelectedPatientForRx] = useState<Patient | null>(null);
+  const [selectedPatientForRx, setSelectedPatientForRx] = useState<PatientData | null>(null);
 
   const [formData, setFormData] = useState({
     name: '',
@@ -31,9 +43,18 @@ const PatientsView: React.FC = () => {
   }, []);
 
   const fetchPatients = async () => {
-    const { data, error } = await supabase.from('patients').select('*').order('created_at', { ascending: false });
-    if (error) toast.error('Error al cargar pacientes');
-    else setPatients(data || []);
+    // Usamos 'any' en el select para evitar conflictos si la DB tiene campos que TS desconoce
+    const { data, error } = await supabase
+      .from('patients')
+      .select('*')
+      .order('created_at', { ascending: false });
+      
+    if (error) {
+      console.error("Error fetching patients:", error);
+      toast.error('Error al cargar pacientes');
+    } else {
+      setPatients((data as unknown as PatientData[]) || []);
+    }
   };
 
   const fetchDoctorProfile = async () => {
@@ -51,8 +72,12 @@ const PatientsView: React.FC = () => {
       if (!user) return;
 
       const patientData = {
-        ...formData,
-        age: parseInt(formData.age),
+        name: formData.name,
+        age: parseInt(formData.age) || 0, // Fallback seguro
+        gender: formData.gender,
+        phone: formData.phone,
+        email: formData.email,
+        history: formData.history,
         doctor_id: user.id
       };
 
@@ -68,11 +93,16 @@ const PatientsView: React.FC = () => {
 
       setIsModalOpen(false);
       setEditingPatient(null);
-      setFormData({ name: '', age: '', gender: 'Masculino', phone: '', email: '', history: '' });
+      resetForm();
       fetchPatients();
     } catch (error) {
+      console.error(error);
       toast.error('Error al guardar paciente');
     }
+  };
+
+  const resetForm = () => {
+    setFormData({ name: '', age: '', gender: 'Masculino', phone: '', email: '', history: '' });
   };
 
   const handleDelete = async (id: string) => {
@@ -87,12 +117,12 @@ const PatientsView: React.FC = () => {
     }
   };
 
-  const openEditModal = (patient: Patient) => {
+  const openEditModal = (patient: PatientData) => {
     setEditingPatient(patient);
     setFormData({
       name: patient.name,
-      age: patient.age.toString(),
-      gender: patient.gender,
+      age: patient.age ? patient.age.toString() : '',
+      gender: patient.gender || 'Masculino',
       phone: patient.phone || '',
       email: patient.email || '',
       history: patient.history || ''
@@ -115,12 +145,12 @@ const PatientsView: React.FC = () => {
         <button 
           onClick={() => {
             setEditingPatient(null);
-            setFormData({ name: '', age: '', gender: 'Masculino', phone: '', email: '', history: '' });
+            resetForm();
             setIsModalOpen(true);
           }}
           className="bg-brand-teal hover:bg-teal-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-teal-500/20"
         >
-          <UserPlus size={20} /> Nuevo Paciente
+          <UserPlus size={20} /> <span className="hidden sm:inline">Nuevo Paciente</span>
         </button>
       </div>
 
@@ -159,18 +189,19 @@ const PatientsView: React.FC = () => {
                     {patient.age} años <br/> {patient.gender}
                   </td>
                   <td className="p-4 text-sm text-slate-600 dark:text-slate-300">
-                    <p>{patient.phone}</p>
+                    <p>{patient.phone || 'Sin teléfono'}</p>
                     <p className="text-xs text-slate-400">{patient.email}</p>
                   </td>
                   <td className="p-4">
-                    <div className="flex items-center justify-center gap-2 opacity-100 sm:opacity-0 sm:group-hover:opacity-100 transition-opacity">
-                      <button onClick={() => setSelectedPatientForRx(patient)} className="p-2 text-brand-teal hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-lg" title="Crear Receta">
+                    {/* FIX: Eliminadas las clases sm:opacity-0 para que los botones sean siempre visibles */}
+                    <div className="flex items-center justify-center gap-2">
+                      <button onClick={() => setSelectedPatientForRx(patient)} className="p-2 text-brand-teal hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-lg transition-colors" title="Crear Receta">
                         <FileText size={18} />
                       </button>
-                      <button onClick={() => openEditModal(patient)} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg" title="Editar">
+                      <button onClick={() => openEditModal(patient)} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Editar">
                         <Edit2 size={18} />
                       </button>
-                      <button onClick={() => handleDelete(patient.id)} className="p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg" title="Eliminar">
+                      <button onClick={() => handleDelete(patient.id)} className="p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Eliminar">
                         <Trash2 size={18} />
                       </button>
                     </div>
@@ -198,35 +229,35 @@ const PatientsView: React.FC = () => {
             
             <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="col-span-2">
-                    <label className="label">Nombre Completo</label>
-                    <input required className="input" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
+                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre Completo</label>
+                    <input required className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
                 </div>
                 <div>
-                    <label className="label">Edad</label>
-                    <input required type="number" className="input" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} />
+                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Edad</label>
+                    <input required type="number" className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} />
                 </div>
                 <div>
-                    <label className="label">Género</label>
-                    <select className="input" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}>
+                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Género</label>
+                    <select className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}>
                         <option>Masculino</option><option>Femenino</option><option>Otro</option>
                     </select>
                 </div>
                 <div>
-                    <label className="label">Teléfono</label>
-                    <input className="input" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
+                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Teléfono</label>
+                    <input className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
                 </div>
                 <div>
-                    <label className="label">Email</label>
-                    <input type="email" className="input" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
+                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
+                    <input type="email" className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
                 </div>
                 <div className="col-span-2">
-                    <label className="label">Antecedentes / Notas</label>
-                    <textarea className="input h-24 resize-none" value={formData.history} onChange={e => setFormData({...formData, history: e.target.value})} />
+                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Antecedentes / Notas</label>
+                    <textarea className="input w-full p-2 rounded-lg border h-24 resize-none dark:bg-slate-800 dark:border-slate-700" value={formData.history} onChange={e => setFormData({...formData, history: e.target.value})} />
                 </div>
 
                 {editingPatient && (
                     <div className="col-span-2 mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
-                        <label className="label mb-2 block">Archivos Adjuntos</label>
+                        <label className="label mb-2 block font-bold text-slate-700 dark:text-slate-300">Archivos Adjuntos</label>
                         <PatientAttachments patientId={editingPatient.id} />
                     </div>
                 )}
@@ -240,12 +271,12 @@ const PatientsView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL RECETA RÁPIDA */}
+      {/* MODAL RECETA RÁPIDA (Conectado al backend seguro) */}
       {selectedPatientForRx && doctorProfile && (
           <QuickRxModal
             isOpen={!!selectedPatientForRx}
             onClose={() => setSelectedPatientForRx(null)}
-            initialTranscript="" // Arranca vacío para dictar o escribir desde cero
+            initialTranscript=""
             patientName={selectedPatientForRx.name}
             doctorProfile={doctorProfile}
           />
