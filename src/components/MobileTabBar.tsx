@@ -24,16 +24,18 @@ const MobileTabBar: React.FC = () => {
 
   return (
     // SOPORTE PWA: pb-[env(safe-area-inset-bottom)] protege el contenido en iPhone X+
-    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 pb-[env(safe-area-inset-bottom)] z-50 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] transition-colors duration-300">
+    // z-40 para estar sobre el contenido, pero debajo de modales (z-50) y Sidebar (z-50)
+    <nav className="md:hidden fixed bottom-0 left-0 right-0 bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 pb-[env(safe-area-inset-bottom)] z-40 shadow-[0_-4px_10px_rgba(0,0,0,0.03)] transition-colors duration-300">
       <div className="flex justify-around items-end h-14 px-1">
         {tabs.map((tab) => (
           <NavLink
             key={tab.path}
             to={tab.path}
             end={tab.end} // Routing estricto aplicado aquí
+            aria-label={tab.label} // Mejora de accesibilidad
             className={({ isActive }) => `
               flex flex-col items-center justify-center w-full h-full pb-1 pt-1 relative
-              transition-colors duration-200 cursor-pointer select-none
+              transition-colors duration-200 cursor-pointer select-none outline-none tap-highlight-transparent
               ${isActive && !tab.isMain ? 'text-brand-teal' : 'text-slate-400 hover:text-slate-600 dark:hover:text-slate-300'}
             `}
           >
@@ -44,8 +46,8 @@ const MobileTabBar: React.FC = () => {
                   <div className="absolute -top-6 flex flex-col items-center group">
                     <div className={`
                       bg-brand-teal text-white p-3.5 rounded-full shadow-lg shadow-teal-200/50 dark:shadow-none 
-                      transform transition-all duration-200 
-                      ${isActive ? 'scale-110 ring-4 ring-teal-50 dark:ring-teal-900/30' : 'active:scale-95 group-hover:scale-105'}
+                      transform transition-all duration-200 border-4 border-slate-50 dark:border-slate-900
+                      ${isActive ? 'scale-110 ring-2 ring-teal-100 dark:ring-teal-900/30' : 'active:scale-95 group-hover:scale-105'}
                     `}>
                         <tab.icon size={24} strokeWidth={2.5} />
                     </div>

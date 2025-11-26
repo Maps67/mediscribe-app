@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import { BrowserRouter, Routes, Route, Navigate } from 'react-router-dom';
-import { Session } from '@supabase/supabase-js'; // IMPORTANTE: Tipado oficial
+import { Session } from '@supabase/supabase-js'; 
 import { supabase } from './lib/supabase';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from './context/ThemeContext';
@@ -33,18 +33,19 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session }) => {
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative">
       
       {/* SIDEBAR ESCRITORIO */}
-      {/* Nota de Arquitectura: Renderizamos condicionalmente en CSS. 
-          En un futuro, considera usar useMediaQuery para evitar montar el componente si no es desktop */}
       <div className="hidden md:flex z-20">
         <Sidebar isOpen={true} onClose={() => {}} />
       </div>
 
-      {/* SIDEBAR MÓVIL (Drawer) */}
-      <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      {/* SIDEBAR MÓVIL (Drawer) - Debe tener z-index mayor a MobileTabBar (z-40) */}
+      <div className="md:hidden">
+          <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
+      </div>
 
       <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950">
         
-        <div className="flex-1 overflow-hidden h-full pb-16 md:pb-0"> {/* Padding bottom para evitar que MobileTabBar tape contenido */}
+        {/* Padding bottom (pb-20) aumentado para asegurar que el contenido no quede detrás del TabBar */}
+        <div className="flex-1 overflow-hidden h-full pb-20 md:pb-0"> 
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/consultation" element={<ConsultationView />} />
@@ -60,7 +61,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session }) => {
         </div>
 
         {/* BARRA INFERIOR MÓVIL */}
-        {/* Solo visible en móvil vía CSS interno del componente, pero aquí lo aseguramos semánticamente */}
         <div className="md:hidden">
           <MobileTabBar />
         </div>
@@ -71,7 +71,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session }) => {
 };
 
 const App: React.FC = () => {
-  // TIPADO ESTRICTO: Ya no usamos 'any'
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
@@ -99,8 +98,6 @@ const App: React.FC = () => {
 
     // 2. Escuchar eventos de autenticación
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
-      console.log("[Auth Security] Event:", event); 
-
       if (!mounted) return;
 
       if (event === 'PASSWORD_RECOVERY') {
@@ -110,7 +107,6 @@ const App: React.FC = () => {
         setSession(null);
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setSession(newSession);
-        // Si acabamos de loguearnos, aseguramos que el flag de recuperación se apague
         setIsRecoveryFlow(false); 
       }
       
@@ -130,8 +126,7 @@ const App: React.FC = () => {
 
   if (showSplash) return <ThemeProvider><SplashScreen /></ThemeProvider>;
 
-  // PROTECCIÓN DE RUTAS: 
-  // Si no hay sesión o estamos recuperando contraseña, forzamos AuthView
+  // PROTECCIÓN DE RUTAS
   if (!session || isRecoveryFlow) {
     return (
       <ThemeProvider>
