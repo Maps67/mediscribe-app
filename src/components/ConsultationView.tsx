@@ -3,7 +3,7 @@ import {
   Mic, Square, RefreshCw, FileText, Search, X, 
   MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
   Stethoscope, Trash2, WifiOff, Save, Share2, Download, Printer,
-  Paperclip 
+  Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
@@ -21,45 +21,22 @@ import { UploadMedico } from './UploadMedico';
 
 type TabType = 'record' | 'patient' | 'chat';
 
-// LISTA COMPLETA DE ESPECIALIDADES PARA DIAGNÓSTICO DIFERENCIAL
+// LISTA COMPLETA DE ESPECIALIDADES
 const SPECIALTIES = [
-  "Medicina General", 
-  "Cardiología", 
-  "Cirugía General", 
-  "Cirugía de Columna", 
-  "Cirugía de Mano", 
-  "Cirugía Oncológica", 
-  "Cirugía Pediátrica", 
-  "Cirugía Plástica y Reconstructiva", 
-  "Dermatología", 
-  "Endocrinología", 
-  "Gastroenterología", 
-  "Geriatría", 
-  "Ginecología y Obstetricia", 
-  "Medicina del Deporte", 
-  "Medicina Interna", 
-  "Nefrología", 
-  "Neumología", 
-  "Neurocirugía", 
-  "Neurología", 
-  "Oftalmología", 
-  "Otorrinolaringología", 
-  "Pediatría", 
-  "Psiquiatría", 
-  "Reumatología", 
-  "Traumatología y Ortopedia", 
-  "Traumatología: Artroscopia", 
-  "Urología", 
-  "Urgencias Médicas"
+  "Medicina General", "Cardiología", "Cirugía General", "Cirugía de Columna", "Cirugía de Mano", 
+  "Cirugía Oncológica", "Cirugía Pediátrica", "Cirugía Plástica y Reconstructiva", "Dermatología", 
+  "Endocrinología", "Gastroenterología", "Geriatría", "Ginecología y Obstetricia", "Medicina del Deporte", 
+  "Medicina Interna", "Nefrología", "Neumología", "Neurocirugía", "Neurología", "Oftalmología", 
+  "Otorrinolaringología", "Pediatría", "Psiquiatría", "Reumatología", "Traumatología y Ortopedia", 
+  "Traumatología: Artroscopia", "Urología", "Urgencias Médicas"
 ];
 
 const ConsultationView: React.FC = () => {
+  // --- HOOKS Y ESTADOS ---
   const { isListening, transcript, startListening, stopListening, resetTranscript, setTranscript, isAPISupported } = useSpeechRecognition();
-  
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
-  
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -75,18 +52,14 @@ const ConsultationView: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
-  
-  // Panel de Archivos
   const [isAttachmentsOpen, setIsAttachmentsOpen] = useState(false);
-
-  // Protocolo Offline
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
-  // 1. Detección de Red
+  // --- EFECTOS (Carga, Red, Persistencia) ---
   useEffect(() => {
     const handleOnline = () => { setIsOnline(true); toast.success("Conexión restablecida"); };
     const handleOffline = () => { setIsOnline(false); toast.warning("Sin conexión. Modo Offline activo."); };
@@ -95,7 +68,6 @@ const ConsultationView: React.FC = () => {
     return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
   }, []);
 
-  // 2. Carga Inicial y Persistencia
   useEffect(() => {
     let mounted = true;
     const loadInitialData = async () => {
@@ -110,7 +82,6 @@ const ConsultationView: React.FC = () => {
       } catch (e) {}
     };
     loadInitialData();
-    
     const savedDraft = localStorage.getItem('mediscribe_local_draft');
     if (savedDraft && !transcript) { setTranscript(savedDraft); toast.info("Borrador recuperado.", { icon: <Save size={16}/> }); }
     return () => { mounted = false; };
@@ -123,11 +94,13 @@ const ConsultationView: React.FC = () => {
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, activeTab]);
 
+  // --- UTILIDADES ---
   const filteredPatients = useMemo(() => {
     if (!searchTerm) return [];
     return patients.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()));
   }, [patients, searchTerm]);
 
+  // --- MANEJADORES PRINCIPALES ---
   const handleToggleRecording = () => {
     if (isListening) stopListening();
     else {
@@ -152,21 +125,21 @@ const ConsultationView: React.FC = () => {
     try {
       let historyContext = "";
       if (selectedPatient) {
-          const { data: historyData } = await supabase
-            .from('consultations')
-            .select('created_at, summary')
-            .eq('patient_id', selectedPatient.id)
-            .order('created_at', { ascending: false })
-            .limit(3);
-
+          const { data: historyData } = await supabase.from('consultations').select('created_at, summary').eq('patient_id', selectedPatient.id).order('created_at', { ascending: false }).limit(3);
           if (historyData && historyData.length > 0) {
              historyContext = historyData.map(h => `[Fecha: ${new Date(h.created_at).toLocaleDateString()}] RESUMEN: ${h.summary.substring(0, 300)}...`).join("\n\n");
           }
       }
 
       const response = await GeminiMedicalService.generateClinicalNote(transcript, selectedSpecialty, historyContext);
+      
+      // VALIDACIÓN CRÍTICA PARA EVITAR PANTALLA BLANCA
+      if (!response || (!response.soapData && !response.clinicalNote)) {
+          throw new Error("La IA generó una respuesta vacía o inválida.");
+      }
+
       setGeneratedNote(response);
-      setEditableInstructions(response.patientInstructions);
+      setEditableInstructions(response.patientInstructions || '');
       setActiveTab('record');
       
       const chatWelcome = historyContext ? `Nota generada con análisis evolutivo. ¿Dudas?` : `Nota de primera vez generada. ¿Dudas?`;
@@ -174,7 +147,8 @@ const ConsultationView: React.FC = () => {
       toast.success("Análisis completado");
 
     } catch (e) { 
-        if(e instanceof Error && e.name !== 'AbortError') toast.error("Error IA"); 
+        console.error("Error generating note:", e);
+        if(e instanceof Error && e.name !== 'AbortError') toast.error(`Error IA: ${e.message}`); 
     } finally { 
         setIsProcessing(false); 
     }
@@ -187,9 +161,15 @@ const ConsultationView: React.FC = () => {
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Sesión expirada");
+        
+        // Usamos el texto plano como respaldo si soapData falla, pero soapData es la prioridad
+        const summaryToSave = generatedNote.soapData 
+            ? `FECHA: ${generatedNote.soapData.headers.date} ${generatedNote.soapData.headers.time}\nS: ${generatedNote.soapData.subjective}\nO: ${generatedNote.soapData.objective}\nA: ${generatedNote.soapData.analysis}\nP: ${generatedNote.soapData.plan}\n\nPLAN PACIENTE:\n${editableInstructions}`
+            : (generatedNote.clinicalNote + "\n\nPLAN PACIENTE:\n" + editableInstructions);
+
         const { error } = await supabase.from('consultations').insert({
             doctor_id: user.id, patient_id: selectedPatient.id, transcript: transcript || 'N/A', 
-            summary: generatedNote.clinicalNote + "\n\nPLAN:\n" + editableInstructions, status: 'completed'
+            summary: summaryToSave, status: 'completed'
         });
         if (error) throw error;
         toast.success("Guardado en expediente");
@@ -197,6 +177,7 @@ const ConsultationView: React.FC = () => {
     } catch (e:any) { toast.error(e.message); } finally { setIsSaving(false); }
   };
 
+  // --- MANEJADORES SECUNDARIOS (Chat, Citas, PDF, WhatsApp) ---
   const handleChatSend = async (e?: React.FormEvent) => {
       e?.preventDefault();
       if (!chatInput.trim() || !generatedNote) return;
@@ -205,17 +186,12 @@ const ConsultationView: React.FC = () => {
       setChatMessages(p => [...p, { role: 'user', text: msg }]);
       setIsChatting(true);
       try {
-          const ctx = `NOTA: ${generatedNote.clinicalNote}\nPLAN: ${editableInstructions}`;
+          // Usamos una representación de texto de la nota estructurada para el contexto del chat
+          const soapContext = generatedNote.soapData ? JSON.stringify(generatedNote.soapData) : generatedNote.clinicalNote;
+          const ctx = `NOTA ESTRUCTURADA: ${soapContext}\nPLAN PACIENTE: ${editableInstructions}`;
           const reply = await GeminiMedicalService.chatWithContext(ctx, msg);
           setChatMessages(p => [...p, { role: 'model', text: reply }]);
       } catch { toast.error("Error chat"); } finally { setIsChatting(false); }
-  };
-
-  const handleOpenAppointmentModal = () => {
-     if (!selectedPatient) { toast.error("Seleccione paciente."); return; }
-     const now = new Date(); now.setDate(now.getDate() + 1); now.setHours(9,0,0,0);
-     setNextApptDate(new Date(now.getTime() - now.getTimezoneOffset() * 60000).toISOString().slice(0, 16));
-     setIsAppointmentModalOpen(true);
   };
 
   const handleConfirmAppointment = async () => {
@@ -239,26 +215,19 @@ const ConsultationView: React.FC = () => {
     if (!editableInstructions || !selectedPatient) return toast.error("No hay instrucciones.");
     const drName = doctorProfile?.full_name || 'su médico';
     const message = `*Hola ${selectedPatient.name}, soy el Dr. ${drName}.*\n\n${editableInstructions}\n\n*Saludos.*`;
-    const whatsappUrl = selectedPatient.phone && selectedPatient.phone.length >= 10 
-        ? `https://wa.me/${selectedPatient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
-        : `https://wa.me/?text=${encodeURIComponent(message)}`;
+    const whatsappUrl = selectedPatient.phone && selectedPatient.phone.length >= 10 ? `https://wa.me/${selectedPatient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;
     window.open(whatsappUrl, '_blank');
   };
 
-  const handleQuickRx = () => {
-    if (!selectedPatient) { toast.error("Seleccione paciente."); return; }
-    setIsQuickRxModalOpen(true);
-  };
-
+  // --- RENDERIZADO ---
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-900 relative">
       
-      {/* --- PANEL IZQUIERDO (CONTROLES) - AJUSTADO AL 25% PARA MÁS ESPACIO --- */}
+      {/* PANEL IZQUIERDO (CONTROLES 25%) */}
       <div className={`w-full md:w-1/4 p-4 flex flex-col gap-4 border-r dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto ${generatedNote ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
                 Consulta IA
-                {/* Botón Clip */}
                 <button onClick={() => setIsAttachmentsOpen(true)} className="p-2 ml-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full text-slate-500 dark:text-slate-300 transition-colors" title="Ver archivos adjuntos"><Paperclip size={18} /></button>
             </h2>
             <div className="flex gap-2">
@@ -279,7 +248,6 @@ const ConsultationView: React.FC = () => {
         </div>
         <div onClick={()=>setConsentGiven(!consentGiven)} className="flex items-center gap-2 p-3 rounded-lg border cursor-pointer select-none dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"><div className={`w-5 h-5 rounded border flex items-center justify-center ${consentGiven?'bg-green-500 border-green-500 text-white':'bg-white dark:bg-slate-700'}`}>{consentGiven&&<Check size={14}/>}</div><label className="text-xs dark:text-white cursor-pointer">Consentimiento otorgado.</label></div>
         
-        {/* ÁREA DE MICRÓFONO */}
         <div className={`flex-1 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-4 relative transition-colors ${isListening?'border-red-400 bg-red-50 dark:bg-red-900/10':'border-slate-200 dark:border-slate-700'}`}>
             <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all ${isListening?'bg-red-500 text-white animate-pulse':'bg-white dark:bg-slate-800 text-slate-300 shadow-sm'}`}><Mic size={32}/></div>
             <p className="text-center font-medium text-slate-600 dark:text-slate-400 mb-4 text-sm">{isListening?"Escuchando...":"Listo"}</p>
@@ -290,53 +258,142 @@ const ConsultationView: React.FC = () => {
                     {isProcessing?<RefreshCw className="animate-spin" size={16}/>: (isOnline ? <RefreshCw size={16}/> : <Save size={16}/>)} {isProcessing ? '...' : (isOnline ? 'Generar' : 'Guardar')}
                 </button>
             </div>
-            <button onClick={handleQuickRx} disabled={!selectedPatient} className="w-full mt-2 py-2 text-brand-teal font-bold border border-brand-teal/30 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-900/20 disabled:opacity-50 transition-colors text-xs flex items-center justify-center gap-2"><FileText size={14}/> Receta Rápida</button>
+            <button onClick={()=>{if(selectedPatient && doctorProfile) setIsQuickRxModalOpen(true)}} disabled={!selectedPatient} className="w-full mt-2 py-2 text-brand-teal font-bold border border-brand-teal/30 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-900/20 disabled:opacity-50 transition-colors text-xs flex items-center justify-center gap-2"><FileText size={14}/> Receta Rápida</button>
         </div>
       </div>
       
-      {/* --- PANEL DERECHO (NOTA) - AUMENTADO AL 75% --- */}
+      {/* PANEL DERECHO (RESULTADOS 75%) */}
       <div className={`w-full md:w-3/4 bg-slate-100 dark:bg-slate-950 flex flex-col border-l dark:border-slate-800 ${!generatedNote?'hidden md:flex':'flex h-full'}`}>
-          <div className="flex border-b dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 items-center">
+          <div className="flex border-b dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 items-center px-2">
              <button onClick={()=>setGeneratedNote(null)} className="md:hidden p-4 text-slate-500"><ArrowLeft/></button>
-             {[{id:'record',icon:FileText,l:'NOTA CLÍNICA'},{id:'patient',icon:User,l:'PLAN / RECETA'},{id:'chat',icon:MessageSquare,l:'ASISTENTE IA'}].map(t=><button key={t.id} onClick={()=>setActiveTab(t.id as TabType)} disabled={!generatedNote&&t.id!=='record'} className={`flex-1 py-4 flex justify-center gap-2 text-sm font-bold border-b-4 transition-colors ${activeTab===t.id?'text-brand-teal border-brand-teal':'text-slate-400 border-transparent hover:text-slate-600'}`}><t.icon size={18}/><span className="hidden sm:inline">{t.l}</span></button>)}
+             {[{id:'record',icon:FileText,l:'NOTA ESTRUCTURADA'},{id:'patient',icon:User,l:'PLAN PACIENTE'},{id:'chat',icon:MessageSquare,l:'ASISTENTE IA'}].map(t=><button key={t.id} onClick={()=>setActiveTab(t.id as TabType)} disabled={!generatedNote&&t.id!=='record'} className={`flex-1 py-4 flex justify-center gap-2 text-sm font-bold border-b-4 transition-colors ${activeTab===t.id?'text-brand-teal border-brand-teal':'text-slate-400 border-transparent hover:text-slate-600'}`}><t.icon size={18}/><span className="hidden sm:inline">{t.l}</span></button>)}
           </div>
-          <div className="flex-1 overflow-y-auto p-6">
+          
+          <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-950">
              {!generatedNote ? (
                  <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 opacity-50">
                      <FileText size={64} strokeWidth={1}/>
-                     <p className="text-lg text-center px-4">Área de Trabajo<br/><span className="text-sm">La nota generada aparecerá aquí con mayor amplitud.</span></p>
+                     <p className="text-lg text-center px-4">Área de Trabajo Clínica</p>
                  </div>
              ) : (
-                 <div className="h-full flex flex-col max-w-5xl mx-auto w-full gap-4"> {/* MAX-WIDTH AUMENTADO */}
-                      {activeTab==='record' && (
-                          <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800">
+                 <div className="h-full flex flex-col max-w-5xl mx-auto w-full gap-4 relative">
+                      
+                      {/* --- PESTAÑA 1: NOTA ESTRUCTURADA (VISUALIZACIÓN PROFESIONAL) --- */}
+                      {activeTab==='record' && generatedNote.soapData && (
+                        <div className="flex flex-col h-full gap-4">
+                            {/* Encabezado de la Nota */}
+                            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border dark:border-slate-800 flex flex-wrap gap-4 items-center justify-between animate-fade-in-up">
+                                <div className="flex gap-4 items-center">
+                                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-lg">
+                                        <Calendar size={16} className="text-brand-teal"/> 
+                                        <span className="font-semibold">{generatedNote.soapData.headers.date}</span>
+                                    </div>
+                                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-lg">
+                                        <Clock size={16} className="text-brand-teal"/>
+                                        <span className="font-semibold">{generatedNote.soapData.headers.time}</span>
+                                    </div>
+                                </div>
+                                {(generatedNote.soapData.headers.patientName || selectedPatient) && (
+                                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
+                                        <UserCircle size={18} className="text-slate-400"/>
+                                        <span className="font-bold">{selectedPatient?.name || generatedNote.soapData.headers.patientName}</span>
+                                    </div>
+                                )}
+                            </div>
+
+                            {/* Tarjetas SOAP Estructuradas */}
+                            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-4 pb-4">
+                                
+                                {/* S - Subjetivo (Azul) */}
+                                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-l-4 border-blue-500 overflow-hidden animate-fade-in-up" style={{animationDelay: '0.1s'}}>
+                                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 border-b border-blue-100 dark:border-blue-800 flex items-center gap-2">
+                                        <Activity size={18} className="text-blue-600 dark:text-blue-400"/>
+                                        <h3 className="font-bold text-blue-800 dark:text-blue-300">Subjetivo (Padecimiento Actual)</h3>
+                                    </div>
+                                    <div className="p-4 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                                        {generatedNote.soapData.subjective}
+                                    </div>
+                                </div>
+
+                                {/* O - Objetivo (Verde) */}
+                                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-l-4 border-green-500 overflow-hidden animate-fade-in-up" style={{animationDelay: '0.2s'}}>
+                                    <div className="bg-green-50 dark:bg-green-900/20 p-3 border-b border-green-100 dark:border-green-800 flex items-center gap-2">
+                                        <ClipboardList size={18} className="text-green-600 dark:text-green-400"/>
+                                        <h3 className="font-bold text-green-800 dark:text-green-300">Objetivo (Exploración Física y Vitales Dictados)</h3>
+                                    </div>
+                                    <div className="p-4 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed font-mono text-sm bg-slate-50 dark:bg-slate-950/50">
+                                        {generatedNote.soapData.objective || "No se dictaron hallazgos objetivos específicos."}
+                                    </div>
+                                </div>
+
+                                {/* A - Análisis (Ámbar) */}
+                                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-l-4 border-amber-500 overflow-hidden animate-fade-in-up" style={{animationDelay: '0.3s'}}>
+                                    <div className="bg-amber-50 dark:bg-amber-900/20 p-3 border-b border-amber-100 dark:border-amber-800 flex items-center gap-2">
+                                        <Brain size={18} className="text-amber-600 dark:text-amber-400"/>
+                                        <h3 className="font-bold text-amber-800 dark:text-amber-300">Análisis y Diagnóstico Presuntivo</h3>
+                                    </div>
+                                    <div className="p-4 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                                        {generatedNote.soapData.analysis}
+                                    </div>
+                                </div>
+
+                                {/* P - Plan (Púrpura) */}
+                                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-l-4 border-purple-500 overflow-hidden animate-fade-in-up" style={{animationDelay: '0.4s'}}>
+                                    <div className="bg-purple-50 dark:bg-purple-900/20 p-3 border-b border-purple-100 dark:border-purple-800 flex items-center gap-2">
+                                        <FileSignature size={18} className="text-purple-600 dark:text-purple-400"/>
+                                        <h3 className="font-bold text-purple-800 dark:text-purple-300">Plan de Manejo Médico</h3>
+                                    </div>
+                                    <div className="p-4 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                                        {generatedNote.soapData.plan}
+                                    </div>
+                                </div>
+
+                            </div>
+
+                            {/* Botón Flotante de Guardado */}
+                            <div className="absolute bottom-4 right-4 z-10">
+                                <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-4 rounded-full font-bold flex gap-2 hover:bg-teal-600 shadow-2xl hover:shadow-teal-500/30 transition-all disabled:opacity-70 items-center scale-100 hover:scale-105 active:scale-95">
+                                    {isSaving?<RefreshCw className="animate-spin" size={20}/>:<Save size={20}/>} Guardar en Expediente
+                                </button>
+                            </div>
+                        </div>
+                      )}
+
+                      {/* Fallback para notas antiguas sin estructura SOAP (Prevención de pantalla blanca) */}
+                      {activeTab==='record' && !generatedNote.soapData && generatedNote.clinicalNote && (
+                          <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 overflow-hidden">
+                                <div className="bg-yellow-50 text-yellow-800 p-2 text-sm rounded mb-2 dark:bg-yellow-900/30 dark:text-yellow-200">Formato antiguo (Texto plano). Regenera para ver la nueva estructura visual.</div>
                               <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar"><FormattedText content={generatedNote.clinicalNote}/></div>
-                              <div className="border-t dark:border-slate-800 pt-4 flex justify-end"><button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-xl font-bold flex gap-2 hover:bg-teal-600 shadow-lg disabled:opacity-70">{isSaving?<RefreshCw className="animate-spin"/>:<Save/>} Guardar en Expediente</button></div>
+                              <div className="border-t dark:border-slate-800 pt-4 flex justify-end"><button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-xl font-bold flex gap-2 hover:bg-teal-600 shadow-lg disabled:opacity-70">{isSaving?<RefreshCw className="animate-spin"/>:<Save/>} Guardar</button></div>
                           </div>
                       )}
+
+
+                      {/* --- PESTAÑA 2: PLAN PACIENTE (INSTRUCCIONES) --- */}
                       {activeTab==='patient' && (
-                          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800">
+                          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 animate-fade-in-up">
                               <div className="flex justify-between items-center mb-4 border-b dark:border-slate-800 pb-2">
-                                  <h3 className="font-bold text-lg dark:text-white">Instrucciones</h3>
+                                  <h3 className="font-bold text-lg dark:text-white flex items-center gap-2"><FileText className="text-brand-teal"/> Instrucciones para el Paciente</h3>
                                   <div className="flex gap-2">
-                                      <button onClick={handleShareWhatsApp} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100"><Share2 size={18}/></button>
-                                      <button onClick={handlePrint} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100"><Download size={18}/></button>
-                                      <button onClick={()=>setIsEditingInstructions(!isEditingInstructions)} className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100">{isEditingInstructions?<Check size={18}/>:<Edit2 size={18}/>}</button>
-                                      <button onClick={handlePrint} className="p-2 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100"><Printer size={18}/></button>
+                                      <button onClick={handleShareWhatsApp} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400" title="WhatsApp"><Share2 size={18}/></button>
+                                      <button onClick={handlePrint} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400" title="PDF"><Download size={18}/></button>
+                                      <button onClick={()=>setIsEditingInstructions(!isEditingInstructions)} className={`p-2 rounded-lg transition-colors ${isEditingInstructions ? 'bg-brand-teal text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'}`} title="Editar">{isEditingInstructions?<Check size={18}/>:<Edit2 size={18}/>}</button>
                                   </div>
                               </div>
-                              <div className="flex-1 overflow-y-auto custom-scrollbar">
-                                  {isEditingInstructions ? <textarea className="w-full h-full border dark:border-slate-700 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 dark:text-white resize-none outline-none focus:ring-2 focus:ring-brand-teal" value={editableInstructions} onChange={e=>setEditableInstructions(e.target.value)}/> : <FormattedText content={editableInstructions}/>}
+                              <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
+                                  {isEditingInstructions ? <textarea className="w-full h-full border dark:border-slate-700 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 dark:text-white resize-none outline-none focus:ring-2 focus:ring-brand-teal font-medium" value={editableInstructions} onChange={e=>setEditableInstructions(e.target.value)}/> : <div className="prose dark:prose-invert max-w-none"><FormattedText content={editableInstructions}/></div>}
                               </div>
                           </div>
                       )}
+
+                      {/* --- PESTAÑA 3: CHAT ASISTENTE --- */}
                       {activeTab==='chat' && (
-                          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800">
+                          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 animate-fade-in-up">
                               <div className="flex-1 overflow-y-auto mb-4 pr-2 custom-scrollbar">
-                                  {chatMessages.map((m,i)=><div key={i} className={`p-3 mb-3 rounded-2xl max-w-[85%] text-sm ${m.role==='user'?'bg-slate-800 text-white self-end ml-auto rounded-tr-none':'bg-slate-100 dark:bg-slate-800 dark:text-slate-200 self-start mr-auto rounded-tl-none'}`}>{m.text}</div>)}
+                                  {chatMessages.map((m,i)=><div key={i} className={`p-3 mb-3 rounded-2xl max-w-[85%] text-sm shadow-sm ${m.role==='user'?'bg-brand-teal text-white self-end ml-auto rounded-tr-none':'bg-slate-100 dark:bg-slate-800 dark:text-slate-200 self-start mr-auto rounded-tl-none'}`}>{m.text}</div>)}
                                   <div ref={chatEndRef}/>
                               </div>
-                              <form onSubmit={handleChatSend} className="flex gap-2 relative"><input className="flex-1 border dark:border-slate-700 p-3 pr-12 rounded-xl bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal" value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Pregunta sobre el caso..."/><button disabled={isChatting||!chatInput.trim()} className="absolute right-2 top-1/2 -translate-y-1/2 bg-brand-teal text-white p-2 rounded-lg hover:bg-teal-600 disabled:opacity-50">{isChatting?<RefreshCw className="animate-spin" size={16}/>:<Send size={16}/>}</button></form>
+                              <form onSubmit={handleChatSend} className="flex gap-2 relative"><input className="flex-1 border dark:border-slate-700 p-4 pr-12 rounded-xl bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal shadow-sm" value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Pregunta sobre el caso actual..."/><button disabled={isChatting||!chatInput.trim()} className="absolute right-3 top-1/2 -translate-y-1/2 bg-brand-teal text-white p-2 rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-all hover:scale-105 active:scale-95">{isChatting?<RefreshCw className="animate-spin" size={18}/>:<Send size={18}/>}</button></form>
                           </div>
                       )}
                  </div>
@@ -344,34 +401,24 @@ const ConsultationView: React.FC = () => {
           </div>
       </div>
 
-      {/* --- MEJORA: PANEL LATERAL DE ARCHIVOS (ANCHO DOBLE) --- */}
+      {/* PANEL LATERAL (ARCHIVOS) */}
       {isAttachmentsOpen && selectedPatient && (
         <div className="fixed inset-0 z-50 flex justify-end">
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={() => setIsAttachmentsOpen(false)} />
-            
-            {/* AQUI ESTÁ EL CAMBIO: max-w-2xl (Antes max-w-md) */}
             <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 h-full shadow-2xl p-4 flex flex-col border-l dark:border-slate-800 animate-slide-in-right">
                 <div className="flex justify-between items-center mb-4 pb-2 border-b dark:border-slate-800">
-                    <div>
-                        <h3 className="font-bold text-lg dark:text-white flex items-center gap-2"><Paperclip size={20} className="text-brand-teal"/> Expediente y Archivos</h3>
-                        <p className="text-xs text-slate-500">Paciente: {selectedPatient.name}</p>
-                    </div>
+                    <div><h3 className="font-bold text-lg dark:text-white flex items-center gap-2"><Paperclip size={20} className="text-brand-teal"/> Expediente Digital</h3><p className="text-xs text-slate-500">Paciente: {selectedPatient.name}</p></div>
                     <button onClick={() => setIsAttachmentsOpen(false)} className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-full transition-colors"><X size={20} className="text-slate-500"/></button>
                 </div>
                 <div className="flex-1 overflow-y-auto flex flex-col gap-4">
-                    <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg">
-                        <p className="text-xs font-bold text-slate-500 mb-2 uppercase">Agregar nuevo archivo:</p>
-                        <UploadMedico preSelectedPatient={selectedPatient} onUploadComplete={() => { toast.success("Archivo agregado."); }} />
-                    </div>
-                    <div className="flex-1">
-                        <p className="text-xs font-bold text-slate-500 mb-2 uppercase">Historial de archivos:</p>
-                        <DoctorFileGallery patientId={selectedPatient.id} />
-                    </div>
+                    <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg"><p className="text-xs font-bold text-slate-500 mb-2 uppercase">Agregar archivo:</p><UploadMedico preSelectedPatient={selectedPatient} onUploadComplete={() => { toast.success("Archivo agregado."); }} /></div>
+                    <div className="flex-1"><p className="text-xs font-bold text-slate-500 mb-2 uppercase">Historial:</p><DoctorFileGallery patientId={selectedPatient.id} /></div>
                 </div>
             </div>
         </div>
       )}
 
+      {/* MODALES (Citas, Receta Rápida) */}
       {isAppointmentModalOpen && <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"><div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-sm w-full animate-fade-in-up"><h3 className="font-bold text-lg mb-4 dark:text-white">Agendar Seguimiento</h3><input type="datetime-local" className="w-full border dark:border-slate-700 p-3 rounded-xl mb-6 bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal" value={nextApptDate} onChange={e=>setNextApptDate(e.target.value)}/><div className="flex justify-end gap-3"><button onClick={()=>setIsAppointmentModalOpen(false)} className="text-slate-500 font-medium">Cancelar</button><button onClick={handleConfirmAppointment} className="bg-brand-teal text-white px-4 py-2 rounded-xl font-bold">Confirmar</button></div></div></div>}
       {isQuickRxModalOpen && selectedPatient && doctorProfile && <QuickRxModal isOpen={isQuickRxModalOpen} onClose={()=>setIsQuickRxModalOpen(false)} initialTranscript={transcript} patientName={selectedPatient.name} doctorProfile={doctorProfile}/>}
     </div>
