@@ -23,8 +23,7 @@ interface SOAPStructure {
 
 export const GeminiMedicalService = {
 
-  // 1. AUTO-DESCUBRIMIENTO (PROTOCOLO RADAR REACTIVADO 📡)
-  // Este bloque busca qué modelos tienes disponibles para evitar el Error 404
+  // 1. AUTO-DESCUBRIMIENTO (PROTOCOLO RADAR)
   async getBestAvailableModel(): Promise<string> {
     try {
       const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`;
@@ -37,37 +36,30 @@ export const GeminiMedicalService = {
       
       const data = await response.json();
       
-      // Filtramos modelos que sirvan para generar texto
       const validModels = (data.models || []).filter((m: any) => 
         m.supportedGenerationMethods?.includes("generateContent")
       );
 
       if (validModels.length === 0) return "gemini-pro";
 
-      // Prioridad 1: Flash (Rápido)
       const flashModel = validModels.find((m: any) => m.name.includes("flash"));
       if (flashModel) return flashModel.name.replace('models/', '');
 
-      // Prioridad 2: Pro (Estándar)
       const proModel = validModels.find((m: any) => m.name.includes("pro"));
       if (proModel) return proModel.name.replace('models/', '');
 
-      // Fallback: El primero que encuentre
       return validModels[0].name.replace('models/', '');
     } catch (error) {
-      console.warn("Error en Radar, usando gemini-pro por defecto.");
       return "gemini-pro";
     }
   },
 
-  // 2. GENERAR NOTA SOAP ESTRUCTURADA (MOTOR V4)
+  // 2. GENERAR NOTA SOAP ESTRUCTURADA
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      // AQUI USAMOS EL RADAR PARA OBTENER EL MODELO CORRECTO
       const modelName = await this.getBestAvailableModel(); 
       const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
 
-      // OBTENER FECHA Y HORA
       const now = new Date();
       const currentDate = now.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const currentTime = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
@@ -115,9 +107,7 @@ export const GeminiMedicalService = {
       const response = await fetch(URL, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          contents: [{ parts: [{ text: prompt }] }]
-        })
+        body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
       });
 
       if (!response.ok) {
@@ -128,26 +118,22 @@ export const GeminiMedicalService = {
       const data = await response.json();
       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
       
-      // Limpieza y Parseo
       const cleanJsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
       let parsedData;
       
       try {
           parsedData = JSON.parse(cleanJsonText);
       } catch (e) {
-          // Fallback si la IA falla el JSON: Devolver texto plano en estructura compatible
           console.error("Fallo parseo JSON V4", e);
           return {
-              clinicalNote: text, // Texto crudo
+              clinicalNote: text, 
               patientInstructions: "Revisar nota completa.",
               actionItems: { next_appointment: null, urgent_referral: false, lab_tests_required: [] }
           };
       }
 
-      // Adaptador de respuesta
       return {
           ...parsedData,
-          // Respaldo de texto plano
           clinicalNote: parsedData.soapData ? 
             `FECHA: ${parsedData.soapData.headers.date}\nS: ${parsedData.soapData.subjective}\nO: ${parsedData.soapData.objective}\nA: ${parsedData.soapData.analysis}\nP: ${parsedData.soapData.plan}` 
             : text
@@ -159,14 +145,13 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- OTRAS FUNCIONES (CHAT, RECETAS) ---
   async generateFollowUpPlan(patientName: string, clinicalNote: string, instructions: string): Promise<FollowUpMessage[]> {
     return []; 
   },
 
   async generatePrescriptionOnly(transcript: string): Promise<string> {
      try {
-        const modelName = await this.getBestAvailableModel(); // Usa Radar
+        const modelName = await this.getBestAvailableModel();
         const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
         const prompt = `Genera receta médica texto plano para: "${transcript}". Solo la receta.`;
         const response = await fetch(URL, {
@@ -181,7 +166,7 @@ export const GeminiMedicalService = {
 
   async chatWithContext(context: string, userMessage: string): Promise<string> {
     try {
-        const modelName = await this.getBestAvailableModel(); // Usa Radar
+        const modelName = await this.getBestAvailableModel();
         const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
         const prompt = `CONTEXTO: ${context}. PREGUNTA: "${userMessage}". RESPUESTA BREVE:`;
         const response = await fetch(URL, {
@@ -195,21 +180,55 @@ export const GeminiMedicalService = {
     } catch (error) { throw error; }
   },
 
+  // --- AQUÍ ESTÁ LA CORRECCIÓN DE LA RECETA RÁPIDA ---
   async generateQuickRxJSON(transcript: string, patientName: string): Promise<MedicationItem[]> {
     try {
-       const modelName = await this.getBestAvailableModel(); // Usa Radar
+       const modelName = await this.getBestAvailableModel();
        const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
-       const prompt = `Extraer medicamentos JSON de: "${transcript}" para "${patientName}". Formato: [{"drug":"", "details":"", "frequency":"", "duration":"", "notes":""}].`;
+       
+       // Prompt blindado para evitar charla
+       const prompt = `
+         ACTÚA COMO: API de Farmacia Estructurada.
+         TAREA: Extraer medicamentos del siguiente texto clínico.
+         PACIENTE: "${patientName}"
+         TEXTO: "${transcript}"
+         
+         SALIDA ESTRICTA: Devuelve ÚNICAMENTE un Array JSON válido. No saludes, no uses markdown, no des explicaciones.
+         FORMATO OBJETIVO: [{"drug":"Nombre Comercial/Genérico", "details":"Dosis y Presentación", "frequency":"Cada cuánto", "duration":"Por cuánto tiempo", "notes":"Instrucciones especiales"}].
+         
+         Si no encuentras medicamentos, devuelve [].
+       `;
+
        const response = await fetch(URL, {
          method: 'POST',
          headers: { 'Content-Type': 'application/json' },
          body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] })
        });
+
        if (!response.ok) return [];
+       
        const data = await response.json();
-       const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
-       const cleanJson = text.replace(/```json/g, '').replace(/```/g, '').trim();
-       return JSON.parse(cleanJson);
-    } catch (e) { return []; }
+       const rawText = data.candidates?.[0]?.content?.parts?.[0]?.text || "[]";
+       
+       // --- LIMPIEZA QUIRÚRGICA DEL JSON ---
+       // 1. Quitar bloques de código markdown
+       let cleanText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
+       
+       // 2. Extraer solo lo que está entre corchetes [] (por si la IA habla antes o después)
+       const firstBracket = cleanText.indexOf('[');
+       const lastBracket = cleanText.lastIndexOf(']');
+       
+       if (firstBracket !== -1 && lastBracket !== -1) {
+           cleanText = cleanText.substring(firstBracket, lastBracket + 1);
+       } else {
+           // Si no hay corchetes, asumimos error o vacío
+           return [];
+       }
+
+       return JSON.parse(cleanText);
+    } catch (e) { 
+        console.error("Error parseando Receta JSON:", e);
+        return []; 
+    }
  }
 };

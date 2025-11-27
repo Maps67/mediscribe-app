@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, RefreshCw, Printer, FileText, AlertCircle } from 'lucide-react';
-import { GeminiMedicalService, MedicationItem } from '../services/GeminiMedicalService';
-import { toast } from 'sonner';
+import { X, Plus, Printer, Trash2, FileText, Download, Share2, Pill, RefreshCw } from 'lucide-react';
 import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
-import { DoctorProfile } from '../types';
+import { GeminiMedicalService } from '../services/GeminiMedicalService';
+import { MedicationItem, DoctorProfile } from '../types';
+import { toast } from 'sonner';
 
 interface QuickRxModalProps {
   isOpen: boolean;
@@ -14,199 +14,174 @@ interface QuickRxModalProps {
   doctorProfile: DoctorProfile;
 }
 
-const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTranscript, patientName, doctorProfile }) => {
-  // Estado tipado correctamente con la interfaz importada del servicio
-  const [medications, setMedications] = useState<(MedicationItem & { id: string })[]>([]);
+const QuickRxModal: React.FC<QuickRxModalProps> = ({ 
+  isOpen, onClose, initialTranscript, patientName, doctorProfile 
+}) => {
+  const [medications, setMedications] = useState<MedicationItem[]>([]);
   const [loading, setLoading] = useState(false);
-  const [generating, setGenerating] = useState(false);
+  const [newItem, setNewItem] = useState<MedicationItem>({ drug: '', details: '', frequency: '', duration: '', notes: '' });
 
+  // Efecto de Auto-Generación al abrir
   useEffect(() => {
-    if (isOpen && initialTranscript) {
-      processTranscript(initialTranscript);
-    } else if (isOpen && !initialTranscript) {
-        // Si abre vacío, agregamos una fila en blanco para empezar
-        setMedications([{
-            id: crypto.randomUUID(),
-            name: '',
-            details: '',
-            frequency: '',
-            duration: '',
-            notes: ''
-        }]);
+    if (isOpen) {
+        if (initialTranscript && initialTranscript.length > 10) {
+            handleAutoGenerate();
+        } else {
+            // Si no hay texto suficiente, iniciamos vacío para llenado manual
+            setMedications([]);
+        }
     }
   }, [isOpen, initialTranscript]);
 
-  const processTranscript = async (text: string) => {
-      setLoading(true);
-      try {
-          // 1. Obtenemos el texto plano seguro desde el Backend
-          const rawText = await GeminiMedicalService.generateQuickRxJSON(text);
-          
-          // 2. Parser Inteligente: Convertimos texto plano a filas
-          // Asumimos que la IA separa ideas por saltos de línea
-          const lines = rawText.split('\n').filter(line => line.trim().length > 0);
-          
-          const parsedMeds = lines.map(line => ({
-              id: crypto.randomUUID(),
-              name: line.replace(/^- /, '').split(',')[0] || "Revisar texto", // Intento heurístico de extraer nombre
-              details: line, // Ponemos todo el texto en detalles para que el médico edite
-              frequency: '', 
-              duration: '',
-              notes: ''
-          }));
-
-          // Si el parser no sacó nada útil, ponemos el texto crudo en una fila
-          if (parsedMeds.length === 0) {
-              setMedications([{
-                  id: crypto.randomUUID(),
-                  name: "Texto Generado",
-                  details: rawText,
-                  frequency: "",
-                  duration: "",
-                  notes: ""
-              }]);
-          } else {
-              setMedications(parsedMeds);
-          }
-
-      } catch (error) {
-          console.error("Error RX:", error);
-          toast.error("No se pudo interpretar la receta. Intenta manual.");
-          setMedications([{ id: crypto.randomUUID(), name: '', details: '', frequency: '', duration: '' }]);
-      } finally {
-          setLoading(false);
-      }
+  const handleAutoGenerate = async () => {
+    setLoading(true);
+    setMedications([]); // Limpiar lista anterior
+    try {
+        // Llamada blindada al servicio
+        const items = await GeminiMedicalService.generateQuickRxJSON(initialTranscript, patientName);
+        
+        if (items && items.length > 0) {
+            setMedications(items);
+            toast.success("Receta interpretada correctamente");
+        } else {
+            toast.info("No se detectaron medicamentos claros. Puede agregarlos manualmente.");
+        }
+    } catch (error) {
+        console.error(error);
+        toast.error("Error interpretando receta. Intente manual.");
+    } finally {
+        setLoading(false);
+    }
   };
 
-  const updateMed = (id: string, field: keyof MedicationItem, val: string) => {
-    setMedications(prev => prev.map(m => m.id === id ? { ...m, [field]: val } : m));
+  const addManualItem = () => {
+    if (!newItem.drug) return toast.error("El nombre del medicamento es obligatorio");
+    setMedications([...medications, { ...newItem, id: Date.now().toString() }]);
+    setNewItem({ drug: '', details: '', frequency: '', duration: '', notes: '' });
+  };
+
+  const removeMedication = (index: number) => {
+    const newMeds = [...medications];
+    newMeds.splice(index, 1);
+    setMedications(newMeds);
   };
 
   const handlePrint = async () => {
-    setGenerating(true);
-    try {
-      const blob = await pdf(
-        <PrescriptionPDF 
-            doctorName={doctorProfile.full_name || 'Dr.'}
-            specialty={doctorProfile.specialty || ''}
-            license={doctorProfile.license_number || ''}
-            phone={doctorProfile.phone || ''}
-            university={doctorProfile.university || ''}
-            address={doctorProfile.address || ''}
-            logoUrl={doctorProfile.logo_url}
-            signatureUrl={doctorProfile.signature_url}
-            patientName={patientName}
-            date={new Date().toLocaleDateString()}
-            medications={medications}
-        />
-      ).toBlob();
-      window.open(URL.createObjectURL(blob), '_blank');
-    } catch (e) {
-        console.error(e);
-        toast.error("Error al generar PDF");
-    } 
-    finally { setGenerating(false); }
+    if (medications.length === 0) return toast.error("La receta está vacía");
+    
+    // Convertir lista estructurada a texto para el PDF actual
+    const contentText = medications.map(m => 
+        `• ${m.drug} ${m.details}\n  Tomar: ${m.frequency} durante ${m.duration}.\n  Nota: ${m.notes}`
+    ).join('\n\n');
+
+    const blob = await pdf(
+      <PrescriptionPDF 
+        doctorName={doctorProfile.full_name} 
+        specialty={doctorProfile.specialty} 
+        license={doctorProfile.license_number} 
+        phone={doctorProfile.phone} 
+        university={doctorProfile.university} 
+        address={doctorProfile.address} 
+        logoUrl={doctorProfile.logo_url} 
+        signatureUrl={doctorProfile.signature_url} 
+        patientName={patientName} 
+        date={new Date().toLocaleDateString()} 
+        content={contentText} 
+      />
+    ).toBlob();
+    window.open(URL.createObjectURL(blob), '_blank');
+  };
+
+  const handleShareWhatsApp = () => {
+      if (medications.length === 0) return toast.error("Receta vacía");
+      const textList = medications.map(m => `💊 *${m.drug}*\nIndicación: ${m.frequency} por ${m.duration}. ${m.notes}`).join('\n\n');
+      const message = `*Receta Médica - Dr. ${doctorProfile.full_name}*\nPaciente: ${patientName}\n\n${textList}`;
+      window.open(`https://wa.me/?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-4xl max-h-[90vh] rounded-2xl shadow-2xl flex flex-col overflow-hidden animate-fade-in-up">
+    <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-3xl rounded-2xl shadow-2xl flex flex-col max-h-[90vh]">
         
         {/* Header */}
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-900">
-            <h3 className="font-bold text-lg flex gap-2 text-slate-800 dark:text-white">
-                <FileText className="text-brand-teal"/> Editor de Receta
-            </h3>
-            <button onClick={onClose} className="text-slate-400 hover:text-red-500 transition-colors"><X/></button>
+        <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50">
+          <div>
+              <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                  <FileText className="text-brand-teal"/> Editor de Receta
+              </h2>
+              <p className="text-xs text-slate-500">Paciente: <span className="font-bold">{patientName}</span></p>
+          </div>
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200"><X size={24}/></button>
         </div>
 
         {/* Body */}
-        <div className="flex-1 overflow-y-auto p-4 bg-slate-50 dark:bg-slate-950/50">
+        <div className="flex-1 overflow-y-auto p-6 space-y-6">
+            
             {loading ? (
-                <div className="h-full flex flex-col items-center justify-center text-slate-500 gap-3">
-                    <RefreshCw className="animate-spin text-brand-teal" size={32}/> 
-                    <p>Interpretando dictado médico...</p>
+                <div className="flex flex-col items-center justify-center py-10 space-y-4">
+                    <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-brand-teal"></div>
+                    <p className="text-slate-500 animate-pulse">Interpretando audio y extrayendo medicamentos...</p>
                 </div>
             ) : (
-                <div className="space-y-3">
-                    {medications.length === 0 && (
-                        <div className="text-center p-6 text-slate-400 border-2 border-dashed border-slate-200 rounded-xl">
-                            <AlertCircle className="mx-auto mb-2 opacity-50"/>
-                            Agrega medicamentos para generar la receta.
-                        </div>
-                    )}
-
-                    {medications.map((m, i) => (
-                        <div key={m.id} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm transition-all hover:shadow-md">
-                            <div className="flex justify-between mb-3 items-center">
-                                <span className="font-bold text-xs uppercase text-brand-teal bg-teal-50 dark:bg-teal-900/30 px-2 py-1 rounded">Medicamento #{i+1}</span>
-                                <button onClick={() => setMedications(p => p.filter(x => x.id !== m.id))} className="text-slate-400 hover:text-red-500 transition-colors" title="Borrar">
-                                    <Trash2 size={18}/>
+                <>
+                    {/* Lista de Medicamentos */}
+                    <div className="space-y-3">
+                        {medications.length === 0 && (
+                            <div className="text-center py-8 text-slate-400 border-2 border-dashed border-slate-200 dark:border-slate-700 rounded-xl">
+                                <Pill size={32} className="mx-auto mb-2 opacity-50"/>
+                                <p>No hay medicamentos agregados.</p>
+                                <button onClick={handleAutoGenerate} className="mt-2 text-brand-teal text-sm font-bold hover:underline flex items-center justify-center gap-1">
+                                    <RefreshCw size={14}/> Reintentar extracción IA
                                 </button>
                             </div>
-                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3">
-                                <div className="md:col-span-4">
-                                    <input 
-                                        value={m.name} 
-                                        onChange={e => updateMed(m.id, 'name', e.target.value)} 
-                                        placeholder="Nombre (Ej. Amoxicilina)" 
-                                        className="w-full border border-slate-300 dark:border-slate-600 p-2.5 rounded-lg text-sm dark:bg-slate-900 focus:ring-2 focus:ring-brand-teal outline-none font-medium"
-                                    />
+                        )}
+                        
+                        {medications.map((med, idx) => (
+                            <div key={idx} className="bg-slate-50 dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 flex justify-between items-start group">
+                                <div>
+                                    <h4 className="font-bold text-slate-800 dark:text-white text-lg">{med.drug} <span className="text-sm font-normal text-slate-500">{med.details}</span></h4>
+                                    <div className="text-sm text-slate-600 dark:text-slate-300 mt-1 space-y-0.5">
+                                        <p>🕒 <b>Frecuencia:</b> {med.frequency}</p>
+                                        <p>📅 <b>Duración:</b> {med.duration}</p>
+                                        {med.notes && <p>📝 <b>Nota:</b> {med.notes}</p>}
+                                    </div>
                                 </div>
-                                <div className="md:col-span-4">
-                                    <input 
-                                        value={m.details} 
-                                        onChange={e => updateMed(m.id, 'details', e.target.value)} 
-                                        placeholder="Detalles / Dosis (Ej. 500mg Capsulas)" 
-                                        className="w-full border border-slate-300 dark:border-slate-600 p-2.5 rounded-lg text-sm dark:bg-slate-900 focus:ring-2 focus:ring-brand-teal outline-none"
-                                    />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <input 
-                                        value={m.frequency} 
-                                        onChange={e => updateMed(m.id, 'frequency', e.target.value)} 
-                                        placeholder="Frecuencia" 
-                                        className="w-full border border-slate-300 dark:border-slate-600 p-2.5 rounded-lg text-sm dark:bg-slate-900 focus:ring-2 focus:ring-brand-teal outline-none"
-                                    />
-                                </div>
-                                <div className="md:col-span-2">
-                                    <input 
-                                        value={m.duration} 
-                                        onChange={e => updateMed(m.id, 'duration', e.target.value)} 
-                                        placeholder="Duración" 
-                                        className="w-full border border-slate-300 dark:border-slate-600 p-2.5 rounded-lg text-sm dark:bg-slate-900 focus:ring-2 focus:ring-brand-teal outline-none"
-                                    />
-                                </div>
+                                <button onClick={() => removeMedication(idx)} className="text-slate-300 hover:text-red-500 transition-colors p-2"><Trash2 size={18}/></button>
                             </div>
+                        ))}
+                    </div>
+
+                    {/* Formulario Agregar Manual */}
+                    <div className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 p-4 rounded-xl shadow-sm">
+                        <h4 className="font-bold text-slate-700 dark:text-slate-300 mb-3 text-sm uppercase tracking-wide">Agregar Medicamento Manual</h4>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-3">
+                            <input className="input-modern" placeholder="Medicamento (Ej. Paracetamol)" value={newItem.drug} onChange={e => setNewItem({...newItem, drug: e.target.value})} />
+                            <input className="input-modern" placeholder="Detalles (Ej. 500mg Tabs)" value={newItem.details} onChange={e => setNewItem({...newItem, details: e.target.value})} />
+                            <input className="input-modern" placeholder="Frecuencia (Ej. Cada 8 horas)" value={newItem.frequency} onChange={e => setNewItem({...newItem, frequency: e.target.value})} />
+                            <input className="input-modern" placeholder="Duración (Ej. 5 días)" value={newItem.duration} onChange={e => setNewItem({...newItem, duration: e.target.value})} />
+                            <input className="input-modern md:col-span-2" placeholder="Notas adicionales..." value={newItem.notes} onChange={e => setNewItem({...newItem, notes: e.target.value})} />
                         </div>
-                    ))}
-                    
-                    <button 
-                        onClick={() => setMedications([...medications, {id: crypto.randomUUID(), name:'', details:'', frequency:'', duration:'', notes:''}])} 
-                        className="w-full py-4 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl text-slate-500 dark:text-slate-400 flex justify-center items-center gap-2 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors font-medium"
-                    >
-                        <Plus size={20}/> Agregar Medicamento Manualmente
-                    </button>
-                </div>
+                        <button onClick={addManualItem} className="w-full py-2 bg-slate-800 text-white rounded-lg font-bold text-sm hover:bg-slate-700 flex justify-center items-center gap-2">
+                            <Plus size={16}/> Agregar a la lista
+                        </button>
+                    </div>
+                </>
             )}
         </div>
 
         {/* Footer */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-white dark:bg-slate-900">
-            <button onClick={onClose} className="px-5 py-2.5 border border-slate-300 dark:border-slate-600 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium transition-colors">
-                Cancelar
-            </button>
-            <button 
-                onClick={handlePrint} 
-                disabled={generating || medications.length === 0} 
-                className="px-6 py-2.5 bg-brand-teal text-white rounded-xl flex gap-2 items-center font-bold shadow-lg shadow-teal-500/20 hover:bg-teal-600 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
-            >
-                {generating ? <RefreshCw className="animate-spin" size={20}/> : <Printer size={20}/>} 
-                {generating ? 'Generando PDF...' : 'Imprimir Receta'}
-            </button>
+        <div className="p-5 border-t border-slate-100 dark:border-slate-800 flex justify-end gap-3 bg-slate-50 dark:bg-slate-900">
+            <button onClick={handleShareWhatsApp} className="btn-secondary text-green-600 bg-green-50 border-green-200 hover:bg-green-100"><Share2 size={18}/> WhatsApp</button>
+            <button onClick={handlePrint} className="btn-primary bg-brand-teal hover:bg-teal-600 text-white"><Printer size={18}/> Imprimir Receta</button>
         </div>
+
+        <style>{`
+            .input-modern { @apply w-full p-2.5 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-brand-teal outline-none transition-all; }
+            .btn-primary { @apply px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 shadow-lg transition-transform active:scale-95; }
+            .btn-secondary { @apply px-5 py-2.5 rounded-xl font-bold flex items-center gap-2 border transition-colors; }
+        `}</style>
       </div>
     </div>
   );
