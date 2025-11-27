@@ -4,6 +4,7 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from './context/ThemeContext';
+import { LogOut, ShieldCheck } from 'lucide-react'; // Iconos para la despedida
 
 // Components & Pages
 import Sidebar from './components/Sidebar';
@@ -19,7 +20,7 @@ import PrivacyPolicy from './pages/PrivacyPolicy';
 import ReloadPrompt from './components/ReloadPrompt';
 import SplashScreen from './components/SplashScreen';
 import MobileTabBar from './components/MobileTabBar';
-import TermsOfService from './pages/TermsOfService'; // <--- IMPORTACIÓN RECUPERADA
+import TermsOfService from './pages/TermsOfService';
 
 // INTERFACES ESTRICTAS
 interface MainLayoutProps {
@@ -27,7 +28,7 @@ interface MainLayoutProps {
   onLogout: () => Promise<void>;
 }
 
-const MainLayout: React.FC<MainLayoutProps> = ({ session }) => {
+const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   return (
@@ -38,14 +39,14 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session }) => {
         <Sidebar isOpen={true} onClose={() => {}} />
       </div>
 
-      {/* SIDEBAR MÓVIL (Drawer) - Debe tener z-index mayor a MobileTabBar (z-40) */}
+      {/* SIDEBAR MÓVIL */}
       <div className="md:hidden">
           <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} />
       </div>
 
       <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950">
         
-        {/* Padding bottom (pb-20) aumentado para asegurar que el contenido no quede detrás del TabBar */}
+        {/* Padding bottom (pb-20) para móviles */}
         <div className="flex-1 overflow-hidden h-full pb-20 md:pb-0"> 
           <Routes>
             <Route path="/" element={<Dashboard />} />
@@ -56,7 +57,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session }) => {
             <Route path="/card" element={<DigitalCard />} />
             <Route path="/settings" element={<SettingsView />} />
             <Route path="/privacy" element={<PrivacyPolicy />} />
-            {/* RUTA DE TÉRMINOS LEGALES (Recuperada) */}
+            {/* RUTA DE TÉRMINOS LEGALES */}
             <Route path="/terms" element={<TermsOfService />} />
             {/* Redirección por defecto */}
             <Route path="*" element={<Navigate to="/" replace />} />
@@ -68,6 +69,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session }) => {
           <MobileTabBar />
         </div>
 
+        {/* Botón de Logout Móvil Oculto (Lógica manejada por Sidebar, pero accesible globalmente si se requiere) */}
       </main>
     </div>
   );
@@ -80,6 +82,9 @@ const App: React.FC = () => {
   
   // Estado para detectar flujo crítico de recuperación
   const [isRecoveryFlow, setIsRecoveryFlow] = useState(false);
+  
+  // NUEVO: Estado para la animación de cierre de sesión
+  const [isClosing, setIsClosing] = useState(false);
 
   useEffect(() => {
     let mounted = true;
@@ -108,6 +113,7 @@ const App: React.FC = () => {
       } else if (event === 'SIGNED_OUT') {
         setIsRecoveryFlow(false);
         setSession(null);
+        setIsClosing(false); // Asegurar que se quite la pantalla de cierre
       } else if (event === 'SIGNED_IN' || event === 'TOKEN_REFRESHED') {
         setSession(newSession);
         setIsRecoveryFlow(false); 
@@ -127,7 +133,45 @@ const App: React.FC = () => {
     };
   }, []);
 
+  // --- LÓGICA DE CIERRE ELEGANTE ---
+  const handleGlobalLogout = async () => {
+    setIsClosing(true); // Activa la pantalla de despedida
+    
+    // UX: Pequeña pausa para mostrar el mensaje "Cerrando de forma segura..."
+    await new Promise(resolve => setTimeout(resolve, 1500));
+    
+    try {
+        const { error } = await supabase.auth.signOut();
+        if (error) throw error;
+    } catch (error) {
+        console.error("Error al cerrar sesión:", error);
+        setIsClosing(false); // Si falla, quitamos la pantalla para que el usuario reintente
+    }
+  };
+
+  // --- PANTALLAS DE ESTADO ---
+
   if (showSplash) return <ThemeProvider><SplashScreen /></ThemeProvider>;
+
+  // PANTALLA DE DESPEDIDA (Transición de Salida)
+  if (isClosing) {
+      return (
+        <ThemeProvider>
+            <div className="fixed inset-0 bg-slate-900 flex flex-col items-center justify-center z-50 animate-fade-in">
+                <div className="p-6 bg-slate-800 rounded-2xl shadow-2xl flex flex-col items-center border border-slate-700">
+                    <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4 animate-pulse">
+                        <LogOut className="text-red-500" size={32} />
+                    </div>
+                    <h2 className="text-xl font-bold text-white mb-2">Cerrando Sesión...</h2>
+                    <p className="text-slate-400 text-sm mb-4">Guardando cambios y limpiando datos.</p>
+                    <div className="flex items-center gap-2 text-xs text-brand-teal bg-brand-teal/10 px-3 py-1 rounded-full">
+                        <ShieldCheck size={12} /> Conexión segura finalizada
+                    </div>
+                </div>
+            </div>
+        </ThemeProvider>
+      );
+  }
 
   // PROTECCIÓN DE RUTAS
   if (!session || isRecoveryFlow) {
@@ -137,11 +181,9 @@ const App: React.FC = () => {
         <ReloadPrompt />
         <AuthView 
           authService={{ supabase }} 
-          onLoginSuccess={() => { /* La redirección la maneja el useEffect 'SIGNED_IN' */ }} 
+          onLoginSuccess={() => { /* Redirección automática por evento */ }} 
           forceResetMode={isRecoveryFlow}
-          onPasswordResetSuccess={() => {
-             setIsRecoveryFlow(false);
-          }}
+          onPasswordResetSuccess={() => setIsRecoveryFlow(false)}
         />
       </ThemeProvider>
     );
@@ -154,10 +196,7 @@ const App: React.FC = () => {
         <ReloadPrompt />
         <MainLayout 
           session={session} 
-          onLogout={async () => {
-            const { error } = await supabase.auth.signOut();
-            if (error) console.error("Error al cerrar sesión:", error);
-          }} 
+          onLogout={handleGlobalLogout} // Pasamos la función nueva
         />
       </BrowserRouter>
     </ThemeProvider>
