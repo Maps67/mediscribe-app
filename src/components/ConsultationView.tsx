@@ -20,7 +20,38 @@ import { DoctorFileGallery } from './DoctorFileGallery';
 import { UploadMedico } from './UploadMedico';
 
 type TabType = 'record' | 'patient' | 'chat';
-const SPECIALTIES = ["Medicina General", "Cardiología", "Ginecología y Obstetricia", "Pediatría", "Cirugía General", "Traumatología", "Medicina Interna", "Urología", "Oftalmología", "Dermatología", "Neurología", "Psiquiatría", "Otorrinolaringología", "Urgencias Médicas"];
+
+// LISTA COMPLETA DE ESPECIALIDADES PARA DIAGNÓSTICO DIFERENCIAL
+const SPECIALTIES = [
+  "Medicina General", 
+  "Cardiología", 
+  "Cirugía General", 
+  "Cirugía de Columna", 
+  "Cirugía de Mano", 
+  "Cirugía Oncológica", 
+  "Cirugía Pediátrica", 
+  "Cirugía Plástica y Reconstructiva", 
+  "Dermatología", 
+  "Endocrinología", 
+  "Gastroenterología", 
+  "Geriatría", 
+  "Ginecología y Obstetricia", 
+  "Medicina del Deporte", 
+  "Medicina Interna", 
+  "Nefrología", 
+  "Neumología", 
+  "Neurocirugía", 
+  "Neurología", 
+  "Oftalmología", 
+  "Otorrinolaringología", 
+  "Pediatría", 
+  "Psiquiatría", 
+  "Reumatología", 
+  "Traumatología y Ortopedia", 
+  "Traumatología: Artroscopia", 
+  "Urología", 
+  "Urgencias Médicas"
+];
 
 const ConsultationView: React.FC = () => {
   const { isListening, transcript, startListening, stopListening, resetTranscript, setTranscript, isAPISupported } = useSpeechRecognition();
