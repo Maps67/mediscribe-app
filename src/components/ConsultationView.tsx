@@ -273,12 +273,13 @@ const ConsultationView: React.FC = () => {
                      <p className="text-lg text-center px-4">Área de Documentación</p>
                  </div>
              ) : (
-                 <div className="h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative"> {/* Eliminamos pb-32 del contenedor general */}
+                 // FIX AQUI: min-h-full en vez de h-full para permitir crecimiento
+                 <div className="min-h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative">
                       
                       {/* NOTA CLÍNICA - ESTILO DOCUMENTO (PAPER UI) */}
                       {activeTab==='record' && generatedNote.soapData && (
-                        // FIX: AGREGAMOS h-auto Y pb-24 AQUÍ
-                        <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-[800px] h-auto pb-24 animate-fade-in-up relative">
+                        // FIX AQUI: h-fit + pb-32 (padding exagerado para que el boton nunca estorbe)
+                        <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 h-fit pb-32 animate-fade-in-up relative">
                             
                             {/* Encabezado del Documento */}
                             <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-700 pb-6 mb-8">
