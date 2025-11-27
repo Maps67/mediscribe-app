@@ -8,9 +8,10 @@ import QuickRxModal from './QuickRxModal';
 import FormattedText from './FormattedText'; 
 import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
-import { DoctorFileGallery } from './DoctorFileGallery'; // IMPORTACIÓN NUEVA
+import { DoctorFileGallery } from './DoctorFileGallery';
+// IMPORTACIÓN DEL NUEVO WIZARD
+import { PatientWizard } from './PatientWizard';
 
-// FIX: Interfaz local para extender Patient y evitar errores de TS
 interface PatientData extends Partial<Patient> {
   id: string;
   name: string;
@@ -22,7 +23,6 @@ interface PatientData extends Partial<Patient> {
   created_at?: string;
 }
 
-// Interfaz para el historial de consultas
 interface ConsultationRecord {
     id: string;
     created_at: string;
@@ -37,8 +37,6 @@ const PatientsView: React.FC = () => {
   // Modales
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  
-  // NUEVO: Estado para la Galería dentro del Historial
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   
   // Estados de selección
@@ -50,15 +48,6 @@ const PatientsView: React.FC = () => {
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   const [patientHistory, setPatientHistory] = useState<ConsultationRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
-
-  const [formData, setFormData] = useState({
-    name: '',
-    age: '',
-    gender: 'Masculino',
-    phone: '',
-    email: '',
-    history: ''
-  });
 
   useEffect(() => {
     fetchPatients();
@@ -87,11 +76,10 @@ const PatientsView: React.FC = () => {
     }
   };
 
-  // --- LÓGICA NUEVA: Cargar Historial ---
   const handleViewHistory = async (patient: PatientData) => {
       setViewingPatient(patient);
       setIsHistoryOpen(true);
-      setIsGalleryOpen(false); // Resetear galería al abrir para empezar limpio
+      setIsGalleryOpen(false); // Resetear galería al abrir
       setLoadingHistory(true);
       setPatientHistory([]); 
 
@@ -112,13 +100,21 @@ const PatientsView: React.FC = () => {
       }
   };
 
-  // --- ACCIONES INDIVIDUALES DE NOTA ---
-  
   const handleShareNoteWhatsApp = (consultation: ConsultationRecord) => {
       if (!viewingPatient) return;
       
       const drName = doctorProfile?.full_name || 'su médico';
-      const message = `*Historial Médico - Dr. ${drName}*\n*Paciente:* ${viewingPatient.name}\n*Fecha:* ${new Date(consultation.created_at).toLocaleDateString()}\n\n${consultation.summary}\n\n*Saludos.*`;
+      // Limpieza básica para mensaje de texto si es JSON
+      let content = consultation.summary;
+      // Si parece JSON (nota V4), intentamos extraer algo legible o mandamos aviso
+      if (content.trim().startsWith('{')) {
+          try {
+             // Si es JSON, mandamos un resumen genérico por WhatsApp porque el JSON crudo se ve mal
+             content = `Resumen de consulta del día ${new Date(consultation.created_at).toLocaleDateString()}. Revise el PDF adjunto para detalles completos.`;
+          } catch(e) {}
+      }
+
+      const message = `*Historial Médico - Dr. ${drName}*\n*Paciente:* ${viewingPatient.name}\n*Fecha:* ${new Date(consultation.created_at).toLocaleDateString()}\n\n${content.substring(0, 1000)}...\n\n*Saludos.*`;
       
       const encodedMessage = encodeURIComponent(message);
       let whatsappUrl = `https://wa.me/?text=${encodedMessage}`;
@@ -155,47 +151,6 @@ const PatientsView: React.FC = () => {
       }
   };
 
-  // ... (Resto de funciones CRUD) ...
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) return;
-
-      const patientData = {
-        name: formData.name,
-        age: parseInt(formData.age) || 0, 
-        gender: formData.gender,
-        phone: formData.phone,
-        email: formData.email,
-        history: formData.history,
-        doctor_id: user.id
-      };
-
-      if (editingPatient) {
-        const { error } = await supabase.from('patients').update(patientData).eq('id', editingPatient.id);
-        if (error) throw error;
-        toast.success('Paciente actualizado');
-      } else {
-        const { error } = await supabase.from('patients').insert([patientData]);
-        if (error) throw error;
-        toast.success('Paciente creado');
-      }
-
-      setIsModalOpen(false);
-      setEditingPatient(null);
-      resetForm();
-      fetchPatients();
-    } catch (error) {
-      console.error(error);
-      toast.error('Error al guardar paciente');
-    }
-  };
-
-  const resetForm = () => {
-    setFormData({ name: '', age: '', gender: 'Masculino', phone: '', email: '', history: '' });
-  };
-
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este paciente y todo su historial?')) return;
     try {
@@ -210,14 +165,6 @@ const PatientsView: React.FC = () => {
 
   const openEditModal = (patient: PatientData) => {
     setEditingPatient(patient);
-    setFormData({
-      name: patient.name,
-      age: patient.age ? patient.age.toString() : '',
-      gender: patient.gender || 'Masculino',
-      phone: patient.phone || '',
-      email: patient.email || '',
-      history: patient.history || ''
-    });
     setIsModalOpen(true);
   };
 
@@ -225,6 +172,11 @@ const PatientsView: React.FC = () => {
     p.name.toLowerCase().includes(searchTerm.toLowerCase()) ||
     p.email?.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Renderizador seguro para notas (Soporta V3 texto y V4 JSON)
+  const renderNoteContent = (summary: string) => {
+      return <FormattedText content={summary} />;
+  };
 
   return (
     <div className="p-6 max-w-7xl mx-auto pb-24 md:pb-6">
@@ -237,7 +189,6 @@ const PatientsView: React.FC = () => {
         <button 
           onClick={() => {
             setEditingPatient(null);
-            resetForm();
             setIsModalOpen(true);
           }}
           className="bg-brand-teal hover:bg-teal-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-teal-500/20"
@@ -287,7 +238,6 @@ const PatientsView: React.FC = () => {
                   </td>
                   <td className="p-4">
                     <div className="flex items-center justify-center gap-2">
-                      {/* BOTÓN: Ver Expediente */}
                       <button 
                         onClick={() => handleViewHistory(patient)} 
                         className="p-2 text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors" 
@@ -319,57 +269,66 @@ const PatientsView: React.FC = () => {
         </div>
       </div>
 
-      {/* MODAL 1: EDICIÓN/CREACIÓN */}
+      {/* --- AQUÍ ESTÁ LA MEJORA: MODAL CON EL NUEVO WIZARD EPIC/DRCHRONO --- */}
       {isModalOpen && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center">
-              <h3 className="text-xl font-bold text-slate-800 dark:text-white">{editingPatient ? 'Editar Paciente' : 'Nuevo Paciente'}</h3>
-              <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-red-500 transition-colors"><X size={24}/></button>
-            </div>
-            
-            <form onSubmit={handleSubmit} className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                {/* ... Campos formulario ... */}
-                <div className="col-span-2">
-                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Nombre Completo</label>
-                    <input required className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.name} onChange={e => setFormData({...formData, name: e.target.value})} />
-                </div>
-                <div>
-                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Edad</label>
-                    <input required type="number" className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.age} onChange={e => setFormData({...formData, age: e.target.value})} />
-                </div>
-                <div>
-                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Género</label>
-                    <select className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.gender} onChange={e => setFormData({...formData, gender: e.target.value})}>
-                        <option>Masculino</option><option>Femenino</option><option>Otro</option>
-                    </select>
-                </div>
-                <div>
-                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Teléfono</label>
-                    <input className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.phone} onChange={e => setFormData({...formData, phone: e.target.value})} />
-                </div>
-                <div>
-                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Email</label>
-                    <input type="email" className="input w-full p-2 rounded-lg border dark:bg-slate-800 dark:border-slate-700" value={formData.email} onChange={e => setFormData({...formData, email: e.target.value})} />
-                </div>
-                <div className="col-span-2">
-                    <label className="label block text-sm font-medium text-slate-700 dark:text-slate-300 mb-1">Antecedentes / Notas</label>
-                    <textarea className="input w-full p-2 rounded-lg border h-24 resize-none dark:bg-slate-800 dark:border-slate-700" value={formData.history} onChange={e => setFormData({...formData, history: e.target.value})} />
-                </div>
+        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-0 md:p-4 backdrop-blur-sm">
+          <div className="bg-white dark:bg-slate-900 w-full md:max-w-4xl h-full md:h-[90vh] md:rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col">
+            <PatientWizard 
+                initialData={editingPatient ? {
+                    name: editingPatient.name,
+                    age: editingPatient.age?.toString(),
+                    gender: editingPatient.gender,
+                    phone: editingPatient.phone,
+                    email: editingPatient.email,
+                    // Si el paciente tiene historial JSON complejo, aquí se procesaría.
+                    // Para esta versión, cargamos los datos básicos para edición rápida.
+                } : undefined}
+                onClose={() => setIsModalOpen(false)}
+                onSave={async (data) => {
+                    try {
+                        const { data: { user } } = await supabase.auth.getUser();
+                        if (!user) return;
 
-                {editingPatient && (
-                    <div className="col-span-2 mt-4 border-t border-slate-100 dark:border-slate-800 pt-4">
-                        <label className="label mb-2 block font-bold text-slate-700 dark:text-slate-300">Archivos Adjuntos</label>
-                        {/* Reutilizamos la galería pequeña aquí también si se desea */}
-                        <PatientAttachments patientId={editingPatient.id} />
-                    </div>
-                )}
+                        // GUARDADO INTELIGENTE: Aplanamos el JSON en 'history'
+                        // Esto permite usar la base de datos actual sin migraciones complejas
+                        const fullHistoryJSON = JSON.stringify({
+                            background: data.pathological,
+                            lifestyle: data.nonPathological,
+                            family: data.family,
+                            obgyn: data.obgyn,
+                            admin: { insurance: data.insurance, rfc: data.rfc, invoice: data.invoice, type: data.patientType, referral: data.referral },
+                            legacyNote: data.allergies 
+                        });
 
-                <div className="col-span-2 flex gap-3 mt-6">
-                    <button type="button" onClick={() => setIsModalOpen(false)} className="flex-1 py-3 border border-slate-200 dark:border-slate-700 rounded-xl font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800">Cancelar</button>
-                    <button type="submit" className="flex-1 py-3 bg-brand-teal text-white rounded-xl font-bold hover:bg-teal-600 shadow-lg flex justify-center items-center gap-2"><Save size={18}/> Guardar Paciente</button>
-                </div>
-            </form>
+                        const patientPayload = {
+                            name: data.name,
+                            age: parseInt(data.age) || 0,
+                            gender: data.gender,
+                            phone: data.phone,
+                            email: data.email,
+                            history: fullHistoryJSON, // Guardamos toda la data rica aquí
+                            doctor_id: user.id
+                        };
+
+                        if (editingPatient) {
+                            const { error } = await supabase.from('patients').update(patientPayload).eq('id', editingPatient.id);
+                            if (error) throw error;
+                            toast.success('Expediente actualizado con éxito');
+                        } else {
+                            const { error } = await supabase.from('patients').insert([patientPayload]);
+                            if (error) throw error;
+                            toast.success('Nuevo expediente creado');
+                        }
+
+                        setIsModalOpen(false);
+                        setEditingPatient(null);
+                        fetchPatients();
+                    } catch (e) {
+                        console.error(e);
+                        toast.error("Error al guardar expediente");
+                    }
+                }}
+            />
           </div>
         </div>
       )}
@@ -388,9 +347,8 @@ const PatientsView: React.FC = () => {
                 <p className="text-sm text-slate-500 dark:text-slate-400">Paciente: <span className="font-bold">{viewingPatient.name}</span></p>
               </div>
               
-              {/* ZONA DE ACCIONES SUPERIOR (NUEVO BOTÓN DE ARCHIVOS) */}
+              {/* ZONA DE ACCIONES SUPERIOR (BOTÓN ARCHIVOS) */}
               <div className="flex items-center gap-2">
-                  {/* BOTÓN VER ARCHIVOS */}
                   <button 
                     onClick={() => setIsGalleryOpen(!isGalleryOpen)}
                     className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-bold border ${isGalleryOpen ? 'bg-teal-100 text-brand-teal border-teal-200' : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:text-brand-teal'}`}
@@ -406,10 +364,9 @@ const PatientsView: React.FC = () => {
               </div>
             </div>
 
-            {/* Cuerpo Historial (Con Slide-Over de Galería) */}
+            {/* Cuerpo Historial */}
             <div className="flex-1 overflow-hidden relative flex">
                 
-                {/* Lista de Consultas (Izquierda) */}
                 <div className={`flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-900 transition-all duration-300 ${isGalleryOpen ? 'w-1/2 opacity-50 md:opacity-100' : 'w-full'}`}>
                     {loadingHistory ? (
                         <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3">
@@ -428,7 +385,6 @@ const PatientsView: React.FC = () => {
                                 <div key={consultation.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                                     <div className="bg-slate-50 dark:bg-slate-950 p-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
                                         
-                                        {/* FECHA Y HORA */}
                                         <div className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-300">
                                             <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 rounded border dark:border-slate-700">
                                                 <Calendar size={14} className="text-brand-teal"/>
@@ -440,7 +396,6 @@ const PatientsView: React.FC = () => {
                                             </div>
                                         </div>
 
-                                        {/* BOTONES DE ACCIÓN INDIVIDUALES */}
                                         <div className="flex gap-2">
                                             <button 
                                                 onClick={() => handleShareNoteWhatsApp(consultation)}
@@ -459,7 +414,7 @@ const PatientsView: React.FC = () => {
                                         </div>
                                     </div>
                                     <div className="p-5 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                                        <FormattedText content={consultation.summary} />
+                                        {renderNoteContent(consultation.summary)}
                                     </div>
                                 </div>
                             ))}
@@ -477,7 +432,6 @@ const PatientsView: React.FC = () => {
                             <button onClick={() => setIsGalleryOpen(false)} className="md:hidden p-1 text-slate-400"><X size={16}/></button>
                         </div>
                         <div className="flex-1 overflow-y-auto p-0">
-                            {/* Reutilizamos la galería filtrada por ID */}
                             <DoctorFileGallery patientId={viewingPatient.id} />
                         </div>
                     </div>
@@ -488,7 +442,6 @@ const PatientsView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL 3: RECETA RÁPIDA (Existente) */}
       {selectedPatientForRx && doctorProfile && (
         <QuickRxModal
           isOpen={!!selectedPatientForRx}
