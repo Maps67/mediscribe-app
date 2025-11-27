@@ -273,89 +273,61 @@ const ConsultationView: React.FC = () => {
                      <p className="text-lg text-center px-4">Área de Documentación</p>
                  </div>
              ) : (
-                 // FIX AQUI: min-h-full en vez de h-full para permitir crecimiento
-                 <div className="min-h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative">
+                 // FIX 1: "min-h-full" permite que el contenedor crezca si el papel es largo
+                 <div className="min-h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative pb-8">
                       
-                      {/* NOTA CLÍNICA - ESTILO DOCUMENTO (PAPER UI) */}
+                      {/* NOTA CLÍNICA - ESTILO DOCUMENTO */}
                       {activeTab==='record' && generatedNote.soapData && (
-                        // FIX AQUI: h-fit + pb-32 (padding exagerado para que el boton nunca estorbe)
-                        <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 h-fit pb-32 animate-fade-in-up relative">
+                        // FIX 2: "min-h-full" en la hoja blanca para que ocupe toda la altura y no se corte
+                        <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-full animate-fade-in-up relative">
                             
-                            {/* Encabezado del Documento */}
-                            <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-700 pb-6 mb-8">
+                            {/*  ENCABEZADO ADHESIVO (STICKY) CON BOTÓN DE GUARDADO */}
+                            <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex justify-between items-start">
                                 <div>
-                                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Nota de Evolución</h1>
+                                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Nota de Evolución</h1>
                                     <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide">{selectedSpecialty}</p>
+                                    <div className="flex items-center gap-4 text-xs text-slate-400 mt-1">
+                                        <span className="flex items-center gap-1"><Calendar size={12}/> {generatedNote.soapData.headers.date}</span>
+                                        <span className="flex items-center gap-1"><Clock size={12}/> {generatedNote.soapData.headers.time}</span>
+                                    </div>
                                 </div>
-                                <div className="text-right text-sm text-slate-600 dark:text-slate-400">
-                                    <div className="flex items-center justify-end gap-2 mb-1">
-                                        <Calendar size={14}/> {generatedNote.soapData.headers.date}
-                                    </div>
-                                    <div className="flex items-center justify-end gap-2">
-                                        <Clock size={14}/> {generatedNote.soapData.headers.time}
-                                    </div>
-                                    <div className="mt-2 font-bold text-slate-800 dark:text-slate-200">
+                                
+                                {/* BOTÓN DE GUARDADO INTEGRADO EN EL HEADER (NUNCA TAPA TEXTO) */}
+                                <div className="flex flex-col items-end gap-2">
+                                    <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-4 py-2 rounded-lg font-bold flex gap-2 hover:bg-teal-600 shadow-md transition-all disabled:opacity-70 text-sm items-center">
+                                        {isSaving?<RefreshCw className="animate-spin" size={16}/>:<Save size={16}/>} Guardar
+                                    </button>
+                                    <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
                                         {selectedPatient?.name || "Paciente no registrado"}
                                     </div>
                                 </div>
                             </div>
 
-                            {/* CUERPO DE LA NOTA - FORMATO CONTINUO EMR */}
+                            {/* CUERPO DE LA NOTA */}
                             <div className="space-y-8">
-                                
                                 {/* S - Subjetivo */}
                                 <div>
-                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <Activity size={14} className="text-blue-500"/> Subjetivo
-                                    </h4>
-                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1">
-                                        <FormattedText content={generatedNote.soapData.subjective} />
-                                    </div>
+                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Subjetivo</h4>
+                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soapData.subjective} /></div>
                                 </div>
-
                                 <hr className="border-slate-100 dark:border-slate-800" />
-
                                 {/* O - Objetivo */}
                                 <div>
-                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <ClipboardList size={14} className="text-green-500"/> Objetivo
-                                    </h4>
-                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1">
-                                        <FormattedText content={generatedNote.soapData.objective || "Sin hallazgos contributivos."} />
-                                    </div>
+                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ClipboardList size={14} className="text-green-500"/> Objetivo</h4>
+                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soapData.objective || "Sin hallazgos contributivos."} /></div>
                                 </div>
-
                                 <hr className="border-slate-100 dark:border-slate-800" />
-
                                 {/* A - Análisis */}
                                 <div>
-                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico
-                                    </h4>
-                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1">
-                                        <FormattedText content={generatedNote.soapData.analysis} />
-                                    </div>
+                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico</h4>
+                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soapData.analysis} /></div>
                                 </div>
-
                                 <hr className="border-slate-100 dark:border-slate-800" />
-
                                 {/* P - Plan */}
                                 <div>
-                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
-                                        <FileSignature size={14} className="text-purple-500"/> Plan Médico
-                                    </h4>
-                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1">
-                                        <FormattedText content={generatedNote.soapData.plan} />
-                                    </div>
+                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><FileSignature size={14} className="text-purple-500"/> Plan Médico</h4>
+                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soapData.plan} /></div>
                                 </div>
-
-                            </div>
-
-                            {/* Botón Flotante de Guardado */}
-                            <div className="fixed bottom-8 right-8 z-30">
-                                <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-4 rounded-full font-bold flex gap-2 hover:bg-teal-600 shadow-2xl hover:shadow-teal-500/30 transition-all disabled:opacity-70 items-center scale-100 hover:scale-105 active:scale-95">
-                                    {isSaving?<RefreshCw className="animate-spin" size={20}/>:<Save size={20}/>} Guardar en Expediente
-                                </button>
                             </div>
                         </div>
                       )}
