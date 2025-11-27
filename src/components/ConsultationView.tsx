@@ -87,6 +87,21 @@ const ConsultationView: React.FC = () => {
     return () => { mounted = false; };
   }, [setTranscript]); 
 
+  // --- REGLA DE NEGOCIO: LIMPIEZA AUTOMÁTICA AL CAMBIAR PACIENTE ---
+  useEffect(() => {
+    if (selectedPatient) {
+        // Si hay texto y cambiamos de paciente, limpiamos para evitar mezclas
+        // (Opcional: Podríamos preguntar, pero por fluidez es mejor limpiar)
+        if (transcript && confirm("¿Desea limpiar el dictado anterior para el nuevo paciente?")) {
+            resetTranscript();
+            setGeneratedNote(null);
+        } else if (!transcript) {
+            // Si estaba vacío, aseguramos limpieza de nota
+            setGeneratedNote(null);
+        }
+    }
+  }, [selectedPatient]); // Se ejecuta cada vez que cambia el paciente seleccionado
+
   useEffect(() => { 
     if (isListening && transcriptEndRef.current) transcriptEndRef.current.scrollIntoView({ behavior: 'smooth' });
     if (transcript) localStorage.setItem('mediscribe_local_draft', transcript);
@@ -118,8 +133,6 @@ const ConsultationView: React.FC = () => {
 
   const handleGenerate = async () => {
     if (!transcript) return toast.error("Sin audio.");
-    
-    // --- MANEJO DE OFFLINE AL GENERAR ---
     if (!isOnline) { 
         toast.warning("Sin internet: La IA no puede procesar.", { icon: <WifiOff/> });
         toast.info("La nota se ha guardado localmente. Genérela cuando recupere la conexión.");
@@ -256,43 +269,42 @@ const ConsultationView: React.FC = () => {
         </div>
         <div onClick={()=>setConsentGiven(!consentGiven)} className="flex items-center gap-2 p-3 rounded-lg border cursor-pointer select-none dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"><div className={`w-5 h-5 rounded border flex items-center justify-center ${consentGiven?'bg-green-500 border-green-500 text-white':'bg-white dark:bg-slate-700'}`}>{consentGiven&&<Check size={14}/>}</div><label className="text-xs dark:text-white cursor-pointer">Consentimiento otorgado.</label></div>
         
-        {/* --- ÁREA DE MICROFONO INTELIGENTE (ADAPTABLE) --- */}
-        <div className={`flex-1 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-4 relative transition-colors ${!isOnline ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/10' : (isListening?'border-red-400 bg-red-50 dark:bg-red-900/10':'border-slate-200 dark:border-slate-700')}`}>
+        {/* --- ÁREA DE MICROFONO EXPANDIDA Y MEJORADA --- */}
+        <div className={`flex-1 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-4 relative transition-colors min-h-[300px] ${!isOnline ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/10' : (isListening?'border-red-400 bg-red-50 dark:bg-red-900/10':'border-slate-200 dark:border-slate-700')}`}>
             
-            {/* ICONO CENTRAL QUE CAMBIA SEGÚN ESTADO */}
-            <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 transition-all ${
-                !isOnline ? 'bg-amber-100 text-amber-500' :
-                isListening ? 'bg-red-500 text-white animate-pulse' : 
-                'bg-white dark:bg-slate-800 text-slate-300 shadow-sm'
-            }`}>
-                {!isOnline ? <WifiOff size={32}/> : <Mic size={32}/>}
-            </div>
-
-            {/* TEXTO DE ESTADO */}
-            <p className="text-center font-medium text-slate-600 dark:text-slate-400 mb-2 text-sm">
-                {!isOnline ? "Modo Offline Activo" : (isListening ? "Escuchando..." : "Listo para iniciar")}
-            </p>
+            {/* Si no estamos grabando y no hay texto, mostramos el microfono grande para invitar */}
+            {!transcript && (
+                <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-50">
+                    <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${!isOnline ? 'bg-amber-100 text-amber-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-300'}`}>
+                        {!isOnline ? <WifiOff size={32}/> : <Mic size={32}/>}
+                    </div>
+                    <p className="text-sm font-medium text-slate-400">
+                        {!isOnline ? "Modo Offline" : "Listo para iniciar"}
+                    </p>
+                </div>
+            )}
 
             {/* MENSAJE DE AYUDA OFFLINE */}
             {!isOnline && (
-                <div className="bg-white/80 dark:bg-slate-800/80 p-2 rounded-lg text-xs text-center text-amber-700 dark:text-amber-400 mb-2 border border-amber-200 dark:border-amber-800">
+                <div className="relative w-full z-10 bg-white/80 dark:bg-slate-800/80 p-2 rounded-lg text-xs text-center text-amber-700 dark:text-amber-400 mb-2 border border-amber-200 dark:border-amber-800">
                     <Keyboard size={14} className="inline mr-1"/>
                     Use el micrófono de su <b>teclado</b> para dictar.
                 </div>
             )}
 
-            {/* ÁREA DE TEXTO (TRANSCRIPT) - SIEMPRE EDITABLE */}
+            {/* ÁREA DE TEXTO GIGANTE Y LEGIBLE */}
             <textarea 
-                className="w-full flex-1 bg-white dark:bg-slate-800 p-3 rounded-xl border dark:border-slate-700 text-xs italic mb-4 shadow-inner resize-none focus:ring-2 focus:ring-brand-teal focus:border-transparent outline-none dark:text-slate-300"
+                className={`w-full flex-1 bg-transparent p-2 rounded-xl text-base leading-relaxed resize-none focus:outline-none dark:text-slate-200 z-10 ${!transcript ? 'opacity-0' : 'opacity-100'}`}
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
-                placeholder={isOnline ? "La transcripción aparecerá aquí..." : "Escriba o dicte con el teclado aquí..."}
+                placeholder="" 
             />
             
+            <div ref={transcriptEndRef}/>
+            
             {/* BOTONES DE CONTROL */}
-            <div className="flex w-full gap-2 mt-auto flex-col xl:flex-row">
+            <div className="flex w-full gap-2 mt-auto flex-col xl:flex-row z-20 pt-4">
                 
-                {/* Botón Grabar (Desactivado si Offline) */}
                 <button 
                     onClick={handleToggleRecording} 
                     disabled={!isOnline || !consentGiven || (!isAPISupported && !isListening)} 
@@ -305,7 +317,6 @@ const ConsultationView: React.FC = () => {
                     {isListening ? <><Square size={16}/> Parar</> : <><Mic size={16}/> Grabar</>}
                 </button>
 
-                {/* Botón Generar/Guardar (Cambia función si Offline) */}
                 <button 
                     onClick={handleGenerate} 
                     disabled={!transcript || isListening || isProcessing} 
@@ -319,7 +330,7 @@ const ConsultationView: React.FC = () => {
                 </button>
             </div>
             
-            <button onClick={()=>{if(selectedPatient && doctorProfile) setIsQuickRxModalOpen(true)}} disabled={!selectedPatient} className="w-full mt-2 py-2 text-brand-teal font-bold border border-brand-teal/30 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-900/20 disabled:opacity-50 transition-colors text-xs flex items-center justify-center gap-2"><FileText size={14}/> Receta Rápida</button>
+            <button onClick={()=>{if(selectedPatient && doctorProfile) setIsQuickRxModalOpen(true)}} disabled={!selectedPatient} className="w-full mt-2 py-2 text-brand-teal font-bold border border-brand-teal/30 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-900/20 disabled:opacity-50 transition-colors text-xs flex items-center justify-center gap-2 z-20"><FileText size={14}/> Receta Rápida</button>
         </div>
       </div>
       
@@ -338,10 +349,8 @@ const ConsultationView: React.FC = () => {
                  </div>
              ) : (
                  <div className="min-h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative pb-8">
-                      
                       {activeTab==='record' && generatedNote.soapData && (
                         <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-full h-fit pb-32 animate-fade-in-up relative">
-                            {/* STICKY HEADER */}
                             <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex justify-between items-start">
                                 <div>
                                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Nota de Evolución</h1>
@@ -360,7 +369,6 @@ const ConsultationView: React.FC = () => {
                                     </div>
                                 </div>
                             </div>
-                            {/* CONTENIDO SOAP */}
                             <div className="space-y-8">
                                 <div><h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Subjetivo</h4><div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soapData.subjective} /></div></div>
                                 <hr className="border-slate-100 dark:border-slate-800" />
@@ -411,7 +419,6 @@ const ConsultationView: React.FC = () => {
           </div>
       </div>
 
-      {/* PANEL LATERAL (ARCHIVOS) */}
       {isAttachmentsOpen && selectedPatient && (
         <div className="fixed inset-0 z-50 flex justify-end">
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={() => setIsAttachmentsOpen(false)} />
