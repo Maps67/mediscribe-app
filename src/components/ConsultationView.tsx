@@ -219,9 +219,9 @@ const ConsultationView: React.FC = () => {
   };
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-slate-50 dark:bg-slate-900 relative">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-slate-100 dark:bg-slate-950 relative">
       
-      {/* PANEL IZQUIERDO */}
+      {/* PANEL IZQUIERDO (CONTROLES 25%) */}
       <div className={`w-full md:w-1/4 p-4 flex flex-col gap-4 border-r dark:border-slate-800 bg-white dark:bg-slate-900 overflow-y-auto ${generatedNote ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex justify-between items-center">
             <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
@@ -259,97 +259,98 @@ const ConsultationView: React.FC = () => {
         </div>
       </div>
       
-      {/* PANEL DERECHO (RESULTADOS 75%) */}
+      {/* PANEL DERECHO (RESULTADOS 75% - ESTILO EMR) */}
       <div className={`w-full md:w-3/4 bg-slate-100 dark:bg-slate-950 flex flex-col border-l dark:border-slate-800 ${!generatedNote?'hidden md:flex':'flex h-full'}`}>
           <div className="flex border-b dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 items-center px-2">
              <button onClick={()=>setGeneratedNote(null)} className="md:hidden p-4 text-slate-500"><ArrowLeft/></button>
-             {[{id:'record',icon:FileText,l:'NOTA ESTRUCTURADA'},{id:'patient',icon:User,l:'PLAN PACIENTE'},{id:'chat',icon:MessageSquare,l:'ASISTENTE IA'}].map(t=><button key={t.id} onClick={()=>setActiveTab(t.id as TabType)} disabled={!generatedNote&&t.id!=='record'} className={`flex-1 py-4 flex justify-center gap-2 text-sm font-bold border-b-4 transition-colors ${activeTab===t.id?'text-brand-teal border-brand-teal':'text-slate-400 border-transparent hover:text-slate-600'}`}><t.icon size={18}/><span className="hidden sm:inline">{t.l}</span></button>)}
+             {[{id:'record',icon:FileText,l:'EXPEDIENTE CLÍNICO'},{id:'patient',icon:User,l:'PLAN PACIENTE'},{id:'chat',icon:MessageSquare,l:'ASISTENTE'}].map(t=><button key={t.id} onClick={()=>setActiveTab(t.id as TabType)} disabled={!generatedNote&&t.id!=='record'} className={`flex-1 py-4 flex justify-center gap-2 text-sm font-bold border-b-4 transition-colors ${activeTab===t.id?'text-brand-teal border-brand-teal':'text-slate-400 border-transparent hover:text-slate-600'}`}><t.icon size={18}/><span className="hidden sm:inline">{t.l}</span></button>)}
           </div>
           
-          <div className="flex-1 overflow-y-auto p-4 md:p-6 bg-slate-50 dark:bg-slate-950">
+          <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100 dark:bg-slate-950">
              {!generatedNote ? (
                  <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 opacity-50">
                      <FileText size={64} strokeWidth={1}/>
-                     <p className="text-lg text-center px-4">Área de Trabajo Clínica</p>
+                     <p className="text-lg text-center px-4">Área de Documentación</p>
                  </div>
              ) : (
-                 <div className="h-full flex flex-col max-w-5xl mx-auto w-full gap-4 relative">
+                 <div className="h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative pb-32">
                       
-                      {/* NOTA ESTRUCTURADA (VISUALIZACIÓN PROFESIONAL) */}
+                      {/* NOTA CLÍNICA - ESTILO DOCUMENTO (PAPER UI) */}
                       {activeTab==='record' && generatedNote.soapData && (
-                        <div className="flex flex-col h-full gap-4">
-                            {/* Encabezado de la Nota */}
-                            <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm border dark:border-slate-800 flex flex-wrap gap-4 items-center justify-between animate-fade-in-up">
-                                <div className="flex gap-4 items-center">
-                                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-lg">
-                                        <Calendar size={16} className="text-brand-teal"/> 
-                                        <span className="font-semibold">{generatedNote.soapData.headers.date}</span>
+                        <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-[800px] animate-fade-in-up relative">
+                            
+                            {/* Encabezado del Documento */}
+                            <div className="flex justify-between items-start border-b border-slate-200 dark:border-slate-700 pb-6 mb-8">
+                                <div>
+                                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white mb-2">Nota de Evolución</h1>
+                                    <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide">{selectedSpecialty}</p>
+                                </div>
+                                <div className="text-right text-sm text-slate-600 dark:text-slate-400">
+                                    <div className="flex items-center justify-end gap-2 mb-1">
+                                        <Calendar size={14}/> {generatedNote.soapData.headers.date}
                                     </div>
-                                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 bg-slate-100 dark:bg-slate-800 px-3 py-2 rounded-lg">
-                                        <Clock size={16} className="text-brand-teal"/>
-                                        <span className="font-semibold">{generatedNote.soapData.headers.time}</span>
+                                    <div className="flex items-center justify-end gap-2">
+                                        <Clock size={14}/> {generatedNote.soapData.headers.time}
+                                    </div>
+                                    <div className="mt-2 font-bold text-slate-800 dark:text-slate-200">
+                                        {selectedPatient?.name || "Paciente no registrado"}
                                     </div>
                                 </div>
-                                {(generatedNote.soapData.headers.patientName || selectedPatient) && (
-                                    <div className="flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300">
-                                        <UserCircle size={18} className="text-slate-400"/>
-                                        <span className="font-bold">{selectedPatient?.name || generatedNote.soapData.headers.patientName}</span>
-                                    </div>
-                                )}
                             </div>
 
-                            {/* --- ZONA DE SCROLL --- AQUI CAMBIAMOS pb-4 por pb-32 --- */}
-                            <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-4 pb-32">
+                            {/* CUERPO DE LA NOTA - FORMATO CONTINUO EMR */}
+                            <div className="space-y-8">
                                 
-                                {/* S - Subjetivo (Azul) */}
-                                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-l-4 border-blue-500 overflow-hidden animate-fade-in-up" style={{animationDelay: '0.1s'}}>
-                                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 border-b border-blue-100 dark:border-blue-800 flex items-center gap-2">
-                                        <Activity size={18} className="text-blue-600 dark:text-blue-400"/>
-                                        <h3 className="font-bold text-blue-800 dark:text-blue-300">Subjetivo (Padecimiento Actual)</h3>
-                                    </div>
-                                    {/* AQUI USAMOS FormattedText para renderizar negritas */}
-                                    <div className="p-4 text-slate-700 dark:text-slate-300 leading-relaxed">
+                                {/* S - Subjetivo */}
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <Activity size={14} className="text-blue-500"/> Subjetivo
+                                    </h4>
+                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1">
                                         <FormattedText content={generatedNote.soapData.subjective} />
                                     </div>
                                 </div>
 
-                                {/* O - Objetivo (Verde) */}
-                                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-l-4 border-green-500 overflow-hidden animate-fade-in-up" style={{animationDelay: '0.2s'}}>
-                                    <div className="bg-green-50 dark:bg-green-900/20 p-3 border-b border-green-100 dark:border-green-800 flex items-center gap-2">
-                                        <ClipboardList size={18} className="text-green-600 dark:text-green-400"/>
-                                        <h3 className="font-bold text-green-800 dark:text-green-300">Objetivo (Exploración Física y Vitales)</h3>
-                                    </div>
-                                    <div className="p-4 text-slate-700 dark:text-slate-300 leading-relaxed bg-slate-50 dark:bg-slate-950/50">
-                                        <FormattedText content={generatedNote.soapData.objective || "No se dictaron hallazgos objetivos específicos."} />
+                                <hr className="border-slate-100 dark:border-slate-800" />
+
+                                {/* O - Objetivo */}
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <ClipboardList size={14} className="text-green-500"/> Objetivo
+                                    </h4>
+                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1">
+                                        <FormattedText content={generatedNote.soapData.objective || "Sin hallazgos contributivos."} />
                                     </div>
                                 </div>
 
-                                {/* A - Análisis (Ámbar) */}
-                                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-l-4 border-amber-500 overflow-hidden animate-fade-in-up" style={{animationDelay: '0.3s'}}>
-                                    <div className="bg-amber-50 dark:bg-amber-900/20 p-3 border-b border-amber-100 dark:border-amber-800 flex items-center gap-2">
-                                        <Brain size={18} className="text-amber-600 dark:text-amber-400"/>
-                                        <h3 className="font-bold text-amber-800 dark:text-amber-300">Análisis y Diagnóstico</h3>
-                                    </div>
-                                    <div className="p-4 text-slate-700 dark:text-slate-300 leading-relaxed">
+                                <hr className="border-slate-100 dark:border-slate-800" />
+
+                                {/* A - Análisis */}
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico
+                                    </h4>
+                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1">
                                         <FormattedText content={generatedNote.soapData.analysis} />
                                     </div>
                                 </div>
 
-                                {/* P - Plan (Púrpura) */}
-                                <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border-l-4 border-purple-500 overflow-hidden animate-fade-in-up" style={{animationDelay: '0.4s'}}>
-                                    <div className="bg-purple-50 dark:bg-purple-900/20 p-3 border-b border-purple-100 dark:border-purple-800 flex items-center gap-2">
-                                        <FileSignature size={18} className="text-purple-600 dark:text-purple-400"/>
-                                        <h3 className="font-bold text-purple-800 dark:text-purple-300">Plan de Manejo Médico</h3>
-                                    </div>
-                                    <div className="p-4 text-slate-700 dark:text-slate-300 leading-relaxed">
+                                <hr className="border-slate-100 dark:border-slate-800" />
+
+                                {/* P - Plan */}
+                                <div>
+                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2">
+                                        <FileSignature size={14} className="text-purple-500"/> Plan Médico
+                                    </h4>
+                                    <div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1">
                                         <FormattedText content={generatedNote.soapData.plan} />
                                     </div>
                                 </div>
 
                             </div>
 
-                            {/* Botón Flotante de Guardado */}
-                            <div className="absolute bottom-4 right-4 z-10">
+                            {/* Botón Flotante de Guardado (Ahora no tapa porque hay padding-bottom en el contenedor padre) */}
+                            <div className="fixed bottom-8 right-8 z-30">
                                 <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-4 rounded-full font-bold flex gap-2 hover:bg-teal-600 shadow-2xl hover:shadow-teal-500/30 transition-all disabled:opacity-70 items-center scale-100 hover:scale-105 active:scale-95">
                                     {isSaving?<RefreshCw className="animate-spin" size={20}/>:<Save size={20}/>} Guardar en Expediente
                                 </button>
@@ -398,7 +399,7 @@ const ConsultationView: React.FC = () => {
           </div>
       </div>
 
-      {/* PANEL ARCHIVOS */}
+      {/* PANEL LATERAL (ARCHIVOS) */}
       {isAttachmentsOpen && selectedPatient && (
         <div className="fixed inset-0 z-50 flex justify-end">
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={() => setIsAttachmentsOpen(false)} />
