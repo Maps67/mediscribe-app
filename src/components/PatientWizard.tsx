@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { 
   User, Calendar, Phone, MapPin, Activity, AlertTriangle, 
-  Save, X, ShieldAlert, FileText, HeartPulse 
+  Save, X, ShieldAlert, HeartPulse, Droplet, FileBadge 
 } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -12,7 +12,8 @@ export interface WizardData {
   dob: string;
   age: string;
   gender: string;
-  curp: string; // Opcional según requerimiento
+  curp: string;          // Obligatorio NOM-004
+  bloodType: string;     // Crítico
   maritalStatus: string;
   
   // Contacto
@@ -20,16 +21,15 @@ export interface WizardData {
   email: string;
   address: string;
   occupation: string;
-  emergencyContact: string; // Nombre + Teléfono
+  emergencyContact: string; 
   
   // Clínico Crítico
-  allergies: string; // OBLIGATORIO
+  allergies: string; 
   nonCriticalAllergies: string;
-  background: string; // Antecedentes relevantes
-  notes: string; // Observaciones
+  background: string; 
+  notes: string; 
   
-  // Estructura interna para compatibilidad con base de datos
-  // (Estos se llenan por defecto o se expanden en edición futura)
+  // Estructura interna para compatibilidad (JSON en DB)
   pathological?: any;
   nonPathological?: any;
   family?: any;
@@ -52,15 +52,16 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
   const [errors, setErrors] = useState<{ [key: string]: boolean }>({});
 
   const [formData, setFormData] = useState<WizardData>({
-    name: '', dob: '', age: '', gender: 'Masculino', curp: '', maritalStatus: 'Soltero',
+    name: '', dob: '', age: '', gender: 'Masculino', 
+    curp: '', bloodType: '', 
+    maritalStatus: 'Soltero/a',
     phone: '', email: '', address: '', occupation: '', emergencyContact: '',
     allergies: '', nonCriticalAllergies: '', background: '', notes: '',
-    // Defaults para compatibilidad
     pathological: {}, nonPathological: {}, family: {}, obgyn: {},
     insurance: '', rfc: '', invoice: false, patientType: 'Nuevo', referral: ''
   });
 
-  // Carga de datos iniciales (Edición)
+  // Carga de datos iniciales
   useEffect(() => {
     if (initialData) {
       setFormData(prev => ({ ...prev, ...initialData }));
@@ -80,8 +81,10 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
   }, [formData.dob]);
 
   const handleChange = (field: keyof WizardData, value: any) => {
+    // Si es CURP, forzar mayúsculas
+    if (field === 'curp') value = value.toUpperCase();
+    
     setFormData(prev => ({ ...prev, [field]: value }));
-    // Limpiar error visual si existe
     if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }));
   };
 
@@ -90,13 +93,12 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
     
     if (!formData.name.trim()) newErrors.name = true;
     if (!formData.gender) newErrors.gender = true;
-    if (!formData.allergies.trim()) newErrors.allergies = true; // CRÍTICO
+    if (!formData.allergies.trim()) newErrors.allergies = true; // Crítico
 
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
-      toast.error("Por favor complete los campos obligatorios marcados en rojo.");
+      toast.error("Complete los campos obligatorios marcados en rojo.");
       
-      // Scroll al primer error
       const firstError = document.querySelector('.error-ring');
       firstError?.scrollIntoView({ behavior: 'smooth', block: 'center' });
       return;
@@ -114,7 +116,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
   return (
     <div className="flex flex-col h-full bg-slate-50 dark:bg-slate-950 font-sans">
       
-      {/* --- HEADER EMR PROFESIONAL --- */}
+      {/* HEADER */}
       <div className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 px-8 py-5 flex justify-between items-center shadow-sm z-10">
         <div>
           <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -122,7 +124,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
             Registro de Paciente
           </h2>
           <p className="text-xs text-slate-500 dark:text-slate-400 mt-1 uppercase tracking-wide font-medium">
-            Nuevo Ingreso Clínico
+            Ficha de Identificación (NOM-004)
           </p>
         </div>
         <button 
@@ -133,7 +135,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
         </button>
       </div>
 
-      {/* --- BODY SCROLLABLE (FORMULARIO CONTINUO) --- */}
+      {/* BODY SCROLLABLE */}
       <div className="flex-1 overflow-y-auto p-8 custom-scrollbar">
         <div className="max-w-5xl mx-auto space-y-10">
 
@@ -141,14 +143,14 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
           <section className="animate-fade-in-up">
             <div className="flex items-center gap-3 mb-6 border-b border-slate-200 dark:border-slate-800 pb-2">
               <div className="bg-blue-50 dark:bg-blue-900/20 p-2 rounded-lg">
-                <FileText className="text-blue-600 dark:text-blue-400" size={20} />
+                <FileBadge className="text-blue-600 dark:text-blue-400" size={20} />
               </div>
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Datos de Identificación</h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
-              {/* Nombre Completo (Ancho total si se desea, o 2 columnas) */}
-              <div className="col-span-1 md:col-span-2">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-x-6 gap-y-6">
+              {/* Nombre Completo */}
+              <div className="col-span-1 md:col-span-2 lg:col-span-4">
                 <label className="label-emr">Nombre Completo <span className="text-red-500">*</span></label>
                 <input 
                   className={`input-emr ${errors.name ? 'error-ring' : ''}`}
@@ -159,7 +161,8 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                 />
               </div>
 
-              <div>
+              {/* Fecha Nacimiento */}
+              <div className="col-span-1">
                 <label className="label-emr">Fecha de Nacimiento</label>
                 <input 
                   type="date" 
@@ -169,17 +172,19 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                 />
               </div>
 
-              <div>
+              {/* Edad */}
+              <div className="col-span-1">
                 <label className="label-emr">Edad</label>
                 <input 
                   className="input-emr bg-slate-100 dark:bg-slate-800 text-slate-500 cursor-not-allowed"
                   value={formData.age}
                   readOnly
-                  placeholder="Calculada automáticamente"
+                  placeholder="Auto"
                 />
               </div>
 
-              <div>
+              {/* Género */}
+              <div className="col-span-1">
                 <label className="label-emr">Género <span className="text-red-500">*</span></label>
                 <select 
                   className={`input-emr ${errors.gender ? 'error-ring' : ''}`}
@@ -188,24 +193,53 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                 >
                   <option value="Masculino">Masculino</option>
                   <option value="Femenino">Femenino</option>
-                  <option value="No Binario">No Binario</option>
                 </select>
               </div>
 
-              <div>
+              {/* Estado Civil */}
+              <div className="col-span-1">
                 <label className="label-emr">Estado Civil</label>
                 <select 
                   className="input-emr"
                   value={formData.maritalStatus}
                   onChange={(e) => handleChange('maritalStatus', e.target.value)}
                 >
-                  <option value="Soltero">Soltero/a</option>
-                  <option value="Casado">Casado/a</option>
-                  <option value="Divorciado">Divorciado/a</option>
-                  <option value="Viudo">Viudo/a</option>
+                  <option value="Soltero/a">Soltero/a</option>
+                  <option value="Casado/a">Casado/a</option>
+                  <option value="Divorciado/a">Divorciado/a</option>
+                  <option value="Viudo/a">Viudo/a</option>
                   <option value="Unión Libre">Unión Libre</option>
                 </select>
               </div>
+
+              {/* CURP */}
+              <div className="col-span-1 md:col-span-2">
+                <label className="label-emr">CURP (Clave Única)</label>
+                <input 
+                  className="input-emr uppercase" 
+                  value={formData.curp} 
+                  onChange={(e) => handleChange('curp', e.target.value)}
+                  placeholder="18 caracteres"
+                  maxLength={18}
+                />
+              </div>
+
+              {/* Tipo de Sangre */}
+              <div className="col-span-1 md:col-span-2">
+                <label className="label-emr flex items-center gap-1"><Droplet size={12} className="text-red-500"/> Tipo de Sangre</label>
+                <select className="input-emr" value={formData.bloodType} onChange={(e) => handleChange('bloodType', e.target.value)}>
+                  <option value="">Desconocido</option>
+                  <option value="O+">O Positivo (O+)</option>
+                  <option value="O-">O Negativo (O-)</option>
+                  <option value="A+">A Positivo (A+)</option>
+                  <option value="A-">A Negativo (A-)</option>
+                  <option value="B+">B Positivo (B+)</option>
+                  <option value="B-">B Negativo (B-)</option>
+                  <option value="AB+">AB Positivo (AB+)</option>
+                  <option value="AB-">AB Negativo (AB-)</option>
+                </select>
+              </div>
+
             </div>
           </section>
 
@@ -218,7 +252,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
               <h3 className="text-lg font-bold text-slate-800 dark:text-slate-200">Contacto y Ubicación</h3>
             </div>
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-x-6 gap-y-6">
               <div>
                 <label className="label-emr">Teléfono Móvil</label>
                 <div className="relative">
@@ -250,7 +284,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                   className="input-emr"
                   value={formData.address}
                   onChange={(e) => handleChange('address', e.target.value)}
-                  placeholder="Calle, Número, Colonia, Ciudad, Código Postal"
+                  placeholder="Calle, Número, Colonia, Ciudad"
                 />
               </div>
 
@@ -298,9 +332,6 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                   placeholder="Escriba 'NEGADAS' si no tiene alergias conocidas, o lístelas claramente."
                   rows={2}
                 />
-                {errors.allergies && (
-                  <p className="text-xs text-red-600 mt-1 font-medium animate-pulse">Este campo es crítico para la seguridad del paciente.</p>
-                )}
               </div>
 
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -341,7 +372,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
         </div>
       </div>
 
-      {/* --- FOOTER ACTIONS --- */}
+      {/* FOOTER ACTIONS */}
       <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-between items-center z-20 shadow-md">
         <button 
             onClick={onClose} 
@@ -360,7 +391,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
         </button>
       </div>
 
-      {/* ESTILOS INTERNOS PARA REUTILIZACIÓN */}
+      {/* ESTILOS INTERNOS */}
       <style>{`
         .label-emr { 
             @apply block text-xs font-bold text-slate-600 dark:text-slate-400 uppercase tracking-wider mb-2 ml-1; 
