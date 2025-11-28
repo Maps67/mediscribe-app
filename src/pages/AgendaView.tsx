@@ -556,9 +556,3 @@ const AgendaView = () => {
 };
 
 export default AgendaView;
-```
-
-```bash
-git add src/pages/AgendaView.tsx
-git commit -m "feat(agenda): V5.4 - Soporte para pacientes manuales y corrección de error de columna duration_minutes"
-git push origin main
