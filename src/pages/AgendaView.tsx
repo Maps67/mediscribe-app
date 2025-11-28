@@ -9,7 +9,9 @@ import {
   isSameDay, 
   getDay,
   isToday,
-  parseISO
+  parseISO,
+  setHours,
+  setMinutes
 } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { 
@@ -23,13 +25,18 @@ import {
   Loader2,
   UserPlus,
   List,
-  Calendar as CalendarIcon // Icono para la fecha
+  Calendar as CalendarIcon,
+  Settings,
+  CheckCircle2,
+  Download,
+  ExternalLink
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
 // --- TIPOS ---
 type AppointmentType = 'consulta' | 'urgencia' | 'seguimiento';
+type CalendarProvider = 'google' | 'outlook' | 'apple';
 
 interface Appointment {
   id: string;
@@ -46,7 +53,139 @@ interface Patient {
   name: string;
 }
 
-// --- MODAL DE CITA (AHORA CON SELECTOR DE FECHA) ---
+// --- UTILIDAD: GENERADOR DE LINKS INTELIGENTE ---
+const getCalendarLink = (appt: any, provider: CalendarProvider) => {
+  const startDate = new Date(appt.start_time || appt.date_time);
+  const duration = appt.duration_minutes || 30;
+  const endDate = new Date(startDate.getTime() + duration * 60000);
+  
+  const title = `Consulta: ${appt.title || appt.patient_name}`;
+  const description = `Tipo: ${appt.type}\nNotas: ${appt.notes || ''}\n---\nGenerado por MediScribe AI`;
+  const location = 'Consultorio';
+
+  // Formato YYYYMMDDTHHmmSSZ
+  const formatDate = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
+
+  if (provider === 'google') {
+    const params = new URLSearchParams({
+      action: 'TEMPLATE',
+      text: title,
+      dates: `${formatDate(startDate)}/${formatDate(endDate)}`,
+      details: description,
+      location: location,
+    });
+    return { url: `https://calendar.google.com/calendar/render?${params.toString()}`, type: 'link' };
+  }
+
+  if (provider === 'outlook') {
+    const params = new URLSearchParams({
+      path: '/calendar/action/compose',
+      rru: 'addevent',
+      startdt: startDate.toISOString(),
+      enddt: endDate.toISOString(),
+      subject: title,
+      body: description,
+      location: location
+    });
+    return { url: `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`, type: 'link' };
+  }
+
+  if (provider === 'apple') {
+    const icsContent = [
+      'BEGIN:VCALENDAR',
+      'VERSION:2.0',
+      'BEGIN:VEVENT',
+      `DTSTART:${formatDate(startDate)}`,
+      `DTEND:${formatDate(endDate)}`,
+      `SUMMARY:${title}`,
+      `DESCRIPTION:${description.replace(/\n/g, '\\n')}`,
+      `LOCATION:${location}`,
+      'END:VEVENT',
+      'END:VCALENDAR'
+    ].join('\n');
+    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+    return { url: URL.createObjectURL(blob), type: 'download', filename: 'cita.ics' };
+  }
+
+  return { url: '#', type: 'link' };
+};
+
+// --- MODAL DE CONFIGURACIÓN DE CALENDARIO (RECUPERADO) ---
+const SyncConfigModal = ({ 
+  isOpen, 
+  onClose, 
+  currentProvider, 
+  setProvider 
+}: { 
+  isOpen: boolean; 
+  onClose: () => void; 
+  currentProvider: CalendarProvider; 
+  setProvider: (p: CalendarProvider) => void; 
+}) => {
+  if (!isOpen) return null;
+
+  const providers = [
+    { id: 'google', name: 'Google Calendar', icon: 'G', color: 'bg-blue-100 text-blue-600', desc: 'Abre directamente en web/app de Google.' },
+    { id: 'outlook', name: 'Outlook / Office 365', icon: 'O', color: 'bg-cyan-100 text-cyan-600', desc: 'Ideal para usuarios corporativos.' },
+    { id: 'apple', name: 'Apple Calendar (iCal)', icon: 'A', color: 'bg-slate-100 text-slate-600', desc: 'Descarga archivo .ics para Mac/iPhone.' },
+  ];
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-100 overflow-hidden">
+        <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
+          <h3 className="font-bold text-slate-800 flex items-center gap-2">
+            <Settings size={20} className="text-teal-600"/>
+            Conectividad de Agenda
+          </h3>
+          <button onClick={onClose}><X size={20} className="text-slate-400 hover:text-slate-600"/></button>
+        </div>
+        
+        <div className="p-6">
+          <div className="mb-6 bg-teal-50 border border-teal-100 rounded-lg p-4 text-sm text-teal-800">
+            <p className="font-semibold mb-1">¿Cómo funciona la sincronización?</p>
+            <p className="opacity-90">MediScribe genera eventos inteligentes. Selecciona tu proveedor principal para que el botón de "Sincronizar" se adapte a tu flujo de trabajo.</p>
+          </div>
+
+          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wide mb-3">Selecciona tu ecosistema</label>
+          
+          <div className="space-y-3">
+            {providers.map((p) => (
+              <button
+                key={p.id}
+                onClick={() => setProvider(p.id as CalendarProvider)}
+                className={`w-full flex items-center gap-4 p-4 rounded-xl border transition-all text-left ${
+                  currentProvider === p.id 
+                    ? 'border-teal-500 bg-teal-50 ring-1 ring-teal-500' 
+                    : 'border-slate-200 hover:border-slate-300 hover:bg-slate-50'
+                }`}
+              >
+                <div className={`w-10 h-10 rounded-full flex items-center justify-center font-bold text-lg ${p.color}`}>
+                  {p.icon}
+                </div>
+                <div className="flex-1">
+                  <div className="flex justify-between items-center">
+                    <span className="font-bold text-slate-800">{p.name}</span>
+                    {currentProvider === p.id && <CheckCircle2 size={18} className="text-teal-600"/>}
+                  </div>
+                  <p className="text-xs text-slate-500 mt-0.5">{p.desc}</p>
+                </div>
+              </button>
+            ))}
+          </div>
+        </div>
+
+        <div className="p-4 bg-slate-50 border-t border-slate-100 flex justify-end">
+          <button onClick={onClose} className="px-6 py-2 bg-slate-900 text-white rounded-lg font-medium hover:bg-slate-800 transition-colors">
+            Guardar Preferencia
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- MODAL DE CITA (CON SELECTOR DE FECHA + SYNC) ---
 const AppointmentModal = ({ 
   isOpen, 
   onClose, 
@@ -55,7 +194,8 @@ const AppointmentModal = ({
   initialDate, 
   existingAppt,
   patients,
-  loading 
+  loading,
+  provider
 }: { 
   isOpen: boolean; 
   onClose: () => void; 
@@ -65,6 +205,7 @@ const AppointmentModal = ({
   existingAppt?: Appointment | null;
   patients: Patient[];
   loading: boolean;
+  provider: CalendarProvider;
 }) => {
   const [isManual, setIsManual] = useState(false);
   
@@ -76,7 +217,7 @@ const AppointmentModal = ({
     notes: ''
   });
   
-  // Estados separados para Fecha y Hora
+  // ESTADOS DE FECHA Y HORA (LIBRES)
   const [dateStr, setDateStr] = useState('');
   const [timeStr, setTimeStr] = useState('09:00');
 
@@ -94,7 +235,6 @@ const AppointmentModal = ({
           notes: existingAppt.notes || ''
         });
         
-        // Extraer fecha y hora de la cita existente
         const dt = parseISO(existingAppt.date_time);
         setDateStr(format(dt, 'yyyy-MM-dd'));
         setTimeStr(format(dt, 'HH:mm'));
@@ -103,7 +243,6 @@ const AppointmentModal = ({
         setIsManual(false);
         setFormData({ patient_id: '', manual_name: '', type: 'consulta', duration_minutes: 30, notes: '' });
         
-        // Usar la fecha seleccionada en el calendario (o hoy)
         setDateStr(format(initialDate, 'yyyy-MM-dd'));
         setTimeStr(format(new Date(), 'HH:mm'));
       }
@@ -115,10 +254,8 @@ const AppointmentModal = ({
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     
-    // Combinar Fecha y Hora seleccionadas manualmente
-    // Crear la fecha en local para evitar desfases de zona horaria simples
     const dateTimeString = `${dateStr}T${timeStr}:00`;
-    const finalDate = new Date(dateTimeString); // Objeto Date nativo
+    const finalDate = new Date(dateTimeString); 
 
     let titleToSave = '';
     if (isManual) {
@@ -131,7 +268,7 @@ const AppointmentModal = ({
     onSave({
       id: existingAppt?.id,
       patient_id: isManual ? null : formData.patient_id,
-      start_time: finalDate.toISOString(), // Convertir a ISO para Supabase
+      start_time: finalDate.toISOString(),
       title: titleToSave,
       status: 'scheduled',
       type: formData.type,
@@ -139,6 +276,15 @@ const AppointmentModal = ({
       notes: formData.notes
     });
   };
+
+  // Generar link de sync solo si existe la cita
+  const syncData = existingAppt ? getCalendarLink({
+      start_time: existingAppt.date_time,
+      duration_minutes: existingAppt.duration_minutes,
+      title: existingAppt.patient_name,
+      type: existingAppt.type,
+      notes: existingAppt.notes
+  }, provider) : null;
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in duration-200">
@@ -195,7 +341,7 @@ const AppointmentModal = ({
             </div>
           </div>
 
-          {/* FECHA Y HORA (LIBERTAD TOTAL) */}
+          {/* FECHA Y HORA */}
           <div className="grid grid-cols-2 gap-4">
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Fecha</label>
@@ -275,6 +421,24 @@ const AppointmentModal = ({
                 </button>
              )}
 
+             {/* BOTÓN DE SINCRONIZACIÓN (RECUPERADO) */}
+             {existingAppt && syncData && (
+               <a 
+                 href={syncData.url}
+                 download={syncData.type === 'download' ? syncData.filename : undefined}
+                 target={syncData.type === 'link' ? "_blank" : undefined}
+                 rel="noopener noreferrer"
+                 className={`p-2.5 rounded-lg transition-colors flex items-center justify-center ${
+                    provider === 'google' ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' :
+                    provider === 'outlook' ? 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100' :
+                    'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                 }`}
+                 title={`Sincronizar con ${provider}`}
+               >
+                 {provider === 'apple' ? <Download size={20} /> : <ExternalLink size={20} />}
+               </a>
+             )}
+
              <button 
                type="submit" 
                disabled={loading}
@@ -297,6 +461,10 @@ const AgendaView = () => {
   const [view, setView] = useState<'month' | 'week' | 'day'>('month');
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
+  
+  // Settings State (RECUPERADO)
+  const [calendarProvider, setCalendarProvider] = useState<CalendarProvider>('google');
+  const [isConfigOpen, setIsConfigOpen] = useState(false);
   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
@@ -385,7 +553,7 @@ const AgendaView = () => {
         if (apptData.patient_id) {
             payload.patient_id = apptData.patient_id;
         } else {
-            payload.patient_id = null; // IMPORTANTE: Explicito null para manuales
+            payload.patient_id = null;
         }
 
         if (apptData.id) {
@@ -461,7 +629,17 @@ const AgendaView = () => {
           <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">Agenda Médica</h1>
           <p className="text-slate-500 text-sm">Organiza tu práctica y sincroniza con el exterior.</p>
         </div>
+        
         <div className="flex gap-3">
+          {/* BOTÓN CONECTIVIDAD (RECUPERADO) */}
+          <button 
+            onClick={() => setIsConfigOpen(true)}
+            className="bg-white hover:bg-slate-50 text-slate-600 px-4 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 border border-slate-200 shadow-sm transition-all"
+          >
+            <Settings size={18} />
+            <span className="hidden sm:inline">Conectividad</span>
+          </button>
+
           <button onClick={() => { setSelectedDate(new Date()); setEditingAppt(null); setIsModalOpen(true); }} className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-teal-200/50 transition-all active:scale-95">
             <Plus size={18} /> Nueva Cita
           </button>
@@ -517,6 +695,13 @@ const AgendaView = () => {
         </div>
       </div>
 
+      <SyncConfigModal 
+        isOpen={isConfigOpen}
+        onClose={() => setIsConfigOpen(false)}
+        currentProvider={calendarProvider}
+        setProvider={setCalendarProvider}
+      />
+
       <AppointmentModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -526,6 +711,7 @@ const AgendaView = () => {
         onDelete={deleteAppointment}
         patients={patients}
         loading={isSaving}
+        provider={calendarProvider}
       />
     </div>
   );
