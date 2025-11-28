@@ -5,7 +5,7 @@ import {
   ShieldCheck, Upload, X, Clock, UserCircle, Stethoscope 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { format, isToday, isTomorrow, parseISO } from 'date-fns';
+import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getTimeOfDayGreeting } from '../utils/greetingUtils';
 
@@ -93,7 +93,7 @@ const Dashboard: React.FC = () => {
     ? { bg: "bg-gradient-to-br from-slate-900 to-indigo-950", text: "text-indigo-100" }
     : { bg: "bg-gradient-to-br from-teal-500 to-teal-700", text: "text-teal-50" };
 
-  // 2. CARGA DE DATOS INTELIGENTE
+  // 2. CARGA DE DATOS INTELIGENTE (CORREGIDO v5.2)
   useEffect(() => {
     const fetchData = async () => {
         try {
@@ -104,22 +104,45 @@ const Dashboard: React.FC = () => {
                 const rawName = profile?.full_name?.split(' ')[0] || 'Colega';
                 setDoctorName(`Dr. ${rawName}`);
 
-                // Citas
-                const today = new Date();
-                today.setHours(0, 0, 0, 0);
-                const nextWeek = new Date();
-                nextWeek.setDate(today.getDate() + 7);
+                // --- CORRECCIÓN DE FECHAS Y FILTRO ---
+                const todayStart = startOfDay(new Date()); // Inicio exacto del día local (00:00:00)
+                const nextWeekEnd = endOfDay(addDays(new Date(), 7)); // Final del día dentro de 7 días
 
-                const { data: aptsData, error } = await supabase
+                // 1. Intentamos filtrar por 'doctor_id' (Estándar v4.3)
+                let query = supabase
                     .from('appointments')
                     .select(`
                         id, title, start_time, status,
                         patient:patients (name)
                     `)
-                    .gte('start_time', today.toISOString())
-                    .lte('start_time', nextWeek.toISOString())
+                    .eq('doctor_id', user.id) // <--- FILTRO CRÍTICO AGREGADO
+                    .gte('start_time', todayStart.toISOString())
+                    .lte('start_time', nextWeekEnd.toISOString())
                     .order('start_time', { ascending: true })
                     .limit(10);
+
+                let { data: aptsData, error } = await query;
+
+                // Fallback: Si falla por 'doctor_id', intentamos con 'user_id' por si acaso (Retrocompatibilidad)
+                if (error || !aptsData) {
+                    const fallbackQuery = supabase
+                        .from('appointments')
+                        .select(`
+                            id, title, start_time, status,
+                            patient:patients (name)
+                        `)
+                        .eq('user_id', user.id)
+                        .gte('start_time', todayStart.toISOString())
+                        .lte('start_time', nextWeekEnd.toISOString())
+                        .order('start_time', { ascending: true })
+                        .limit(10);
+                    
+                    const res = await fallbackQuery;
+                    if (!res.error) {
+                        aptsData = res.data;
+                        error = null;
+                    }
+                }
 
                 if (!error && aptsData) {
                     const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
@@ -134,7 +157,11 @@ const Dashboard: React.FC = () => {
             }
         } catch (e) { console.error(e); } finally { setLoading(false); }
     };
+    
+    // Recargar datos al enfocar la ventana (para sincronizar si vienes de Agenda)
+    window.addEventListener('focus', fetchData);
     fetchData();
+    return () => window.removeEventListener('focus', fetchData);
   }, []);
 
   // Helpers de Formato
