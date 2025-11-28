@@ -8,13 +8,13 @@ export type AssistantActionType = 'create_appointment' | 'unknown';
 export interface AssistantResponse {
   action: AssistantActionType;
   data?: {
-    patientName?: string; // Nombre detectado o "Paciente"
-    title?: string;       // "Consulta", "Cirugía", etc.
-    start_time?: string;  // ISO 8601 (YYYY-MM-DDTHH:mm:ss)
+    patientName?: string;
+    title?: string;
+    start_time?: string;
     duration_minutes?: number;
     notes?: string;
   };
-  message: string; // Respuesta hablada/texto para el usuario ("Entendido, agendando cita...")
+  message: string;
 }
 
 export const AssistantService = {
@@ -25,12 +25,12 @@ export const AssistantService = {
     try {
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash", // Usamos Flash por velocidad (crítico para asistentes de voz)
+        model: "gemini-1.5-flash", 
         generationConfig: { responseMimeType: "application/json" } 
       });
 
-      // Contexto temporal para que la IA sepa qué día es "mañana" o "el viernes"
       const now = new Date();
+      // Formato local completo para que la IA entienda "mañana", "el viernes", etc.
       const contextDate = now.toLocaleString('es-MX', { 
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
         hour: '2-digit', minute: '2-digit', hour12: false 
@@ -38,46 +38,64 @@ export const AssistantService = {
 
       const prompt = `
         ACTÚA COMO: Asistente personal de una clínica médica.
-        FECHA Y HORA ACTUAL: ${contextDate} (ISO Base: ${now.toISOString()})
+        FECHA Y HORA ACTUAL: ${contextDate} (ISO Base para cálculos: ${now.toISOString()})
 
         TU MISIÓN:
-        Analiza el siguiente comando de voz y extrae una acción estructurada.
+        Analiza el comando de voz y genera un JSON para agendar citas.
 
-        COMANDO DE VOZ: "${transcript}"
+        COMANDO: "${transcript}"
 
-        ACCIONES PERMITIDAS:
-        1. 'create_appointment': Si el usuario quiere agendar, citar, ver o programar a un paciente.
-           - Calcula la fecha exacta basada en "hoy", "mañana", "el viernes", etc.
-           - Si no especifica duración, asume 30 minutos.
-           - Si no especifica hora, asume las 9:00 AM del día mencionado.
-        
-        2. 'unknown': Si el comando no tiene sentido o no es sobre agenda.
+        REGLAS DE CÁLCULO DE FECHA:
+        - Si dice "mañana", suma 1 día a la fecha actual.
+        - Si dice un día de la semana (ej. "el viernes"), calcula la fecha del PRÓXIMO viernes.
+        - Si no dice hora, usa 09:00:00.
+        - Formato de salida para 'start_time': ISO 8601 (YYYY-MM-DDTHH:mm:ss).
 
-        FORMATO DE SALIDA (JSON):
+        FORMATO JSON DE SALIDA (SIN MARKDOWN):
         {
           "action": "create_appointment" | "unknown",
           "data": {
-            "patientName": "Nombre del paciente (o 'Sin nombre' si no se menciona)",
-            "title": "Título de la cita (Ej: Consulta, Cirugía, Comida)",
-            "start_time": "YYYY-MM-DDTHH:mm:00 (Formato ISO estricto local)",
+            "patientName": "Nombre detectado",
+            "title": "Consulta General",
+            "start_time": "2025-11-29T16:00:00",
             "duration_minutes": 30,
-            "notes": "Cualquier detalle extra mencionado"
+            "notes": "Detalles extra"
           },
-          "message": "Una confirmación breve y natural para el doctor. Ej: 'Entendido, agendando cita para Juan el viernes a las 4'."
+          "message": "Confirmación natural para el doctor."
         }
       `;
 
       const result = await model.generateContent(prompt);
       const response = result.response;
-      const text = response.text();
+      let text = response.text();
       
-      return JSON.parse(text) as AssistantResponse;
+      console.log("🤖 Respuesta Cruda IA:", text); // Para depuración
 
-    } catch (error) {
+      // --- LAVADO DE JSON (FIX CRÍTICO) ---
+      // 1. Eliminar bloques de código markdown ```json ... ```
+      text = text.replace(/```json/g, '').replace(/```/g, '');
+      // 2. Eliminar posibles espacios en blanco al inicio/final
+      text = text.trim();
+
+      // 3. Intentar parsear
+      const parsed = JSON.parse(text) as AssistantResponse;
+      
+      // Validación extra: Si la IA alucina y no manda datos mínimos
+      if (parsed.action === 'create_appointment' && !parsed.data?.start_time) {
+          console.warn("IA devolvió acción sin fecha válida");
+          return {
+              action: 'unknown',
+              message: "Entendí que quieres una cita, pero no detecté la fecha u hora. ¿Podrías repetir?"
+          };
+      }
+
+      return parsed;
+
+    } catch (error: any) {
       console.error("Error AssistantService:", error);
       return {
         action: 'unknown',
-        message: "Lo siento, hubo un error procesando tu solicitud."
+        message: `No pude procesar la solicitud. (${error.message || 'Error interno'})`
       };
     }
   }
