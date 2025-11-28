@@ -3,7 +3,8 @@ import {
   Mic, Square, RefreshCw, FileText, Search, X, 
   MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
   Stethoscope, Trash2, WifiOff, Save, Share2, Download, Printer,
-  Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature, Keyboard
+  Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature, Keyboard,
+  Quote // Nuevo icono para la transcripción
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
@@ -90,17 +91,14 @@ const ConsultationView: React.FC = () => {
   // --- REGLA DE NEGOCIO: LIMPIEZA AUTOMÁTICA AL CAMBIAR PACIENTE ---
   useEffect(() => {
     if (selectedPatient) {
-        // Si hay texto y cambiamos de paciente, limpiamos para evitar mezclas
-        // (Opcional: Podríamos preguntar, pero por fluidez es mejor limpiar)
         if (transcript && confirm("¿Desea limpiar el dictado anterior para el nuevo paciente?")) {
             resetTranscript();
             setGeneratedNote(null);
         } else if (!transcript) {
-            // Si estaba vacío, aseguramos limpieza de nota
             setGeneratedNote(null);
         }
     }
-  }, [selectedPatient]); // Se ejecuta cada vez que cambia el paciente seleccionado
+  }, [selectedPatient]); 
 
   useEffect(() => { 
     if (isListening && transcriptEndRef.current) transcriptEndRef.current.scrollIntoView({ behavior: 'smooth' });
@@ -154,7 +152,7 @@ const ConsultationView: React.FC = () => {
 
       const response = await GeminiMedicalService.generateClinicalNote(transcript, selectedSpecialty, historyContext);
       
-      if (!response || (!response.soapData && !response.clinicalNote)) {
+      if (!response || (!response.soap && !response.clinicalNote)) {
           throw new Error("La IA generó una respuesta vacía o inválida.");
       }
 
@@ -182,8 +180,9 @@ const ConsultationView: React.FC = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Sesión expirada");
         
-        const summaryToSave = generatedNote.soapData 
-            ? `FECHA: ${generatedNote.soapData.headers.date} ${generatedNote.soapData.headers.time}\nS: ${generatedNote.soapData.subjective}\nO: ${generatedNote.soapData.objective}\nA: ${generatedNote.soapData.analysis}\nP: ${generatedNote.soapData.plan}\n\nPLAN PACIENTE:\n${editableInstructions}`
+        // Soporte híbrido para notas nuevas (soap) y viejas (clinicalNote)
+        const summaryToSave = generatedNote.soap 
+            ? `FECHA: ${new Date().toLocaleDateString()}\nS: ${generatedNote.soap.subjective}\nO: ${generatedNote.soap.objective}\nA: ${generatedNote.soap.assessment}\nP: ${generatedNote.soap.plan}\n\nPLAN PACIENTE:\n${editableInstructions}`
             : (generatedNote.clinicalNote + "\n\nPLAN PACIENTE:\n" + editableInstructions);
 
         const { error } = await supabase.from('consultations').insert({
@@ -204,7 +203,7 @@ const ConsultationView: React.FC = () => {
       setChatMessages(p => [...p, { role: 'user', text: msg }]);
       setIsChatting(true);
       try {
-          const soapContext = generatedNote.soapData ? JSON.stringify(generatedNote.soapData) : generatedNote.clinicalNote;
+          const soapContext = generatedNote.soap ? JSON.stringify(generatedNote.soap) : generatedNote.clinicalNote;
           const ctx = `NOTA ESTRUCTURADA: ${soapContext}\nPLAN PACIENTE: ${editableInstructions}`;
           const reply = await GeminiMedicalService.chatWithContext(ctx, msg);
           setChatMessages(p => [...p, { role: 'model', text: reply }]);
@@ -349,39 +348,65 @@ const ConsultationView: React.FC = () => {
                  </div>
              ) : (
                  <div className="min-h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative pb-8">
-                      {activeTab==='record' && generatedNote.soapData && (
+                      {activeTab==='record' && generatedNote.soap && (
                         <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-full h-fit pb-32 animate-fade-in-up relative">
                             <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex justify-between items-start">
                                 <div>
                                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Nota de Evolución</h1>
                                     <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide">{selectedSpecialty}</p>
                                     <div className="flex items-center gap-4 text-xs text-slate-400 mt-1">
-                                        <span className="flex items-center gap-1"><Calendar size={12}/> {generatedNote.soapData.headers.date}</span>
-                                        <span className="flex items-center gap-1"><Clock size={12}/> {generatedNote.soapData.headers.time}</span>
+                                            <span className="flex items-center gap-1"><Calendar size={12}/> {new Date().toLocaleDateString()}</span>
                                     </div>
                                 </div>
                                 <div className="flex flex-col items-end gap-2">
                                     <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-4 py-2 rounded-lg font-bold flex gap-2 hover:bg-teal-600 shadow-md transition-all disabled:opacity-70 text-sm items-center">
-                                        {isSaving?<RefreshCw className="animate-spin" size={16}/>:<Save size={16}/>} Guardar
+                                            {isSaving?<RefreshCw className="animate-spin" size={16}/>:<Save size={16}/>} Guardar
                                     </button>
                                     <div className="text-xs font-bold text-slate-800 dark:text-slate-200">
-                                        {selectedPatient?.name || "Paciente no registrado"}
+                                            {selectedPatient?.name || "Paciente no registrado"}
                                     </div>
                                 </div>
                             </div>
+
+                            {/* --- NUEVA SECCIÓN: TRANSCRIPCIÓN INTELIGENTE (CHAT VISUAL) --- */}
+                            {generatedNote.conversation_log && generatedNote.conversation_log.length > 0 && (
+                                <div className="mb-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800">
+                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                        <Quote size={14} className="text-indigo-500"/> Transcripción Inteligente
+                                    </h4>
+                                    <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                                        {generatedNote.conversation_log.map((line, idx) => (
+                                            <div key={idx} className={`flex ${line.speaker === 'Médico' ? 'justify-end' : 'justify-start'}`}>
+                                                <div className={`max-w-[80%] rounded-2xl p-3 text-sm ${
+                                                    line.speaker === 'Médico' 
+                                                        ? 'bg-blue-50 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100 rounded-tr-none' 
+                                                        : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 rounded-tl-none'
+                                                }`}>
+                                                    <span className={`text-[10px] font-bold block mb-1 uppercase opacity-70 ${line.speaker === 'Médico' ? 'text-right' : 'text-left'}`}>
+                                                        {line.speaker}
+                                                    </span>
+                                                    {line.text}
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            )}
+                            
+                            {/* SECCIÓN SOAP ESTÁNDAR */}
                             <div className="space-y-8">
-                                <div><h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Subjetivo</h4><div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soapData.subjective} /></div></div>
+                                <div><h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Subjetivo</h4><div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soap.subjective} /></div></div>
                                 <hr className="border-slate-100 dark:border-slate-800" />
-                                <div><h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ClipboardList size={14} className="text-green-500"/> Objetivo</h4><div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soapData.objective || "Sin hallazgos contributivos."} /></div></div>
+                                <div><h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ClipboardList size={14} className="text-green-500"/> Objetivo</h4><div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soap.objective || "Sin hallazgos contributivos."} /></div></div>
                                 <hr className="border-slate-100 dark:border-slate-800" />
-                                <div><h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico</h4><div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soapData.analysis} /></div></div>
+                                <div><h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico</h4><div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soap.assessment} /></div></div>
                                 <hr className="border-slate-100 dark:border-slate-800" />
-                                <div><h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><FileSignature size={14} className="text-purple-500"/> Plan Médico</h4><div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soapData.plan} /></div></div>
+                                <div><h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><FileSignature size={14} className="text-purple-500"/> Plan Médico</h4><div className="text-slate-800 dark:text-slate-200 leading-7 text-base pl-1"><FormattedText content={generatedNote.soap.plan} /></div></div>
                             </div>
                         </div>
                       )}
 
-                      {activeTab==='record' && !generatedNote.soapData && generatedNote.clinicalNote && (
+                      {activeTab==='record' && !generatedNote.soap && generatedNote.clinicalNote && (
                           <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 overflow-hidden">
                                 <div className="bg-yellow-50 text-yellow-800 p-2 text-sm rounded mb-2 dark:bg-yellow-900/30 dark:text-yellow-200">Formato antiguo.</div>
                               <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar"><FormattedText content={generatedNote.clinicalNote}/></div>
