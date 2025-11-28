@@ -47,7 +47,7 @@ interface Patient {
   name: string;
 }
 
-// --- MODAL DE CITA HÍBRIDO (REGISTRADO O MANUAL) ---
+// --- MODAL DE CITA ---
 const AppointmentModal = ({ 
   isOpen, 
   onClose, 
@@ -67,12 +67,11 @@ const AppointmentModal = ({
   patients: Patient[];
   loading: boolean;
 }) => {
-  // Estado para controlar si es manual o de lista
   const [isManual, setIsManual] = useState(false);
   
   const [formData, setFormData] = useState({
     patient_id: '',
-    manual_name: '', // Nuevo campo para nombre libre
+    manual_name: '',
     type: 'consulta',
     duration_minutes: 30,
     notes: ''
@@ -82,7 +81,6 @@ const AppointmentModal = ({
   useEffect(() => {
     if (isOpen) {
       if (existingAppt) {
-        // Si ya existe, detectamos si es manual (sin ID) o vinculado
         const isApptManual = !existingAppt.patient_id;
         setIsManual(isApptManual);
         
@@ -93,9 +91,10 @@ const AppointmentModal = ({
           duration_minutes: existingAppt.duration_minutes || 30,
           notes: existingAppt.notes || ''
         });
-        setTime(format(parseISO(existingAppt.date_time), 'HH:mm'));
+        // Manejo seguro de fecha
+        const dateObj = existingAppt.date_time ? parseISO(existingAppt.date_time) : new Date();
+        setTime(format(dateObj, 'HH:mm'));
       } else {
-        // Reset para nueva cita
         setIsManual(false);
         setFormData({ patient_id: '', manual_name: '', type: 'consulta', duration_minutes: 30, notes: '' });
         setTime(format(new Date(), 'HH:mm'));
@@ -110,23 +109,20 @@ const AppointmentModal = ({
     const [hours, minutes] = time.split(':').map(Number);
     const dateWithTime = setMinutes(setHours(new Date(initialDate), hours), minutes);
 
-    // Lógica de Título: Si es manual, el título es el nombre. Si es de lista, el título es el tipo.
-    // Esto asegura que en el Dashboard se vea algo coherente.
     let titleToSave = '';
     
     if (isManual) {
-        titleToSave = formData.manual_name; // "Juan Pérez (Externo)"
+        titleToSave = formData.manual_name;
     } else {
-        // Si es vinculado, buscamos el nombre para guardarlo como fallback o usamos el tipo
         const selectedPatient = patients.find(p => p.id === formData.patient_id);
         titleToSave = selectedPatient ? selectedPatient.name : (formData.type === 'consulta' ? 'Consulta General' : 'Cita');
     }
 
     onSave({
       id: existingAppt?.id,
-      patient_id: isManual ? null : formData.patient_id, // Si es manual, ID es null
+      patient_id: isManual ? null : formData.patient_id,
       start_time: dateWithTime.toISOString(),
-      title: titleToSave, // Guardamos el nombre aquí si es manual
+      title: titleToSave,
       status: 'scheduled',
       type: formData.type,
       duration_minutes: formData.duration_minutes,
@@ -151,7 +147,6 @@ const AppointmentModal = ({
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           
-          {/* SELECCIÓN DE PACIENTE (HÍBRIDA) */}
           <div>
             <div className="flex justify-between items-center mb-1">
                 <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide">Paciente</label>
@@ -191,7 +186,6 @@ const AppointmentModal = ({
                   </select>
               )}
             </div>
-            {!isManual && patients.length === 0 && <p className="text-[10px] text-red-400 mt-1">Lista vacía. Usa el modo manual o registra pacientes.</p>}
           </div>
 
           <div className="grid grid-cols-2 gap-4">
@@ -268,12 +262,10 @@ const AgendaView = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Modal State
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [selectedDate, setSelectedDate] = useState<Date>(new Date());
   const [editingAppt, setEditingAppt] = useState<Appointment | null>(null);
 
-  // 1. CARGA INICIAL DE DATOS
   useEffect(() => {
     fetchData();
   }, [currentDate]); 
@@ -284,7 +276,7 @@ const AgendaView = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // A. Cargar Pacientes
+        // Cargar Pacientes
         const { data: patientsData } = await supabase
             .from('patients')
             .select('id, name')
@@ -292,7 +284,7 @@ const AgendaView = () => {
         
         if (patientsData) setPatients(patientsData);
 
-        // B. Cargar Citas
+        // Cargar Citas
         const start = startOfMonth(subMonths(currentDate, 1)).toISOString();
         const end = endOfMonth(addMonths(currentDate, 2)).toISOString();
 
@@ -310,7 +302,6 @@ const AgendaView = () => {
             const mappedAppts: Appointment[] = apptsData.map((a: any) => ({
                 id: a.id,
                 patient_id: a.patient?.id,
-                // Lógica de visualización: Si hay paciente vinculado, usa su nombre. Si no, usa el título (nombre manual).
                 patient_name: a.patient?.name || a.title || 'Sin Nombre',
                 date_time: a.start_time,
                 type: (a.title?.toLowerCase().includes('urgencia') ? 'urgencia' : 'consulta') as AppointmentType,
@@ -322,13 +313,11 @@ const AgendaView = () => {
 
     } catch (e) {
         console.error("Error fetching agenda:", e);
-        // toast.error("Error al cargar la agenda"); // Silenciado para no molestar si es primera carga
     } finally {
         setIsLoading(false);
     }
   };
 
-  // --- HANDLERS ---
   const handleDayClick = (day: Date) => {
     setSelectedDate(day);
     setEditingAppt(null); 
@@ -348,20 +337,16 @@ const AgendaView = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("No autenticado");
 
-        // Preparamos el objeto para Supabase
-        // IMPORTANTE: Si la tabla no tiene 'duration_minutes', Supabase ignorará ese campo o dará error si no lo hemos creado.
-        // El script SQL del Paso 1 es vital.
+        // CORRECCIÓN VITAL: Solo usamos doctor_id. Eliminamos user_id.
         const payload: any = {
             doctor_id: user.id,
-            user_id: user.id, // Legacy support
             start_time: apptData.start_time,
             title: apptData.title,
             status: apptData.status,
             notes: apptData.notes,
-            duration_minutes: apptData.duration_minutes // Asegúrate de correr el script SQL
+            duration_minutes: apptData.duration_minutes
         };
 
-        // Solo añadimos patient_id si existe (no es manual)
         if (apptData.patient_id) {
             payload.patient_id = apptData.patient_id;
         }
@@ -401,7 +386,6 @@ const AgendaView = () => {
     }
   };
 
-  // --- LÓGICA DE CALENDARIO ---
   const firstDayOfMonth = startOfMonth(currentDate);
   const lastDayOfMonth = endOfMonth(currentDate);
   const daysInMonth = eachDayOfInterval({ start: firstDayOfMonth, end: lastDayOfMonth });
@@ -435,28 +419,18 @@ const AgendaView = () => {
 
   return (
     <div className="flex flex-col h-full bg-slate-50/50 p-4 md:p-6 relative">
-      
-      {/* HEADER */}
       <div className="flex flex-col md:flex-row md:justify-between md:items-center mb-6 gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">
-            Agenda Médica
-          </h1>
+          <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">Agenda Médica</h1>
           <p className="text-slate-500 text-sm">Organiza tu práctica y sincroniza con el exterior.</p>
         </div>
-        
         <div className="flex gap-3">
-          <button 
-            onClick={() => { setSelectedDate(new Date()); setEditingAppt(null); setIsModalOpen(true); }}
-            className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-teal-200/50 transition-all active:scale-95"
-          >
-            <Plus size={18} />
-            Nueva Cita
+          <button onClick={() => { setSelectedDate(new Date()); setEditingAppt(null); setIsModalOpen(true); }} className="bg-teal-600 hover:bg-teal-700 text-white px-5 py-2.5 rounded-xl text-sm font-semibold flex items-center gap-2 shadow-lg shadow-teal-200/50 transition-all active:scale-95">
+            <Plus size={18} /> Nueva Cita
           </button>
         </div>
       </div>
 
-      {/* CONTROLES */}
       <div className="bg-white rounded-t-2xl border border-slate-200 p-4 flex flex-col sm:flex-row justify-between items-center shadow-sm gap-4">
         <div className="flex items-center gap-4 w-full sm:w-auto justify-between">
           <div className="flex items-center bg-slate-100 rounded-lg p-1">
@@ -468,68 +442,35 @@ const AgendaView = () => {
             {format(currentDate, 'MMMM yyyy', { locale: es })}
           </h2>
         </div>
-
         <div className="flex bg-slate-100 rounded-lg p-1 text-sm w-full sm:w-auto">
           {['Mes', 'Semana', 'Día'].map((v) => (
-            <button
-              key={v}
-              onClick={() => setView(v as any)}
-              className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md transition-all text-center ${
-                (view === 'month' && v === 'Mes') 
-                  ? 'bg-white text-teal-700 shadow-sm font-bold' 
-                  : 'text-slate-500 hover:text-slate-700 font-medium'
-              }`}
-            >
+            <button key={v} onClick={() => setView(v as any)} className={`flex-1 sm:flex-none px-4 py-1.5 rounded-md transition-all text-center ${(view === 'month' && v === 'Mes') ? 'bg-white text-teal-700 shadow-sm font-bold' : 'text-slate-500 hover:text-slate-700 font-medium'}`}>
               {v}
             </button>
           ))}
         </div>
       </div>
 
-      {/* CALENDARIO GRID */}
       <div className="bg-white border-x border-b border-slate-200 rounded-b-2xl shadow-sm flex-1 overflow-hidden flex flex-col min-h-[500px]">
-        {/* DÍAS HEADER */}
         <div className="grid grid-cols-7 border-b border-slate-100 bg-slate-50/80 backdrop-blur">
           {['lun', 'mar', 'mié', 'jue', 'vie', 'sáb', 'dom'].map((day) => (
-            <div key={day} className="py-4 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">
-              {day}
-            </div>
+            <div key={day} className="py-4 text-center text-xs font-bold text-slate-400 uppercase tracking-widest">{day}</div>
           ))}
         </div>
-
-        {/* DÍAS BODY */}
         <div className="grid grid-cols-7 auto-rows-fr flex-1 bg-slate-50/20">
           {Array.from({ length: startDayIndex }).map((_, i) => (
             <div key={`empty-${i}`} className="bg-slate-50/50 border-b border-r border-slate-100/50" />
           ))}
-
           {daysInMonth.map((day) => {
             const isTodayDate = isToday(day);
             return (
-              <div 
-                key={day.toString()} 
-                onClick={() => handleDayClick(day)}
-                className={`
-                  relative min-h-[100px] p-2 border-b border-r border-slate-100 transition-all hover:bg-white hover:shadow-[inset_0_0_20px_rgba(0,0,0,0.02)] group cursor-pointer
-                  ${isTodayDate ? 'bg-teal-50/30' : ''}
-                `}
-              >
+              <div key={day.toString()} onClick={() => handleDayClick(day)} className={`relative min-h-[100px] p-2 border-b border-r border-slate-100 transition-all hover:bg-white hover:shadow-[inset_0_0_20px_rgba(0,0,0,0.02)] group cursor-pointer ${isTodayDate ? 'bg-teal-50/30' : ''}`}>
                 <div className="flex justify-between items-start mb-2">
-                  <span 
-                    className={`
-                      text-sm font-semibold w-8 h-8 flex items-center justify-center rounded-full transition-all
-                      ${isTodayDate 
-                        ? 'bg-teal-600 text-white shadow-md shadow-teal-200' 
-                        : 'text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'}
-                    `}
-                  >
+                  <span className={`text-sm font-semibold w-8 h-8 flex items-center justify-center rounded-full transition-all ${isTodayDate ? 'bg-teal-600 text-white shadow-md shadow-teal-200' : 'text-slate-500 group-hover:bg-slate-200 group-hover:text-slate-700'}`}>
                     {format(day, 'd')}
                   </span>
-                  <button className="opacity-0 group-hover:opacity-100 text-teal-500 hover:text-teal-700 hover:bg-teal-50 p-1 rounded-full transition-all transform hover:scale-110">
-                    <Plus size={16} />
-                  </button>
+                  <button className="opacity-0 group-hover:opacity-100 text-teal-500 hover:text-teal-700 hover:bg-teal-50 p-1 rounded-full transition-all transform hover:scale-110"><Plus size={16} /></button>
                 </div>
-
                 <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px] custom-scrollbar">
                   {renderAppointmentsForDay(day)}
                 </div>
@@ -539,7 +480,6 @@ const AgendaView = () => {
         </div>
       </div>
 
-      {/* --- MODAL INYECTADO --- */}
       <AppointmentModal 
         isOpen={isModalOpen}
         onClose={() => setIsModalOpen(false)}
@@ -550,7 +490,6 @@ const AgendaView = () => {
         patients={patients}
         loading={isSaving}
       />
-
     </div>
   );
 };
