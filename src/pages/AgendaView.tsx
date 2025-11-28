@@ -9,8 +9,6 @@ import {
   isSameDay, 
   getDay,
   isToday,
-  setHours,
-  setMinutes,
   parseISO
 } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -24,7 +22,8 @@ import {
   Trash2,
   Loader2,
   UserPlus,
-  List
+  List,
+  Calendar as CalendarIcon // Icono para la fecha
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
@@ -47,7 +46,7 @@ interface Patient {
   name: string;
 }
 
-// --- MODAL DE CITA ---
+// --- MODAL DE CITA (AHORA CON SELECTOR DE FECHA) ---
 const AppointmentModal = ({ 
   isOpen, 
   onClose, 
@@ -76,7 +75,10 @@ const AppointmentModal = ({
     duration_minutes: 30,
     notes: ''
   });
-  const [time, setTime] = useState('09:00');
+  
+  // Estados separados para Fecha y Hora
+  const [dateStr, setDateStr] = useState('');
+  const [timeStr, setTimeStr] = useState('09:00');
 
   useEffect(() => {
     if (isOpen) {
@@ -91,26 +93,34 @@ const AppointmentModal = ({
           duration_minutes: existingAppt.duration_minutes || 30,
           notes: existingAppt.notes || ''
         });
-        // Manejo seguro de fecha
-        const dateObj = existingAppt.date_time ? parseISO(existingAppt.date_time) : new Date();
-        setTime(format(dateObj, 'HH:mm'));
+        
+        // Extraer fecha y hora de la cita existente
+        const dt = parseISO(existingAppt.date_time);
+        setDateStr(format(dt, 'yyyy-MM-dd'));
+        setTimeStr(format(dt, 'HH:mm'));
+        
       } else {
         setIsManual(false);
         setFormData({ patient_id: '', manual_name: '', type: 'consulta', duration_minutes: 30, notes: '' });
-        setTime(format(new Date(), 'HH:mm'));
+        
+        // Usar la fecha seleccionada en el calendario (o hoy)
+        setDateStr(format(initialDate, 'yyyy-MM-dd'));
+        setTimeStr(format(new Date(), 'HH:mm'));
       }
     }
-  }, [isOpen, existingAppt]);
+  }, [isOpen, existingAppt, initialDate]);
 
   if (!isOpen) return null;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    const [hours, minutes] = time.split(':').map(Number);
-    const dateWithTime = setMinutes(setHours(new Date(initialDate), hours), minutes);
+    
+    // Combinar Fecha y Hora seleccionadas manualmente
+    // Crear la fecha en local para evitar desfases de zona horaria simples
+    const dateTimeString = `${dateStr}T${timeStr}:00`;
+    const finalDate = new Date(dateTimeString); // Objeto Date nativo
 
     let titleToSave = '';
-    
     if (isManual) {
         titleToSave = formData.manual_name;
     } else {
@@ -121,7 +131,7 @@ const AppointmentModal = ({
     onSave({
       id: existingAppt?.id,
       patient_id: isManual ? null : formData.patient_id,
-      start_time: dateWithTime.toISOString(),
+      start_time: finalDate.toISOString(), // Convertir a ISO para Supabase
       title: titleToSave,
       status: 'scheduled',
       type: formData.type,
@@ -136,9 +146,6 @@ const AppointmentModal = ({
         <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
           <h3 className="font-semibold text-slate-800 flex items-center gap-2">
             {existingAppt ? 'Editar Cita' : 'Nueva Cita'}
-            <span className="text-xs font-normal text-slate-500 bg-slate-200 px-2 py-0.5 rounded-full">
-              {format(initialDate, "d 'de' MMMM", { locale: es })}
-            </span>
           </h3>
           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 transition-colors">
             <X size={20} />
@@ -147,6 +154,7 @@ const AppointmentModal = ({
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
           
+          {/* SELECCIÓN DE PACIENTE */}
           <div>
             <div className="flex justify-between items-center mb-1">
                 <label className="block text-xs font-medium text-slate-500 uppercase tracking-wide">Paciente</label>
@@ -161,7 +169,6 @@ const AppointmentModal = ({
             
             <div className="relative">
               <User className="absolute left-3 top-2.5 text-slate-400" size={18} />
-              
               {isManual ? (
                   <input 
                     type="text"
@@ -188,7 +195,21 @@ const AppointmentModal = ({
             </div>
           </div>
 
+          {/* FECHA Y HORA (LIBERTAD TOTAL) */}
           <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Fecha</label>
+              <div className="relative">
+                <CalendarIcon className="absolute left-3 top-2.5 text-slate-400" size={18} />
+                <input 
+                  type="date" 
+                  required
+                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm"
+                  value={dateStr}
+                  onChange={e => setDateStr(e.target.value)}
+                />
+              </div>
+            </div>
             <div>
               <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Hora</label>
               <div className="relative">
@@ -196,32 +217,47 @@ const AppointmentModal = ({
                 <input 
                   type="time" 
                   required
-                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
-                  value={time}
-                  onChange={e => setTime(e.target.value)}
+                  className="w-full pl-10 pr-4 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm"
+                  value={timeStr}
+                  onChange={e => setTimeStr(e.target.value)}
                 />
               </div>
             </div>
-            <div>
-              <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Tipo</label>
-              <select 
-                className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none"
-                value={formData.type}
-                onChange={e => setFormData({...formData, type: e.target.value})}
-              >
-                <option value="consulta">Consulta General</option>
-                <option value="seguimiento">Seguimiento</option>
-                <option value="urgencia">Urgencia</option>
-              </select>
-            </div>
+          </div>
+
+          {/* TIPO Y DURACIÓN */}
+          <div className="grid grid-cols-2 gap-4">
+             <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Tipo</label>
+                <select 
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm"
+                    value={formData.type}
+                    onChange={e => setFormData({...formData, type: e.target.value as any})}
+                >
+                    <option value="consulta">Consulta</option>
+                    <option value="seguimiento">Seguimiento</option>
+                    <option value="urgencia">Urgencia</option>
+                </select>
+             </div>
+             <div>
+                <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Duración (Min)</label>
+                <input 
+                    type="number"
+                    min="5"
+                    step="5"
+                    className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none text-sm"
+                    value={formData.duration_minutes}
+                    onChange={e => setFormData({...formData, duration_minutes: parseInt(e.target.value)})}
+                />
+             </div>
           </div>
 
           <div>
-             <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Notas (Opcional)</label>
+             <label className="block text-xs font-medium text-slate-500 mb-1 uppercase tracking-wide">Notas</label>
              <textarea 
                 className="w-full px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-teal-500 outline-none resize-none text-sm"
                 rows={2}
-                placeholder="Motivo de consulta..."
+                placeholder="Motivo..."
                 value={formData.notes}
                 onChange={e => setFormData({...formData, notes: e.target.value})}
              />
@@ -337,7 +373,6 @@ const AgendaView = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("No autenticado");
 
-        // CORRECCIÓN VITAL: Solo usamos doctor_id. Eliminamos user_id.
         const payload: any = {
             doctor_id: user.id,
             start_time: apptData.start_time,
@@ -349,6 +384,8 @@ const AgendaView = () => {
 
         if (apptData.patient_id) {
             payload.patient_id = apptData.patient_id;
+        } else {
+            payload.patient_id = null; // IMPORTANTE: Explicito null para manuales
         }
 
         if (apptData.id) {
@@ -366,7 +403,7 @@ const AgendaView = () => {
 
     } catch (error: any) {
         console.error(error);
-        toast.error("Error al guardar: " + error.message);
+        toast.error("Error: " + (error.message || "No se pudo guardar"));
     } finally {
         setIsSaving(false);
     }
