@@ -13,7 +13,7 @@ import { getTimeOfDayGreeting } from '../utils/greetingUtils';
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
-// Interfaz local para el Dashboard (Evita conflictos con tipos globales)
+// Interfaz local para el Dashboard
 interface DashboardAppointment {
   id: string;
   title: string;
@@ -23,6 +23,26 @@ interface DashboardAppointment {
     name: string;
   };
 }
+
+// --- COMPONENTE INTERNO DE RELOJ DIGITAL ---
+const LiveClock = () => {
+  const [time, setTime] = useState(new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <div className="flex flex-col items-center justify-center mx-auto absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 md:relative md:left-auto md:top-auto md:transform-none">
+      <div className="text-4xl md:text-6xl font-bold tracking-widest tabular-nums leading-none">
+        {format(time, 'h:mm')}
+        <span className="text-lg md:text-2xl ml-1 font-medium text-white/80">{format(time, 'a')}</span>
+      </div>
+      {/* Segundero opcional o fecha pequeña si se desea, por ahora solo hora limpia */}
+    </div>
+  );
+};
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
@@ -41,7 +61,7 @@ const Dashboard: React.FC = () => {
   
   const dynamicGreeting = useMemo(() => getTimeOfDayGreeting(doctorName), [doctorName]);
 
-  // 1. CLIMA (TU LÓGICA ORIGINAL)
+  // 1. CLIMA
   useEffect(() => {
     if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(async (position) => {
@@ -71,7 +91,7 @@ const Dashboard: React.FC = () => {
     ? { bg: "bg-gradient-to-br from-slate-900 to-indigo-950", text: "text-indigo-100" }
     : { bg: "bg-gradient-to-br from-teal-500 to-teal-700", text: "text-teal-50" };
 
-  // 2. CARGA DE DATOS INTELIGENTE (CITAS REALES)
+  // 2. CARGA DE DATOS INTELIGENTE
   useEffect(() => {
     const fetchData = async () => {
         try {
@@ -82,7 +102,7 @@ const Dashboard: React.FC = () => {
                 const rawName = profile?.full_name?.split(' ')[0] || 'Colega';
                 setDoctorName(`Dr. ${rawName}`);
 
-                // Citas (Hoy + Próximos 7 días)
+                // Citas
                 const today = new Date();
                 today.setHours(0, 0, 0, 0);
                 const nextWeek = new Date();
@@ -91,10 +111,7 @@ const Dashboard: React.FC = () => {
                 const { data: aptsData, error } = await supabase
                     .from('appointments')
                     .select(`
-                        id, 
-                        title, 
-                        start_time, 
-                        status,
+                        id, title, start_time, status,
                         patient:patients (name)
                     `)
                     .gte('start_time', today.toISOString())
@@ -103,7 +120,6 @@ const Dashboard: React.FC = () => {
                     .limit(10);
 
                 if (!error && aptsData) {
-                    // Mapeo seguro para evitar errores de tipo
                     const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
                         id: item.id,
                         title: item.title,
@@ -129,7 +145,6 @@ const Dashboard: React.FC = () => {
     return format(date, 'EEEE d', { locale: es });
   };
 
-  // Agrupar citas
   const groupedAppointments = appointments.reduce((acc, apt) => {
     const day = getDayLabel(apt.start_time);
     if (!acc[day]) acc[day] = [];
@@ -185,15 +200,16 @@ const Dashboard: React.FC = () => {
                 </p>
             </div>
             
-            {/* BOTÓN FLOTANTE ESCRITORIO */}
             <button onClick={() => setIsUploadModalOpen(true)} className="hidden md:flex bg-brand-teal text-white px-4 py-2 rounded-xl font-bold items-center gap-2 shadow-lg hover:bg-teal-600 transition-transform active:scale-95">
               <Upload size={18} />
               <span>Subir Archivos</span>
             </button>
         </div>
 
-        {/* TARJETA CLIMA */}
-        <div className={`${heroStyle.bg} rounded-3xl p-6 text-white shadow-lg relative overflow-hidden flex justify-between items-center transition-all duration-500 w-full`}>
+        {/* TARJETA CLIMA + RELOJ */}
+        <div className={`${heroStyle.bg} rounded-3xl p-6 text-white shadow-lg relative overflow-hidden flex justify-between items-center transition-all duration-500 w-full min-h-[140px]`}>
+            
+            {/* IZQUIERDA: TEMPERATURA Y CITAS */}
             <div className="relative z-10 flex-1">
                 <div className="flex items-center gap-2 mb-2">
                     <div className="bg-white/20 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1.5">
@@ -209,6 +225,13 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
             </div>
+
+            {/* CENTRO: RELOJ DIGITAL (NUEVO) */}
+            <div className="absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
+               <LiveClock />
+            </div>
+
+            {/* DERECHA: ICONO CLIMA */}
             <div className="relative z-10 transform translate-x-2 drop-shadow-lg transition-transform duration-1000 hover:scale-110">
                 {getWeatherIcon()}
             </div>
@@ -227,7 +250,7 @@ const Dashboard: React.FC = () => {
           <ChevronRight size={18} className="text-slate-300" />
         </button>
 
-        {/* AGENDA INTELIGENTE (NUEVO DISEÑO) */}
+        {/* AGENDA INTELIGENTE */}
         <section className="w-full">
             <div className="flex justify-between items-center mb-4 px-1">
                 <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
@@ -265,13 +288,10 @@ const Dashboard: React.FC = () => {
                                         onClick={() => navigate('/calendar')}
                                         className="group bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-brand-teal/30 transition-all cursor-pointer flex items-center gap-4"
                                     >
-                                        {/* Hora Badge */}
                                         <div className="flex flex-col items-center justify-center h-14 w-16 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 group-hover:bg-teal-50 dark:group-hover:bg-teal-900/20 transition-colors">
                                             <span className="text-[10px] font-bold text-slate-400 uppercase">Hora</span>
                                             <span className="text-sm font-bold text-slate-900 dark:text-white">{formatTime(apt.start_time)}</span>
                                         </div>
-
-                                        {/* Info Paciente */}
                                         <div className="flex-1 min-w-0">
                                             <h4 className="font-bold text-slate-800 dark:text-white text-base truncate group-hover:text-brand-teal transition-colors">
                                                 {apt.patient?.name || "Sin nombre"}
@@ -279,7 +299,6 @@ const Dashboard: React.FC = () => {
                                             <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                                                 <UserCircle size={12}/>
                                                 <span className="truncate">{apt.title || 'Consulta General'}</span>
-                                                {/* Badge de Estado */}
                                                 <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
                                                     apt.status === 'completed' ? 'bg-green-100 text-green-700' : 
                                                     apt.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
@@ -289,7 +308,6 @@ const Dashboard: React.FC = () => {
                                                 </span>
                                             </div>
                                         </div>
-
                                         <div className="hidden md:block p-2 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-300 group-hover:text-brand-teal transition-colors">
                                             <ChevronRight size={18} />
                                         </div>
@@ -317,7 +335,7 @@ const Dashboard: React.FC = () => {
               <div className="bg-blue-50 dark:bg-blue-900/10 p-3 rounded-lg text-xs text-blue-700 dark:text-blue-300 mb-2">
                 Seleccione un paciente para asignar el documento.
               </div>
-              <UploadMedico onUploadComplete={() => {}}/> {/* Callback vacía para evitar errores */}
+              <UploadMedico onUploadComplete={() => {}}/>
               <div className="pt-4 border-t dark:border-slate-800">
                 <DoctorFileGallery />
               </div>
@@ -331,3 +349,9 @@ const Dashboard: React.FC = () => {
 };
 
 export default Dashboard;
+```
+
+```bash
+git add src/pages/Dashboard.tsx
+git commit -m "feat(ui): Agregar reloj digital en tiempo real al banner del Dashboard"
+git push origin main
