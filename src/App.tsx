@@ -21,6 +21,8 @@ import ReloadPrompt from './components/ReloadPrompt';
 import SplashScreen from './components/SplashScreen';
 import MobileTabBar from './components/MobileTabBar';
 import TermsOfService from './pages/TermsOfService';
+// IMPORTACIÓN NUEVA: MONITOR DE PRUEBA
+import { TrialMonitor } from './components/TrialMonitor';
 
 interface MainLayoutProps {
   session: Session | null;
@@ -31,39 +33,46 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative">
       
-      <div className="hidden md:flex z-20">
-        <Sidebar isOpen={true} onClose={() => {}} onLogout={onLogout} />
-      </div>
+      {/* --- INYECCIÓN SEGURA DEL MONITOR DE PRUEBA --- */}
+      {/* Se coloca aquí para que sea global y visible siempre arriba */}
+      <TrialMonitor />
+      {/* ------------------------------------------------ */}
 
-      <div className="md:hidden">
-          <Sidebar 
-            isOpen={isSidebarOpen} 
-            onClose={() => setIsSidebarOpen(false)} 
-            onLogout={onLogout} 
-          />
-      </div>
+      <div className="flex flex-1 overflow-hidden relative">
+          <div className="hidden md:flex z-20 h-full">
+            <Sidebar isOpen={true} onClose={() => {}} onLogout={onLogout} />
+          </div>
 
-      <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col min-h-screen bg-gray-50 dark:bg-slate-950">
-        <div className="flex-1 overflow-hidden h-full pb-20 md:pb-0"> 
-          <Routes>
-            <Route path="/" element={<Dashboard />} />
-            <Route path="/consultation" element={<ConsultationView />} />
-            <Route path="/calendar" element={<CalendarView />} />
-            <Route path="/patients" element={<PatientsView />} />
-            <Route path="/reports" element={<ReportsView />} />
-            <Route path="/card" element={<DigitalCard />} />
-            <Route path="/settings" element={<SettingsView />} />
-            <Route path="/privacy" element={<PrivacyPolicy />} />
-            <Route path="/terms" element={<TermsOfService />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </Routes>
-        </div>
-        <div className="md:hidden">
-          <MobileTabBar onMenuClick={() => setIsSidebarOpen(true)} />
-        </div>
-      </main>
+          <div className="md:hidden">
+              <Sidebar 
+                isOpen={isSidebarOpen} 
+                onClose={() => setIsSidebarOpen(false)} 
+                onLogout={onLogout} 
+              />
+          </div>
+
+          <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col h-full bg-gray-50 dark:bg-slate-950 overflow-hidden">
+            <div className="flex-1 overflow-y-auto pb-20 md:pb-0"> 
+              <Routes>
+                <Route path="/" element={<Dashboard />} />
+                <Route path="/consultation" element={<ConsultationView />} />
+                <Route path="/calendar" element={<CalendarView />} />
+                <Route path="/patients" element={<PatientsView />} />
+                <Route path="/reports" element={<ReportsView />} />
+                <Route path="/card" element={<DigitalCard />} />
+                <Route path="/settings" element={<SettingsView />} />
+                <Route path="/privacy" element={<PrivacyPolicy />} />
+                <Route path="/terms" element={<TermsOfService />} />
+                <Route path="*" element={<Navigate to="/" replace />} />
+              </Routes>
+            </div>
+            <div className="md:hidden shrink-0">
+              <MobileTabBar onMenuClick={() => setIsSidebarOpen(true)} />
+            </div>
+          </main>
+      </div>
     </div>
   );
 };
@@ -104,14 +113,11 @@ const App: React.FC = () => {
         setIsClosing(false); 
       } 
       else if (event === 'SIGNED_IN') {
-        // --- AJUSTE CRUCIAL: FORZAR DASHBOARD ---
-        // Al iniciar sesión explícitamente, limpiamos la URL para ir a la raíz (Dashboard)
         window.history.replaceState(null, '', '/');
         setSession(newSession);
         setIsRecoveryFlow(false);
       }
       else if (event === 'TOKEN_REFRESHED') {
-        // Si solo se refresca el token (usuario ya trabajando), NO redirigimos
         setSession(newSession);
       }
       
@@ -122,7 +128,6 @@ const App: React.FC = () => {
     return () => { mounted = false; subscription.unsubscribe(); clearTimeout(splashTimer); };
   }, []);
 
-  // --- INTELIGENCIA DE SALUDO ---
   const getGreeting = () => {
     const hour = new Date().getHours();
     if (hour < 12) return { text: "Buenos días", icon: <CloudSun className="text-yellow-400" size={48}/> };
