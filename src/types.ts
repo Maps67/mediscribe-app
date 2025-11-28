@@ -19,12 +19,11 @@ export interface Patient {
   created_at: string;
   name: string;
   doctor_id: string;
-  // Campos extendidos V3.1
   age?: number;
   gender?: string;
   phone?: string;
   email?: string;
-  history?: string;
+  history?: string; // JSON Stringified con antecedentes
 }
 
 // --- CONSULTAS E HISTORIAL ---
@@ -34,13 +33,13 @@ export interface Consultation {
   doctor_id: string;
   patient_id: string;
   transcript: string;
-  summary: string; // Aquí se guarda el texto o el JSON stringified
+  summary: string;
   status: 'pending' | 'completed' | 'archived';
 }
 
 // --- MEDICAMENTOS (RECETA) ---
 export interface MedicationItem {
-  id?: string; // Opcional para manejo en frontend
+  id?: string;
   drug: string;
   details: string;
   frequency: string;
@@ -48,7 +47,7 @@ export interface MedicationItem {
   notes: string;
 }
 
-// --- ESTRUCTURA SOAP (NUEVO MOTOR V4) ---
+// --- ESTRUCTURA SOAP (V4) ---
 export interface SOAPHeaders {
     date: string;
     time: string;
@@ -65,16 +64,11 @@ export interface SOAPData {
     plan: string;
 }
 
-// --- RESPUESTA DE LA IA (GEMINI) ---
+// --- RESPUESTA IA GENERAL ---
 export interface GeminiResponse {
-  // Campo legado para compatibilidad
   clinicalNote: string; 
-  
-  // NUEVO: Datos estructurados para visualización profesional
   soapData?: SOAPData; 
-  
   patientInstructions: string;
-  
   actionItems?: {
     next_appointment?: string | null;
     urgent_referral?: boolean;
@@ -82,7 +76,14 @@ export interface GeminiResponse {
   };
 }
 
-// --- CHAT ASISTENTE ---
+// --- NUEVO: BALANCE CLÍNICO (INSIGHTS) ---
+export interface PatientInsight {
+    evolution: string;       // Resumen cronológico
+    medication_audit: string; // Qué ha tomado y qué funcionó
+    risk_flags: string[];    // Alertas rojas
+    pending_actions: string[]; // Cosas que se quedaron en el aire
+}
+
 export interface FollowUpMessage {
   role: 'user' | 'model';
   text: string;
