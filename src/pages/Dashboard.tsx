@@ -1,9 +1,9 @@
 import React, { useEffect, useState, useMemo } from 'react';
-import { useNavigate, NavLink } from 'react-router-dom';
+import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, MapPin, ChevronRight, Sun, Moon, Bell, CloudRain, Cloud, 
   ShieldCheck, Upload, X, Clock, UserCircle, Stethoscope,
-  Bot, Mic, Square, Loader2, CheckCircle2, AlertCircle // Iconos nuevos
+  Bot, Mic, Square, Loader2, CheckCircle2 // Iconos
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
@@ -11,13 +11,12 @@ import { es } from 'date-fns/locale';
 import { getTimeOfDayGreeting } from '../utils/greetingUtils';
 import { toast } from 'sonner';
 
-// --- NUEVAS IMPORTACIONES ---
+// --- IMPORTACIONES ---
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { AssistantService, AssistantResponse } from '../services/AssistantService';
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
-// Interfaz local para el Dashboard
 interface DashboardAppointment {
   id: string;
   title: string;
@@ -27,6 +26,25 @@ interface DashboardAppointment {
     name: string;
   };
 }
+
+// --- COMPONENTE BOTÓN ASISTENTE (REUTILIZABLE) ---
+const AssistantButton = ({ onClick, mobile = false }: { onClick: () => void, mobile?: boolean }) => (
+  <button 
+    onClick={onClick}
+    className={`
+      group flex items-center gap-3 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 
+      rounded-full transition-all active:scale-95 shadow-sm hover:shadow-lg
+      ${mobile ? 'mt-4 py-2.5 px-4 w-full justify-center' : 'mt-4 py-2 px-5'}
+    `}
+  >
+    <div className="bg-gradient-to-r from-indigo-400 to-violet-400 p-1.5 rounded-full group-hover:scale-110 transition-transform shadow-inner">
+      <Bot size={mobile ? 18 : 20} className="text-white" />
+    </div>
+    <span className={`text-white font-bold ${mobile ? 'text-xs' : 'text-sm'} tracking-wide shadow-black/10 drop-shadow-sm`}>
+      Asistente de Citas Automático
+    </span>
+  </button>
+);
 
 // --- COMPONENTE RELOJ ---
 const LiveClock = ({ mobile = false }: { mobile?: boolean }) => {
@@ -48,13 +66,12 @@ const LiveClock = ({ mobile = false }: { mobile?: boolean }) => {
   );
 };
 
-// --- NUEVO: MODAL DEL ASISTENTE DE VOZ ---
+// --- MODAL DEL ASISTENTE ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'confirming'>('idle');
   const [aiResponse, setAiResponse] = useState<AssistantResponse | null>(null);
 
-  // Reiniciar estado al abrir
   useEffect(() => {
     if (isOpen) {
       resetTranscript();
@@ -90,8 +107,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
 
   const handleExecute = async () => {
     if (!aiResponse || !aiResponse.data) return;
-    
-    // EJECUCIÓN DE ACCIÓN: CREAR CITA
     if (aiResponse.action === 'create_appointment') {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -99,17 +114,17 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
 
         const { error } = await supabase.from('appointments').insert({
           doctor_id: user.id,
-          title: aiResponse.data.patientName || "Cita Agendada", // Nombre del paciente como título
+          title: aiResponse.data.patientName || "Cita Agendada",
           start_time: aiResponse.data.start_time,
           duration_minutes: aiResponse.data.duration_minutes || 30,
           status: 'scheduled',
           notes: aiResponse.data.notes || "Agendado por Asistente de Voz",
-          patient_id: null // Cita manual/rápida
+          patient_id: null 
         });
 
         if (error) throw error;
         toast.success("✅ Cita agendada correctamente");
-        onActionComplete(); // Recargar dashboard
+        onActionComplete(); 
         onClose();
       } catch (e: any) {
         toast.error("Error al guardar: " + e.message);
@@ -126,29 +141,21 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
       <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
-        
-        {/* Header con Gradiente */}
         <div className="bg-gradient-to-r from-indigo-600 to-violet-600 p-6 text-white text-center relative overflow-hidden">
           <Bot size={48} className="mx-auto mb-2 relative z-10" />
           <h3 className="text-xl font-bold relative z-10">Asistente MediScribe</h3>
           <p className="text-indigo-100 text-sm relative z-10">¿Qué necesitas agendar hoy?</p>
-          
-          {/* Ondas decorativas */}
           <div className="absolute top-0 left-0 w-full h-full opacity-20">
              <div className="absolute w-32 h-32 bg-white rounded-full -top-10 -left-10 blur-2xl"></div>
              <div className="absolute w-32 h-32 bg-white rounded-full -bottom-10 -right-10 blur-2xl"></div>
           </div>
         </div>
-
         <div className="p-6">
-          
-          {/* Estado: Escuchando / Procesando */}
           {status !== 'confirming' && (
             <div className="flex flex-col items-center gap-6">
                <div className={`text-center text-lg font-medium ${transcript ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`}>
                  "{transcript || 'Presiona el micrófono y habla...'}"
                </div>
-               
                {status === 'processing' ? (
                  <div className="flex items-center gap-2 text-indigo-600 font-bold animate-pulse">
                    <Loader2 className="animate-spin" /> Procesando inteligencia...
@@ -157,22 +164,15 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                  <button 
                   onClick={handleToggleRecord}
                   className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all transform active:scale-95 ${
-                    isListening 
-                      ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200' 
-                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                    isListening ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200' : 'bg-indigo-600 text-white hover:bg-indigo-700'
                   }`}
                  >
                    {isListening ? <Square size={32} fill="currentColor"/> : <Mic size={32} />}
                  </button>
                )}
-               
-               <p className="text-xs text-slate-400 text-center max-w-xs">
-                 Prueba: "Agendar cita para María López mañana a las 5 de la tarde"
-               </p>
+               <p className="text-xs text-slate-400 text-center max-w-xs">Prueba: "Agendar cita para María López mañana a las 5 de la tarde"</p>
             </div>
           )}
-
-          {/* Estado: Confirmación */}
           {status === 'confirming' && aiResponse && (
             <div className="animate-in slide-in-from-bottom-4 fade-in">
               <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 border border-indigo-100 dark:border-indigo-800 mb-6">
@@ -183,13 +183,11 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                     <p className="text-slate-600 dark:text-slate-300 text-sm mt-1">{aiResponse.message}</p>
                   </div>
                 </div>
-                
                 {aiResponse.data && (
                   <div className="mt-4 bg-white dark:bg-slate-800 p-3 rounded-lg text-sm border border-indigo-100 dark:border-indigo-900/50 shadow-sm">
                     <div className="grid grid-cols-2 gap-y-2">
                       <span className="text-slate-500">Paciente:</span>
                       <span className="font-bold text-slate-800 dark:text-white text-right">{aiResponse.data.patientName}</span>
-                      
                       <span className="text-slate-500">Fecha:</span>
                       <span className="font-bold text-slate-800 dark:text-white text-right">
                         {aiResponse.data.start_time ? format(parseISO(aiResponse.data.start_time), "d MMM, h:mm a", {locale: es}) : '--'}
@@ -198,21 +196,13 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                   </div>
                 )}
               </div>
-
               <div className="flex gap-3">
-                <button onClick={() => { setStatus('idle'); resetTranscript(); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
-                  Cancelar
-                </button>
-                <button onClick={handleExecute} className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
-                  Confirmar <ChevronRight size={18}/>
-                </button>
+                <button onClick={() => { setStatus('idle'); resetTranscript(); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancelar</button>
+                <button onClick={handleExecute} className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">Confirmar <ChevronRight size={18}/></button>
               </div>
             </div>
           )}
-
         </div>
-        
-        {/* Footer Cerrar */}
         <div className="bg-slate-50 dark:bg-slate-800/50 p-3 border-t border-slate-100 dark:border-slate-800 flex justify-center">
            <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xs font-bold uppercase tracking-wider">Cerrar Asistente</button>
         </div>
@@ -221,26 +211,22 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
   );
 };
 
-// --- COMPONENTE DASHBOARD PRINCIPAL ---
+// --- COMPONENTE DASHBOARD ---
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [doctorName, setDoctorName] = useState<string>('');
   const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
   const [loading, setLoading] = useState(true);
   const [weather, setWeather] = useState({ temp: '--', code: 0 });
-  
-  // Modales
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
-  const [isAssistantOpen, setIsAssistantOpen] = useState(false); // Estado para el Asistente
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   
   const now = new Date();
   const hour = now.getHours();
   const isNight = hour >= 19 || hour < 6;
   const dateStr = now.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
-  
   const dynamicGreeting = useMemo(() => getTimeOfDayGreeting(doctorName), [doctorName]);
 
-  // 1. CLIMA
   useEffect(() => {
     if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(async (position) => {
@@ -270,10 +256,8 @@ const Dashboard: React.FC = () => {
     ? { bg: "bg-gradient-to-br from-slate-900 to-indigo-950", text: "text-indigo-100" }
     : { bg: "bg-gradient-to-br from-teal-500 to-teal-700", text: "text-teal-50" };
 
-  // 2. CARGA DE DATOS (REUTILIZABLE PARA RECARGAR AL AGENDAR)
   const fetchData = async () => {
       try {
-          // setLoading(true); // Opcional: no bloquear la UI al recargar en segundo plano
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
               const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
@@ -397,9 +381,10 @@ const Dashboard: React.FC = () => {
             </button>
         </div>
 
-        {/* TARJETA CLIMA + RELOJ */}
+        {/* TARJETA CLIMA + RELOJ + ASISTENTE INTEGRADO */}
         <div className={`${heroStyle.bg} rounded-3xl p-6 text-white shadow-lg relative overflow-hidden flex justify-between items-center transition-all duration-500 w-full min-h-[140px]`}>
             
+            {/* IZQUIERDA: DATOS */}
             <div className="relative z-10 flex-1">
                 <div className="flex items-center gap-2 mb-2">
                     <div className="bg-white/20 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1.5">
@@ -414,22 +399,28 @@ const Dashboard: React.FC = () => {
                         <p className={`text-xs font-medium ${heroStyle.text} opacity-90`}>Hoy</p>
                     </div>
                 </div>
+                
+                {/* 📱 MÓVIL: RELOJ + BOTÓN ASISTENTE ABAJO */}
                 <div className="md:hidden block">
                     <LiveClock mobile={true} />
+                    <AssistantButton mobile={true} onClick={() => setIsAssistantOpen(true)} />
                 </div>
             </div>
 
-            <div className="hidden md:block absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
+            {/* 💻 ESCRITORIO: RELOJ + BOTÓN ASISTENTE AL CENTRO */}
+            <div className="hidden md:flex absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 flex-col items-center">
                <LiveClock />
+               <AssistantButton onClick={() => setIsAssistantOpen(true)} />
             </div>
 
+            {/* DERECHA: ICONO CLIMA */}
             <div className="relative z-10 transform translate-x-2 drop-shadow-lg transition-transform duration-1000 hover:scale-110">
                 {getWeatherIcon()}
             </div>
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
         </div>
 
-        {/* BOTÓN MÓVIL */}
+        {/* BOTÓN MÓVIL SUBIR ARCHIVOS (Mantenemos por usabilidad) */}
         <button onClick={() => setIsUploadModalOpen(true)} className="md:hidden w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex items-center justify-between shadow-sm active:scale-95 transition-transform">
           <div className="flex items-center gap-3">
             <div className="bg-teal-50 dark:bg-teal-900/30 p-3 rounded-full text-brand-teal"><Upload size={20} /></div>
@@ -512,15 +503,6 @@ const Dashboard: React.FC = () => {
         </section>
       </div>
 
-      {/* BOTÓN FLOTANTE DEL ASISTENTE DE VOZ (FAB) */}
-      <button 
-        onClick={() => setIsAssistantOpen(true)}
-        className="fixed bottom-6 right-6 z-40 w-16 h-16 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-transform animate-in zoom-in duration-300"
-      >
-        <Bot size={32} />
-      </button>
-
-      {/* MODAL DE SUBIDA */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
           <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh]">
@@ -543,11 +525,11 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL DEL ASISTENTE DE VOZ */}
+      {/* MODAL DEL ASISTENTE */}
       <AssistantModal 
         isOpen={isAssistantOpen} 
         onClose={() => setIsAssistantOpen(false)} 
-        onActionComplete={fetchData} // Recargar agenda al confirmar
+        onActionComplete={fetchData}
       />
 
     </div>
