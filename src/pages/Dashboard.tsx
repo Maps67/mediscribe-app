@@ -2,14 +2,18 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate, NavLink } from 'react-router-dom';
 import { 
   Calendar, MapPin, ChevronRight, Sun, Moon, Bell, CloudRain, Cloud, 
-  ShieldCheck, Upload, X, Clock, UserCircle, Stethoscope 
+  ShieldCheck, Upload, X, Clock, UserCircle, Stethoscope,
+  Bot, Mic, Square, Loader2, CheckCircle2, AlertCircle // Iconos nuevos
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getTimeOfDayGreeting } from '../utils/greetingUtils';
+import { toast } from 'sonner';
 
-// --- IMPORTACIONES DE TUS COMPONENTES ---
+// --- NUEVAS IMPORTACIONES ---
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { AssistantService, AssistantResponse } from '../services/AssistantService';
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
@@ -24,15 +28,13 @@ interface DashboardAppointment {
   };
 }
 
-// --- COMPONENTE RELOJ (ADAPTATIVO) ---
+// --- COMPONENTE RELOJ ---
 const LiveClock = ({ mobile = false }: { mobile?: boolean }) => {
   const [time, setTime] = useState(new Date());
-
   useEffect(() => {
     const timer = setInterval(() => setTime(new Date()), 1000);
     return () => clearInterval(timer);
   }, []);
-
   return (
     <div className={`flex flex-col ${mobile ? 'items-start mt-3 border-t border-white/20 pt-2 w-full' : 'items-center justify-center'}`}>
       <div className={`${mobile ? 'text-3xl' : 'text-6xl'} font-bold tracking-widest tabular-nums leading-none flex items-baseline`}>
@@ -46,6 +48,180 @@ const LiveClock = ({ mobile = false }: { mobile?: boolean }) => {
   );
 };
 
+// --- NUEVO: MODAL DEL ASISTENTE DE VOZ ---
+const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void }) => {
+  const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
+  const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'confirming'>('idle');
+  const [aiResponse, setAiResponse] = useState<AssistantResponse | null>(null);
+
+  // Reiniciar estado al abrir
+  useEffect(() => {
+    if (isOpen) {
+      resetTranscript();
+      setStatus('idle');
+      setAiResponse(null);
+    } else {
+      stopListening();
+    }
+  }, [isOpen]);
+
+  const handleToggleRecord = () => {
+    if (isListening) {
+      stopListening();
+      handleProcess();
+    } else {
+      startListening();
+      setStatus('listening');
+    }
+  };
+
+  const handleProcess = async () => {
+    if (!transcript) return;
+    setStatus('processing');
+    try {
+      const response = await AssistantService.processCommand(transcript);
+      setAiResponse(response);
+      setStatus('confirming');
+    } catch (error) {
+      toast.error("Error al procesar comando");
+      setStatus('idle');
+    }
+  };
+
+  const handleExecute = async () => {
+    if (!aiResponse || !aiResponse.data) return;
+    
+    // EJECUCIÓN DE ACCIÓN: CREAR CITA
+    if (aiResponse.action === 'create_appointment') {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("No autenticado");
+
+        const { error } = await supabase.from('appointments').insert({
+          doctor_id: user.id,
+          title: aiResponse.data.patientName || "Cita Agendada", // Nombre del paciente como título
+          start_time: aiResponse.data.start_time,
+          duration_minutes: aiResponse.data.duration_minutes || 30,
+          status: 'scheduled',
+          notes: aiResponse.data.notes || "Agendado por Asistente de Voz",
+          patient_id: null // Cita manual/rápida
+        });
+
+        if (error) throw error;
+        toast.success("✅ Cita agendada correctamente");
+        onActionComplete(); // Recargar dashboard
+        onClose();
+      } catch (e: any) {
+        toast.error("Error al guardar: " + e.message);
+      }
+    } else {
+      toast.info("No entendí la acción, intenta de nuevo.");
+      setStatus('idle');
+      resetTranscript();
+    }
+  };
+
+  if (!isOpen) return null;
+
+  return (
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+        
+        {/* Header con Gradiente */}
+        <div className="bg-gradient-to-r from-indigo-600 to-violet-600 p-6 text-white text-center relative overflow-hidden">
+          <Bot size={48} className="mx-auto mb-2 relative z-10" />
+          <h3 className="text-xl font-bold relative z-10">Asistente MediScribe</h3>
+          <p className="text-indigo-100 text-sm relative z-10">¿Qué necesitas agendar hoy?</p>
+          
+          {/* Ondas decorativas */}
+          <div className="absolute top-0 left-0 w-full h-full opacity-20">
+             <div className="absolute w-32 h-32 bg-white rounded-full -top-10 -left-10 blur-2xl"></div>
+             <div className="absolute w-32 h-32 bg-white rounded-full -bottom-10 -right-10 blur-2xl"></div>
+          </div>
+        </div>
+
+        <div className="p-6">
+          
+          {/* Estado: Escuchando / Procesando */}
+          {status !== 'confirming' && (
+            <div className="flex flex-col items-center gap-6">
+               <div className={`text-center text-lg font-medium ${transcript ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`}>
+                 "{transcript || 'Presiona el micrófono y habla...'}"
+               </div>
+               
+               {status === 'processing' ? (
+                 <div className="flex items-center gap-2 text-indigo-600 font-bold animate-pulse">
+                   <Loader2 className="animate-spin" /> Procesando inteligencia...
+                 </div>
+               ) : (
+                 <button 
+                  onClick={handleToggleRecord}
+                  className={`w-20 h-20 rounded-full flex items-center justify-center shadow-xl transition-all transform active:scale-95 ${
+                    isListening 
+                      ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200' 
+                      : 'bg-indigo-600 text-white hover:bg-indigo-700'
+                  }`}
+                 >
+                   {isListening ? <Square size={32} fill="currentColor"/> : <Mic size={32} />}
+                 </button>
+               )}
+               
+               <p className="text-xs text-slate-400 text-center max-w-xs">
+                 Prueba: "Agendar cita para María López mañana a las 5 de la tarde"
+               </p>
+            </div>
+          )}
+
+          {/* Estado: Confirmación */}
+          {status === 'confirming' && aiResponse && (
+            <div className="animate-in slide-in-from-bottom-4 fade-in">
+              <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 border border-indigo-100 dark:border-indigo-800 mb-6">
+                <div className="flex items-start gap-3">
+                  <CheckCircle2 className="text-green-500 shrink-0 mt-1" size={20}/>
+                  <div>
+                    <h4 className="font-bold text-slate-800 dark:text-white text-lg">Acción Detectada</h4>
+                    <p className="text-slate-600 dark:text-slate-300 text-sm mt-1">{aiResponse.message}</p>
+                  </div>
+                </div>
+                
+                {aiResponse.data && (
+                  <div className="mt-4 bg-white dark:bg-slate-800 p-3 rounded-lg text-sm border border-indigo-100 dark:border-indigo-900/50 shadow-sm">
+                    <div className="grid grid-cols-2 gap-y-2">
+                      <span className="text-slate-500">Paciente:</span>
+                      <span className="font-bold text-slate-800 dark:text-white text-right">{aiResponse.data.patientName}</span>
+                      
+                      <span className="text-slate-500">Fecha:</span>
+                      <span className="font-bold text-slate-800 dark:text-white text-right">
+                        {aiResponse.data.start_time ? format(parseISO(aiResponse.data.start_time), "d MMM, h:mm a", {locale: es}) : '--'}
+                      </span>
+                    </div>
+                  </div>
+                )}
+              </div>
+
+              <div className="flex gap-3">
+                <button onClick={() => { setStatus('idle'); resetTranscript(); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                  Cancelar
+                </button>
+                <button onClick={handleExecute} className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                  Confirmar <ChevronRight size={18}/>
+                </button>
+              </div>
+            </div>
+          )}
+
+        </div>
+        
+        {/* Footer Cerrar */}
+        <div className="bg-slate-50 dark:bg-slate-800/50 p-3 border-t border-slate-100 dark:border-slate-800 flex justify-center">
+           <button onClick={onClose} className="text-slate-400 hover:text-slate-600 text-xs font-bold uppercase tracking-wider">Cerrar Asistente</button>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// --- COMPONENTE DASHBOARD PRINCIPAL ---
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [doctorName, setDoctorName] = useState<string>('');
@@ -53,8 +229,9 @@ const Dashboard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [weather, setWeather] = useState({ temp: '--', code: 0 });
   
-  // Estado para el Modal de Subida
+  // Modales
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false); // Estado para el Asistente
   
   const now = new Date();
   const hour = now.getHours();
@@ -93,78 +270,63 @@ const Dashboard: React.FC = () => {
     ? { bg: "bg-gradient-to-br from-slate-900 to-indigo-950", text: "text-indigo-100" }
     : { bg: "bg-gradient-to-br from-teal-500 to-teal-700", text: "text-teal-50" };
 
-  // 2. CARGA DE DATOS INTELIGENTE (CORREGIDO v5.2)
+  // 2. CARGA DE DATOS (REUTILIZABLE PARA RECARGAR AL AGENDAR)
+  const fetchData = async () => {
+      try {
+          // setLoading(true); // Opcional: no bloquear la UI al recargar en segundo plano
+          const { data: { user } } = await supabase.auth.getUser();
+          if (user) {
+              const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
+              const rawName = profile?.full_name?.split(' ')[0] || 'Colega';
+              setDoctorName(`Dr. ${rawName}`);
+
+              const todayStart = startOfDay(new Date()); 
+              const nextWeekEnd = endOfDay(addDays(new Date(), 7));
+
+              let query = supabase
+                  .from('appointments')
+                  .select(`id, title, start_time, status, patient:patients (name)`)
+                  .eq('doctor_id', user.id)
+                  .gte('start_time', todayStart.toISOString())
+                  .lte('start_time', nextWeekEnd.toISOString())
+                  .order('start_time', { ascending: true })
+                  .limit(10);
+
+              let { data: aptsData, error } = await query;
+
+              if (error || !aptsData) {
+                  const fallbackQuery = supabase
+                      .from('appointments')
+                      .select(`id, title, start_time, status, patient:patients (name)`)
+                      .eq('user_id', user.id)
+                      .gte('start_time', todayStart.toISOString())
+                      .lte('start_time', nextWeekEnd.toISOString())
+                      .order('start_time', { ascending: true })
+                      .limit(10);
+                  const res = await fallbackQuery;
+                  if (!res.error) aptsData = res.data;
+              }
+
+              if (aptsData) {
+                  const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
+                      id: item.id,
+                      title: item.title,
+                      start_time: item.start_time,
+                      status: item.status,
+                      patient: item.patient
+                  }));
+                  setAppointments(formattedApts);
+              }
+          }
+      } catch (e) { console.error(e); } finally { setLoading(false); }
+  };
+
   useEffect(() => {
-    const fetchData = async () => {
-        try {
-            const { data: { user } } = await supabase.auth.getUser();
-            if (user) {
-                // Perfil
-                const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
-                const rawName = profile?.full_name?.split(' ')[0] || 'Colega';
-                setDoctorName(`Dr. ${rawName}`);
-
-                // --- CORRECCIÓN DE FECHAS Y FILTRO ---
-                const todayStart = startOfDay(new Date()); // Inicio exacto del día local (00:00:00)
-                const nextWeekEnd = endOfDay(addDays(new Date(), 7)); // Final del día dentro de 7 días
-
-                // 1. Intentamos filtrar por 'doctor_id' (Estándar v4.3)
-                let query = supabase
-                    .from('appointments')
-                    .select(`
-                        id, title, start_time, status,
-                        patient:patients (name)
-                    `)
-                    .eq('doctor_id', user.id) // <--- FILTRO CRÍTICO AGREGADO
-                    .gte('start_time', todayStart.toISOString())
-                    .lte('start_time', nextWeekEnd.toISOString())
-                    .order('start_time', { ascending: true })
-                    .limit(10);
-
-                let { data: aptsData, error } = await query;
-
-                // Fallback: Si falla por 'doctor_id', intentamos con 'user_id' por si acaso (Retrocompatibilidad)
-                if (error || !aptsData) {
-                    const fallbackQuery = supabase
-                        .from('appointments')
-                        .select(`
-                            id, title, start_time, status,
-                            patient:patients (name)
-                        `)
-                        .eq('user_id', user.id)
-                        .gte('start_time', todayStart.toISOString())
-                        .lte('start_time', nextWeekEnd.toISOString())
-                        .order('start_time', { ascending: true })
-                        .limit(10);
-                    
-                    const res = await fallbackQuery;
-                    if (!res.error) {
-                        aptsData = res.data;
-                        error = null;
-                    }
-                }
-
-                if (!error && aptsData) {
-                    const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
-                        id: item.id,
-                        title: item.title,
-                        start_time: item.start_time,
-                        status: item.status,
-                        patient: item.patient
-                    }));
-                    setAppointments(formattedApts);
-                }
-            }
-        } catch (e) { console.error(e); } finally { setLoading(false); }
-    };
-    
-    // Recargar datos al enfocar la ventana (para sincronizar si vienes de Agenda)
     window.addEventListener('focus', fetchData);
     fetchData();
     return () => window.removeEventListener('focus', fetchData);
   }, []);
 
-  // Helpers de Formato
   const formatTime = (isoString: string) => format(parseISO(isoString), 'h:mm a', { locale: es });
   
   const getDayLabel = (isoString: string) => {
@@ -182,7 +344,7 @@ const Dashboard: React.FC = () => {
   }, {} as Record<string, DashboardAppointment[]>);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 font-sans w-full overflow-x-hidden flex flex-col">
+    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 font-sans w-full overflow-x-hidden flex flex-col relative">
       
       {/* HEADER MÓVIL */}
       <div className="md:hidden px-5 pt-6 pb-4 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-30 border-b border-gray-100 dark:border-slate-800 shadow-sm w-full">
@@ -235,10 +397,9 @@ const Dashboard: React.FC = () => {
             </button>
         </div>
 
-        {/* TARJETA CLIMA + RELOJ ADAPTATIVO */}
+        {/* TARJETA CLIMA + RELOJ */}
         <div className={`${heroStyle.bg} rounded-3xl p-6 text-white shadow-lg relative overflow-hidden flex justify-between items-center transition-all duration-500 w-full min-h-[140px]`}>
             
-            {/* IZQUIERDA: TEMPERATURA Y CITAS (Y AHORA RELOJ MÓVIL) */}
             <div className="relative z-10 flex-1">
                 <div className="flex items-center gap-2 mb-2">
                     <div className="bg-white/20 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1.5">
@@ -253,19 +414,15 @@ const Dashboard: React.FC = () => {
                         <p className={`text-xs font-medium ${heroStyle.text} opacity-90`}>Hoy</p>
                     </div>
                 </div>
-
-                {/* 📱 RELOJ MÓVIL: Se muestra AQUÍ solo en pantallas pequeñas */}
                 <div className="md:hidden block">
                     <LiveClock mobile={true} />
                 </div>
             </div>
 
-            {/* 💻 RELOJ ESCRITORIO: Se muestra AQUÍ solo en pantallas grandes */}
             <div className="hidden md:block absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20">
                <LiveClock />
             </div>
 
-            {/* DERECHA: ICONO CLIMA */}
             <div className="relative z-10 transform translate-x-2 drop-shadow-lg transition-transform duration-1000 hover:scale-110">
                 {getWeatherIcon()}
             </div>
@@ -355,6 +512,14 @@ const Dashboard: React.FC = () => {
         </section>
       </div>
 
+      {/* BOTÓN FLOTANTE DEL ASISTENTE DE VOZ (FAB) */}
+      <button 
+        onClick={() => setIsAssistantOpen(true)}
+        className="fixed bottom-6 right-6 z-40 w-16 h-16 rounded-full bg-gradient-to-r from-indigo-600 to-violet-600 text-white shadow-2xl flex items-center justify-center hover:scale-110 active:scale-95 transition-transform animate-in zoom-in duration-300"
+      >
+        <Bot size={32} />
+      </button>
+
       {/* MODAL DE SUBIDA */}
       {isUploadModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm p-4 animate-fade-in">
@@ -377,6 +542,13 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* MODAL DEL ASISTENTE DE VOZ */}
+      <AssistantModal 
+        isOpen={isAssistantOpen} 
+        onClose={() => setIsAssistantOpen(false)} 
+        onActionComplete={fetchData} // Recargar agenda al confirmar
+      />
 
     </div>
   );
