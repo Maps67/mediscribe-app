@@ -1,7 +1,7 @@
 import React, { useEffect, useState } from 'react';
 import { NavLink } from 'react-router-dom';
 import { 
-  LayoutDashboard, Stethoscope, Users, Smartphone, LogOut, X, 
+  LayoutDashboard, Stethoscope, Users, Briefcase, LogOut, X, 
   Settings, Download, Share, Calendar, Moon, Sun 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -15,7 +15,7 @@ interface BeforeInstallPromptEvent extends Event {
 interface SidebarProps {
   isOpen: boolean;
   onClose: () => void;
-  onLogout: (name?: string) => void; // <--- Recibe función con parámetro nombre
+  onLogout: (name?: string) => void;
 }
 
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
@@ -85,9 +85,9 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
   const menuItems = [
     { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard', end: true }, 
     { path: '/consultation', icon: <Stethoscope size={20} />, label: 'Consulta IA' },
-    { path: '/calendar', icon: <Calendar size={20} />, label: 'Agenda' },
+    { path: '/agenda', icon: <Calendar size={20} />, label: 'Agenda' }, // Corregido path a /agenda según v3.2
     { path: '/patients', icon: <Users size={20} />, label: 'Pacientes' },
-    { path: '/card', icon: <Smartphone size={20} />, label: 'Tarjeta Digital' },
+    { path: '/card', icon: <Briefcase size={20} />, label: 'Hub Profesional' }, // CAMBIO APLICADO
     { path: '/settings', icon: <Settings size={20} />, label: 'Configuración' },
   ];
 
@@ -173,7 +173,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
               </div>
           </div>
           
-          {/* AQUÍ ESTÁ LA MAGIA: Pasamos el nombre al hacer logout */}
           <button 
             onClick={() => onLogout(profile.name)} 
             className="flex items-center justify-center space-x-2 px-4 py-2 w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-sm font-medium"
