@@ -2,7 +2,6 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 
-// Definición de las acciones que el asistente puede entender
 export type AssistantActionType = 'create_appointment' | 'unknown';
 
 export interface AssistantResponse {
@@ -19,18 +18,46 @@ export interface AssistantResponse {
 
 export const AssistantService = {
   
+  // 1. FUNCIÓN RADAR (Copiada de la estrategia exitosa de GeminiService)
+  async getBestModel(): Promise<string> {
+    try {
+      // Intentamos listar los modelos disponibles para tu API Key
+      const response = await fetch(`https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`);
+      if (!response.ok) return "gemini-pro"; // Fallback seguro clásico
+      
+      const data = await response.json();
+      const models = data.models || [];
+
+      // Buscamos específicamente Flash porque es rápido para voz
+      const flashModel = models.find((m: any) => m.name.includes("flash") && m.supportedGenerationMethods.includes("generateContent"));
+      if (flashModel) return flashModel.name.replace('models/', '');
+
+      // Si no hay Flash, buscamos Pro 1.5
+      const pro15 = models.find((m: any) => m.name.includes("gemini-1.5-pro"));
+      if (pro15) return pro15.name.replace('models/', '');
+
+      // Último recurso
+      return "gemini-pro";
+    } catch (e) {
+      return "gemini-pro";
+    }
+  },
+
   async processCommand(transcript: string): Promise<AssistantResponse> {
     if (!API_KEY) throw new Error("Falta API Key de Gemini");
 
     try {
+      // 1. Descubrir el modelo correcto dinámicamente
+      const modelName = await this.getBestModel();
+      console.log(`🤖 Asistente usando modelo: ${modelName}`);
+
       const genAI = new GoogleGenerativeAI(API_KEY);
       const model = genAI.getGenerativeModel({ 
-        model: "gemini-1.5-flash", 
+        model: modelName, // Usamos el modelo descubierto, no hardcoded
         generationConfig: { responseMimeType: "application/json" } 
       });
 
       const now = new Date();
-      // Formato local completo para que la IA entienda "mañana", "el viernes", etc.
       const contextDate = now.toLocaleString('es-MX', { 
         weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', 
         hour: '2-digit', minute: '2-digit', hour12: false 
@@ -38,7 +65,7 @@ export const AssistantService = {
 
       const prompt = `
         ACTÚA COMO: Asistente personal de una clínica médica.
-        FECHA Y HORA ACTUAL: ${contextDate} (ISO Base para cálculos: ${now.toISOString()})
+        FECHA Y HORA ACTUAL: ${contextDate} (ISO Base: ${now.toISOString()})
 
         TU MISIÓN:
         Analiza el comando de voz y genera un JSON para agendar citas.
@@ -48,8 +75,8 @@ export const AssistantService = {
         REGLAS DE CÁLCULO DE FECHA:
         - Si dice "mañana", suma 1 día a la fecha actual.
         - Si dice un día de la semana (ej. "el viernes"), calcula la fecha del PRÓXIMO viernes.
-        - Si no dice hora, usa 09:00:00.
-        - Formato de salida para 'start_time': ISO 8601 (YYYY-MM-DDTHH:mm:ss).
+        - Si no dice hora, asume 09:00 AM.
+        - Formato 'start_time': ISO 8601 (YYYY-MM-DDTHH:mm:ss).
 
         FORMATO JSON DE SALIDA (SIN MARKDOWN):
         {
@@ -69,23 +96,16 @@ export const AssistantService = {
       const response = result.response;
       let text = response.text();
       
-      console.log("🤖 Respuesta Cruda IA:", text); // Para depuración
+      // Limpieza de JSON
+      text = text.replace(/```json/g, '').replace(/```/g, '').trim();
 
-      // --- LAVADO DE JSON (FIX CRÍTICO) ---
-      // 1. Eliminar bloques de código markdown ```json ... ```
-      text = text.replace(/```json/g, '').replace(/```/g, '');
-      // 2. Eliminar posibles espacios en blanco al inicio/final
-      text = text.trim();
-
-      // 3. Intentar parsear
       const parsed = JSON.parse(text) as AssistantResponse;
       
-      // Validación extra: Si la IA alucina y no manda datos mínimos
+      // Validación de seguridad
       if (parsed.action === 'create_appointment' && !parsed.data?.start_time) {
-          console.warn("IA devolvió acción sin fecha válida");
           return {
               action: 'unknown',
-              message: "Entendí que quieres una cita, pero no detecté la fecha u hora. ¿Podrías repetir?"
+              message: "Entendí que quieres una cita, pero no detecté la fecha u hora exacta."
           };
       }
 
@@ -93,9 +113,10 @@ export const AssistantService = {
 
     } catch (error: any) {
       console.error("Error AssistantService:", error);
+      // Fallback amigable si falla la IA
       return {
         action: 'unknown',
-        message: `No pude procesar la solicitud. (${error.message || 'Error interno'})`
+        message: "Hubo un problema de conexión con la IA. Intenta escribir la cita manualmente."
       };
     }
   }
