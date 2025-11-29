@@ -1,8 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Mail, Lock, User, Stethoscope, ArrowRight, AlertCircle, BadgeCheck, KeyRound, ArrowLeft, CheckCircle2 } from 'lucide-react';
+import { 
+  Mail, Lock, User, Stethoscope, ArrowRight, AlertCircle, 
+  BadgeCheck, KeyRound, ArrowLeft, CheckCircle2, BookOpen 
+} from 'lucide-react'; // <--- Agregamos BookOpen aquí
 import { toast } from 'sonner';
 
-// CORRECCIÓN: Agregamos las propiedades opcionales que envía App.tsx
 interface AuthProps {
   authService: any;
   onLoginSuccess: () => void;
@@ -18,6 +20,7 @@ const AuthView: React.FC<AuthProps> = ({
 }) => {
   const [isRegistering, setIsRegistering] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
+  // Inicializamos el estado basado en si venimos de un link de recuperación
   const [isResettingPassword, setIsResettingPassword] = useState(forceResetMode); 
   
   const [loading, setLoading] = useState(false);
@@ -34,6 +37,7 @@ const AuthView: React.FC<AuthProps> = ({
     termsAccepted: false 
   });
 
+  // Escuchar cambios en la prop por si el padre detecta el link de reset tarde
   useEffect(() => {
     if (forceResetMode) {
       setIsResettingPassword(true);
@@ -146,6 +150,8 @@ const AuthView: React.FC<AuthProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans">
+      
+      {/* SECCIÓN IZQUIERDA: IMAGEN Y BRANDING */}
       <div className="hidden lg:flex lg:w-1/2 bg-slate-900 text-white flex-col justify-center p-12 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-10 bg-[url('https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80')] bg-cover bg-center"></div>
         <div className="relative z-10 max-w-lg">
@@ -164,7 +170,21 @@ const AuthView: React.FC<AuthProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-6">
+      {/* SECCIÓN DERECHA: FORMULARIO */}
+      <div className="flex-1 flex items-center justify-center p-6 relative">
+        
+        {/* --- AQUÍ ESTÁ EL BOTÓN DEL MANUAL (INTEGRADO) --- */}
+        <a 
+          href="/manual.html" 
+          target="_blank"
+          rel="noopener noreferrer"
+          className="absolute top-8 right-8 flex items-center gap-2 text-sm font-medium text-slate-500 hover:text-brand-teal transition-colors bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:shadow-md"
+        >
+          <BookOpen className="w-4 h-4" />
+          Manual de Usuario
+        </a>
+        {/* ------------------------------------------------ */}
+
         <div className="w-full max-w-md space-y-8 animate-fade-in-up">
           {isResettingPassword ? (
              <>
@@ -236,7 +256,7 @@ const AuthView: React.FC<AuthProps> = ({
              </>
           )}
           <div className="mt-8 pt-6 border-t border-slate-100 text-center text-xs text-slate-400">
-            &copy; {new Date().getFullYear()} MediScribe AI <span className="text-slate-300">v3.0</span>. Desarrollado por <span className="font-bold text-slate-500">PixelArte Studio</span>.
+            &copy; {new Date().getFullYear()} MediScribe AI <span className="text-slate-300">v3.3</span>. Desarrollado por <span className="font-bold text-slate-500">PixelArte Studio</span>.
           </div>
         </div>
       </div>
