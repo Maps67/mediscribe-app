@@ -1,5 +1,6 @@
-import React, { useState, useEffect, useMemo } from 'react';
-import { Search, UserPlus, FileText, Trash2, Edit2, Eye, Calendar, Clock, Share2, Printer, Download, FolderOpen, Paperclip, MoreVertical, X } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+// CORRECCIÓN 1: Agregué 'FileCode' a la lista de iconos importados
+import { Search, UserPlus, FileText, Trash2, Edit2, Eye, Calendar, Share2, Download, FolderOpen, Paperclip, MoreVertical, X, FileCode } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Patient, DoctorProfile } from '../types';
 import { toast } from 'sonner';
@@ -10,6 +11,8 @@ import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { PatientWizard } from './PatientWizard';
+// CORRECCIÓN 2: Importar InsightsPanel (asegúrate de que el archivo exista en esa ruta)
+import InsightsPanel from './InsightsPanel'; 
 
 interface PatientData extends Partial<Patient> {
   id: string;
@@ -32,20 +35,20 @@ interface ConsultationRecord {
 const PatientsView: React.FC = () => {
   const [patients, setPatients] = useState<PatientData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
-  
+   
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
-  
+   
   const [editingPatient, setEditingPatient] = useState<PatientData | null>(null);
   const [selectedPatientForRx, setSelectedPatientForRx] = useState<PatientData | null>(null);
   const [viewingPatient, setViewingPatient] = useState<PatientData | null>(null); 
-  
+   
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   const [patientHistory, setPatientHistory] = useState<ConsultationRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // NUEVO: Estado para controlar el menú de acciones Kebab
+  // Estado para controlar el menú de acciones Kebab
   const [showActionsId, setShowActionsId] = useState<string | null>(null);
 
   useEffect(() => {
@@ -150,7 +153,6 @@ const PatientsView: React.FC = () => {
                   <td className="p-4 text-sm text-slate-600 dark:text-slate-300">{patient.age} años <br/> {patient.gender}</td>
                   <td className="p-4 text-sm text-slate-600 dark:text-slate-300"><p>{patient.phone || 'Sin teléfono'}</p><p className="text-xs text-slate-400">{patient.email}</p></td>
                   
-                  {/* --- CAMBIO CRÍTICO: CONSOLIDACIÓN DE ACCIONES (KEBAB) --- */}
                   <td className="p-4 relative">
                     <div className="flex justify-center items-center">
                         {/* BOTÓN KEBBAB FLOTANTE */}
@@ -197,7 +199,6 @@ const PatientsView: React.FC = () => {
                         )}
                     </div>
                   </td>
-                  {/* --- FIN DEL CAMBIO CRÍTICO --- */}
                 </tr>
               ))}
             </tbody>
@@ -206,7 +207,7 @@ const PatientsView: React.FC = () => {
         </div>
       </div>
 
-      {/* MODALES: WIZARD, HISTORIAL, RECETA RÁPIDA */}
+      {/* MODALES */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-0 md:p-4 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full md:max-w-4xl h-full md:h-[90vh] md:rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col">
