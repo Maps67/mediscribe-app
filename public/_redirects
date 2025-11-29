@@ -1,1 +1,11 @@
+# 1. PERMITIR MOTOR PWA (Vital para instalación)
+/sw.js /sw.js 200
+/manifest.webmanifest /manifest.webmanifest 200
+
+# 2. PERMITIR IMÁGENES (Vital para el logo)
+/*.png /*.png 200
+/*.ico /*.ico 200
+/*.svg /*.svg 200
+
+# 3. REGLA SPA (Todo lo demás va a React)
 /* /index.html 200
