@@ -1,12 +1,12 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-// Definición de Tipos (Extendida para soportar Diarización)
+// Definición de Tipos (Extendida para soportar Diarización y Sugerencias)
 export interface SoapNote {
   subjective: string;
   objective: string;
   assessment: string;
   plan: string;
-  suggestions: string[];
+  suggestions: string[]; // Aquí irán las recomendaciones de "Completitud Diagnóstica"
 }
 
 export interface ConversationLine {
@@ -15,7 +15,7 @@ export interface ConversationLine {
 }
 
 export interface GeminiResponse {
-  conversation_log?: ConversationLine[]; // NUEVO: Campo opcional para no romper compatibilidad
+  conversation_log?: ConversationLine[]; 
   clinicalNote?: string; // Legacy support
   soap?: SoapNote;       // Estructura nueva
   risk_analysis?: { level: 'Bajo' | 'Medio' | 'Alto', reason: string };
@@ -82,7 +82,7 @@ export const GeminiMedicalService = {
     }
   },
 
-  // 2. GENERAR NOTA SOAP CON DIARIZACIÓN (V5.0 - MEJORADA)
+  // 2. GENERAR NOTA SOAP CON LÓGICA DE PRECISIÓN CLÍNICA (V3.2 SAFE-MODE)
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const modelName = await this.getBestAvailableModel(); 
@@ -96,31 +96,43 @@ export const GeminiMedicalService = {
       const currentDate = now.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const currentTime = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
-      // PROMPT MAESTRO V5: DIARIZACIÓN + SOAP
+      // --- PROMPT MAESTRO REFINADO (Versión CTO) ---
       const prompt = `
-        ACTÚA COMO: Un Médico Escribano de Élite y Auditor Clínico, especializado en ${specialty.toUpperCase()}.
+        ACTÚA COMO: Un Asistente Clínico Senior experto en terminología médica, validación de expedientes y NOM-004, especializado en ${specialty.toUpperCase()}.
         
-        TU MISIÓN:
-        1. DIARIZACIÓN: Analiza el texto y separa quién habla (Médico vs Paciente) por el contexto.
-        2. ESTRUCTURACIÓN: Genera la nota SOAP.
+        TU MISIÓN CRÍTICA ES LA PRECISIÓN Y LA SEGURIDAD DEL PACIENTE.
+
+        1. PROTOCOLO DE DIARIZACIÓN:
+           - Analiza el texto y separa quién habla (Médico vs Paciente) por el contexto.
+
+        2. PROTOCOLO DE CORRECCIÓN FONÉTICA (Anti-Alucinación):
+           - Corrige errores de transcripción (ASR) basándote en el contexto clínico.
+           - REGLAS DE ORO:
+             * "Golpe S3" -> Corregir a "Ritmo de Galope (S3)".
+             * "Fase libre" -> Corregir a "Fase IIb" (si es ensayo clínico) o "Fracción libre" (si es laboratorio).
+             * CASO "B20" vs "HAM-A": Si escuchas "B20", verifica si hay contexto de infección/inmunología. Si lo hay, MANTÉN "B20" (CIE-10 VIH). Solo cámbialo a "HAM-A" si el contexto es puramente psiquiátrico/ansiedad.
+
+        3. PROTOCOLO DE COMPLETITUD (Asistencia, no Suplantación):
+           - Si detectas patologías crónicas (Diabetes, Hipertensión, Insuficiencia Cardíaca) y el médico NO mencionó los marcadores Gold Standard (ej. HbA1c, Pro-BNP), NO los inventes en el Plan.
+           - ACCIÓN: Agrégalos EXCLUSIVAMENTE en el campo "suggestions".
 
         DATOS DE ENTRADA:
         - FECHA: ${currentDate} ${currentTime}
         - HISTORIAL PREVIO: "${patientHistory || 'Sin historial.'}"
         - TRANSCRIPCIÓN CRUDA: "${transcript}"
 
-        FORMATO JSON STRICTO DE SALIDA:
+        FORMATO JSON ESTRICTO DE SALIDA:
         {
           "conversation_log": [
              { "speaker": "Médico", "text": "Ejemplo: ¿Desde cuándo le duele?" },
              { "speaker": "Paciente", "text": "Ejemplo: Desde ayer, doctor." }
           ],
           "soap": {
-            "subjective": "Resumen narrativo de síntomas (S)...",
-            "objective": "Signos vitales y hallazgos físicos (O)...",
-            "assessment": "Diagnóstico o impresión clínica (A)...",
-            "plan": "Plan de tratamiento y estudios (P)...",
-            "suggestions": ["Sugerencia 1", "Sugerencia 2"]
+            "subjective": "Resumen narrativo (S). Aplica corrección fonética aquí.",
+            "objective": "Signos vitales y hallazgos físicos (O). Corrige 'Golpe S3' aquí.",
+            "assessment": "Diagnóstico o impresión clínica (A).",
+            "plan": "Plan de tratamiento y estudios REALES dictados por el médico (P).",
+            "suggestions": ["Sugerencia 1: Solicitar HbA1c (Diabetes detectada)", "Sugerencia 2: Verificar escala HAM-A"]
           },
           "patientInstructions": "Instrucciones claras para el paciente en lenguaje sencillo...",
           "risk_analysis": {
@@ -139,7 +151,7 @@ export const GeminiMedicalService = {
       return parsedData as GeminiResponse;
 
     } catch (error) {
-      console.error("Error Gemini V5:", error);
+      console.error("Error Gemini V3.2:", error);
       throw error;
     }
   },
