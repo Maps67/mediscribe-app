@@ -6,11 +6,7 @@ import {
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
-
-interface BeforeInstallPromptEvent extends Event {
-  prompt: () => Promise<void>;
-  userChoice: Promise<{ outcome: 'accepted' | 'dismissed'; platform: string }>;
-}
+import { usePWA } from '../hooks/usePWA'; // <--- IMPORTAMOS EL HOOK NUEVO
 
 interface SidebarProps {
   isOpen: boolean;
@@ -22,21 +18,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
   const [profile, setProfile] = useState({ name: 'Doctor(a)', specialty: '' });
   const { theme, toggleTheme } = useTheme();
   
-  const [deferredPrompt, setDeferredPrompt] = useState<BeforeInstallPromptEvent | null>(null);
-  const [isIOS, setIsIOS] = useState(false);
-  const [isStandalone, setIsStandalone] = useState(false);
+  // Usamos el Hook para toda la lógica de instalación
+  const { isStandalone, isIOS, installPWA, canInstall } = usePWA();
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
   useEffect(() => {
     let mounted = true;
-
-    const checkEnvironment = () => {
-      const isDeviceIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !(window as any).MSStream;
-      setIsIOS(isDeviceIOS);
-      const isApp = window.matchMedia('(display-mode: standalone)').matches || (window.navigator as any).standalone === true;
-      setIsStandalone(isApp);
-    };
-
     const fetchProfile = async () => {
       try {
         const { data: { user } } = await supabase.auth.getUser();
@@ -49,67 +36,39 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
             });
           }
         }
-      } catch (error) {
-        console.error("Error cargando perfil:", error);
-      }
+      } catch (error) { console.error("Error perfil", error); }
     };
-
-    checkEnvironment();
     fetchProfile();
-
-    const handler = (e: Event) => {
-      e.preventDefault();
-      setDeferredPrompt(e as BeforeInstallPromptEvent);
-    };
-    window.addEventListener('beforeinstallprompt', handler);
-
-    return () => {
-      mounted = false;
-      window.removeEventListener('beforeinstallprompt', handler);
-    };
+    return () => { mounted = false; };
   }, []);
   
-  const handleInstallClick = () => {
-    if (deferredPrompt) {
-      deferredPrompt.prompt();
-      deferredPrompt.userChoice.then((choiceResult) => {
-        if (choiceResult.outcome === 'accepted') setDeferredPrompt(null);
-      });
-    } else if (isIOS) {
-      setShowIOSInstructions(!showIOSInstructions);
-    } else {
-      alert("Para instalar: Abre el menú de tu navegador y selecciona 'Instalar aplicación' o 'Agregar a pantalla de inicio'.");
+  const handleInstallClick = async () => {
+    const result = await installPWA();
+    if (result === 'ios_instruction') {
+        setShowIOSInstructions(!showIOSInstructions);
+    } else if (result === 'failed' && !isIOS) {
+        // Fallback manual si el evento no está listo (común en desktop si ya se cerró el banner)
+        alert("Si no ves la ventana de instalación, busca el icono (+) o 'Instalar' en la barra de direcciones de tu navegador.");
     }
   };
 
   const menuItems = [
     { path: '/', icon: <LayoutDashboard size={20} />, label: 'Dashboard', end: true }, 
     { path: '/consultation', icon: <Stethoscope size={20} />, label: 'Consulta IA' },
-    { path: '/agenda', icon: <Calendar size={20} />, label: 'Agenda' }, // Corregido path a /agenda según v3.2
+    { path: '/agenda', icon: <Calendar size={20} />, label: 'Agenda' },
     { path: '/patients', icon: <Users size={20} />, label: 'Pacientes' },
-    { path: '/card', icon: <Briefcase size={20} />, label: 'Hub Profesional' }, // CAMBIO APLICADO
+    { path: '/card', icon: <Briefcase size={20} />, label: 'Hub Profesional' },
     { path: '/settings', icon: <Settings size={20} />, label: 'Configuración' },
   ];
 
   return (
     <>
       {isOpen && (
-        <div 
-          className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm" 
-          onClick={onClose}
-          aria-hidden="true" 
-        />
+        <div className="fixed inset-0 bg-black/50 z-40 md:hidden backdrop-blur-sm" onClick={onClose} aria-hidden="true" />
       )}
 
-      <aside 
-        className={`
-          fixed top-0 left-0 z-50 h-screen w-64 
-          bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800
-          transition-transform duration-300 ease-in-out shadow-xl md:shadow-none
-          ${isOpen ? 'translate-x-0' : '-translate-x-full'} 
-          md:translate-x-0 flex flex-col
-        `}
-      >
+      <aside className={`fixed top-0 left-0 z-50 h-screen w-64 bg-white dark:bg-slate-900 border-r border-slate-200 dark:border-slate-800 transition-transform duration-300 ease-in-out shadow-xl md:shadow-none ${isOpen ? 'translate-x-0' : '-translate-x-full'} md:translate-x-0 flex flex-col`}>
+        
         <div className="p-6 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center space-x-3">
             <img src="/pwa-192x192.png" alt="Logo" className="h-10 w-10 rounded-xl shadow-sm object-cover bg-slate-50" />
@@ -122,19 +81,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
 
         <nav className="flex-1 p-4 space-y-2 overflow-y-auto custom-scrollbar">
           {menuItems.map((item) => (
-            <NavLink
-              key={item.path}
-              to={item.path}
-              end={item.end}
-              onClick={onClose}
-              className={({ isActive }) =>
-                `flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 font-medium ${
-                  isActive
-                    ? 'bg-teal-50 dark:bg-teal-900/30 text-brand-teal border border-teal-100 dark:border-teal-800/50 shadow-sm'
-                    : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200'
-                }`
-              }
-            >
+            <NavLink key={item.path} to={item.path} end={item.end} onClick={onClose} className={({ isActive }) => `flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 font-medium ${isActive ? 'bg-teal-50 dark:bg-teal-900/30 text-brand-teal border border-teal-100 dark:border-teal-800/50 shadow-sm' : 'text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 hover:text-slate-700 dark:hover:text-slate-200'}`}>
               {item.icon}
               <span>{item.label}</span>
             </NavLink>
@@ -145,12 +92,18 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
             <span>{theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}</span>
           </button>
 
+          {/* MOSTRAR BOTÓN SOLO SI NO ESTÁ INSTALADA */}
           {!isStandalone && (
             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
-                <button onClick={handleInstallClick} className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 bg-slate-900 dark:bg-slate-800 text-white shadow-lg active:scale-95">
+                <button 
+                  onClick={handleInstallClick} 
+                  // Deshabilitamos visualmente si no es instalable aún, pero permitimos click para mostrar alerta
+                  className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 shadow-lg active:scale-95 ${canInstall || isIOS ? 'bg-slate-900 dark:bg-slate-800 text-white cursor-pointer' : 'bg-slate-100 text-slate-400 cursor-help'}`}
+                >
                   <Download size={20} />
                   <span className="font-bold">Instalar App</span>
                 </button>
+                
                 {showIOSInstructions && (
                     <div className="mt-3 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 animate-fade-in-up">
                         <p className="font-bold mb-2">Para instalar en iPhone:</p>
@@ -173,10 +126,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
               </div>
           </div>
           
-          <button 
-            onClick={() => onLogout(profile.name)} 
-            className="flex items-center justify-center space-x-2 px-4 py-2 w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-sm font-medium"
-          >
+          <button onClick={() => onLogout(profile.name)} className="flex items-center justify-center space-x-2 px-4 py-2 w-full text-red-500 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors text-sm font-medium">
             <LogOut size={18} />
             <span>Cerrar Sesión</span>
           </button>
@@ -187,7 +137,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
                 Términos y Responsabilidad
             </NavLink>
           </div>
-
         </div>
       </aside>
     </>
