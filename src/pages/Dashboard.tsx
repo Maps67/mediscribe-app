@@ -1,9 +1,11 @@
+// Archivo: src/pages/Dashboard.tsx (VERSIÓN FINAL COMPLETA - SIN RECORTES)
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, MapPin, ChevronRight, Sun, Moon, Bell, CloudRain, Cloud, 
   ShieldCheck, Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
-  Stethoscope, UserCircle, ArrowRight, AlertTriangle, FileText
+  Stethoscope, UserCircle, ArrowRight, AlertTriangle, FileText,
+  Clock, TrendingUp, UserPlus, Zap
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
@@ -14,7 +16,7 @@ import { toast } from 'sonner';
 // --- IMPORTACIONES V4.0 ---
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { AssistantService } from '../services/AssistantService';
-import { AgentResponse } from '../services/GeminiAgent'; // Usamos el nuevo tipo inteligente
+import { AgentResponse } from '../services/GeminiAgent';
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
@@ -28,7 +30,7 @@ interface DashboardAppointment {
   };
 }
 
-// --- COMPONENTE BOTÓN ASISTENTE (REUTILIZABLE) ---
+// --- COMPONENTE BOTÓN ASISTENTE ---
 const AssistantButton = ({ onClick, mobile = false }: { onClick: () => void, mobile?: boolean }) => (
   <button 
     onClick={onClick}
@@ -67,12 +69,12 @@ const LiveClock = ({ mobile = false }: { mobile?: boolean }) => {
   );
 };
 
-// --- MODAL DEL ASISTENTE (V4.0 - CEREBRO CLÍNICO) ---
+// --- MODAL DEL ASISTENTE (LÓGICA COMPLETA) ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'confirming'>('idle');
   const [aiResponse, setAiResponse] = useState<AgentResponse | null>(null);
-  const navigate = useNavigate(); // Hook para navegación
+  const navigate = useNavigate(); 
 
   useEffect(() => {
     if (isOpen) {
@@ -98,7 +100,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
     if (!transcript) return;
     setStatus('processing');
     try {
-      // LLAMADA AL NUEVO CEREBRO
       const response = await AssistantService.processCommand(transcript);
       setAiResponse(response);
       setStatus('confirming');
@@ -108,13 +109,10 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
     }
   };
 
-  // --- EJECUTOR DE ACCIONES (SWITCH DE DECISIONES) ---
   const handleExecute = async () => {
     if (!aiResponse) return;
 
     switch (aiResponse.intent) {
-      
-      // CASO 1: AGENDAR CITA (Lógica original mejorada)
       case 'CREATE_APPOINTMENT':
         try {
           const { data: { user } } = await supabase.auth.getUser();
@@ -139,20 +137,17 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
         }
         break;
 
-      // CASO 2: NAVEGACIÓN (Teletransportación)
       case 'NAVIGATION':
         const dest = aiResponse.data.destination?.toLowerCase();
         onClose();
-        if (dest.includes('agenda')) navigate('/calendar');
+        if (dest.includes('agenda')) navigate('/agenda'); // Ajustado a la ruta real
         else if (dest.includes('paciente')) navigate('/patients');
         else if (dest.includes('config')) navigate('/settings');
         else navigate('/');
         toast.success(`Navegando a: ${dest}`);
         break;
 
-      // CASO 3: CONSULTA MÉDICA (Respuesta en pantalla)
       case 'MEDICAL_QUERY':
-        // No cerramos el modal, mostramos la respuesta ahí mismo
         toast.info("Consulta médica resuelta");
         break;
 
@@ -169,7 +164,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
       <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
         
-        {/* HEADER INTELIGENTE */}
         <div className="bg-gradient-to-r from-indigo-600 to-violet-600 p-6 text-white text-center relative overflow-hidden">
           <Bot size={48} className="mx-auto mb-2 relative z-10" />
           <h3 className="text-xl font-bold relative z-10">Copiloto Clínico</h3>
@@ -203,11 +197,8 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
             </div>
           )}
 
-          {/* TARJETA DE CONFIRMACIÓN INTELIGENTE */}
           {status === 'confirming' && aiResponse && (
             <div className="animate-in slide-in-from-bottom-4 fade-in">
-              
-              {/* HEADER DE ACCIÓN DETECTADA */}
               <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-t-xl p-4 border border-indigo-100 dark:border-indigo-800">
                 <div className="flex items-start gap-3">
                   {aiResponse.intent === 'MEDICAL_QUERY' ? <Stethoscope className="text-blue-500 shrink-0 mt-1"/> : 
@@ -224,10 +215,8 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                 </div>
               </div>
 
-              {/* CONTENIDO DINÁMICO SEGÚN INTENCIÓN */}
               <div className="bg-white dark:bg-slate-800 p-4 rounded-b-xl border-x border-b border-indigo-100 dark:border-indigo-800 mb-6 shadow-sm">
                 
-                {/* SI ES CITA */}
                 {aiResponse.intent === 'CREATE_APPOINTMENT' && aiResponse.data && (
                    <div className="text-sm grid grid-cols-2 gap-y-2">
                       <span className="text-slate-500">Paciente:</span>
@@ -239,7 +228,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                    </div>
                 )}
 
-                {/* SI ES RESPUESTA MÉDICA */}
                 {aiResponse.intent === 'MEDICAL_QUERY' && aiResponse.data && (
                    <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
                       <p className="text-slate-800 dark:text-slate-200 text-sm leading-relaxed font-medium">
@@ -251,7 +239,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                    </div>
                 )}
 
-                {/* SI ES NAVEGACIÓN */}
                 {aiResponse.intent === 'NAVIGATION' && aiResponse.data && (
                    <div className="flex items-center justify-center py-2 text-slate-600 dark:text-slate-300">
                       Ir a: <span className="font-bold ml-2 text-indigo-600 uppercase">{aiResponse.data.destination}</span>
@@ -265,13 +252,11 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                   {aiResponse.intent === 'MEDICAL_QUERY' ? 'Nueva Consulta' : 'Cancelar'}
                 </button>
                 
-                {/* El botón de confirmar solo es necesario para acciones, no para respuestas informativas */}
                 {aiResponse.intent !== 'MEDICAL_QUERY' && (
                   <button onClick={handleExecute} className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
                     Ejecutar <ChevronRight size={18}/>
                   </button>
                 )}
-                {/* Si es respuesta médica, el botón es "Cerrar" */}
                 {aiResponse.intent === 'MEDICAL_QUERY' && (
                   <button onClick={onClose} className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl shadow-lg hover:bg-slate-700 transition-colors">
                     Entendido
@@ -289,7 +274,65 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
   );
 };
 
-// --- COMPONENTE DASHBOARD (Sin cambios lógicos, solo visuales) ---
+// --- NUEVO WIDGET ROI (RETORNO DE INVERSIÓN) ---
+const RoiWidget = () => (
+  <div className="bg-white dark:bg-slate-900 rounded-2xl p-5 border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+    <div className="absolute top-0 right-0 p-3 opacity-10 group-hover:opacity-20 transition-opacity">
+        <TrendingUp size={80} className="text-teal-500" />
+    </div>
+    
+    <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-4 flex items-center gap-2">
+        <Clock size={14} /> Tiempo Ahorrado (Semanal)
+    </h3>
+    
+    <div className="flex items-baseline gap-2 mb-2">
+        <span className="text-4xl font-black text-slate-900 dark:text-white">4.5</span>
+        <span className="text-sm font-bold text-slate-500 dark:text-slate-400">Horas</span>
+    </div>
+    
+    <div className="bg-teal-50 dark:bg-teal-900/20 rounded-lg p-2 flex items-center gap-2 border border-teal-100 dark:border-teal-800/30">
+        <div className="bg-teal-500 rounded-full p-1">
+            <Zap size={10} className="text-white" fill="currentColor" />
+        </div>
+        <p className="text-xs font-medium text-teal-700 dark:text-teal-300">
+            Equivale a <span className="font-bold">12 consultas extra</span> ganadas.
+        </p>
+    </div>
+  </div>
+);
+
+// --- NUEVO WIDGET ACCIONES RÁPIDAS ---
+const QuickActions = ({ navigate }: { navigate: any }) => (
+  <div className="grid grid-cols-1 gap-3">
+      <button onClick={() => navigate('/consultation')} className="flex items-center gap-3 p-4 bg-gradient-to-r from-teal-500 to-teal-600 rounded-2xl text-white shadow-lg shadow-teal-500/20 hover:scale-[1.02] transition-transform group">
+          <div className="bg-white/20 p-2 rounded-lg group-hover:bg-white/30 transition-colors">
+              <Stethoscope size={20} />
+          </div>
+          <div className="text-left">
+              <p className="font-bold text-sm">Nueva Consulta IA</p>
+              <p className="text-[10px] text-teal-100 opacity-90">Grabar y transcribir</p>
+          </div>
+      </button>
+
+      <div className="grid grid-cols-2 gap-3">
+          <button onClick={() => navigate('/patients')} className="flex flex-col items-center justify-center p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-2xl hover:border-slate-300 dark:hover:border-slate-600 hover:shadow-md transition-all group">
+              <div className="bg-indigo-50 dark:bg-indigo-900/30 text-indigo-600 dark:text-indigo-400 p-2 rounded-full mb-2 group-hover:scale-110 transition-transform">
+                  <UserPlus size={18} />
+              </div>
+              <span className="text-xs font-bold text-slate-700 dark:text-slate-300">Nuevo Paciente</span>
+          </button>
+
+          <button onClick={() => navigate('/settings')} className="flex flex-col items-center justify-center p-3 bg-gradient-to-br from-amber-50 to-amber-100 dark:from-amber-900/20 dark:to-amber-900/10 border border-amber-200 dark:border-amber-800 rounded-2xl hover:shadow-md transition-all group">
+              <div className="bg-amber-100 dark:bg-amber-900/40 text-amber-600 dark:text-amber-400 p-2 rounded-full mb-2 group-hover:scale-110 transition-transform">
+                  <Bot size={18} />
+              </div>
+              <span className="text-xs font-bold text-amber-800 dark:text-amber-200">Mejorar Plan</span>
+          </button>
+      </div>
+  </div>
+);
+
+// --- COMPONENTE DASHBOARD PRINCIPAL ---
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [doctorName, setDoctorName] = useState<string>('');
@@ -356,6 +399,7 @@ const Dashboard: React.FC = () => {
 
               let { data: aptsData, error } = await query;
 
+              // Fallback para tabla anterior si existe
               if (error || !aptsData) {
                   const fallbackQuery = supabase
                       .from('appointments')
@@ -405,6 +449,7 @@ const Dashboard: React.FC = () => {
     return acc;
   }, {} as Record<string, DashboardAppointment[]>);
 
+  // --- RENDIZADO DEL DASHBOARD ---
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-slate-950 font-sans w-full overflow-x-hidden flex flex-col relative">
       
@@ -440,13 +485,13 @@ const Dashboard: React.FC = () => {
       </div>
 
       {/* CONTENIDO PRINCIPAL */}
-      <div className="flex-1 p-4 md:p-8 space-y-6 animate-fade-in-up w-full max-w-5xl mx-auto pb-32 md:pb-8">
+      <div className="flex-1 p-4 md:p-8 space-y-6 animate-fade-in-up w-full max-w-7xl mx-auto pb-32 md:pb-8">
         
         {/* SALUDO */}
         <div className="flex justify-between items-end">
             <div className="mt-1">
                 <h1 className="text-2xl font-bold text-slate-800 dark:text-white leading-tight">
-                    {dynamicGreeting.greeting.replace("Hola, ", "Hola, ")} 
+                    {dynamicGreeting.greeting} 
                 </h1>
                 <p className="text-sm text-slate-500 dark:text-slate-400 mt-1 leading-relaxed">
                     {dynamicGreeting.message}
@@ -459,10 +504,8 @@ const Dashboard: React.FC = () => {
             </button>
         </div>
 
-        {/* TARJETA CLIMA + RELOJ + ASISTENTE INTEGRADO */}
+        {/* TARJETA CLIMA + RELOJ (HERO) */}
         <div className={`${heroStyle.bg} rounded-3xl p-6 text-white shadow-lg relative overflow-hidden flex justify-between items-center transition-all duration-500 w-full min-h-[140px]`}>
-            
-            {/* IZQUIERDA: DATOS */}
             <div className="relative z-10 flex-1">
                 <div className="flex items-center gap-2 mb-2">
                     <div className="bg-white/20 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1.5">
@@ -477,108 +520,121 @@ const Dashboard: React.FC = () => {
                         <p className={`text-xs font-medium ${heroStyle.text} opacity-90`}>Hoy</p>
                     </div>
                 </div>
-                
-                {/* 📱 MÓVIL: RELOJ + BOTÓN ASISTENTE ABAJO */}
                 <div className="md:hidden block">
                     <LiveClock mobile={true} />
                     <AssistantButton mobile={true} onClick={() => setIsAssistantOpen(true)} />
                 </div>
             </div>
-
-            {/* 💻 ESCRITORIO: RELOJ + BOTÓN ASISTENTE AL CENTRO */}
             <div className="hidden md:flex absolute left-1/2 top-1/2 transform -translate-x-1/2 -translate-y-1/2 z-20 flex-col items-center">
-               <LiveClock />
-               <AssistantButton onClick={() => setIsAssistantOpen(true)} />
+                <LiveClock />
+                <AssistantButton onClick={() => setIsAssistantOpen(true)} />
             </div>
-
-            {/* DERECHA: ICONO CLIMA */}
             <div className="relative z-10 transform translate-x-2 drop-shadow-lg transition-transform duration-1000 hover:scale-110">
                 {getWeatherIcon()}
             </div>
             <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
         </div>
 
-        {/* BOTÓN MÓVIL SUBIR ARCHIVOS (Mantenemos por usabilidad) */}
-        <button onClick={() => setIsUploadModalOpen(true)} className="md:hidden w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex items-center justify-between shadow-sm active:scale-95 transition-transform">
-          <div className="flex items-center gap-3">
-            <div className="bg-teal-50 dark:bg-teal-900/30 p-3 rounded-full text-brand-teal"><Upload size={20} /></div>
-            <div className="text-left">
-              <p className="font-bold text-slate-800 dark:text-white text-sm">Subir Archivos</p>
-              <p className="text-xs text-slate-500">Gestión documental</p>
-            </div>
-          </div>
-          <ChevronRight size={18} className="text-slate-300" />
-        </button>
-
-        {/* AGENDA INTELIGENTE */}
-        <section className="w-full">
-            <div className="flex justify-between items-center mb-4 px-1">
-                <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
-                    <Calendar className="text-brand-teal" size={20}/> Próximos Pacientes
-                </h3>
-                {appointments.length > 0 && (
-                    <button onClick={() => navigate('/calendar')} className="text-brand-teal text-xs font-bold uppercase tracking-wide bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 rounded-full active:scale-95 transition-transform">
-                        Ver Todo
-                    </button>
-                )}
-            </div>
-
-            {loading ? (
-                <div className="p-8 text-center text-slate-400 text-sm animate-pulse bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800">Sincronizando agenda...</div>
-            ) : appointments.length === 0 ? (
-                <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 text-center border border-dashed border-gray-200 dark:border-slate-800 shadow-sm">
-                    <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
-                        <Calendar size={20} className="text-slate-400"/>
+        {/* 🚀 LAYOUT GRID V2.0: AGENDA + WIDGETS */}
+        <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            
+            {/* COLUMNA IZQUIERDA: AGENDA (Ocupa 2 espacios) */}
+            <div className="lg:col-span-2 space-y-6">
+                
+                {/* Botón Móvil Subir Archivos */}
+                <button onClick={() => setIsUploadModalOpen(true)} className="md:hidden w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex items-center justify-between shadow-sm active:scale-95 transition-transform">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-teal-50 dark:bg-teal-900/30 p-3 rounded-full text-brand-teal"><Upload size={20} /></div>
+                    <div className="text-left">
+                      <p className="font-bold text-slate-800 dark:text-white text-sm">Subir Archivos</p>
+                      <p className="text-xs text-slate-500">Gestión documental</p>
                     </div>
-                    <p className="text-slate-600 dark:text-slate-300 font-medium text-sm">Tu agenda está libre.</p>
-                    <p className="text-slate-400 text-xs mt-1 mb-4">No hay citas programadas para los próximos 7 días.</p>
-                    <button onClick={() => navigate('/consultation')} className="w-full bg-slate-800 dark:bg-slate-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
-                        <Stethoscope size={16}/> Iniciar Consulta
-                    </button>
-                </div>
-            ) : (
-                <div className="space-y-6">
-                    {Object.entries(groupedAppointments).map(([day, dayApts]) => (
-                        <div key={day} className="animate-fade-in-up">
-                            <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 ml-1">{day}</h4>
-                            <div className="grid gap-3">
-                                {dayApts.map((apt) => (
-                                    <div 
-                                        key={apt.id} 
-                                        onClick={() => navigate('/calendar')}
-                                        className="group bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-brand-teal/30 transition-all cursor-pointer flex items-center gap-4"
-                                    >
-                                        <div className="flex flex-col items-center justify-center h-14 w-16 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 group-hover:bg-teal-50 dark:group-hover:bg-teal-900/20 transition-colors">
-                                            <span className="text-[10px] font-bold text-slate-400 uppercase">Hora</span>
-                                            <span className="text-sm font-bold text-slate-900 dark:text-white">{formatTime(apt.start_time)}</span>
-                                        </div>
-                                        <div className="flex-1 min-w-0">
-                                            <h4 className="font-bold text-slate-800 dark:text-white text-base truncate group-hover:text-brand-teal transition-colors">
-                                                {apt.patient?.name || "Sin nombre"}
-                                            </h4>
-                                            <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
-                                                <UserCircle size={12}/>
-                                                <span className="truncate">{apt.title || 'Consulta General'}</span>
-                                                <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                                    apt.status === 'completed' ? 'bg-green-100 text-green-700' : 
-                                                    apt.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
-                                                    'bg-blue-100 text-blue-700'
-                                                }`}>
-                                                    {apt.status === 'scheduled' ? 'Confirmada' : apt.status}
-                                                </span>
-                                            </div>
-                                        </div>
-                                        <div className="hidden md:block p-2 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-300 group-hover:text-brand-teal transition-colors">
-                                            <ChevronRight size={18} />
-                                        </div>
-                                    </div>
-                                ))}
+                  </div>
+                  <ChevronRight size={18} className="text-slate-300" />
+                </button>
+
+                {/* AGENDA INTELIGENTE */}
+                <section className="w-full">
+                    <div className="flex justify-between items-center mb-4 px-1">
+                        <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                            <Calendar className="text-brand-teal" size={20}/> Próximos Pacientes
+                        </h3>
+                        {appointments.length > 0 && (
+                            <button onClick={() => navigate('/calendar')} className="text-brand-teal text-xs font-bold uppercase tracking-wide bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 rounded-full active:scale-95 transition-transform">
+                                Ver Todo
+                            </button>
+                        )}
+                    </div>
+
+                    {loading ? (
+                        <div className="p-8 text-center text-slate-400 text-sm animate-pulse bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800">Sincronizando agenda...</div>
+                    ) : appointments.length === 0 ? (
+                        <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 text-center border border-dashed border-gray-200 dark:border-slate-800 shadow-sm">
+                            <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <Calendar size={20} className="text-slate-400"/>
                             </div>
+                            <p className="text-slate-600 dark:text-slate-300 font-medium text-sm">Tu agenda está libre.</p>
+                            <p className="text-slate-400 text-xs mt-1 mb-4">No hay citas programadas para los próximos 7 días.</p>
+                            <button onClick={() => navigate('/consultation')} className="w-full bg-slate-800 dark:bg-slate-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
+                                <Stethoscope size={16}/> Iniciar Consulta
+                            </button>
                         </div>
-                    ))}
-                </div>
-            )}
-        </section>
+                    ) : (
+                        <div className="space-y-6">
+                            {Object.entries(groupedAppointments).map(([day, dayApts]) => (
+                                <div key={day} className="animate-fade-in-up">
+                                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 ml-1">{day}</h4>
+                                    <div className="grid gap-3">
+                                        {dayApts.map((apt) => (
+                                            <div 
+                                                key={apt.id} 
+                                                onClick={() => navigate('/calendar')}
+                                                className="group bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-brand-teal/30 transition-all cursor-pointer flex items-center gap-4"
+                                            >
+                                                <div className="flex flex-col items-center justify-center h-14 w-16 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 group-hover:bg-teal-50 dark:group-hover:bg-teal-900/20 transition-colors">
+                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Hora</span>
+                                                    <span className="text-sm font-bold text-slate-900 dark:text-white">{formatTime(apt.start_time)}</span>
+                                                </div>
+                                                <div className="flex-1 min-w-0">
+                                                    <h4 className="font-bold text-slate-800 dark:text-white text-base truncate group-hover:text-brand-teal transition-colors">
+                                                        {apt.patient?.name || "Sin nombre"}
+                                                    </h4>
+                                                    <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
+                                                        <UserCircle size={12}/>
+                                                        <span className="truncate">{apt.title || 'Consulta General'}</span>
+                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                                            apt.status === 'completed' ? 'bg-green-100 text-green-700' : 
+                                                            apt.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
+                                                            'bg-blue-100 text-blue-700'
+                                                        }`}>
+                                                            {apt.status === 'scheduled' ? 'Confirmada' : apt.status}
+                                                        </span>
+                                                    </div>
+                                                </div>
+                                                <div className="hidden md:block p-2 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-300 group-hover:text-brand-teal transition-colors">
+                                                    <ChevronRight size={18} />
+                                                </div>
+                                            </div>
+                                        ))}
+                                    </div>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </section>
+            </div>
+
+            {/* COLUMNA DERECHA: WIDGETS (SOLO ESCRITORIO) */}
+            <div className="hidden lg:block space-y-6">
+                {/* WIDGET 1: ROI */}
+                <RoiWidget />
+                
+                {/* WIDGET 2: ACCIONES RÁPIDAS */}
+                <h3 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-2 ml-1">Accesos Rápidos</h3>
+                <QuickActions navigate={navigate} />
+            </div>
+
+        </div>
       </div>
 
       {isUploadModalOpen && (
@@ -603,7 +659,7 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL DEL ASISTENTE */}
+      {/* INCLUYE EL MODAL DEL ASISTENTE */}
       <AssistantModal 
         isOpen={isAssistantOpen} 
         onClose={() => setIsAssistantOpen(false)} 

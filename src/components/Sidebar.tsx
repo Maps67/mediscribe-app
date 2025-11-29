@@ -1,12 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { NavLink } from 'react-router-dom';
+import { NavLink, useNavigate } from 'react-router-dom'; // Agregué useNavigate
 import { 
   LayoutDashboard, Stethoscope, Users, Briefcase, LogOut, X, 
-  Settings, Download, Share, Calendar, Moon, Sun 
+  Settings, Download, Share, Calendar, Moon, Sun, Crown // Agregué Crown
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
-import { usePWA } from '../hooks/usePWA'; // <--- IMPORTAMOS EL HOOK NUEVO
+import { usePWA } from '../hooks/usePWA';
 
 interface SidebarProps {
   isOpen: boolean;
@@ -17,8 +17,8 @@ interface SidebarProps {
 const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
   const [profile, setProfile] = useState({ name: 'Doctor(a)', specialty: '' });
   const { theme, toggleTheme } = useTheme();
+  const navigate = useNavigate();
   
-  // Usamos el Hook para toda la lógica de instalación
   const { isStandalone, isIOS, installPWA, canInstall } = usePWA();
   const [showIOSInstructions, setShowIOSInstructions] = useState(false);
 
@@ -47,7 +47,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
     if (result === 'ios_instruction') {
         setShowIOSInstructions(!showIOSInstructions);
     } else if (result === 'failed' && !isIOS) {
-        // Fallback manual si el evento no está listo (común en desktop si ya se cerró el banner)
         alert("Si no ves la ventana de instalación, busca el icono (+) o 'Instalar' en la barra de direcciones de tu navegador.");
     }
   };
@@ -87,17 +86,37 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
             </NavLink>
           ))}
 
+          {/* --- BOTÓN UPGRADE (NUEVO) --- */}
+          <div className="pt-4 mt-2">
+            <button 
+                onClick={() => navigate('/settings')} // O abre el modal de precios directo
+                className="w-full relative overflow-hidden group bg-gradient-to-r from-amber-100 to-amber-200 dark:from-amber-900/40 dark:to-amber-800/40 border border-amber-200 dark:border-amber-700/50 rounded-xl p-3 shadow-sm hover:shadow-md transition-all"
+            >
+                <div className="flex items-center justify-between relative z-10">
+                    <div className="flex items-center gap-3">
+                        <div className="bg-white/80 dark:bg-black/20 p-1.5 rounded-lg text-amber-600 dark:text-amber-400">
+                            <Crown size={18} fill="currentColor" />
+                        </div>
+                        <div className="text-left">
+                            <p className="text-xs font-bold text-amber-900 dark:text-amber-100 uppercase tracking-wider">Plan PRO</p>
+                            <p className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">Desbloquear todo</p>
+                        </div>
+                    </div>
+                </div>
+                {/* Brillo animado */}
+                <div className="absolute top-0 -left-[100%] group-hover:left-[100%] w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-all duration-1000 ease-in-out transform skew-x-12"></div>
+            </button>
+          </div>
+
           <button onClick={toggleTheme} className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 mt-2 font-medium">
             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
             <span>{theme === 'light' ? 'Modo Oscuro' : 'Modo Claro'}</span>
           </button>
 
-          {/* MOSTRAR BOTÓN SOLO SI NO ESTÁ INSTALADA */}
           {!isStandalone && (
             <div className="mt-4 pt-4 border-t border-slate-100 dark:border-slate-800">
                 <button 
                   onClick={handleInstallClick} 
-                  // Deshabilitamos visualmente si no es instalable aún, pero permitimos click para mostrar alerta
                   className={`w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 shadow-lg active:scale-95 ${canInstall || isIOS ? 'bg-slate-900 dark:bg-slate-800 text-white cursor-pointer' : 'bg-slate-100 text-slate-400 cursor-help'}`}
                 >
                   <Download size={20} />
