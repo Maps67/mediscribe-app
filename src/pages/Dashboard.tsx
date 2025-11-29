@@ -2,8 +2,8 @@ import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, MapPin, ChevronRight, Sun, Moon, Bell, CloudRain, Cloud, 
-  ShieldCheck, Upload, X, Clock, UserCircle, Stethoscope,
-  Bot, Mic, Square, Loader2, CheckCircle2 // Iconos
+  ShieldCheck, Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
+  Stethoscope, UserCircle, ArrowRight, AlertTriangle, FileText
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
@@ -11,9 +11,10 @@ import { es } from 'date-fns/locale';
 import { getTimeOfDayGreeting } from '../utils/greetingUtils';
 import { toast } from 'sonner';
 
-// --- IMPORTACIONES ---
+// --- IMPORTACIONES V4.0 ---
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
-import { AssistantService, AssistantResponse } from '../services/AssistantService';
+import { AssistantService } from '../services/AssistantService';
+import { AgentResponse } from '../services/GeminiAgent'; // Usamos el nuevo tipo inteligente
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
@@ -41,7 +42,7 @@ const AssistantButton = ({ onClick, mobile = false }: { onClick: () => void, mob
       <Bot size={mobile ? 18 : 20} className="text-white" />
     </div>
     <span className={`text-white font-bold ${mobile ? 'text-xs' : 'text-sm'} tracking-wide shadow-black/10 drop-shadow-sm`}>
-      Asistente de Citas Automático
+      Asistente Inteligente V4
     </span>
   </button>
 );
@@ -66,11 +67,12 @@ const LiveClock = ({ mobile = false }: { mobile?: boolean }) => {
   );
 };
 
-// --- MODAL DEL ASISTENTE ---
+// --- MODAL DEL ASISTENTE (V4.0 - CEREBRO CLÍNICO) ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'confirming'>('idle');
-  const [aiResponse, setAiResponse] = useState<AssistantResponse | null>(null);
+  const [aiResponse, setAiResponse] = useState<AgentResponse | null>(null);
+  const navigate = useNavigate(); // Hook para navegación
 
   useEffect(() => {
     if (isOpen) {
@@ -96,6 +98,7 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
     if (!transcript) return;
     setStatus('processing');
     try {
+      // LLAMADA AL NUEVO CEREBRO
       const response = await AssistantService.processCommand(transcript);
       setAiResponse(response);
       setStatus('confirming');
@@ -105,34 +108,58 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
     }
   };
 
+  // --- EJECUTOR DE ACCIONES (SWITCH DE DECISIONES) ---
   const handleExecute = async () => {
-    if (!aiResponse || !aiResponse.data) return;
-    if (aiResponse.action === 'create_appointment') {
-      try {
-        const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("No autenticado");
+    if (!aiResponse) return;
 
-        const { error } = await supabase.from('appointments').insert({
-          doctor_id: user.id,
-          title: aiResponse.data.patientName || "Cita Agendada",
-          start_time: aiResponse.data.start_time,
-          duration_minutes: aiResponse.data.duration_minutes || 30,
-          status: 'scheduled',
-          notes: aiResponse.data.notes || "Agendado por Asistente de Voz",
-          patient_id: null 
-        });
+    switch (aiResponse.intent) {
+      
+      // CASO 1: AGENDAR CITA (Lógica original mejorada)
+      case 'CREATE_APPOINTMENT':
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("No autenticado");
 
-        if (error) throw error;
-        toast.success("✅ Cita agendada correctamente");
-        onActionComplete(); 
+          const { error } = await supabase.from('appointments').insert({
+            doctor_id: user.id,
+            title: aiResponse.data.patientName || "Cita Agendada",
+            start_time: aiResponse.data.start_time,
+            duration_minutes: aiResponse.data.duration_minutes || 30,
+            status: 'scheduled',
+            notes: aiResponse.data.notes || "Agendado por Voz",
+            patient_id: null 
+          });
+
+          if (error) throw error;
+          toast.success("✅ Cita agendada correctamente");
+          onActionComplete(); 
+          onClose();
+        } catch (e: any) {
+          toast.error("Error al guardar: " + e.message);
+        }
+        break;
+
+      // CASO 2: NAVEGACIÓN (Teletransportación)
+      case 'NAVIGATION':
+        const dest = aiResponse.data.destination?.toLowerCase();
         onClose();
-      } catch (e: any) {
-        toast.error("Error al guardar: " + e.message);
-      }
-    } else {
-      toast.info("No entendí la acción, intenta de nuevo.");
-      setStatus('idle');
-      resetTranscript();
+        if (dest.includes('agenda')) navigate('/calendar');
+        else if (dest.includes('paciente')) navigate('/patients');
+        else if (dest.includes('config')) navigate('/settings');
+        else navigate('/');
+        toast.success(`Navegando a: ${dest}`);
+        break;
+
+      // CASO 3: CONSULTA MÉDICA (Respuesta en pantalla)
+      case 'MEDICAL_QUERY':
+        // No cerramos el modal, mostramos la respuesta ahí mismo
+        toast.info("Consulta médica resuelta");
+        break;
+
+      default:
+        toast.info("No entendí la acción, intenta de nuevo.");
+        setStatus('idle');
+        resetTranscript();
     }
   };
 
@@ -141,24 +168,27 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/80 backdrop-blur-sm animate-in fade-in">
       <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-3xl shadow-2xl overflow-hidden border border-slate-200 dark:border-slate-800">
+        
+        {/* HEADER INTELIGENTE */}
         <div className="bg-gradient-to-r from-indigo-600 to-violet-600 p-6 text-white text-center relative overflow-hidden">
           <Bot size={48} className="mx-auto mb-2 relative z-10" />
-          <h3 className="text-xl font-bold relative z-10">Asistente MediScribe</h3>
-          <p className="text-indigo-100 text-sm relative z-10">¿Qué necesitas agendar hoy?</p>
+          <h3 className="text-xl font-bold relative z-10">Copiloto Clínico</h3>
+          <p className="text-indigo-100 text-sm relative z-10">Escuchando órdenes médicas...</p>
           <div className="absolute top-0 left-0 w-full h-full opacity-20">
              <div className="absolute w-32 h-32 bg-white rounded-full -top-10 -left-10 blur-2xl"></div>
              <div className="absolute w-32 h-32 bg-white rounded-full -bottom-10 -right-10 blur-2xl"></div>
           </div>
         </div>
+
         <div className="p-6">
           {status !== 'confirming' && (
             <div className="flex flex-col items-center gap-6">
                <div className={`text-center text-lg font-medium ${transcript ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`}>
-                 "{transcript || 'Presiona el micrófono y habla...'}"
+                 "{transcript || 'Diga un comando (Ej: "Dosis paracetamol", "Ir a agenda", "Cita mañana")...'}"
                </div>
                {status === 'processing' ? (
                  <div className="flex items-center gap-2 text-indigo-600 font-bold animate-pulse">
-                   <Loader2 className="animate-spin" /> Procesando inteligencia...
+                   <Loader2 className="animate-spin" /> Analizando intención...
                  </div>
                ) : (
                  <button 
@@ -170,35 +200,83 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                    {isListening ? <Square size={32} fill="currentColor"/> : <Mic size={32} />}
                  </button>
                )}
-               <p className="text-xs text-slate-400 text-center max-w-xs">Prueba: "Agendar cita para María López mañana a las 5 de la tarde"</p>
             </div>
           )}
+
+          {/* TARJETA DE CONFIRMACIÓN INTELIGENTE */}
           {status === 'confirming' && aiResponse && (
             <div className="animate-in slide-in-from-bottom-4 fade-in">
-              <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-xl p-4 border border-indigo-100 dark:border-indigo-800 mb-6">
+              
+              {/* HEADER DE ACCIÓN DETECTADA */}
+              <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-t-xl p-4 border border-indigo-100 dark:border-indigo-800">
                 <div className="flex items-start gap-3">
-                  <CheckCircle2 className="text-green-500 shrink-0 mt-1" size={20}/>
+                  {aiResponse.intent === 'MEDICAL_QUERY' ? <Stethoscope className="text-blue-500 shrink-0 mt-1"/> : 
+                   aiResponse.intent === 'NAVIGATION' ? <ArrowRight className="text-orange-500 shrink-0 mt-1"/> :
+                   <CheckCircle2 className="text-green-500 shrink-0 mt-1"/>}
                   <div>
-                    <h4 className="font-bold text-slate-800 dark:text-white text-lg">Acción Detectada</h4>
+                    <h4 className="font-bold text-slate-800 dark:text-white text-lg">
+                      {aiResponse.intent === 'CREATE_APPOINTMENT' ? 'Agendar Cita' : 
+                       aiResponse.intent === 'MEDICAL_QUERY' ? 'Respuesta Médica' : 
+                       aiResponse.intent === 'NAVIGATION' ? 'Navegación' : 'Acción Detectada'}
+                    </h4>
                     <p className="text-slate-600 dark:text-slate-300 text-sm mt-1">{aiResponse.message}</p>
                   </div>
                 </div>
-                {aiResponse.data && (
-                  <div className="mt-4 bg-white dark:bg-slate-800 p-3 rounded-lg text-sm border border-indigo-100 dark:border-indigo-900/50 shadow-sm">
-                    <div className="grid grid-cols-2 gap-y-2">
+              </div>
+
+              {/* CONTENIDO DINÁMICO SEGÚN INTENCIÓN */}
+              <div className="bg-white dark:bg-slate-800 p-4 rounded-b-xl border-x border-b border-indigo-100 dark:border-indigo-800 mb-6 shadow-sm">
+                
+                {/* SI ES CITA */}
+                {aiResponse.intent === 'CREATE_APPOINTMENT' && aiResponse.data && (
+                   <div className="text-sm grid grid-cols-2 gap-y-2">
                       <span className="text-slate-500">Paciente:</span>
-                      <span className="font-bold text-slate-800 dark:text-white text-right">{aiResponse.data.patientName}</span>
+                      <span className="font-bold text-right text-slate-800 dark:text-white">{aiResponse.data.patientName}</span>
                       <span className="text-slate-500">Fecha:</span>
-                      <span className="font-bold text-slate-800 dark:text-white text-right">
+                      <span className="font-bold text-right text-slate-800 dark:text-white">
                         {aiResponse.data.start_time ? format(parseISO(aiResponse.data.start_time), "d MMM, h:mm a", {locale: es}) : '--'}
                       </span>
-                    </div>
-                  </div>
+                   </div>
                 )}
+
+                {/* SI ES RESPUESTA MÉDICA */}
+                {aiResponse.intent === 'MEDICAL_QUERY' && aiResponse.data && (
+                   <div className="bg-blue-50 dark:bg-blue-900/20 p-3 rounded-lg border border-blue-100 dark:border-blue-800">
+                      <p className="text-slate-800 dark:text-slate-200 text-sm leading-relaxed font-medium">
+                        {aiResponse.data.answer || "No se pudo generar una respuesta clínica."}
+                      </p>
+                      <div className="mt-2 flex items-center gap-1 text-[10px] text-blue-600 uppercase font-bold">
+                        <AlertTriangle size={10} /> Sugerencia generada por IA - Verificar.
+                      </div>
+                   </div>
+                )}
+
+                {/* SI ES NAVEGACIÓN */}
+                {aiResponse.intent === 'NAVIGATION' && aiResponse.data && (
+                   <div className="flex items-center justify-center py-2 text-slate-600 dark:text-slate-300">
+                      Ir a: <span className="font-bold ml-2 text-indigo-600 uppercase">{aiResponse.data.destination}</span>
+                   </div>
+                )}
+
               </div>
+
               <div className="flex gap-3">
-                <button onClick={() => { setStatus('idle'); resetTranscript(); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">Cancelar</button>
-                <button onClick={handleExecute} className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">Confirmar <ChevronRight size={18}/></button>
+                <button onClick={() => { setStatus('idle'); resetTranscript(); }} className="flex-1 py-3 text-slate-500 font-bold hover:bg-slate-100 dark:hover:bg-slate-800 rounded-xl transition-colors">
+                  {aiResponse.intent === 'MEDICAL_QUERY' ? 'Nueva Consulta' : 'Cancelar'}
+                </button>
+                
+                {/* El botón de confirmar solo es necesario para acciones, no para respuestas informativas */}
+                {aiResponse.intent !== 'MEDICAL_QUERY' && (
+                  <button onClick={handleExecute} className="flex-1 py-3 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 transition-colors flex items-center justify-center gap-2">
+                    Ejecutar <ChevronRight size={18}/>
+                  </button>
+                )}
+                {/* Si es respuesta médica, el botón es "Cerrar" */}
+                {aiResponse.intent === 'MEDICAL_QUERY' && (
+                  <button onClick={onClose} className="flex-1 py-3 bg-slate-800 text-white font-bold rounded-xl shadow-lg hover:bg-slate-700 transition-colors">
+                    Entendido
+                  </button>
+                )}
               </div>
             </div>
           )}
@@ -211,7 +289,7 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
   );
 };
 
-// --- COMPONENTE DASHBOARD ---
+// --- COMPONENTE DASHBOARD (Sin cambios lógicos, solo visuales) ---
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [doctorName, setDoctorName] = useState<string>('');
