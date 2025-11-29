@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, FileText, Trash2, Edit2, Eye, Calendar, Share2, Download, FolderOpen, Paperclip, MoreVertical, X, FileCode } from 'lucide-react';
+import { Search, UserPlus, FileText, Trash2, Edit2, Eye, Calendar, Share2, Download, FolderOpen, Paperclip, MoreVertical, X, FileCode, Phone, ChevronRight } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Patient, DoctorProfile } from '../types';
 import { toast } from 'sonner';
@@ -10,10 +10,7 @@ import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { PatientWizard } from './PatientWizard';
-
-// --- CORRECCIÓN AQUÍ: Agregamos llaves { } ---
 import { InsightsPanel } from './InsightsPanel'; 
-// ---------------------------------------------
 
 interface PatientData extends Partial<Patient> {
   id: string;
@@ -126,22 +123,37 @@ const PatientsView: React.FC = () => {
     setIsModalOpen(true);
   };
 
+  const getInitials = (name: string) => {
+    return name
+      .split(' ')
+      .map(word => word[0])
+      .slice(0, 2)
+      .join('')
+      .toUpperCase();
+  };
+
   const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.email?.toLowerCase().includes(searchTerm.toLowerCase()));
   const renderNoteContent = (summary: string) => { return <FormattedText content={summary} />; };
 
 
   return (
-    <div className="p-6 max-w-7xl mx-auto pb-24 md:pb-6">
-      <div className="flex justify-between items-center mb-8">
-        <div><h1 className="text-2xl font-bold text-slate-800 dark:text-white">Pacientes</h1><p className="text-slate-500 dark:text-slate-400">Gestión de expediente clínico</p></div>
-        <button onClick={() => { setEditingPatient(null); setIsModalOpen(true); }} className="bg-brand-teal hover:bg-teal-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-teal-500/20"><UserPlus size={20} /> <span className="hidden sm:inline">Nuevo Paciente</span></button>
+    <div className="p-4 md:p-6 max-w-7xl mx-auto pb-24 md:pb-6">
+      
+      {/* HEADER */}
+      <div className="flex justify-between items-center mb-6">
+        <div><h1 className="text-2xl font-bold text-slate-800 dark:text-white">Pacientes</h1><p className="text-slate-500 dark:text-slate-400 text-sm">Directorio clínico</p></div>
+        <button onClick={() => { setEditingPatient(null); setIsModalOpen(true); }} className="bg-brand-teal hover:bg-teal-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-teal-500/20 active:scale-95"><UserPlus size={20} /> <span className="hidden sm:inline">Nuevo</span></button>
+      </div>
+
+      {/* BUSCADOR */}
+      <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-4">
+          <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder="Buscar paciente..." className="w-full pl-10 pr-4 py-3 bg-transparent border-none rounded-xl text-slate-700 dark:text-slate-200 focus:ring-0 placeholder:text-slate-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
       </div>
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-        <div className="p-4 border-b border-slate-100 dark:border-slate-700">
-          <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder="Buscar por nombre o email..." className="w-full pl-10 pr-4 py-3 bg-slate-50 dark:bg-slate-900 border-none rounded-xl text-slate-700 dark:text-slate-200 focus:ring-2 focus:ring-brand-teal transition-all" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
-        </div>
-        <div className="overflow-x-auto">
+        
+        {/* --- VISTA ESCRITORIO (TABLA) --- */}
+        <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-xs uppercase"><th className="p-4 font-bold">Nombre</th><th className="p-4 font-bold">Edad/Sexo</th><th className="p-4 font-bold">Contacto</th><th className="p-4 font-bold text-center">Acciones</th></tr>
@@ -149,61 +161,96 @@ const PatientsView: React.FC = () => {
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
               {filteredPatients.map(patient => (
                 <tr key={patient.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group">
-                  <td className="p-4"><p className="font-bold text-slate-800 dark:text-white">{patient.name}</p><p className="text-xs text-slate-400">ID: {patient.id.slice(0,8)}</p></td>
-                  <td className="p-4 text-sm text-slate-600 dark:text-slate-300">{patient.age} años <br/> {patient.gender}</td>
+                  <td className="p-4 flex items-center gap-3">
+                     <div className="w-10 h-10 rounded-full bg-teal-100 text-brand-teal flex items-center justify-center font-bold text-sm">
+                        {getInitials(patient.name)}
+                     </div>
+                     <div>
+                        <p className="font-bold text-slate-800 dark:text-white">{patient.name}</p>
+                        <p className="text-xs text-slate-400">ID: {patient.id.slice(0,8)}</p>
+                     </div>
+                  </td>
+                  <td className="p-4 text-sm text-slate-600 dark:text-slate-300">{patient.age} años • {patient.gender}</td>
                   <td className="p-4 text-sm text-slate-600 dark:text-slate-300"><p>{patient.phone || 'Sin teléfono'}</p><p className="text-xs text-slate-400">{patient.email}</p></td>
-                  
-                  <td className="p-4 relative">
-                    <div className="flex justify-center items-center">
-                        <button 
-                            onClick={() => setShowActionsId(showActionsId === patient.id ? null : patient.id)}
-                            className="p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
-                            title="Más acciones"
-                        >
-                            <MoreVertical size={20} />
-                        </button>
-                        {showActionsId === patient.id && (
-                            <div 
-                                onMouseLeave={() => setShowActionsId(null)}
-                                className="absolute right-10 top-1/2 transform -translate-y-1/2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl py-1 z-10 animate-fade-in-up origin-top-right"
-                            >
-                                <button 
-                                    onClick={() => {handleViewHistory(patient); setShowActionsId(null);}} 
-                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-purple-600 hover:bg-slate-50 dark:hover:bg-slate-800"
-                                >
-                                    <Eye size={16}/> Ver Expediente
-                                </button>
-                                <button 
-                                    onClick={() => {setSelectedPatientForRx(patient); setShowActionsId(null);}}
-                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-brand-teal hover:bg-teal-50 dark:hover:bg-slate-800"
-                                >
-                                    <FileText size={16}/> Receta Rápida
-                                </button>
-                                <button 
-                                    onClick={() => {openEditModal(patient); setShowActionsId(null);}}
-                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800"
-                                >
-                                    <Edit2 size={16}/> Editar Datos
-                                </button>
-                                <hr className="my-1 border-slate-100 dark:border-slate-700" />
-                                <button 
-                                    onClick={() => {handleDelete(patient.id); setShowActionsId(null);}}
-                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-slate-800"
-                                >
-                                    <Trash2 size={16}/> Eliminar Paciente
-                                </button>
-                            </div>
-                        )}
-                    </div>
+                  <td className="p-4 relative text-center">
+                    <button onClick={() => setShowActionsId(showActionsId === patient.id ? null : patient.id)} className="p-2 rounded-full text-slate-400 hover:bg-slate-100 hover:text-slate-600 transition-colors"><MoreVertical size={20} /></button>
+                    {showActionsId === patient.id && (
+                        <div onMouseLeave={() => setShowActionsId(null)} className="absolute right-10 top-1/2 transform -translate-y-1/2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl py-1 z-20 animate-fade-in-up origin-top-right text-left">
+                            <button onClick={() => {handleViewHistory(patient); setShowActionsId(null);}} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-purple-600 hover:bg-slate-50"><Eye size={16}/> Ver Expediente</button>
+                            <button onClick={() => {setSelectedPatientForRx(patient); setShowActionsId(null);}} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-brand-teal hover:bg-slate-50"><FileText size={16}/> Receta Rápida</button>
+                            <button onClick={() => {openEditModal(patient); setShowActionsId(null);}} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-blue-600 hover:bg-slate-50"><Edit2 size={16}/> Editar Datos</button>
+                            <hr className="my-1 border-slate-100" />
+                            <button onClick={() => {handleDelete(patient.id); setShowActionsId(null);}} className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-slate-50"><Trash2 size={16}/> Eliminar</button>
+                        </div>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
-          {filteredPatients.length === 0 && <div className="p-10 text-center text-slate-400">No se encontraron pacientes.</div>}
         </div>
+
+        {/* --- VISTA MÓVIL (ESTILO WHATSAPP) --- */}
+        <div className="md:hidden">
+            {filteredPatients.map(patient => (
+                <div key={patient.id} className="flex items-center p-4 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 active:bg-slate-100 transition-colors relative">
+                    {/* ZONA DE CLICK PRINCIPAL (ABRIR EXPEDIENTE) */}
+                    <div className="flex-1 flex items-center gap-4 cursor-pointer" onClick={() => handleViewHistory(patient)}>
+                        {/* AVATAR */}
+                        <div className="w-12 h-12 rounded-full bg-slate-100 dark:bg-slate-700 text-slate-600 dark:text-slate-300 flex items-center justify-center font-bold text-lg shrink-0">
+                            {getInitials(patient.name)}
+                        </div>
+                        {/* INFO */}
+                        <div className="flex-1 min-w-0">
+                            <h3 className="font-bold text-slate-800 dark:text-white truncate text-base">{patient.name || 'Sin Nombre'}</h3>
+                            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mt-0.5">
+                                <span>{patient.age ? `${patient.age} años` : 'Edad N/A'}</span>
+                                <span>•</span>
+                                <span className="truncate">{patient.phone || 'Sin tel'}</span>
+                            </div>
+                        </div>
+                    </div>
+
+                    {/* BOTÓN DE ACCIONES (KEBAB) */}
+                    <div className="ml-2 relative">
+                         <button 
+                            onClick={(e) => {
+                                e.stopPropagation(); // Evitar que abra el expediente al dar click al menu
+                                setShowActionsId(showActionsId === patient.id ? null : patient.id);
+                            }} 
+                            className="p-2 -mr-2 text-slate-400 hover:text-brand-teal active:bg-slate-200 rounded-full"
+                         >
+                            <MoreVertical size={24} />
+                         </button>
+
+                         {/* MENU DESPLEGABLE MOVIL */}
+                         {showActionsId === patient.id && (
+                            <>
+                                {/* Overlay invisible para cerrar al dar click fuera */}
+                                <div className="fixed inset-0 z-10" onClick={() => setShowActionsId(null)}></div>
+                                <div className="absolute right-0 top-10 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl shadow-2xl py-2 z-20 animate-fade-in-up origin-top-right">
+                                    <button onClick={() => {handleViewHistory(patient); setShowActionsId(null);}} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-purple-600 active:bg-slate-100"><Eye size={18}/> Ver Expediente</button>
+                                    <button onClick={() => {setSelectedPatientForRx(patient); setShowActionsId(null);}} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-brand-teal active:bg-slate-100"><FileText size={18}/> Receta Rápida</button>
+                                    {patient.phone && (
+                                        <a href={`https://wa.me/${patient.phone.replace(/\D/g, '')}`} target="_blank" rel="noreferrer" className="flex items-center gap-3 w-full px-4 py-3 text-sm text-green-600 active:bg-slate-100">
+                                            <Phone size={18}/> Enviar WhatsApp
+                                        </a>
+                                    )}
+                                    <button onClick={() => {openEditModal(patient); setShowActionsId(null);}} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-blue-600 active:bg-slate-100"><Edit2 size={18}/> Editar Datos</button>
+                                    <hr className="my-1 border-slate-100" />
+                                    <button onClick={() => {handleDelete(patient.id); setShowActionsId(null);}} className="flex items-center gap-3 w-full px-4 py-3 text-sm text-red-600 active:bg-slate-100"><Trash2 size={18}/> Eliminar</button>
+                                </div>
+                            </>
+                         )}
+                    </div>
+                </div>
+            ))}
+        </div>
+
+        {filteredPatients.length === 0 && <div className="p-10 text-center text-slate-400">No se encontraron pacientes.</div>}
       </div>
 
+      {/* MODALES */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-0 md:p-4 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full md:max-w-4xl h-full md:h-[90vh] md:rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col">
@@ -266,10 +313,7 @@ const PatientsView: React.FC = () => {
         </div>
       )}
 
-      {/* --- AQUÍ SE USA EL COMPONENTE QUE DABABA ERROR --- */}
       <InsightsPanel isOpen={false} onClose={() => {}} data={null} patientName={""} loading={false} />
-      {/* ------------------------------------------------ */}
-
       {selectedPatientForRx && doctorProfile && <QuickRxModal isOpen={!!selectedPatientForRx} onClose={() => setSelectedPatientForRx(null)} initialTranscript="" patientName={selectedPatientForRx.name} doctorProfile={doctorProfile} />}
     </div>
   );
