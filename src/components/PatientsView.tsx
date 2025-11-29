@@ -1,7 +1,7 @@
-import React, { useState, useEffect } from 'react';
-import { Search, UserPlus, FileText, Trash2, Edit2, X, Save, Eye, Calendar, Clock, FileCode, Share2, Printer, Download, FolderOpen, Paperclip, Brain, Sparkles } from 'lucide-react';
+import React, { useState, useEffect, useMemo } from 'react';
+import { Search, UserPlus, FileText, Trash2, Edit2, Eye, Calendar, Clock, Share2, Printer, Download, FolderOpen, Paperclip, MoreVertical, X } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Patient, DoctorProfile, PatientInsight } from '../types';
+import { Patient, DoctorProfile } from '../types';
 import { toast } from 'sonner';
 import PatientAttachments from './PatientAttachments';
 import QuickRxModal from './QuickRxModal';
@@ -10,8 +10,6 @@ import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { PatientWizard } from './PatientWizard';
-import { InsightsPanel } from './InsightsPanel';
-import { GeminiMedicalService } from '../services/GeminiMedicalService';
 
 interface PatientData extends Partial<Patient> {
   id: string;
@@ -39,10 +37,6 @@ const PatientsView: React.FC = () => {
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   
-  const [isInsightsOpen, setIsInsightsOpen] = useState(false);
-  const [insightsData, setInsightsData] = useState<PatientInsight | null>(null);
-  const [insightsLoading, setInsightsLoading] = useState(false);
-
   const [editingPatient, setEditingPatient] = useState<PatientData | null>(null);
   const [selectedPatientForRx, setSelectedPatientForRx] = useState<PatientData | null>(null);
   const [viewingPatient, setViewingPatient] = useState<PatientData | null>(null); 
@@ -50,6 +44,9 @@ const PatientsView: React.FC = () => {
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   const [patientHistory, setPatientHistory] = useState<ConsultationRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
+
+  // NUEVO: Estado para controlar el menú de acciones Kebab
+  const [showActionsId, setShowActionsId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPatients();
@@ -87,33 +84,17 @@ const PatientsView: React.FC = () => {
       } finally { setLoadingHistory(false); }
   };
 
-  const handleGenerateInsights = async () => {
-      if (!viewingPatient || patientHistory.length === 0) {
-          toast.error("Se necesita historial para generar un análisis.");
-          return;
-      }
-      setIsInsightsOpen(true);
-      setInsightsLoading(true);
-      setInsightsData(null);
-
-      try {
-          const historyText = viewingPatient.history || "Sin antecedentes registrados.";
-          const consultsText = patientHistory.slice(0, 10).map(c => `[${new Date(c.created_at).toLocaleDateString()}] ${c.summary}`);
-          const analysis = await GeminiMedicalService.generatePatientInsights(viewingPatient.name, historyText, consultsText);
-          setInsightsData(analysis);
-      } catch (e) {
-          toast.error("No se pudo generar el análisis.");
-          setIsInsightsOpen(false);
-      } finally { setInsightsLoading(false); }
-  };
-
   const handleShareNoteWhatsApp = (consultation: ConsultationRecord) => {
       if (!viewingPatient) return;
       const drName = doctorProfile?.full_name || 'su médico';
       let content = consultation.summary;
-      if (content.trim().startsWith('{')) { try { const parsed = JSON.parse(content); content = `Nota del ${new Date(consultation.created_at).toLocaleDateString()}.`; } catch {} }
+      if (content.trim().startsWith('{')) { 
+          try { content = `Resumen de consulta del día ${new Date(consultation.created_at).toLocaleDateString()}.`; } catch {}
+      }
       const message = `*Historial Médico - Dr. ${drName}*\n*Paciente:* ${viewingPatient.name}\n*Fecha:* ${new Date(consultation.created_at).toLocaleDateString()}\n\n${content.substring(0, 1000)}...\n\n*Saludos.*`;
-      const whatsappUrl = viewingPatient.phone && viewingPatient.phone.length >= 10 ? `https://wa.me/${viewingPatient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;
+      const whatsappUrl = viewingPatient.phone && viewingPatient.phone.length >= 10 
+        ? `https://wa.me/${viewingPatient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
+        : `https://wa.me/?text=${encodeURIComponent(message)}`;
       window.open(whatsappUrl, '_blank');
   };
 
@@ -130,12 +111,21 @@ const PatientsView: React.FC = () => {
     try {
       const { error } = await supabase.from('patients').delete().eq('id', id);
       if (error) throw error;
-      toast.success('Paciente eliminado'); fetchPatients();
-    } catch (error) { toast.error('Error al eliminar'); }
+      toast.success('Paciente eliminado');
+      fetchPatients();
+    } catch (error) {
+      toast.error('Error al eliminar');
+    }
+  };
+
+  const openEditModal = (patient: PatientData) => {
+    setEditingPatient(patient);
+    setIsModalOpen(true);
   };
 
   const filteredPatients = patients.filter(p => p.name.toLowerCase().includes(searchTerm.toLowerCase()) || p.email?.toLowerCase().includes(searchTerm.toLowerCase()));
   const renderNoteContent = (summary: string) => { return <FormattedText content={summary} />; };
+
 
   return (
     <div className="p-6 max-w-7xl mx-auto pb-24 md:pb-6">
@@ -159,12 +149,55 @@ const PatientsView: React.FC = () => {
                   <td className="p-4"><p className="font-bold text-slate-800 dark:text-white">{patient.name}</p><p className="text-xs text-slate-400">ID: {patient.id.slice(0,8)}</p></td>
                   <td className="p-4 text-sm text-slate-600 dark:text-slate-300">{patient.age} años <br/> {patient.gender}</td>
                   <td className="p-4 text-sm text-slate-600 dark:text-slate-300"><p>{patient.phone || 'Sin teléfono'}</p><p className="text-xs text-slate-400">{patient.email}</p></td>
-                  <td className="p-4"><div className="flex items-center justify-center gap-2">
-                      <button onClick={() => handleViewHistory(patient)} className="p-2 text-purple-500 hover:bg-purple-50 dark:hover:bg-purple-900/20 rounded-lg transition-colors" title="Ver Expediente Completo"><Eye size={18} /></button>
-                      <button onClick={() => setSelectedPatientForRx(patient)} className="p-2 text-brand-teal hover:bg-teal-50 dark:hover:bg-teal-900/20 rounded-lg transition-colors" title="Crear Receta Rápida"><FileText size={18} /></button>
-                      <button onClick={() => {setEditingPatient(patient); setIsModalOpen(true);}} className="p-2 text-blue-500 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded-lg transition-colors" title="Editar Datos"><Edit2 size={18} /></button>
-                      <button onClick={() => handleDelete(patient.id)} className="p-2 text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition-colors" title="Eliminar"><Trash2 size={18} /></button>
-                    </div></td>
+                  
+                  {/* --- CAMBIO CRÍTICO: CONSOLIDACIÓN DE ACCIONES (KEBAB) --- */}
+                  <td className="p-4 relative">
+                    <div className="flex justify-center items-center">
+                        {/* BOTÓN KEBBAB FLOTANTE */}
+                        <button 
+                            onClick={() => setShowActionsId(showActionsId === patient.id ? null : patient.id)}
+                            className="p-2 rounded-full text-slate-400 hover:text-slate-600 dark:hover:text-slate-300 transition-colors"
+                            title="Más acciones"
+                        >
+                            <MoreVertical size={20} />
+                        </button>
+
+                        {/* POPOVER DE ACCIONES */}
+                        {showActionsId === patient.id && (
+                            <div 
+                                onMouseLeave={() => setShowActionsId(null)} // Cerrar al salir
+                                className="absolute right-10 top-1/2 transform -translate-y-1/2 w-48 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-lg shadow-xl py-1 z-10 animate-fade-in-up origin-top-right"
+                            >
+                                <button 
+                                    onClick={() => {handleViewHistory(patient); setShowActionsId(null);}} 
+                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-purple-600 hover:bg-slate-50 dark:hover:bg-slate-800"
+                                >
+                                    <Eye size={16}/> Ver Expediente
+                                </button>
+                                <button 
+                                    onClick={() => {setSelectedPatientForRx(patient); setShowActionsId(null);}}
+                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-brand-teal hover:bg-teal-50 dark:hover:bg-slate-800"
+                                >
+                                    <FileText size={16}/> Receta Rápida
+                                </button>
+                                <button 
+                                    onClick={() => {openEditModal(patient); setShowActionsId(null);}}
+                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-800"
+                                >
+                                    <Edit2 size={16}/> Editar Datos
+                                </button>
+                                <hr className="my-1 border-slate-100 dark:border-slate-700" />
+                                <button 
+                                    onClick={() => {handleDelete(patient.id); setShowActionsId(null);}}
+                                    className="flex items-center gap-3 w-full px-4 py-2 text-sm text-red-600 hover:bg-red-50 dark:hover:bg-slate-800"
+                                >
+                                    <Trash2 size={16}/> Eliminar Paciente
+                                </button>
+                            </div>
+                        )}
+                    </div>
+                  </td>
+                  {/* --- FIN DEL CAMBIO CRÍTICO --- */}
                 </tr>
               ))}
             </tbody>
@@ -173,17 +206,12 @@ const PatientsView: React.FC = () => {
         </div>
       </div>
 
+      {/* MODALES: WIZARD, HISTORIAL, RECETA RÁPIDA */}
       {isModalOpen && (
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-0 md:p-4 backdrop-blur-sm">
           <div className="bg-white dark:bg-slate-900 w-full md:max-w-4xl h-full md:h-[90vh] md:rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col">
             <PatientWizard 
-                initialData={editingPatient ? {
-                    name: editingPatient.name,
-                    age: editingPatient.age?.toString(),
-                    gender: editingPatient.gender,
-                    phone: editingPatient.phone,
-                    email: editingPatient.email,
-                } : undefined}
+                initialData={editingPatient ? { name: editingPatient.name, age: editingPatient.age?.toString(), gender: editingPatient.gender, phone: editingPatient.phone, email: editingPatient.email } : undefined}
                 onClose={() => setIsModalOpen(false)}
                 onSave={async (data) => {
                     try {
@@ -206,8 +234,7 @@ const PatientsView: React.FC = () => {
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
               <div><h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><FileText className="text-brand-teal"/> Expediente Clínico</h3><p className="text-sm text-slate-500 dark:text-slate-400">Paciente: <span className="font-bold">{viewingPatient.name}</span></p></div>
               <div className="flex items-center gap-2">
-                  <button onClick={handleGenerateInsights} className="hidden md:flex p-2 rounded-full transition-colors items-center gap-2 text-sm font-bold bg-purple-100 text-purple-700 border border-purple-200 hover:bg-purple-200"><Sparkles size={16}/> Balance 360°</button>
-                  <button onClick={() => setIsGalleryOpen(!isGalleryOpen)} className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-bold border ${isGalleryOpen ? 'bg-teal-100 text-brand-teal border-teal-200' : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:text-brand-teal'}`} title="Archivos">{isGalleryOpen ? <X size={18}/> : <FolderOpen size={18}/>}<span className="hidden sm:inline">Archivos</span></button>
+                  <button onClick={() => setIsGalleryOpen(!isGalleryOpen)} className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-bold border ${isGalleryOpen ? 'bg-teal-100 text-brand-teal border-teal-200' : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:text-brand-teal'}`} title="Archivos"><FolderOpen size={18}/><span>Archivos</span></button>
                   <div className="h-6 w-px bg-slate-300 dark:bg-slate-700 mx-1"></div>
                   <button onClick={() => setIsHistoryOpen(false)} className="p-2 bg-white dark:bg-slate-800 rounded-full text-slate-400 hover:text-red-500 shadow-sm transition-colors"><X size={24}/></button>
               </div>
@@ -215,7 +242,6 @@ const PatientsView: React.FC = () => {
             
             <div className="flex-1 overflow-hidden relative flex">
                 <div className={`flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-900 transition-all duration-300 ${isGalleryOpen ? 'w-1/2 opacity-50 md:opacity-100' : 'w-full'}`}>
-                    <div className="md:hidden mb-4"><button onClick={handleGenerateInsights} className="w-full p-3 rounded-xl bg-purple-600 text-white font-bold flex items-center justify-center gap-2 shadow-lg"><Sparkles size={18}/> Generar Balance Clínico 360° (IA)</button></div>
                     {loadingHistory ? ( <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-teal"></div><p>Cargando historial...</p></div> ) : patientHistory.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-70"><FileCode size={64} strokeWidth={1} className="mb-4"/><p className="text-lg">No hay consultas registradas aún.</p></div> ) : (
                         <div className="space-y-6">
                             {patientHistory.map((consultation) => (
@@ -226,7 +252,7 @@ const PatientsView: React.FC = () => {
                                         </div>
                                         <div className="flex gap-2">
                                             <button onClick={() => handleShareNoteWhatsApp(consultation)} className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded border border-transparent hover:border-green-200 transition-colors"><Share2 size={16}/></button>
-                                            <button onClick={() => handlePrintNote(consultation)} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-transparent hover:border-blue-200 transition-colors"><Download size={16}/></button>
+                                            <button onClick={() => handlePrintNote(consultation)} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-transparent hover:border-blue-200 transition-colors" title="Descargar PDF"><Download size={16}/></button>
                                         </div>
                                     </div>
                                     <div className="p-5 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
@@ -243,7 +269,7 @@ const PatientsView: React.FC = () => {
         </div>
       )}
 
-      <InsightsPanel isOpen={isInsightsOpen} onClose={() => setIsInsightsOpen(false)} data={insightsData} patientName={viewingPatient?.name || ''} loading={insightsLoading} />
+      <InsightsPanel isOpen={false} onClose={() => {}} data={null} patientName={""} loading={false} />
       {selectedPatientForRx && doctorProfile && <QuickRxModal isOpen={!!selectedPatientForRx} onClose={() => setSelectedPatientForRx(null)} initialTranscript="" patientName={selectedPatientForRx.name} doctorProfile={doctorProfile} />}
     </div>
   );
