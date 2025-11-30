@@ -37,6 +37,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
     
     setIsProcessingAI(true);
     try {
+      // Llamada al servicio robusto
       const extractedMeds = await GeminiMedicalService.extractMedications(textToProcess);
       if (extractedMeds && extractedMeds.length > 0) {
         setMedications(prev => [...prev, ...extractedMeds]);
@@ -134,7 +135,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
         {/* BODY */}
         <div className="p-6 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950">
           
-          {/* --- ZONA DE DICTADO (AQUÍ ESTÁ EL BOTÓN) --- */}
+          {/* ZONA DE DICTADO */}
           <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6 flex flex-col items-center justify-center text-center">
              
              {isProcessingAI ? (
@@ -159,7 +160,6 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
                       {isListening ? 'Dicte: "Medicamento, Dosis, Frecuencia..."' : 'Presione para dictar los medicamentos'}
                    </p>
 
-                   {/* Texto en vivo mientras dictas */}
                    {transcript && (
                       <div className="mt-3 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg text-sm text-slate-600 italic w-full border border-slate-200 dark:border-slate-700">
                          "{transcript}"
