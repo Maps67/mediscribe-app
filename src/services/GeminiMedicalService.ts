@@ -91,7 +91,7 @@ export const GeminiMedicalService = {
     }
   },
 
-  // 3. RECETA RÁPIDA (CON CORRECCIÓN FONÉTICA Y DE ERRORES)
+  // 3. RECETA RÁPIDA (OPTIMIZADA CON FEW-SHOT LEARNING)
   async extractMedications(text: string): Promise<MedicationItem[]> {
     const cleanText = text.replace(/["“”]/g, "").trim(); 
     if (!cleanText) return [];
@@ -99,48 +99,55 @@ export const GeminiMedicalService = {
     try {
       console.log("Procesando receta:", cleanText);
 
-      // Usamos la Edge Function para mayor seguridad y rapidez
+      // Usamos la Edge Function para mayor seguridad
       const { data, error } = await supabase.functions.invoke('gemini-proxy', {
         body: {
           prompt: `
-            ACTÚA COMO: Farmacéutico experto y corrector ortográfico médico.
-            
-            TEXTO DICTADO (Puede tener errores de voz a texto): "${cleanText}"
-            
-            TU OBJETIVO:
-            1. Identificar medicamentos.
-            2. CORREGIR ERRORES FONÉTICOS: Si dice "la proxeno" -> Corrige a "Naproxeno". Si dice "iver mesina" -> "Ivermectina". Usa tu base de datos farmacológica.
-            3. Estructurar la dosis, frecuencia y duración.
-            4. Si es una pregunta ("¿Tomar...?"), asume que es una orden.
+            ACTÚA COMO: Farmacéutico experto y corrector ortográfico.
+            TAREA: Analizar texto dictado, corregir nombres de medicamentos mal escritos fonéticamente y estructurar la receta.
 
-            REGLAS DE FORMATO:
-            - Retorna SOLO un JSON array válido.
-            - Estructura: [{"drug": "Nombre Corregido", "details": "500mg", "frequency": "cada 8h", "duration": "3 días", "notes": ""}]
-            
-            Si absolutamente NO puedes rescatar ningún medicamento, retorna [].
+            EJEMPLOS DE CORRECCIÓN:
+            - Entrada: "La proxeno cada 12 horas" -> Salida: [{"drug": "Naproxeno", "details": "500mg (Sugerido)", "frequency": "Cada 12 horas", "duration": "", "notes": ""}]
+            - Entrada: "Para setamol 500" -> Salida: [{"drug": "Paracetamol", "details": "500mg", "frequency": "", "duration": "", "notes": ""}]
+            - Entrada: "¿Tomar ibuprofeno?" -> Salida: [{"drug": "Ibuprofeno", "details": "", "frequency": "", "duration": "", "notes": ""}]
+
+            TEXTO A PROCESAR: "${cleanText}"
+
+            FORMATO DE RESPUESTA OBLIGATORIO:
+            Devuelve ÚNICAMENTE un array JSON válido. Sin markdown, sin explicaciones.
+            Estructura: [{"drug": "string", "details": "string", "frequency": "string", "duration": "string", "notes": "string"}]
           `
         }
       });
 
       if (!error && data) {
+        // Limpieza agresiva de la respuesta
         let cleanJson = data.result || data;
-        if (typeof cleanJson !== 'string') cleanJson = JSON.stringify(cleanJson);
         
+        if (typeof cleanJson !== 'string') {
+            cleanJson = JSON.stringify(cleanJson);
+        }
+
+        // Buscar el JSON Array dentro del texto
         const firstBracket = cleanJson.indexOf('[');
         const lastBracket = cleanJson.lastIndexOf(']');
         
         if (firstBracket !== -1 && lastBracket !== -1) {
            const jsonStr = cleanJson.substring(firstBracket, lastBracket + 1);
-           const parsed = JSON.parse(jsonStr);
-           
-           if (Array.isArray(parsed) && parsed.length > 0) {
-             return parsed.map((m: any) => ({
-               drug: m.drug || m.name || 'Medicamento',
-               details: m.details || '',
-               frequency: m.frequency || '',
-               duration: m.duration || '',
-               notes: m.notes || ''
-             }));
+           try {
+             const parsed = JSON.parse(jsonStr);
+             if (Array.isArray(parsed) && parsed.length > 0) {
+               // Normalización de campos
+               return parsed.map((m: any) => ({
+                 drug: m.drug || m.name || 'Medicamento',
+                 details: m.details || '',
+                 frequency: m.frequency || '',
+                 duration: m.duration || '',
+                 notes: m.notes || ''
+               }));
+             }
+           } catch (parseError) {
+             console.error("Error parseando JSON de receta:", parseError);
            }
         }
       }
@@ -148,7 +155,7 @@ export const GeminiMedicalService = {
       console.warn("Fallo IA en receta, activando modo rescate manual.", e);
     }
 
-    // MODO RESCATE (Backup por si la IA falla totalmente)
+    // MODO RESCATE (Solo si la IA falla totalmente)
     return [{
       drug: cleanText, 
       details: "Revisar dosis (IA no estructuró)",
