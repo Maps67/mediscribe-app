@@ -1,10 +1,11 @@
+// Archivo: src/pages/Dashboard.tsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, MapPin, ChevronRight, Sun, Moon, Bell, CloudRain, Cloud, 
   ShieldCheck, Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
   Stethoscope, UserCircle, ArrowRight, AlertTriangle, FileText,
-  Clock, TrendingUp, UserPlus, Zap, Activity, LogOut
+  Clock, TrendingUp, UserPlus, Zap
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
@@ -64,7 +65,7 @@ const LiveClockDesktop = () => {
   );
 };
 
-// --- COMPONENTE RELOJ (MOVIL - ADAPTADO A FONDO CLARO) ---
+// --- COMPONENTE RELOJ (MOVIL) ---
 const LiveClockMobile = ({ isDark }: { isDark: boolean }) => {
     const [time, setTime] = useState(new Date());
     useEffect(() => {
@@ -328,15 +329,14 @@ const Dashboard: React.FC = () => {
         : <Sun size={56} className={`${dark ? 'text-yellow-300' : 'text-amber-400'} opacity-90 ${animClass}`}/>;
   };
 
-  // --- PALETA DE COLORES "ANTI-FATIGA VISUAL" (#CDEDE0) ---
-  const antiFatigueBg = "bg-[#F2F9F7] dark:bg-slate-950"; // Fondo general ultra suave (menta al 20%)
+  const antiFatigueBg = "bg-[#F2F9F7] dark:bg-slate-950"; 
   
   // Hero Móvil: Usa el color solicitado (#CDEDE0) degradado suavemente
+  // Se agregó 'border-white/5' para eliminar la línea negra.
   const mobileHeroStyle = isNight 
-    ? { bg: "bg-gradient-to-br from-slate-900 to-teal-950", text: "text-teal-100", darkText: false }
-    : { bg: "bg-gradient-to-br from-[#CDEDE0] to-[#A0DBC6]", text: "text-teal-900", darkText: true };
+    ? { bg: "bg-gradient-to-br from-slate-900 to-teal-950 border border-white/5", text: "text-teal-100", darkText: false }
+    : { bg: "bg-gradient-to-br from-[#CDEDE0] to-[#A0DBC6] border border-white/5", text: "text-teal-900", darkText: true };
 
-  // PC Panorámico
   const panoramicGradient = isNight
     ? "bg-gradient-to-r from-slate-900 via-teal-900 to-emerald-950" 
     : "bg-gradient-to-r from-emerald-50 via-teal-500 to-teal-800";
@@ -416,12 +416,11 @@ const Dashboard: React.FC = () => {
 
   const todayAppointments = appointments.filter(a => isToday(parseISO(a.start_time)));
   const pendingCount = todayAppointments.filter(a => a.status === 'scheduled').length;
-  const completedCount = todayAppointments.filter(a => a.status === 'completed').length;
   const totalToday = todayAppointments.length || 1; 
+  const completedCount = todayAppointments.filter(a => a.status === 'completed').length;
   const progressPercent = Math.round((completedCount / totalToday) * 100);
 
   return (
-    // AQUÍ SE APLICA EL FONDO ANTI-FATIGA (#F2F9F7)
     <div className={`min-h-screen ${antiFatigueBg} font-sans w-full overflow-x-hidden flex flex-col relative transition-colors duration-500`}>
       
       {/* HEADER MÓVIL */}
@@ -480,9 +479,7 @@ const Dashboard: React.FC = () => {
             </button>
         </div>
 
-        {/* -------------------------------------------------------- */}
-        {/* VERSIÓN MÓVIL (COLOR #CDEDE0 ADAPTADO)                   */}
-        {/* -------------------------------------------------------- */}
+        {/* VERSIÓN MÓVIL (COLOR #CDEDE0 ADAPTADO) */}
         <div className="md:hidden">
             <div className={`${mobileHeroStyle.bg} ${mobileHeroStyle.text} rounded-3xl p-6 shadow-lg relative overflow-hidden flex justify-between items-center transition-all duration-500 w-full min-h-[140px]`}>
                 <div className="relative z-10 flex-1">
@@ -517,14 +514,11 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* -------------------------------------------------------- */}
-        {/* VERSIÓN PC: PANORÁMICO DEGRADADO CON SORPRESA A LA DERECHA */}
-        {/* -------------------------------------------------------- */}
+        {/* VERSIÓN PC: PANORÁMICO */}
         <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-xl h-56 relative overflow-hidden transition-all duration-1000 border border-slate-200/20`}>
             
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
 
-            {/* SECCIÓN 1: CLIMA */}
             <div className="w-1/3 p-8 flex flex-col justify-between relative z-10 border-r border-white/5">
                 <div className="flex justify-between items-start">
                     <div className={`flex items-center gap-2 ${leftTextColor}`}>
@@ -541,13 +535,11 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* SECCIÓN 2: RELOJ CENTRAL */}
             <div className="w-1/3 flex items-center justify-center relative z-10">
                 <LiveClockDesktop />
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/10 rounded-full blur-[80px] pointer-events-none"></div>
             </div>
 
-            {/* SECCIÓN 3: PULSO DEL CONSULTORIO */}
             <div className="w-1/3 p-8 relative z-10 flex flex-col justify-between text-right border-l border-white/5">
                 <div className="flex justify-end items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-teal-200/80">Pulso del Día</span>
