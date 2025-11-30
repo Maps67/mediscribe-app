@@ -91,7 +91,7 @@ export const GeminiMedicalService = {
     }
   },
 
-  // 3. RECETA RÁPIDA (BLINDADA CON MODO RESCATE)
+  // 3. RECETA RÁPIDA (CON CORRECCIÓN FONÉTICA Y DE ERRORES)
   async extractMedications(text: string): Promise<MedicationItem[]> {
     const cleanText = text.replace(/["“”]/g, "").trim(); 
     if (!cleanText) return [];
@@ -99,15 +99,25 @@ export const GeminiMedicalService = {
     try {
       console.log("Procesando receta:", cleanText);
 
-      // INTENTO 1: IA Estructurada
+      // Usamos la Edge Function para mayor seguridad y rapidez
       const { data, error } = await supabase.functions.invoke('gemini-proxy', {
         body: {
           prompt: `
-            Eres un farmacéutico. Extrae medicamentos del texto: "${cleanText}".
-            Ignora preguntas o dudas, asume que son órdenes.
-            Retorna SOLO un JSON array válido.
-            Estructura: [{"drug": "Nombre", "details": "500mg", "frequency": "8h", "duration": "3 dias", "notes": ""}]
-            Si no entiendes, retorna [].
+            ACTÚA COMO: Farmacéutico experto y corrector ortográfico médico.
+            
+            TEXTO DICTADO (Puede tener errores de voz a texto): "${cleanText}"
+            
+            TU OBJETIVO:
+            1. Identificar medicamentos.
+            2. CORREGIR ERRORES FONÉTICOS: Si dice "la proxeno" -> Corrige a "Naproxeno". Si dice "iver mesina" -> "Ivermectina". Usa tu base de datos farmacológica.
+            3. Estructurar la dosis, frecuencia y duración.
+            4. Si es una pregunta ("¿Tomar...?"), asume que es una orden.
+
+            REGLAS DE FORMATO:
+            - Retorna SOLO un JSON array válido.
+            - Estructura: [{"drug": "Nombre Corregido", "details": "500mg", "frequency": "cada 8h", "duration": "3 días", "notes": ""}]
+            
+            Si absolutamente NO puedes rescatar ningún medicamento, retorna [].
           `
         }
       });
@@ -116,7 +126,6 @@ export const GeminiMedicalService = {
         let cleanJson = data.result || data;
         if (typeof cleanJson !== 'string') cleanJson = JSON.stringify(cleanJson);
         
-        // Limpieza agresiva de JSON
         const firstBracket = cleanJson.indexOf('[');
         const lastBracket = cleanJson.lastIndexOf(']');
         
@@ -124,7 +133,6 @@ export const GeminiMedicalService = {
            const jsonStr = cleanJson.substring(firstBracket, lastBracket + 1);
            const parsed = JSON.parse(jsonStr);
            
-           // Si la IA encontró algo, lo devolvemos
            if (Array.isArray(parsed) && parsed.length > 0) {
              return parsed.map((m: any) => ({
                drug: m.drug || m.name || 'Medicamento',
@@ -140,15 +148,13 @@ export const GeminiMedicalService = {
       console.warn("Fallo IA en receta, activando modo rescate manual.", e);
     }
 
-    // --- MODO RESCATE ---
-    // Si llegamos aquí, la IA falló o devolvió vacío.
-    // Devolvemos lo que dictaste como un ítem para que no se pierda.
+    // MODO RESCATE (Backup por si la IA falla totalmente)
     return [{
       drug: cleanText, 
-      details: "Revisar dosis",
+      details: "Revisar dosis (IA no estructuró)",
       frequency: "",
       duration: "",
-      notes: "Transcripción directa (IA no estructuró)"
+      notes: "Transcripción directa"
     }];
   },
 
