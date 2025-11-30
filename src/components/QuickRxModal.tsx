@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, FileText, Printer, Share2, Mic, StopCircle, Loader2, Sparkles, AlertCircle } from 'lucide-react';
+import { X, Plus, Trash2, FileText, Printer, Share2, Mic, StopCircle, Loader2, Sparkles, AlertCircle, Edit3 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MedicationItem, DoctorProfile } from '../types';
 import { pdf } from '@react-pdf/renderer';
@@ -18,6 +18,7 @@ interface QuickRxModalProps {
 const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTranscript = '', patientName, doctorProfile }) => {
   const [medications, setMedications] = useState<MedicationItem[]>([]);
   const [isProcessingAI, setIsProcessingAI] = useState(false);
+  const [rawText, setRawText] = useState(''); // Texto editable
   
   // Estado para el formulario manual
   const [newMed, setNewMed] = useState({ name: '', details: '', frequency: '', duration: '', notes: '' });
@@ -25,25 +26,39 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
   // Hook de voz
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
 
-  // Al abrir, si hay texto previo, procesarlo
+  // Sincronizar transcripción de voz con el cuadro de texto
   useEffect(() => {
-    if (isOpen && initialTranscript && medications.length === 0) {
-      handleExtractFromText(initialTranscript);
+    if (isListening && transcript) {
+      setRawText(transcript);
+    }
+  }, [transcript, isListening]);
+
+  // Cargar texto inicial si existe
+  useEffect(() => {
+    if (isOpen && initialTranscript) {
+      setRawText(initialTranscript);
     }
   }, [isOpen, initialTranscript]);
 
-  const handleExtractFromText = async (textToProcess: string) => {
-    if (!textToProcess.trim()) return;
+  const handleExtractFromText = async () => {
+    if (!rawText.trim()) {
+      toast.error("El campo de texto está vacío");
+      return;
+    }
     
     setIsProcessingAI(true);
     try {
-      // Llamada al servicio robusto
-      const extractedMeds = await GeminiMedicalService.extractMedications(textToProcess);
+      // Enviamos el texto (posiblemente corregido por el doctor)
+      const extractedMeds = await GeminiMedicalService.extractMedications(rawText);
+      
       if (extractedMeds && extractedMeds.length > 0) {
+        // Agregamos los nuevos sin borrar los anteriores si ya había
         setMedications(prev => [...prev, ...extractedMeds]);
-        toast.success(`${extractedMeds.length} medicamentos detectados`);
+        toast.success(`${extractedMeds.length} medicamentos procesados`);
+        setRawText(''); // Limpiamos el campo para la siguiente orden
+        resetTranscript();
       } else {
-        toast.info("No detecté medicamentos claros. Intenta dictar: 'Medicamento X, dosis Y, cada Z horas'.");
+        toast.warning("No se detectaron medicamentos. Verifique la redacción.");
       }
     } catch (error) {
       console.error(error);
@@ -56,10 +71,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
   const handleMicToggle = () => {
     if (isListening) {
       stopListening();
-      // Pequeño delay para asegurar que el transcript final esté listo
-      setTimeout(() => {
-        if (transcript) handleExtractFromText(transcript);
-      }, 500);
+      // No procesamos automáticamente, dejamos que el usuario revise el texto primero
     } else {
       resetTranscript();
       startListening();
@@ -118,7 +130,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
 
   return (
     <div className="fixed inset-0 bg-black/60 z-[60] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[95vh]">
         
         {/* HEADER */}
         <div className="bg-teal-600 p-4 flex justify-between items-center text-white shrink-0">
@@ -135,38 +147,39 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
         {/* BODY */}
         <div className="p-6 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950">
           
-          {/* ZONA DE DICTADO */}
-          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6 flex flex-col items-center justify-center text-center">
+          {/* --- ZONA DE DICTADO Y EDICIÓN --- */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6">
              
-             {isProcessingAI ? (
-                <div className="py-4 text-teal-600 flex flex-col items-center animate-pulse">
-                   <Loader2 size={40} className="animate-spin mb-3" />
-                   <span className="font-bold text-lg">Procesando receta...</span>
-                   <span className="text-xs text-slate-500 mt-1">La IA está estructurando los medicamentos</span>
-                </div>
-             ) : (
-                <>
-                   <button 
-                      onClick={handleMicToggle}
-                      className={`w-16 h-16 rounded-full flex items-center justify-center shadow-lg transition-all transform ${isListening ? 'bg-red-500 hover:bg-red-600 scale-110 ring-4 ring-red-200 animate-pulse' : 'bg-teal-600 hover:bg-teal-700 hover:scale-105'}`}
-                   >
-                      {isListening ? <StopCircle size={32} className="text-white" /> : <Mic size={32} className="text-white" />}
-                   </button>
-                   
-                   <p className="font-bold text-slate-700 dark:text-white mt-3">
-                      {isListening ? 'Escuchando...' : 'Dictar Receta'}
-                   </p>
-                   <p className="text-xs text-slate-500 dark:text-slate-400 mt-1">
-                      {isListening ? 'Dicte: "Medicamento, Dosis, Frecuencia..."' : 'Presione para dictar los medicamentos'}
-                   </p>
+             <div className="flex items-center justify-between mb-3">
+                <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                   <Edit3 size={14}/> Dictado / Texto Libre
+                </h4>
+                {/* Botón de Micrófono */}
+                <button 
+                   onClick={handleMicToggle}
+                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${isListening ? 'bg-red-100 text-red-600 animate-pulse border border-red-200' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-teal-50 hover:text-teal-600'}`}
+                >
+                   {isListening ? <><StopCircle size={14}/> Detener</> : <><Mic size={14}/> Dictar</>}
+                </button>
+             </div>
 
-                   {transcript && (
-                      <div className="mt-3 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg text-sm text-slate-600 italic w-full border border-slate-200 dark:border-slate-700">
-                         "{transcript}"
-                      </div>
-                   )}
-                </>
-             )}
+             {/* TEXTAREA EDITABLE */}
+             <textarea
+                value={rawText}
+                onChange={(e) => setRawText(e.target.value)}
+                placeholder="Dicte o escriba aquí (Ej: Paracetamol 500mg cada 8 horas...)"
+                className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none min-h-[80px] resize-none font-medium text-slate-700 dark:text-slate-200"
+             />
+
+             {/* BOTÓN PROCESAR IA */}
+             <button 
+                onClick={handleExtractFromText}
+                disabled={isProcessingAI || !rawText.trim()}
+                className="w-full mt-3 py-2.5 bg-gradient-to-r from-teal-600 to-teal-500 text-white rounded-lg font-bold text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all active:scale-95"
+             >
+                {isProcessingAI ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18}/>}
+                {isProcessingAI ? "Analizando..." : "Procesar Medicamentos"}
+             </button>
           </div>
 
           {/* LISTA DE MEDICAMENTOS */}
@@ -179,14 +192,12 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
             </div>
 
             {medications.length === 0 ? (
-              <div className="text-center py-8 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50/50">
-                <AlertCircle className="mx-auto text-slate-300 mb-2" size={32}/>
-                <p className="text-slate-400 text-sm">No hay medicamentos agregados.</p>
-                <p className="text-xs text-slate-400">Dicte o agregue manualmente abajo.</p>
+              <div className="text-center py-6 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50/50">
+                <p className="text-slate-400 text-sm">La lista está vacía.</p>
               </div>
             ) : (
               medications.map((med, idx) => (
-                <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex justify-between items-start group hover:border-teal-200 transition-colors">
+                <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex justify-between items-start group hover:border-teal-200 transition-colors animate-in fade-in slide-in-from-bottom-2">
                   <div>
                     <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                        <span className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{idx + 1}</span>
@@ -203,18 +214,18 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
             )}
           </div>
 
-          {/* FORMULARIO MANUAL */}
+          {/* FORMULARIO MANUAL (COLLAPSIBLE O SIMPLE) */}
           <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-700">
             <h4 className="text-xs font-bold text-slate-400 uppercase mb-4">Agregar Manualmente</h4>
             <div className="grid grid-cols-2 gap-3 mb-3">
-              <input placeholder="Medicamento (Ej. Paracetamol)" value={newMed.name} onChange={e => setNewMed({...newMed, name: e.target.value})} className="input-std col-span-2" />
+              <input placeholder="Medicamento" value={newMed.name} onChange={e => setNewMed({...newMed, name: e.target.value})} className="input-std col-span-2" />
               <input placeholder="Detalles (500mg)" value={newMed.details} onChange={e => setNewMed({...newMed, details: e.target.value})} className="input-std" />
               <input placeholder="Frecuencia (Cada 8h)" value={newMed.frequency} onChange={e => setNewMed({...newMed, frequency: e.target.value})} className="input-std" />
               <input placeholder="Duración (3 días)" value={newMed.duration} onChange={e => setNewMed({...newMed, duration: e.target.value})} className="input-std" />
               <input placeholder="Notas adicionales..." value={newMed.notes} onChange={e => setNewMed({...newMed, notes: e.target.value})} className="input-std col-span-2" />
             </div>
             <button onClick={addManualMed} className="w-full py-2.5 bg-slate-800 dark:bg-slate-700 text-white rounded-lg font-bold text-sm hover:bg-slate-700 flex items-center justify-center gap-2 transition-colors">
-               <Plus size={16}/> Agregar a la lista
+               <Plus size={16}/> Agregar Manualmente
             </button>
           </div>
 
