@@ -5,7 +5,7 @@ import {
   Calendar, MapPin, ChevronRight, Sun, Moon, Bell, CloudRain, Cloud, 
   ShieldCheck, Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
   Stethoscope, UserCircle, ArrowRight, AlertTriangle, FileText,
-  Clock, TrendingUp, UserPlus, Zap
+  Clock, TrendingUp, UserPlus, Zap, Activity, LogOut // <--- AQUÍ ESTABAN LOS FALTANTES
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
@@ -331,8 +331,7 @@ const Dashboard: React.FC = () => {
 
   const antiFatigueBg = "bg-[#F2F9F7] dark:bg-slate-950"; 
   
-  // Hero Móvil: Usa el color solicitado (#CDEDE0) degradado suavemente
-  // Se agregó 'border-white/5' para eliminar la línea negra.
+  // CORRECCIÓN LINEA NEGRA: border-white/5 agregado
   const mobileHeroStyle = isNight 
     ? { bg: "bg-gradient-to-br from-slate-900 to-teal-950 border border-white/5", text: "text-teal-100", darkText: false }
     : { bg: "bg-gradient-to-br from-[#CDEDE0] to-[#A0DBC6] border border-white/5", text: "text-teal-900", darkText: true };
