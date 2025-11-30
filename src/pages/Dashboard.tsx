@@ -40,7 +40,7 @@ const AssistantButtonSmall = ({ onClick }: { onClick: () => void }) => (
   </button>
 );
 
-// --- COMPONENTE RELOJ ELEGANTE ---
+// --- COMPONENTE RELOJ ELEGANTE (PC) ---
 const LiveClockDesktop = () => {
   const [time, setTime] = useState(new Date());
   useEffect(() => {
@@ -64,15 +64,15 @@ const LiveClockDesktop = () => {
   );
 };
 
-// --- COMPONENTE RELOJ (MOVIL) ---
-const LiveClockMobile = () => {
+// --- COMPONENTE RELOJ (MOVIL - ADAPTADO A FONDO CLARO) ---
+const LiveClockMobile = ({ isDark }: { isDark: boolean }) => {
     const [time, setTime] = useState(new Date());
     useEffect(() => {
       const timer = setInterval(() => setTime(new Date()), 1000);
       return () => clearInterval(timer);
     }, []);
     return (
-        <div className="flex flex-col items-start mt-3 border-t border-white/20 pt-2 w-full">
+        <div className={`flex flex-col items-start mt-3 border-t pt-2 w-full ${isDark ? 'border-white/20' : 'border-teal-800/20'}`}>
             <div className="text-3xl font-bold tracking-widest tabular-nums leading-none flex items-baseline">
             {format(time, 'h:mm')}
             <span className="text-sm ml-1 font-medium opacity-60">{format(time, 'a')}</span>
@@ -319,24 +319,29 @@ const Dashboard: React.FC = () => {
     }
   }, []);
 
-  const getWeatherIcon = () => {
+  const getWeatherIcon = (dark: boolean) => {
       const animClass = "animate-pulse duration-[3000ms]"; 
-      if (weather.code >= 51 && weather.code <= 67) return <CloudRain size={56} className={`text-blue-200 opacity-90 ${animClass}`}/>;
-      if (weather.code >= 1 && weather.code <= 3) return <Cloud size={56} className={`text-slate-200 opacity-90 ${animClass}`}/>;
+      if (weather.code >= 51 && weather.code <= 67) return <CloudRain size={56} className={`text-blue-300 opacity-90 ${animClass}`}/>;
+      if (weather.code >= 1 && weather.code <= 3) return <Cloud size={56} className={`${dark ? 'text-slate-200' : 'text-teal-700'} opacity-80 ${animClass}`}/>;
       return isNight 
         ? <Moon size={56} className={`text-indigo-200 opacity-90 ${animClass}`}/> 
-        : <Sun size={56} className={`text-yellow-300 opacity-90 ${animClass}`}/>;
+        : <Sun size={56} className={`${dark ? 'text-yellow-300' : 'text-amber-400'} opacity-90 ${animClass}`}/>;
   };
 
-  // --- GRADIENTES DINÁMICOS PANORÁMICOS ---
-  // Left: Light | Center: Turquoise | Right: Dark Green
+  // --- PALETA DE COLORES "ANTI-FATIGA VISUAL" (#CDEDE0) ---
+  const antiFatigueBg = "bg-[#F2F9F7] dark:bg-slate-950"; // Fondo general ultra suave (menta al 20%)
+  
+  // Hero Móvil: Usa el color solicitado (#CDEDE0) degradado suavemente
+  const mobileHeroStyle = isNight 
+    ? { bg: "bg-gradient-to-br from-slate-900 to-teal-950", text: "text-teal-100", darkText: false }
+    : { bg: "bg-gradient-to-br from-[#CDEDE0] to-[#A0DBC6]", text: "text-teal-900", darkText: true };
+
+  // PC Panorámico
   const panoramicGradient = isNight
     ? "bg-gradient-to-r from-slate-900 via-teal-900 to-emerald-950" 
     : "bg-gradient-to-r from-emerald-50 via-teal-500 to-teal-800";
 
-  // Text Colors adjustments
   const leftTextColor = isNight ? "text-slate-300" : "text-teal-800";
-  const rightTextColor = "text-white"; 
 
   const fetchData = async () => {
       try {
@@ -409,17 +414,17 @@ const Dashboard: React.FC = () => {
     return acc;
   }, {} as Record<string, DashboardAppointment[]>);
 
-  // Stats para la sección derecha
   const todayAppointments = appointments.filter(a => isToday(parseISO(a.start_time)));
   const pendingCount = todayAppointments.filter(a => a.status === 'scheduled').length;
   const completedCount = todayAppointments.filter(a => a.status === 'completed').length;
-  const totalToday = todayAppointments.length || 1; // avoid div by 0
+  const totalToday = todayAppointments.length || 1; 
   const progressPercent = Math.round((completedCount / totalToday) * 100);
 
   return (
-    <div className="min-h-screen bg-gray-50 dark:bg-slate-950 font-sans w-full overflow-x-hidden flex flex-col relative">
+    // AQUÍ SE APLICA EL FONDO ANTI-FATIGA (#F2F9F7)
+    <div className={`min-h-screen ${antiFatigueBg} font-sans w-full overflow-x-hidden flex flex-col relative transition-colors duration-500`}>
       
-      {/* HEADER MÓVIL (INTACTO) */}
+      {/* HEADER MÓVIL */}
       <div className="md:hidden px-5 pt-6 pb-4 flex justify-between items-center bg-white dark:bg-slate-900 sticky top-0 z-30 border-b border-gray-100 dark:border-slate-800 shadow-sm w-full">
         <div className="flex items-center gap-3">
             <img src="/pwa-192x192.png" alt="Logo" className="w-9 h-9 rounded-lg object-cover shadow-sm" />
@@ -460,7 +465,6 @@ const Dashboard: React.FC = () => {
                     <h1 className="text-2xl font-bold text-slate-800 dark:text-white leading-tight">
                         {dynamicGreeting.greeting}
                     </h1>
-                    {/* BOTÓN ASISTENTE REUBICADO AQUÍ */}
                     <div className="hidden md:block">
                         <AssistantButtonSmall onClick={() => setIsAssistantOpen(true)} />
                     </div>
@@ -477,14 +481,14 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* -------------------------------------------------------- */}
-        {/* VERSIÓN MÓVIL (BLOQUE HERO ORIGINAL - NO TOCAR)          */}
+        {/* VERSIÓN MÓVIL (COLOR #CDEDE0 ADAPTADO)                   */}
         {/* -------------------------------------------------------- */}
         <div className="md:hidden">
-            <div className={`bg-gradient-to-br from-teal-500 to-teal-700 rounded-3xl p-6 text-white shadow-lg relative overflow-hidden flex justify-between items-center transition-all duration-500 w-full min-h-[140px]`}>
+            <div className={`${mobileHeroStyle.bg} ${mobileHeroStyle.text} rounded-3xl p-6 shadow-lg relative overflow-hidden flex justify-between items-center transition-all duration-500 w-full min-h-[140px]`}>
                 <div className="relative z-10 flex-1">
                     <div className="flex items-center gap-2 mb-2">
-                        <div className="bg-white/20 backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1.5">
-                            <MapPin size={11} className="text-white"/>
+                        <div className={`backdrop-blur-md px-2 py-1 rounded-md flex items-center gap-1.5 ${mobileHeroStyle.darkText ? 'bg-teal-900/10' : 'bg-white/20'}`}>
+                            <MapPin size={11} className={mobileHeroStyle.darkText ? "text-teal-900" : "text-white"}/>
                             <span className="text-[10px] font-bold uppercase tracking-wide">Consultorio</span>
                         </div>
                     </div>
@@ -492,32 +496,35 @@ const Dashboard: React.FC = () => {
                         <h2 className="text-5xl font-bold tracking-tighter leading-none">{weather.temp}°</h2>
                         <div className="mb-1">
                             <p className="text-lg font-bold leading-none">{todayAppointments.length} Citas</p>
-                            <p className={`text-xs font-medium text-teal-100 opacity-90`}>Hoy</p>
+                            <p className="text-xs font-medium opacity-90">Hoy</p>
                         </div>
                     </div>
-                    <LiveClockMobile />
                     
-                    <button onClick={() => setIsAssistantOpen(true)} className="mt-4 py-2.5 px-4 w-full justify-center group flex items-center gap-3 bg-white/10 hover:bg-white/20 backdrop-blur-md border border-white/20 rounded-full transition-all active:scale-95 shadow-sm hover:shadow-lg">
-                        <Bot size={18} className="text-white" />
-                        <span className="text-white font-bold text-xs tracking-wide">Asistente Inteligente V4</span>
+                    <LiveClockMobile isDark={!mobileHeroStyle.darkText} />
+                    
+                    <button 
+                        onClick={() => setIsAssistantOpen(true)} 
+                        className={`mt-4 py-2.5 px-4 w-full justify-center group flex items-center gap-3 backdrop-blur-md border rounded-full transition-all active:scale-95 shadow-sm hover:shadow-lg ${mobileHeroStyle.darkText ? 'bg-teal-900/10 border-teal-900/20 hover:bg-teal-900/20' : 'bg-white/10 border-white/20 hover:bg-white/20'}`}
+                    >
+                        <Bot size={18} className={mobileHeroStyle.darkText ? "text-teal-900" : "text-white"} />
+                        <span className={`font-bold text-xs tracking-wide ${mobileHeroStyle.darkText ? "text-teal-900" : "text-white"}`}>Asistente Inteligente V4</span>
                     </button>
                 </div>
                 <div className="relative z-10 transform translate-x-2 drop-shadow-lg transition-transform duration-1000">
-                    {getWeatherIcon()}
+                    {getWeatherIcon(!mobileHeroStyle.darkText)}
                 </div>
-                <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/10 rounded-full blur-3xl animate-pulse"></div>
+                <div className="absolute -right-10 -top-10 w-40 h-40 bg-white/20 rounded-full blur-3xl animate-pulse"></div>
             </div>
         </div>
 
         {/* -------------------------------------------------------- */}
         {/* VERSIÓN PC: PANORÁMICO DEGRADADO CON SORPRESA A LA DERECHA */}
         {/* -------------------------------------------------------- */}
-        <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-2xl h-56 relative overflow-hidden transition-all duration-1000 border border-slate-200/20`}>
+        <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-xl h-56 relative overflow-hidden transition-all duration-1000 border border-slate-200/20`}>
             
-            {/* TEXTURA SUTIL DE FONDO */}
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
 
-            {/* SECCIÓN 1: CLIMA (Izquierda - Claro) */}
+            {/* SECCIÓN 1: CLIMA */}
             <div className="w-1/3 p-8 flex flex-col justify-between relative z-10 border-r border-white/5">
                 <div className="flex justify-between items-start">
                     <div className={`flex items-center gap-2 ${leftTextColor}`}>
@@ -525,7 +532,7 @@ const Dashboard: React.FC = () => {
                         <span className="text-xs font-bold uppercase tracking-wider">Consultorio</span>
                     </div>
                     <div className="transform scale-110 drop-shadow-md">
-                        {getWeatherIcon()}
+                        {getWeatherIcon(isNight)}
                     </div>
                 </div>
                 <div>
@@ -534,30 +541,25 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
 
-            {/* SECCIÓN 2: RELOJ (Centro - Turquesa Vibrante) */}
+            {/* SECCIÓN 2: RELOJ CENTRAL */}
             <div className="w-1/3 flex items-center justify-center relative z-10">
                 <LiveClockDesktop />
-                {/* Efecto de luz central */}
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/10 rounded-full blur-[80px] pointer-events-none"></div>
             </div>
 
-            {/* SECCIÓN 3: PULSO DEL CONSULTORIO (Derecha - Oscuro - SORPRESA) */}
+            {/* SECCIÓN 3: PULSO DEL CONSULTORIO */}
             <div className="w-1/3 p-8 relative z-10 flex flex-col justify-between text-right border-l border-white/5">
-                
-                {/* Header de la sección */}
                 <div className="flex justify-end items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-teal-200/80">Pulso del Día</span>
                     <Activity size={14} className="text-teal-300 animate-pulse" />
                 </div>
 
-                {/* Contenido Principal: Progreso Visual */}
                 <div className="flex items-center justify-end gap-6">
                     <div className="text-right">
                         <div className="text-4xl font-bold text-white leading-none">{pendingCount}</div>
                         <div className="text-xs text-teal-200 font-medium">Pendientes</div>
                     </div>
                     
-                    {/* Anillo de Progreso (SVG) */}
                     <div className="relative w-16 h-16">
                         <svg className="w-full h-full transform -rotate-90">
                             <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-teal-900/50" />
@@ -574,7 +576,6 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
 
-                {/* Footer: Estimación de salida */}
                 <div className="mt-auto pt-4 flex items-center justify-end gap-2 text-teal-100/70 text-xs">
                     <LogOut size={12} />
                     <span>Salida est: {format(addDays(new Date(), 0).setHours(new Date().getHours() + (pendingCount * 0.5)), 'h:mm a')}</span>
@@ -583,10 +584,20 @@ const Dashboard: React.FC = () => {
 
         </div>
 
-        {/* RESTO DEL CONTENIDO (AGENDA Y WIDGETS) */}
+        {/* AGENDA Y WIDGETS */}
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            
             <div className="lg:col-span-2 space-y-6">
+                <button onClick={() => setIsUploadModalOpen(true)} className="md:hidden w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex items-center justify-between shadow-sm active:scale-95 transition-transform">
+                  <div className="flex items-center gap-3">
+                    <div className="bg-teal-50 dark:bg-teal-900/30 p-3 rounded-full text-brand-teal"><Upload size={20} /></div>
+                    <div className="text-left">
+                      <p className="font-bold text-slate-800 dark:text-white text-sm">Subir Archivos</p>
+                      <p className="text-xs text-slate-500">Gestión documental</p>
+                    </div>
+                  </div>
+                  <ChevronRight size={18} className="text-slate-300" />
+                </button>
+
                 <section className="w-full">
                     <div className="flex justify-between items-center mb-4 px-1">
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
