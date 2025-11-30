@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { X, Plus, Trash2, FileText, Printer, Share2, Mic, StopCircle, Loader2, Sparkles, AlertCircle, Edit3 } from 'lucide-react';
+import { X, Plus, Trash2, FileText, Printer, Share2, Mic, StopCircle, Loader2, Sparkles, Edit3, Eraser } from 'lucide-react';
 import { toast } from 'sonner';
 import { MedicationItem, DoctorProfile } from '../types';
 import { pdf } from '@react-pdf/renderer';
@@ -18,45 +18,46 @@ interface QuickRxModalProps {
 const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTranscript = '', patientName, doctorProfile }) => {
   const [medications, setMedications] = useState<MedicationItem[]>([]);
   const [isProcessingAI, setIsProcessingAI] = useState(false);
-  const [rawText, setRawText] = useState(''); // Texto editable
   
-  // Estado para el formulario manual
+  // Este es el texto que el médico puede editar manualmente
+  const [rawText, setRawText] = useState('');
+  
+  // Estado para el formulario manual inferior
   const [newMed, setNewMed] = useState({ name: '', details: '', frequency: '', duration: '', notes: '' });
 
   // Hook de voz
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
 
-  // Sincronizar transcripción de voz con el cuadro de texto
+  // 1. SINCRONIZACIÓN EN TIEMPO REAL: Lo que escuchas se escribe en el editor
   useEffect(() => {
-    if (isListening && transcript) {
+    if (isListening) {
       setRawText(transcript);
     }
   }, [transcript, isListening]);
 
-  // Cargar texto inicial si existe
+  // 2. Carga inicial si viene de otra pantalla
   useEffect(() => {
-    if (isOpen && initialTranscript) {
+    if (isOpen && initialTranscript && !rawText) {
       setRawText(initialTranscript);
     }
   }, [isOpen, initialTranscript]);
 
   const handleExtractFromText = async () => {
     if (!rawText.trim()) {
-      toast.error("El campo de texto está vacío");
+      toast.error("El cuadro de texto está vacío. Dicte o escriba algo.");
       return;
     }
     
     setIsProcessingAI(true);
     try {
-      // Enviamos el texto (posiblemente corregido por el doctor)
+      // Enviamos el texto (ya corregido por el doctor si fue necesario)
       const extractedMeds = await GeminiMedicalService.extractMedications(rawText);
       
       if (extractedMeds && extractedMeds.length > 0) {
-        // Agregamos los nuevos sin borrar los anteriores si ya había
         setMedications(prev => [...prev, ...extractedMeds]);
         toast.success(`${extractedMeds.length} medicamentos procesados`);
-        setRawText(''); // Limpiamos el campo para la siguiente orden
-        resetTranscript();
+        // Opcional: Limpiar el texto si fue exitoso para dictar el siguiente bloque
+        // setRawText(''); 
       } else {
         toast.warning("No se detectaron medicamentos. Verifique la redacción.");
       }
@@ -71,8 +72,9 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
   const handleMicToggle = () => {
     if (isListening) {
       stopListening();
-      // No procesamos automáticamente, dejamos que el usuario revise el texto primero
+      // Al parar, NO procesamos automáticamente. Dejamos que el médico revise el texto.
     } else {
+      setRawText(''); // Limpiamos para nueva grabación
       resetTranscript();
       startListening();
     }
@@ -147,87 +149,103 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
         {/* BODY */}
         <div className="p-6 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950">
           
-          {/* --- ZONA DE DICTADO Y EDICIÓN --- */}
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm mb-6">
+          {/* --- ZONA PRINCIPAL: DICTADO Y EDICIÓN --- */}
+          <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border-2 border-slate-200 dark:border-slate-800 shadow-sm mb-6 relative transition-all focus-within:border-teal-500 ring-offset-2">
              
-             <div className="flex items-center justify-between mb-3">
-                <h4 className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
-                   <Edit3 size={14}/> Dictado / Texto Libre
-                </h4>
-                {/* Botón de Micrófono */}
+             {/* Barra de Herramientas del Editor */}
+             <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800 pb-2">
+                <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
+                   <Edit3 size={14} className="text-teal-600"/> 
+                   {isListening ? 'Escuchando...' : 'Editor de Texto (Corregir aquí)'}
+                </label>
+                
+                <div className="flex gap-2">
+                   {rawText && (
+                      <button onClick={() => setRawText('')} className="text-xs text-red-400 hover:text-red-600 flex items-center gap-1" title="Borrar texto">
+                         <Eraser size={14}/> Borrar
+                      </button>
+                   )}
+                </div>
+             </div>
+
+             {/* ÁREA DE TEXTO ENORME PARA EDITAR */}
+             <div className="relative">
+                <textarea
+                    value={rawText}
+                    onChange={(e) => setRawText(e.target.value)}
+                    placeholder='Presione el micrófono y dicte: "Paracetamol 500mg cada 8 horas por 3 días..."'
+                    className="w-full bg-transparent text-lg text-slate-700 dark:text-slate-200 font-medium outline-none resize-none min-h-[100px] leading-relaxed placeholder:text-slate-300"
+                    autoFocus
+                />
+                
+                {/* Botón Flotante de Micrófono (Dentro del área) */}
                 <button 
                    onClick={handleMicToggle}
-                   className={`flex items-center gap-2 px-3 py-1.5 rounded-full text-xs font-bold transition-all ${isListening ? 'bg-red-100 text-red-600 animate-pulse border border-red-200' : 'bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-teal-50 hover:text-teal-600'}`}
+                   className={`absolute bottom-0 right-0 p-3 rounded-full shadow-lg transition-all transform hover:scale-110 ${isListening ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
+                   title={isListening ? "Detener grabación" : "Iniciar dictado"}
                 >
-                   {isListening ? <><StopCircle size={14}/> Detener</> : <><Mic size={14}/> Dictar</>}
+                   {isListening ? <StopCircle size={24} /> : <Mic size={24} />}
                 </button>
              </div>
 
-             {/* TEXTAREA EDITABLE */}
-             <textarea
-                value={rawText}
-                onChange={(e) => setRawText(e.target.value)}
-                placeholder="Dicte o escriba aquí (Ej: Paracetamol 500mg cada 8 horas...)"
-                className="w-full p-4 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-xl text-sm focus:ring-2 focus:ring-teal-500 outline-none min-h-[80px] resize-none font-medium text-slate-700 dark:text-slate-200"
-             />
-
-             {/* BOTÓN PROCESAR IA */}
-             <button 
-                onClick={handleExtractFromText}
-                disabled={isProcessingAI || !rawText.trim()}
-                className="w-full mt-3 py-2.5 bg-gradient-to-r from-teal-600 to-teal-500 text-white rounded-lg font-bold text-sm shadow-md hover:shadow-lg disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2 transition-all active:scale-95"
-             >
-                {isProcessingAI ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18}/>}
-                {isProcessingAI ? "Analizando..." : "Procesar Medicamentos"}
-             </button>
+             {/* Botón de Acción Principal */}
+             <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button 
+                    onClick={handleExtractFromText}
+                    disabled={isProcessingAI || !rawText.trim()}
+                    className="w-full py-3 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                    {isProcessingAI ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18} className="text-yellow-400"/>}
+                    {isProcessingAI ? "IA Analizando..." : "Generar Receta Estructurada"}
+                </button>
+             </div>
           </div>
 
-          {/* LISTA DE MEDICAMENTOS */}
-          <div className="mb-6 space-y-3">
-            <div className="flex justify-between items-end mb-2 px-1">
-               <h4 className="text-xs font-bold text-slate-400 uppercase">Medicamentos ({medications.length})</h4>
-               {medications.length > 0 && (
-                  <button onClick={() => setMedications([])} className="text-xs text-red-500 hover:underline">Borrar todo</button>
-               )}
-            </div>
-
-            {medications.length === 0 ? (
-              <div className="text-center py-6 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50/50">
-                <p className="text-slate-400 text-sm">La lista está vacía.</p>
-              </div>
-            ) : (
-              medications.map((med, idx) => (
-                <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex justify-between items-start group hover:border-teal-200 transition-colors animate-in fade-in slide-in-from-bottom-2">
-                  <div>
-                    <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                       <span className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{idx + 1}</span>
-                       {med.drug || med.name} <span className="text-xs font-normal text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{med.details}</span>
-                    </h4>
-                    <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 pl-8 font-medium">
-                       {med.frequency} • {med.duration}
-                    </p>
-                    {med.notes && <p className="text-xs text-slate-400 mt-1 pl-8 italic">"{med.notes}"</p>}
-                  </div>
-                  <button onClick={() => removeMed(idx)} className="text-slate-300 hover:text-red-500 transition-colors p-2"><Trash2 size={18}/></button>
+          {/* LISTA DE MEDICAMENTOS (RESULTADO) */}
+          <div className="mb-6">
+            <h4 className="text-xs font-bold text-slate-400 uppercase mb-3 px-1">Medicamentos Listos ({medications.length})</h4>
+            <div className="space-y-3">
+                {medications.length === 0 ? (
+                <div className="text-center py-6 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50/50">
+                    <p className="text-slate-400 text-sm">La lista está vacía.</p>
                 </div>
-              ))
-            )}
+                ) : (
+                medications.map((med, idx) => (
+                    <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex justify-between items-start group hover:border-teal-200 transition-colors animate-in fade-in slide-in-from-bottom-2">
+                    <div>
+                        <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
+                        <span className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold">{idx + 1}</span>
+                        {med.drug || med.name} <span className="text-xs font-normal text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded">{med.details}</span>
+                        </h4>
+                        <p className="text-sm text-slate-600 dark:text-slate-300 mt-2 pl-8 font-medium">
+                        {med.frequency} • {med.duration}
+                        </p>
+                        {med.notes && <p className="text-xs text-slate-400 mt-1 pl-8 italic">"{med.notes}"</p>}
+                    </div>
+                    <button onClick={() => removeMed(idx)} className="text-slate-300 hover:text-red-500 transition-colors p-2"><Trash2 size={18}/></button>
+                    </div>
+                ))
+                )}
+            </div>
           </div>
 
-          {/* FORMULARIO MANUAL (COLLAPSIBLE O SIMPLE) */}
-          <div className="bg-white dark:bg-slate-900 p-5 rounded-xl border border-slate-200 dark:border-slate-700">
-            <h4 className="text-xs font-bold text-slate-400 uppercase mb-4">Agregar Manualmente</h4>
-            <div className="grid grid-cols-2 gap-3 mb-3">
+          {/* FORMULARIO MANUAL (SECUNDARIO) */}
+          <details className="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
+            <summary className="p-4 cursor-pointer font-bold text-sm text-slate-600 dark:text-slate-300 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                <span>¿Agregar manualmente?</span>
+                <Plus size={16} className="text-slate-400 group-open:rotate-45 transition-transform"/>
+            </summary>
+            <div className="p-4 pt-0 grid grid-cols-2 gap-3 bg-slate-50/50 dark:bg-slate-900">
               <input placeholder="Medicamento" value={newMed.name} onChange={e => setNewMed({...newMed, name: e.target.value})} className="input-std col-span-2" />
               <input placeholder="Detalles (500mg)" value={newMed.details} onChange={e => setNewMed({...newMed, details: e.target.value})} className="input-std" />
               <input placeholder="Frecuencia (Cada 8h)" value={newMed.frequency} onChange={e => setNewMed({...newMed, frequency: e.target.value})} className="input-std" />
               <input placeholder="Duración (3 días)" value={newMed.duration} onChange={e => setNewMed({...newMed, duration: e.target.value})} className="input-std" />
               <input placeholder="Notas adicionales..." value={newMed.notes} onChange={e => setNewMed({...newMed, notes: e.target.value})} className="input-std col-span-2" />
+              <button onClick={addManualMed} className="col-span-2 w-full py-2.5 bg-slate-800 dark:bg-slate-700 text-white rounded-lg font-bold text-sm hover:bg-slate-700 flex items-center justify-center gap-2 transition-colors">
+                 <Plus size={16}/> Agregar Manualmente
+              </button>
             </div>
-            <button onClick={addManualMed} className="w-full py-2.5 bg-slate-800 dark:bg-slate-700 text-white rounded-lg font-bold text-sm hover:bg-slate-700 flex items-center justify-center gap-2 transition-colors">
-               <Plus size={16}/> Agregar Manualmente
-            </button>
-          </div>
+          </details>
 
         </div>
 
@@ -243,7 +261,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
 
         <style>{`
           .input-std {
-            @apply w-full p-2.5 bg-slate-50 dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all placeholder:text-slate-400;
+            @apply w-full p-2.5 bg-white dark:bg-slate-950 border border-slate-300 dark:border-slate-700 rounded-lg text-sm focus:ring-2 focus:ring-teal-500 outline-none transition-all placeholder:text-slate-400;
           }
         `}</style>
       </div>
