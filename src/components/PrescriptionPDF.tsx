@@ -2,7 +2,7 @@ import React from 'react';
 import { Page, Text, View, Document, StyleSheet, Image, Font } from '@react-pdf/renderer';
 import { MedicationItem } from '../types';
 
-// Registrar fuentes (opcional, usa estándar si falla)
+// Registrar fuentes estándar
 Font.register({
   family: 'Helvetica',
   fonts: [
@@ -35,10 +35,10 @@ const styles = StyleSheet.create({
   medDetails: { fontSize: 10, marginBottom: 2 },
   medInstructions: { fontSize: 9, fontStyle: 'italic', color: '#444' },
 
-  // Estilos para Nota de Evolución (Texto SOAP)
-  sectionBlock: { marginBottom: 10 },
-  sectionTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#333', marginBottom: 3 },
-  sectionBody: { fontSize: 10, lineHeight: 1.5, color: '#444', textAlign: 'justify' },
+  // Estilos para Nota de Evolución (Texto SOAP con títulos amigables)
+  sectionBlock: { marginBottom: 12 }, // Un poco más de espacio entre bloques
+  sectionTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#0f766e', marginBottom: 3, textTransform: 'uppercase' }, // Color turquesa oscuro para subtítulos
+  sectionBody: { fontSize: 10, lineHeight: 1.6, color: '#444', textAlign: 'justify' },
 
   footer: { marginTop: 30, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#ddd', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   signatureSection: { alignItems: 'center', width: '40%' },
@@ -59,17 +59,17 @@ interface PrescriptionPDFProps {
   patientName: string;
   date: string;
   medications?: MedicationItem[];
-  content?: string; // Para modo texto libre
-  documentTitle?: string; // Nuevo: Para cambiar el título dinámicamente
+  content?: string; 
+  documentTitle?: string; 
 }
 
 const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({ 
   doctorName, specialty, license, phone, university, address, logoUrl, signatureUrl, 
   patientName, date, medications, content,
-  documentTitle = "RECETA MÉDICA" // Valor por defecto
+  documentTitle = "RECETA MÉDICA" 
 }) => {
 
-  // Función para embellecer el texto plano (SOAP)
+  // Función TRADUCTORA: Convierte jerga médica (SOAP) a lenguaje paciente
   const formatContent = (text: string) => {
     if (!text) return null;
     const lines = text.split('\n');
@@ -77,30 +77,65 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
     return lines.map((line, index) => {
       const trimmed = line.trim();
       
-      // Detectar secciones clave y darles formato
-      if (trimmed.match(/^(S:|Subjetivo:|O:|Objetivo:|A:|Análisis:|P:|Plan:|Dx:|Diagnóstico:)/i)) {
-        const [title, ...rest] = trimmed.split(':');
+      // S -> RELATO DEL PACIENTE
+      if (trimmed.match(/^(S:|Subjetivo:)/i)) {
+        const [, ...rest] = trimmed.split(':');
         return (
           <View key={index} style={styles.sectionBlock}>
-            <Text style={styles.sectionTitle}>{title.toUpperCase()}:</Text>
+            <Text style={styles.sectionTitle}>RELATO CLÍNICO DEL PACIENTE:</Text>
             <Text style={styles.sectionBody}>{rest.join(':').trim()}</Text>
           </View>
         );
       }
-      // Detectar Plan Paciente / Indicaciones
+      
+      // O -> HALLAZGOS MÉDICOS
+      if (trimmed.match(/^(O:|Objetivo:)/i)) {
+        const [, ...rest] = trimmed.split(':');
+        return (
+          <View key={index} style={styles.sectionBlock}>
+            <Text style={styles.sectionTitle}>HALLAZGOS DE LA EXPLORACIÓN:</Text>
+            <Text style={styles.sectionBody}>{rest.join(':').trim()}</Text>
+          </View>
+        );
+      }
+
+      // A -> DIAGNÓSTICO
+      if (trimmed.match(/^(A:|Análisis:|Dx:|Diagnóstico:)/i)) {
+        const [, ...rest] = trimmed.split(':');
+        return (
+          <View key={index} style={styles.sectionBlock}>
+            <Text style={styles.sectionTitle}>DIAGNÓSTICO MÉDICO:</Text>
+            <Text style={styles.sectionBody}>{rest.join(':').trim()}</Text>
+          </View>
+        );
+      }
+
+      // P -> PLAN A SEGUIR
+      if (trimmed.match(/^(P:|Plan:)/i)) {
+        const [, ...rest] = trimmed.split(':');
+        return (
+          <View key={index} style={styles.sectionBlock}>
+            <Text style={styles.sectionTitle}>TRATAMIENTO A SEGUIR:</Text>
+            <Text style={styles.sectionBody}>{rest.join(':').trim()}</Text>
+          </View>
+        );
+      }
+
+      // PLAN PACIENTE / INDICACIONES (Ya es amigable, solo formato)
       if (trimmed.match(/^(PLAN PACIENTE:|INDICACIONES:)/i)) {
-         const [title, ...rest] = trimmed.split(':');
+         const [, ...rest] = trimmed.split(':');
          return (
-            <View key={index} style={{ marginTop: 10, padding: 8, backgroundColor: '#f9fafb', borderRadius: 4 }}>
-               <Text style={{ ...styles.sectionTitle, color: '#0d9488' }}>{title.toUpperCase()}:</Text>
+            <View key={index} style={{ marginTop: 10, padding: 10, backgroundColor: '#f0fdfa', borderRadius: 4, borderWidth: 1, borderColor: '#ccfbf1' }}>
+               <Text style={{ ...styles.sectionTitle, color: '#0d9488', marginBottom: 4 }}>INDICACIONES IMPORTANTES:</Text>
                <Text style={styles.sectionBody}>{rest.join(':').trim()}</Text>
             </View>
          );
       }
-      // Omitir fecha duplicada en el cuerpo
+
+      // Omitir fecha duplicada
       if (trimmed.startsWith('FECHA:')) return null;
 
-      // Texto normal
+      // Texto normal (párrafos sueltos)
       if (trimmed.length > 0) {
         return <Text key={index} style={styles.sectionBody}>{trimmed}</Text>;
       }
@@ -139,12 +174,10 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
           <Text style={styles.docTitle}>{documentTitle}</Text>
           
           {content ? (
-             // Si hay contenido de texto, usamos el formateador SOAP
              <View>
                 {formatContent(content)}
              </View>
           ) : (
-             // Si hay medicamentos, usamos el formato de receta
              medications?.map((med, i) => (
               <View key={i} style={styles.medication}>
                   <Text style={styles.medName}>
@@ -165,7 +198,7 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
              <Text style={styles.legalText}>
                 {documentTitle === 'RECETA MÉDICA' 
                    ? 'Este documento es una receta médica válida para surtido en farmacia.' 
-                   : 'Este documento es un resumen clínico informativo y forma parte del expediente.'}
+                   : 'Este reporte es para uso informativo del paciente y seguimiento de su tratamiento.'}
              </Text>
           </View>
           <View style={styles.signatureSection}>
