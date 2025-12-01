@@ -4,7 +4,7 @@ import {
   MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
   Stethoscope, Trash2, WifiOff, Save, Share2, Download, Printer,
   Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature, Keyboard,
-  Quote // Nuevo icono para la transcripción
+  Quote, AlertTriangle // Agregado AlertTriangle para visualización de riesgos
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
@@ -57,6 +57,8 @@ const ConsultationView: React.FC = () => {
   const [isAttachmentsOpen, setIsAttachmentsOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
+  // MODIFICACIÓN 1: Referencia directa al textarea para scroll pasivo
+  const textareaRef = useRef<HTMLTextAreaElement>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -100,8 +102,12 @@ const ConsultationView: React.FC = () => {
     }
   }, [selectedPatient]); 
 
+  // MODIFICACIÓN 2: Lógica de Scroll Pasivo (High Performance)
+  // Reemplazamos scrollIntoView por manipulación de scrollTop en el textarea
   useEffect(() => { 
-    if (isListening && transcriptEndRef.current) transcriptEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    if (isListening && textareaRef.current) {
+        textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
+    }
     if (transcript) localStorage.setItem('mediscribe_local_draft', transcript);
   }, [transcript, isListening]);
 
@@ -271,7 +277,6 @@ const ConsultationView: React.FC = () => {
         {/* --- ÁREA DE MICROFONO EXPANDIDA Y MEJORADA --- */}
         <div className={`flex-1 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-4 relative transition-colors min-h-[300px] ${!isOnline ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/10' : (isListening?'border-red-400 bg-red-50 dark:bg-red-900/10':'border-slate-200 dark:border-slate-700')}`}>
             
-            {/* Si no estamos grabando y no hay texto, mostramos el microfono grande para invitar */}
             {!transcript && (
                 <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none opacity-50">
                     <div className={`w-20 h-20 rounded-full flex items-center justify-center mb-4 ${!isOnline ? 'bg-amber-100 text-amber-500' : 'bg-slate-100 dark:bg-slate-800 text-slate-300'}`}>
@@ -283,7 +288,6 @@ const ConsultationView: React.FC = () => {
                 </div>
             )}
 
-            {/* MENSAJE DE AYUDA OFFLINE */}
             {!isOnline && (
                 <div className="relative w-full z-10 bg-white/80 dark:bg-slate-800/80 p-2 rounded-lg text-xs text-center text-amber-700 dark:text-amber-400 mb-2 border border-amber-200 dark:border-amber-800">
                     <Keyboard size={14} className="inline mr-1"/>
@@ -291,9 +295,10 @@ const ConsultationView: React.FC = () => {
                 </div>
             )}
 
-            {/* ÁREA DE TEXTO GIGANTE Y LEGIBLE */}
+            {/* MODIFICACIÓN 3: Textarea con ref vinculada para auto-scroll */}
             <textarea 
-                className={`w-full flex-1 bg-transparent p-2 rounded-xl text-base leading-relaxed resize-none focus:outline-none dark:text-slate-200 z-10 ${!transcript ? 'opacity-0' : 'opacity-100'}`}
+                ref={textareaRef}
+                className={`w-full flex-1 bg-transparent p-2 rounded-xl text-base leading-relaxed resize-none focus:outline-none dark:text-slate-200 z-10 custom-scrollbar ${!transcript ? 'opacity-0' : 'opacity-100'}`}
                 value={transcript}
                 onChange={(e) => setTranscript(e.target.value)}
                 placeholder="" 
@@ -301,7 +306,6 @@ const ConsultationView: React.FC = () => {
             
             <div ref={transcriptEndRef}/>
             
-            {/* BOTONES DE CONTROL */}
             <div className="flex w-full gap-2 mt-auto flex-col xl:flex-row z-20 pt-4">
                 
                 <button 
@@ -354,6 +358,19 @@ const ConsultationView: React.FC = () => {
                                 <div>
                                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Nota de Evolución</h1>
                                     <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide">{selectedSpecialty}</p>
+                                    
+                                    {/* MODIFICACIÓN 4: VISUALIZACIÓN DE RIESGO */}
+                                    {generatedNote.risk_analysis && (
+                                        <div className={`mt-2 inline-flex items-center gap-2 px-3 py-1 rounded-full text-xs font-bold border ${
+                                            generatedNote.risk_analysis.level === 'Alto' ? 'bg-red-100 text-red-700 border-red-200 dark:bg-red-900/30 dark:text-red-300' :
+                                            generatedNote.risk_analysis.level === 'Medio' ? 'bg-amber-100 text-amber-700 border-amber-200 dark:bg-amber-900/30 dark:text-amber-300' :
+                                            'bg-green-100 text-green-700 border-green-200 dark:bg-green-900/30 dark:text-green-300'
+                                        }`}>
+                                            <AlertTriangle size={12}/>
+                                            Riesgo {generatedNote.risk_analysis.level}: {generatedNote.risk_analysis.reason}
+                                        </div>
+                                    )}
+
                                     <div className="flex items-center gap-4 text-xs text-slate-400 mt-1">
                                             <span className="flex items-center gap-1"><Calendar size={12}/> {new Date().toLocaleDateString()}</span>
                                     </div>
@@ -368,7 +385,7 @@ const ConsultationView: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* --- NUEVA SECCIÓN: TRANSCRIPCIÓN INTELIGENTE (CHAT VISUAL) --- */}
+                            {/* --- TRANSCRIPCIÓN INTELIGENTE (CHAT VISUAL) --- */}
                             {generatedNote.conversation_log && generatedNote.conversation_log.length > 0 && (
                                 <div className="mb-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -406,6 +423,7 @@ const ConsultationView: React.FC = () => {
                         </div>
                       )}
 
+                      {/* ... (Resto del renderizado sin cambios) ... */}
                       {activeTab==='record' && !generatedNote.soap && generatedNote.clinicalNote && (
                           <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 overflow-hidden">
                                 <div className="bg-yellow-50 text-yellow-800 p-2 text-sm rounded mb-2 dark:bg-yellow-900/30 dark:text-yellow-200">Formato antiguo.</div>
