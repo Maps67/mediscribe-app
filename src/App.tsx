@@ -15,7 +15,6 @@ import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
 import Dashboard from './pages/Dashboard';
 import ReportsView from './pages/ReportsView';
-// CAMBIO CTO: Importamos la nueva Vista de Página, no el componente obsoleto
 import AgendaView from './pages/AgendaView';
 import PrivacyPolicy from './pages/PrivacyPolicy';
 import ReloadPrompt from './components/ReloadPrompt';
@@ -34,11 +33,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
   
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative">
-      
-      {/* --- INYECCIÓN SEGURA DEL MONITOR DE PRUEBA --- */}
       <TrialMonitor />
-      {/* ------------------------------------------------ */}
-
       <div className="flex flex-1 overflow-hidden relative">
           <div className="hidden md:flex z-20 h-full">
             <Sidebar isOpen={true} onClose={() => {}} onLogout={onLogout} />
@@ -57,14 +52,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
               <Routes>
                 <Route path="/" element={<Dashboard />} />
                 <Route path="/consultation" element={<ConsultationView />} />
-                
-                {/* --- CAMBIO CTO: AGENDA V3.2 --- */}
-                {/* Ruta canónica para la nueva agenda */}
                 <Route path="/agenda" element={<AgendaView />} />
-                {/* Redirección de seguridad: Si el Sidebar busca /calendar, lo enviamos a /agenda */}
                 <Route path="/calendar" element={<Navigate to="/agenda" replace />} />
-                {/* -------------------------------- */}
-
                 <Route path="/patients" element={<PatientsView />} />
                 <Route path="/reports" element={<ReportsView />} />
                 <Route path="/card" element={<DigitalCard />} />
@@ -87,7 +76,13 @@ const App: React.FC = () => {
   const [session, setSession] = useState<Session | null>(null);
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
-  const [isRecoveryFlow, setIsRecoveryFlow] = useState(false);
+  
+  // SOLUCIÓN DEFINITIVA: Inicialización Lazy basada en URL
+  // Si la URL tiene el hash de recuperación, arrancamos en modo recuperación INMEDIATAMENTE.
+  // Esto evita que el Dashboard se renderice ni por un milisegundo.
+  const [isRecoveryFlow, setIsRecoveryFlow] = useState(() => 
+    window.location.hash.includes('type=recovery')
+  );
   
   const [isClosing, setIsClosing] = useState(false);
   const [closingName, setClosingName] = useState('');
@@ -99,6 +94,10 @@ const App: React.FC = () => {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         if (mounted) {
           setSession(initialSession);
+          // Si ya teníamos sesión pero detectamos hash de recuperación, mantenemos el flag en true
+          if (window.location.hash.includes('type=recovery')) {
+             setIsRecoveryFlow(true);
+          }
           setLoading(false);
         }
       } catch (error) {
@@ -111,6 +110,7 @@ const App: React.FC = () => {
       if (!mounted) return;
 
       if (event === 'PASSWORD_RECOVERY') {
+        // Evento explícito de recuperación
         setIsRecoveryFlow(true);
       } 
       else if (event === 'SIGNED_OUT') {
@@ -119,9 +119,19 @@ const App: React.FC = () => {
         setIsClosing(false); 
       } 
       else if (event === 'SIGNED_IN') {
-        window.history.replaceState(null, '', '/');
+        // LÓGICA CRÍTICA DE SEMÁFORO:
+        // Verificamos si esto es un login normal o parte del flujo de recuperación
+        const isRecoveryHash = window.location.hash.includes('type=recovery');
+        
+        if (isRecoveryHash) {
+           // Es una recuperación: MANTENEMOS el flujo activo y NO limpiamos la URL todavía
+           setIsRecoveryFlow(true);
+        } else {
+           // Es un login normal: Limpiamos URL y mostramos Dashboard
+           window.history.replaceState(null, '', '/');
+           setIsRecoveryFlow(false);
+        }
         setSession(newSession);
-        setIsRecoveryFlow(false);
       }
       else if (event === 'TOKEN_REFRESHED') {
         setSession(newSession);
@@ -177,12 +187,23 @@ const App: React.FC = () => {
       );
   }
 
+  // AQUÍ ESTÁ LA CLAVE: Si isRecoveryFlow es true, mostramos AuthView aunque exista sesión.
   if (!session || isRecoveryFlow) {
     return (
       <ThemeProvider>
         <Toaster position="top-center" richColors />
         <ReloadPrompt />
-        <AuthView authService={{ supabase }} onLoginSuccess={() => {}} forceResetMode={isRecoveryFlow} onPasswordResetSuccess={() => setIsRecoveryFlow(false)}/>
+        <AuthView 
+            authService={{ supabase }} 
+            onLoginSuccess={() => {}} 
+            forceResetMode={isRecoveryFlow} 
+            onPasswordResetSuccess={() => {
+                // Solo cuando el usuario completa el cambio de password exitosamente,
+                // apagamos el modo recuperación y permitimos el acceso al Dashboard.
+                setIsRecoveryFlow(false);
+                window.history.replaceState(null, '', '/');
+            }}
+        />
       </ThemeProvider>
     );
   }
