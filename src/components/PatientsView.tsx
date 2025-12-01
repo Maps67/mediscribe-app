@@ -3,7 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Search, UserPlus, FileText, Trash2, Edit2, Eye, Calendar, 
   Share2, Download, FolderOpen, Paperclip, MoreVertical, X, 
-  FileCode, Phone, Pill 
+  FileCode, Phone, Pill, ChevronDown, ChevronUp 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Patient, DoctorProfile } from '../types';
@@ -18,14 +18,14 @@ import { InsightsPanel } from './InsightsPanel';
 
 interface PatientData extends Partial<Patient> {
   id: string;
-  name: string; // Usamos 'name' correctamente
+  name: string; 
   age: number | string; 
   gender: string;
   phone?: string;
   email?: string;
   history?: string;
   created_at?: string;
-  curp?: string; // Agregado por si acaso
+  curp?: string; 
 }
 
 interface ConsultationRecord {
@@ -52,7 +52,8 @@ const PatientsView: React.FC = () => {
   const [patientHistory, setPatientHistory] = useState<ConsultationRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  const [showActionsId, setShowActionsId] = useState<string | null>(null);
+  // Estado para expandir tarjeta en móvil (Acordeón)
+  const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
 
   useEffect(() => {
     fetchPatients();
@@ -88,7 +89,7 @@ const PatientsView: React.FC = () => {
   const handleViewHistory = async (patient: PatientData) => {
       setViewingPatient(patient);
       setIsHistoryOpen(true);
-      setIsGalleryOpen(false); // Por defecto abre historial
+      setIsGalleryOpen(false); 
       setLoadingHistory(true);
       setPatientHistory([]); 
 
@@ -102,9 +103,7 @@ const PatientsView: React.FC = () => {
       } finally { setLoadingHistory(false); }
   };
 
-  // NUEVA FUNCIÓN: Abrir directamente la galería
   const handleOpenFiles = (patient: PatientData) => {
-      // Reutilizamos la lógica de historial pero forzamos la galería abierta
       handleViewHistory(patient); 
       setIsGalleryOpen(true);
   };
@@ -176,12 +175,21 @@ const PatientsView: React.FC = () => {
     if (phone) window.open(`tel:${phone}`, '_self');
   };
 
+  const toggleExpand = (id: string) => {
+    if (expandedPatientId === id) {
+        setExpandedPatientId(null); // Cerrar si ya está abierto
+    } else {
+        setExpandedPatientId(id); // Abrir nuevo
+    }
+  };
+
   const filteredPatients = patients.filter(p => 
     (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
     (p.email || '').toLowerCase().includes(searchTerm.toLowerCase())
   );
 
   const renderNoteContent = (summary: string) => { return <FormattedText content={summary} />; };
+
 
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto pb-24 md:pb-6">
@@ -199,7 +207,7 @@ const PatientsView: React.FC = () => {
 
       <div className="bg-white dark:bg-slate-800 rounded-2xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
         
-        {/* --- VISTA ESCRITORIO (TABLA ORIGINAL) --- */}
+        {/* --- VISTA ESCRITORIO (TABLA) --- */}
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
@@ -220,11 +228,10 @@ const PatientsView: React.FC = () => {
                   <td className="p-4 text-sm text-slate-600 dark:text-slate-300">{patient.age} años • {patient.gender}</td>
                   <td className="p-4 text-sm text-slate-600 dark:text-slate-300"><p>{patient.phone || 'Sin teléfono'}</p><p className="text-xs text-slate-400">{patient.email}</p></td>
                   <td className="p-4 relative text-center">
-                    {/* Botones de escritorio */}
                     <div className="flex justify-center gap-2">
-                        <button onClick={() => handleViewHistory(patient)} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg" title="Expediente"><Eye size={18}/></button>
-                        <button onClick={() => setSelectedPatientForRx(patient)} className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg" title="Receta"><Pill size={18}/></button>
-                        <button onClick={() => openEditModal(patient)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit2 size={18}/></button>
+                         <button onClick={() => handleViewHistory(patient)} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg" title="Expediente"><Eye size={18}/></button>
+                         <button onClick={() => setSelectedPatientForRx(patient)} className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg" title="Receta"><Pill size={18}/></button>
+                         <button onClick={() => openEditModal(patient)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg" title="Editar"><Edit2 size={18}/></button>
                     </div>
                   </td>
                 </tr>
@@ -233,66 +240,92 @@ const PatientsView: React.FC = () => {
           </table>
         </div>
 
-        {/* --- VISTA MÓVIL (NUEVA CON 4 BOTONES) --- */}
-        <div className="md:hidden">
-             {filteredPatients.map(patient => (
-                <div key={patient.id} className="p-4 border-b border-slate-100 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors relative">
+        {/* --- VISTA MÓVIL (LISTA COMPACTA EXPANDIBLE) --- */}
+        <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
+             {filteredPatients.map(patient => {
+                const isExpanded = expandedPatientId === patient.id;
+                
+                return (
+                <div key={patient.id} className={`transition-all duration-300 ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/50 pb-2' : 'bg-white dark:bg-slate-800'}`}>
                     
-                    {/* Fila Superior: Info */}
-                    <div className="flex items-center gap-3 cursor-pointer" onClick={() => handleViewHistory(patient)}>
-                        <div className="w-12 h-12 rounded-full bg-teal-50 dark:bg-teal-900/20 text-brand-teal dark:text-teal-400 flex items-center justify-center font-bold text-lg shrink-0 border border-teal-100 dark:border-teal-900/50">
+                    {/* FILA COMPACTA (SIEMPRE VISIBLE) */}
+                    <div 
+                        className="p-4 flex items-center gap-3 cursor-pointer active:bg-slate-100 dark:active:bg-slate-700/50 transition-colors"
+                        onClick={() => toggleExpand(patient.id)}
+                    >
+                        {/* Avatar Pequeño y Elegante */}
+                        <div className="w-10 h-10 rounded-full bg-teal-50 dark:bg-teal-900/20 text-brand-teal dark:text-teal-400 flex items-center justify-center font-bold text-sm shrink-0 border border-teal-100 dark:border-teal-900/50">
                             {getInitials(patient.name)}
                         </div>
-                        <div className="min-w-0 flex-1">
-                            <h3 className="font-bold text-slate-900 dark:text-white truncate text-base">{patient.name || 'Sin Nombre'}</h3>
-                            <div className="flex items-center gap-2 text-sm text-slate-500 dark:text-slate-400 mt-0.5">
-                                <span>{patient.age ? `${patient.age} años` : 'N/A'}</span> • <span>{patient.gender || '-'}</span>
+                        
+                        {/* Info Esencial */}
+                        <div className="flex-1 min-w-0">
+                            <div className="flex justify-between items-center">
+                                <h3 className="font-bold text-slate-900 dark:text-white text-sm truncate pr-2">
+                                    {patient.name || 'Sin Nombre'}
+                                </h3>
+                                <ChevronDown size={16} className={`text-slate-400 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} />
                             </div>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate mt-0.5">
+                                {patient.age ? `${patient.age} años` : 'Edad N/A'} • {patient.gender || '-'}
+                            </p>
                         </div>
                     </div>
 
-                    {/* Fila Inferior: Botones de Acción (Los 4 Fantásticos) */}
-                    <div className="flex justify-between mt-4 px-2">
-                        
-                        {/* 1. LLAMAR */}
-                        <button 
-                            onClick={() => handleCall(patient.phone)} 
-                            className={`flex flex-col items-center gap-1 ${!patient.phone && 'opacity-30'}`}
-                            disabled={!patient.phone}
-                        >
-                            <div className="w-10 h-10 rounded-full bg-green-50 text-green-600 flex items-center justify-center border border-green-100">
-                                <Phone size={20} />
-                            </div>
-                            <span className="text-[10px] font-medium text-slate-500">Llamar</span>
-                        </button>
+                    {/* PANEL DE HERRAMIENTAS (SOLO VISIBLE AL EXPANDIR) */}
+                    {isExpanded && (
+                        <div className="px-4 pb-2 animate-fade-in-down">
+                            <div className="grid grid-cols-4 gap-2">
+                                {/* 1. LLAMAR */}
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleCall(patient.phone); }} 
+                                    disabled={!patient.phone}
+                                    className={`flex flex-col items-center justify-center py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl shadow-sm active:scale-95 transition-all ${!patient.phone && 'opacity-50 grayscale'}`}
+                                >
+                                    <Phone size={18} className="text-green-600 dark:text-green-400 mb-1" />
+                                    <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">Llamar</span>
+                                </button>
 
-                        {/* 2. ARCHIVOS (NUEVO) */}
-                        <button onClick={() => handleOpenFiles(patient)} className="flex flex-col items-center gap-1">
-                            <div className="w-10 h-10 rounded-full bg-blue-50 text-blue-600 flex items-center justify-center border border-blue-100">
-                                <Paperclip size={20} />
-                            </div>
-                            <span className="text-[10px] font-medium text-slate-500">Archivos</span>
-                        </button>
+                                {/* 2. ARCHIVOS */}
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleOpenFiles(patient); }}
+                                    className="flex flex-col items-center justify-center py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl shadow-sm active:scale-95 transition-all"
+                                >
+                                    <Paperclip size={18} className="text-blue-600 dark:text-blue-400 mb-1" />
+                                    <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">Archivos</span>
+                                </button>
 
-                        {/* 3. EXPEDIENTE */}
-                        <button onClick={() => handleViewHistory(patient)} className="flex flex-col items-center gap-1">
-                            <div className="w-10 h-10 rounded-full bg-teal-50 text-brand-teal flex items-center justify-center border border-teal-100">
-                                <Eye size={20} />
-                            </div>
-                            <span className="text-[10px] font-medium text-slate-500">Expediente</span>
-                        </button>
+                                {/* 3. EXPEDIENTE */}
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); handleViewHistory(patient); }}
+                                    className="flex flex-col items-center justify-center py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl shadow-sm active:scale-95 transition-all"
+                                >
+                                    <Eye size={18} className="text-brand-teal dark:text-teal-400 mb-1" />
+                                    <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">Ver</span>
+                                </button>
 
-                         {/* 4. EDITAR */}
-                         <button onClick={() => openEditModal(patient)} className="flex flex-col items-center gap-1">
-                            <div className="w-10 h-10 rounded-full bg-slate-50 text-slate-500 flex items-center justify-center border border-slate-100">
-                                <Edit2 size={20} />
+                                {/* 4. RECETA */}
+                                <button 
+                                    onClick={(e) => { e.stopPropagation(); setSelectedPatientForRx(patient); }}
+                                    className="flex flex-col items-center justify-center py-2 bg-white dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl shadow-sm active:scale-95 transition-all"
+                                >
+                                    <Pill size={18} className="text-purple-600 dark:text-purple-400 mb-1" />
+                                    <span className="text-[9px] font-bold text-slate-600 dark:text-slate-300">Receta</span>
+                                </button>
                             </div>
-                            <span className="text-[10px] font-medium text-slate-500">Editar</span>
-                        </button>
-                    </div>
 
+                            {/* Botón de Editar secundario */}
+                            <button 
+                                onClick={(e) => { e.stopPropagation(); openEditModal(patient); }}
+                                className="w-full mt-2 py-2 text-xs font-medium text-slate-400 hover:text-slate-600 flex items-center justify-center gap-1"
+                            >
+                                <Edit2 size={12} /> Editar Datos del Paciente
+                            </button>
+                        </div>
+                    )}
                 </div>
-             ))}
+             );
+            })}
         </div>
         
         {filteredPatients.length === 0 && <div className="p-10 text-center text-slate-400">No se encontraron pacientes.</div>}
