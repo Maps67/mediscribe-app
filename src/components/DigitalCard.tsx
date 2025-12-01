@@ -5,10 +5,98 @@ import { supabase } from '../lib/supabase';
 import { 
   Share2, Copy, Users, Clock, FileText, 
   Search, BookOpen, Activity, Globe, TrendingUp, 
-  ExternalLink, FlaskConical, Info, Sparkles 
+  ExternalLink, FlaskConical, Info, Sparkles, Download, Stethoscope, Briefcase
 } from 'lucide-react';
 
-// --- COMPONENTE INTERNO: TARJETA DE MISIÓN DEL HUB (NUEVO) ---
+// --- TIPOS (INTEGRACIÓN) ---
+interface MedicalNews {
+  id?: string;
+  title: string;
+  summary: string;
+  source: string;
+  url: string;
+  created_at?: string;
+}
+
+interface UserProfile {
+  full_name: string;
+  specialty: string;
+  phone?: string;
+  license_number?: string;
+  logo_url?: string;
+  website_url?: string;
+  address?: string;
+  university?: string;
+  [key: string]: any;
+}
+
+// --- GENERADOR DE vCARD (NUEVA FUNCIONALIDAD) ---
+const generateVCard = (profile: UserProfile | null) => {
+    if (!profile) return;
+
+    const vCardData = [
+        'BEGIN:VCARD',
+        'VERSION:3.0',
+        `FN:Dr. ${profile.full_name}`,
+        `N:${profile.full_name.split(' ').reverse().join(';')};Dr.;;`,
+        `ORG:MediScribe AI - ${profile.university || 'Consultorio Privado'}`,
+        `TITLE:${profile.specialty}`,
+        `TEL;TYPE=CELL:${profile.phone || ''}`,
+        `URL:${profile.website_url || ''}`,
+        `ADR;TYPE=WORK:;;${profile.address || ''};;;;`,
+        `NOTE:Cédula Profesional: ${profile.license_number || 'N/A'}`,
+        'END:VCARD'
+    ].join('\n');
+
+    const blob = new Blob([vCardData], { type: 'text/vcard;charset=utf-8' });
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.setAttribute('download', `Dr_${profile.full_name.replace(/\s+/g, '_')}.vcf`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+};
+
+// --- COMPONENTE: PERLA CLÍNICA DEL DÍA (NUEVO) ---
+const ClinicalPearlCard = () => {
+    const tips = [
+        { title: "Nefroprotección en DM2", text: "En diabetes tipo 2, los iSGLT2 reducen la progresión renal independientemente del control glucémico (Evidencia A)." },
+        { title: "Hipertensión Enmascarada", text: "El monitoreo ambulatorio (MAPA) detecta HTA enmascarada en el 15-30% de pacientes con lecturas normales en consultorio." },
+        { title: "Duración Antibiótica", text: "La duración corta de terapia antibiótica en neumonía adquirida en comunidad (5 días) es igual de efectiva que cursos largos si hay estabilidad clínica." },
+        { title: "Ezetimiba + Estatinas", text: "Añadir ezetimiba a estatinas reduce eventos cardiovasculares adicionales un 6% vs monoterapia (Estudio IMPROVE-IT)." },
+        { title: "Diagnóstico de EPOC", text: "La espirometría es obligatoria para el diagnóstico clínico de EPOC; los síntomas por sí solos no son suficientes." }
+    ];
+    
+    // Algoritmo de rotación diaria
+    const dayOfYear = Math.floor((new Date().getTime() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
+    const tip = tips[dayOfYear % tips.length];
+
+    return (
+        <div className="bg-gradient-to-r from-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden mb-6 group hover:shadow-2xl transition-all duration-500">
+            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity duration-500 transform group-hover:rotate-12">
+                <Sparkles size={140} />
+            </div>
+            <div className="relative z-10">
+                <div className="flex items-center gap-2 mb-3">
+                    <div className="bg-indigo-500/20 p-1.5 rounded-lg backdrop-blur-sm border border-indigo-500/30 animate-pulse">
+                        <Info size={18} className="text-indigo-300" />
+                    </div>
+                    <h3 className="font-bold text-sm uppercase tracking-widest text-indigo-200">Perla Clínica del Día</h3>
+                </div>
+                <h4 className="text-xl font-bold mb-2 text-white">{tip.title}</h4>
+                <p className="text-slate-300 text-sm leading-relaxed max-w-lg font-medium">
+                    "{tip.text}"
+                </p>
+                <div className="mt-4 flex gap-2">
+                    <span className="text-[10px] bg-white/10 px-2 py-1 rounded text-slate-400 border border-white/10">Evidencia Nivel A</span>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- COMPONENTE INTERNO: TARJETA DE MISIÓN DEL HUB (EXISTENTE) ---
 const HubInfoCard = () => (
   <div className="bg-gradient-to-r from-slate-800 to-slate-900 rounded-2xl p-6 text-white shadow-lg relative overflow-hidden mb-6 group">
     <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity duration-500">
@@ -33,21 +121,26 @@ const DigitalCard: React.FC = () => {
   const navigate = useNavigate();
   
   // Estados
-  const [profile, setProfile] = useState<any>(null);
-  const [newsFeed, setNewsFeed] = useState<any[]>([]); 
+  const [profile, setProfile] = useState<UserProfile | null>(null);
+  const [newsFeed, setNewsFeed] = useState<MedicalNews[]>([]); 
   const [stats, setStats] = useState({ patientsCount: 0, avgDuration: 0, loadingStats: true });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
   // Noticias de Respaldo (Si falla la DB)
-  const STATIC_NEWS = [
+  const STATIC_NEWS: MedicalNews[] = [
     { title: 'FDA Aprueba Voyxact', summary: 'Tratamiento para nefropatía por IgA.', source: 'FDA', url: 'https://www.fda.gov' },
     { title: 'Guías IDSA 2025', summary: 'Manejo de infecciones urinarias.', source: 'IDSA', url: 'https://www.idsociety.org' }
   ];
 
   useEffect(() => {
-    loadData();
-    fetchNews();
+    let mounted = true;
+    const init = async () => {
+        await loadData();
+        if(mounted) fetchNews();
+    };
+    init();
+    return () => { mounted = false; };
   }, []);
 
   const fetchNews = async () => {
@@ -114,7 +207,7 @@ const DigitalCard: React.FC = () => {
   }, [profile]);
 
   // --- ACCIÓN INTELIGENTE: NO MÁS VENTANAS VACÍAS ---
-  const handleNewsClick = (newsItem: any) => {
+  const handleNewsClick = (newsItem: MedicalNews) => {
     if (newsItem.url && newsItem.url.startsWith('http')) {
         // Opción A: Link Válido -> Abrir directo
         window.open(newsItem.url, '_blank');
@@ -144,36 +237,51 @@ const DigitalCard: React.FC = () => {
 
   const copyToClipboard = () => { navigator.clipboard.writeText(getQRTarget()); alert("Enlace copiado."); };
 
-  if (loading) return <div className="flex justify-center items-center h-full text-slate-400 gap-2"><Activity className="animate-spin"/> Cargando...</div>;
+  if (loading) return <div className="flex justify-center items-center h-full text-slate-400 gap-2"><Activity className="animate-spin"/> Cargando Hub...</div>;
 
   return (
     <div className="h-full overflow-y-auto p-4 md:p-6 bg-slate-50/30">
       
-      <div className="mb-6">
-        <h1 className="text-2xl font-bold text-slate-900">Hub Profesional</h1>
-        <p className="text-slate-500 text-sm">Tu ecosistema digital médico.</p>
+      <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
+        <div>
+            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">Hub Profesional <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span></h1>
+            <p className="text-slate-500 text-sm">Tu ecosistema digital médico.</p>
+        </div>
+        <div className="flex gap-2">
+            <button onClick={() => navigate('/consultation')} className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-slate-50 flex items-center gap-2 transition-all"><Stethoscope size={16}/> Nueva Consulta</button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* COLUMNA IZQUIERDA (IDENTIDAD) */}
         <div className="lg:col-span-4 flex flex-col gap-4">
-            <div className="bg-white rounded-3xl shadow-lg overflow-hidden border border-slate-100 relative group hover:shadow-xl transition-all">
-                <div className="h-24 bg-gradient-to-r from-slate-800 to-slate-900 relative">
-                    <div className="absolute top-0 right-0 w-32 h-32 bg-white/5 rounded-full -mr-10 -mt-10"></div>
+            <div className="bg-white rounded-3xl shadow-xl overflow-hidden border border-slate-100 relative group hover:shadow-2xl transition-all duration-300">
+                <div className="h-28 bg-gradient-to-br from-slate-800 via-slate-900 to-black relative">
+                    <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+                    <div className="absolute top-4 right-4 text-white/20"><Briefcase size={24}/></div>
                 </div>
                 <div className="px-6 pb-6 text-center relative">
-                    <div className="-mt-12 mb-3 inline-block p-1.5 bg-white rounded-2xl shadow-sm">
-                        <div className="w-24 h-24 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-slate-100">
-                            {profile?.logo_url ? <img src={profile.logo_url} className="w-full h-full object-cover"/> : <span className="text-3xl font-bold text-slate-300">{profile?.full_name?.charAt(0)}</span>}
+                    <div className="-mt-14 mb-4 inline-block p-1.5 bg-white rounded-2xl shadow-lg ring-4 ring-slate-50">
+                        <div className="w-28 h-28 bg-slate-100 rounded-xl flex items-center justify-center overflow-hidden border border-slate-200">
+                            {profile?.logo_url ? <img src={profile.logo_url} className="w-full h-full object-cover"/> : <span className="text-4xl font-bold text-slate-300">{profile?.full_name?.charAt(0)}</span>}
                         </div>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-900">{profile?.full_name}</h3>
-                    <p className="text-teal-600 font-bold text-xs uppercase tracking-wide mt-1 mb-4">{profile?.specialty}</p>
-                    <div className="bg-slate-50 p-3 rounded-xl border border-slate-100 inline-block mb-4"><QRCode value={getQRTarget()} size={100} level="M" fgColor="#0f172a"/></div>
-                    <div className="grid grid-cols-2 gap-2">
-                        <button onClick={handleShare} className="flex items-center justify-center gap-2 py-2 bg-slate-900 text-white rounded-lg text-sm font-medium hover:bg-slate-800"><Share2 size={14}/> Compartir</button>
-                        <button onClick={copyToClipboard} className="flex items-center justify-center gap-2 py-2 bg-white border border-slate-200 text-slate-700 rounded-lg text-sm font-medium hover:border-teal-500"><Copy size={14}/> Copiar</button>
+                    <h3 className="text-xl font-bold text-slate-900 leading-tight">{profile?.full_name}</h3>
+                    <p className="text-teal-600 font-bold text-xs uppercase tracking-wide mt-1 mb-6">{profile?.specialty}</p>
+                    
+                    <div className="bg-white p-4 rounded-2xl border-2 border-dashed border-slate-200 inline-block mb-6 group-hover:border-teal-400 transition-colors">
+                        <QRCode value={getQRTarget()} size={120} level="M" fgColor="#0f172a"/>
+                    </div>
+                    
+                    <div className="grid grid-cols-2 gap-3">
+                        <button onClick={handleShare} className="flex items-center justify-center gap-2 py-2.5 bg-slate-900 text-white rounded-xl text-sm font-bold hover:bg-slate-800 shadow-lg shadow-slate-900/20 active:scale-95 transition-all">
+                            <Share2 size={16}/> Compartir
+                        </button>
+                        {/* BOTÓN NUEVO: vCard */}
+                        <button onClick={() => generateVCard(profile)} className="flex items-center justify-center gap-2 py-2.5 bg-teal-50 text-teal-700 rounded-xl text-sm font-bold hover:bg-teal-100 border border-teal-100 active:scale-95 transition-all">
+                            <Download size={16}/> Guardar vCard
+                        </button>
                     </div>
                 </div>
             </div>
@@ -191,36 +299,45 @@ const DigitalCard: React.FC = () => {
         {/* COLUMNA DERECHA (OPERACIONES) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
             
-            {/* NUEVA TARJETA INFORMATIVA */}
+            {/* COMPONENTE NUEVO: Perla Clínica */}
+            <ClinicalPearlCard />
+            
+            {/* TARJETA EXISTENTE: HubInfoCard (Como alternativa o complemento) */}
             <HubInfoCard />
 
             {/* KPIs */}
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-24">
-                    <div className="flex justify-between"><div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><Users size={18}/></div><span className="text-xs font-bold text-green-600 bg-green-50 px-1.5 py-0.5 rounded">Activo</span></div>
-                    <div><span className="text-2xl font-bold text-slate-800">{stats.patientsCount}</span><p className="text-xs text-slate-500">Pacientes Totales</p></div>
+            <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between aspect-square md:aspect-auto md:h-28 group hover:border-blue-200 transition-colors">
+                    <div className="flex justify-between items-start"><div className="p-2 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-110 transition-transform"><Users size={20}/></div></div>
+                    <div><span className="text-2xl font-bold text-slate-800">{stats.patientsCount}</span><p className="text-xs text-slate-500 font-medium">Pacientes</p></div>
                 </div>
-                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between h-24">
-                    <div className="flex justify-between"><div className="p-2 bg-purple-50 text-purple-600 rounded-lg"><Clock size={18}/></div><span className="text-xs font-bold text-slate-400">Promedio</span></div>
-                    <div><span className="text-2xl font-bold text-slate-800">{stats.avgDuration > 0 ? stats.avgDuration + 'm' : '--'}</span><p className="text-xs text-slate-500">Duración Consulta</p></div>
+                <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between aspect-square md:aspect-auto md:h-28 group hover:border-purple-200 transition-colors">
+                    <div className="flex justify-between items-start"><div className="p-2 bg-purple-50 text-purple-600 rounded-xl group-hover:scale-110 transition-transform"><Clock size={20}/></div></div>
+                    <div><span className="text-2xl font-bold text-slate-800">{stats.avgDuration > 0 ? stats.avgDuration + 'm' : '--'}</span><p className="text-xs text-slate-500 font-medium">Promedio</p></div>
                 </div>
-                <div onClick={() => navigate('/reports')} className="bg-slate-900 p-4 rounded-2xl shadow-lg flex flex-col justify-center items-center text-center h-24 cursor-pointer hover:bg-slate-800 transition-all group">
-                    <FileText size={20} className="text-teal-400 mb-1 group-hover:scale-110 transition-transform"/>
-                    <p className="text-sm font-bold text-white">Ver Reportes</p>
-                </div>
+                <button onClick={() => navigate('/agenda')} className="bg-slate-50 hover:bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md flex flex-col justify-center items-center text-center aspect-square md:aspect-auto md:h-28 transition-all group">
+                    <Calendar size={24} className="text-slate-400 group-hover:text-teal-600 mb-2 transition-colors"/>
+                    <span className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Agenda</span>
+                </button>
+                <button onClick={() => navigate('/reports')} className="bg-slate-50 hover:bg-white p-4 rounded-2xl border border-slate-200 shadow-sm hover:shadow-md flex flex-col justify-center items-center text-center aspect-square md:aspect-auto md:h-28 transition-all group">
+                    <FileText size={24} className="text-slate-400 group-hover:text-teal-600 mb-2 transition-colors"/>
+                    <span className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Reportes</span>
+                </button>
             </div>
 
             {/* Buscador */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6">
-                <form onSubmit={handleSearch} className="relative mb-6">
-                    <Search className="absolute left-3 top-3 text-slate-400" size={18} />
-                    <input type="text" placeholder="Investigación en PubMed..." className="w-full pl-10 pr-4 py-2.5 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 transition-all" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden p-6 relative">
+                <div className="absolute top-0 right-0 p-4 opacity-5 pointer-events-none"><Search size={100}/></div>
+                <h3 className="font-bold text-slate-800 mb-4 flex items-center gap-2"><Globe size={18} className="text-teal-500"/> Investigación Clínica</h3>
+                <form onSubmit={handleSearch} className="relative mb-6 z-10">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={18} />
+                    <input type="text" placeholder="Buscar artículos en PubMed, guías, dosis..." className="w-full pl-10 pr-4 py-3 bg-slate-50 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-teal-500 focus:bg-white transition-all shadow-inner" value={searchTerm} onChange={e => setSearchTerm(e.target.value)} />
                 </form>
-                <div className="grid grid-cols-4 gap-3">
-                    {[{name:'Vademécum', url:'https://www.medicamentosplm.com/', icon:BookOpen}, {name:'Calculadoras', url:'https://www.mdcalc.com/', icon:Activity}, {name:'CIE-10', url:'https://icd.who.int/', icon:FileText}, {name:'Guías', url:'https://cenetec-difusion.com/', icon:Globe}].map((t, i) => (
-                        <a key={i} href={t.url} target="_blank" rel="noreferrer" className="flex flex-col items-center justify-center p-3 rounded-xl border border-slate-100 hover:bg-teal-50 transition-all group hover:shadow-md">
-                            <t.icon size={20} className="text-slate-400 group-hover:text-teal-600 mb-1 transition-colors"/>
-                            <span className="text-[10px] font-bold text-slate-600 group-hover:text-slate-800">{t.name}</span>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3 z-10 relative">
+                    {[{name:'Vademécum', url:'https://www.medicamentosplm.com/', icon:BookOpen}, {name:'Calculadoras', url:'https://www.mdcalc.com/', icon:Activity}, {name:'CIE-10 OMS', url:'https://icd.who.int/', icon:FileText}, {name:'CENETEC Guías', url:'https://cenetec-difusion.com/', icon:Globe}].map((t, i) => (
+                        <a key={i} href={t.url} target="_blank" rel="noreferrer" className="flex items-center gap-2 p-3 rounded-xl border border-slate-100 hover:bg-teal-50 hover:border-teal-100 transition-all group">
+                            <div className="p-1.5 bg-slate-100 rounded-lg group-hover:bg-white group-hover:text-teal-600 transition-colors"><t.icon size={14} className="text-slate-500 group-hover:text-teal-600"/></div>
+                            <span className="text-[10px] font-bold text-slate-600 group-hover:text-slate-800 leading-tight">{t.name}</span>
                         </a>
                     ))}
                 </div>
@@ -229,18 +346,17 @@ const DigitalCard: React.FC = () => {
             {/* Noticias Vivas con Click Inteligente */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex-1 max-h-[350px] overflow-y-auto custom-scrollbar relative">
                 <div className="p-4 border-b border-slate-100 bg-white sticky top-0 z-10 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><span className="flex h-2.5 w-2.5 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span> Actualizaciones</h3>
-                    <span className="text-[10px] font-bold text-slate-400 uppercase">Live Feed</span>
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><span className="flex h-2.5 w-2.5 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span> Actualizaciones Médicas</h3>
                 </div>
                 <div className="divide-y divide-slate-50">
                     {newsFeed.map((news, idx) => (
-                        <div key={idx} onClick={() => handleNewsClick(news)} className="p-4 hover:bg-slate-50 cursor-pointer group transition-colors">
-                            <div className="flex justify-between items-start mb-1">
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-full border bg-blue-50 text-blue-600 border-blue-100">{news.source}</span>
-                                <span className="text-[10px] text-slate-400 flex items-center gap-1 group-hover:text-teal-600 transition-colors">Ver Detalle <ExternalLink size={10}/></span>
+                        <div key={idx} onClick={() => handleNewsClick(news)} className="p-5 hover:bg-slate-50 cursor-pointer group transition-colors">
+                            <div className="flex justify-between items-start mb-2">
+                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 group-hover:bg-teal-100 group-hover:text-teal-700 transition-colors">{news.source}</span>
+                                <ExternalLink size={14} className="text-slate-300 group-hover:text-teal-500 transition-colors"/>
                             </div>
-                            <h4 className="text-sm font-medium text-slate-700 leading-snug group-hover:text-teal-800 group-hover:underline decoration-teal-300 underline-offset-2">{news.title}</h4>
-                            <p className="text-xs text-slate-500 mt-1 line-clamp-2">{news.summary}</p>
+                            <h4 className="text-sm font-bold text-slate-800 mb-1 group-hover:text-teal-700 transition-colors">{news.title}</h4>
+                            <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{news.summary}</p>
                         </div>
                     ))}
                 </div>
