@@ -10,8 +10,6 @@ import {
   getDay,
   isToday,
   parseISO,
-  setHours,
-  setMinutes,
   addDays,
   startOfWeek,
   endOfWeek
@@ -59,63 +57,73 @@ interface Patient {
   name: string;
 }
 
-// --- UTILIDAD: GENERADOR DE LINKS ---
+// --- UTILIDAD: GENERADOR DE LINKS (Pure Function) ---
+// Extraída del componente para estabilidad y performance
 const getCalendarLink = (appt: any, provider: CalendarProvider) => {
-  const startDate = new Date(appt.start_time || appt.date_time);
-  const duration = appt.duration_minutes || 30;
-  const endDate = new Date(startDate.getTime() + duration * 60000);
-  
-  const title = `Consulta: ${appt.title || appt.patient_name}`;
-  const description = `Tipo: ${appt.type}\nNotas: ${appt.notes || ''}\n---\nGenerado por MediScribe AI`;
-  const location = 'Consultorio';
-  // Formato simple para links
-  const formatDate = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
+  if (!appt || !appt.start_time) return { url: '#', type: 'link' };
 
-  if (provider === 'google') {
-    const params = new URLSearchParams({
-      action: 'TEMPLATE',
-      text: title,
-      dates: `${formatDate(startDate)}/${formatDate(endDate)}`,
-      details: description,
-      location: location,
-    });
-    return { url: `https://calendar.google.com/calendar/render?${params.toString()}`, type: 'link' };
-  }
-  
-  if (provider === 'outlook') {
-    const params = new URLSearchParams({
-      path: '/calendar/action/compose',
-      rru: 'addevent',
-      startdt: startDate.toISOString(),
-      enddt: endDate.toISOString(),
-      subject: title,
-      body: description,
-      location: location
-    });
-    return { url: `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`, type: 'link' };
-  }
+  try {
+    const startDate = new Date(appt.start_time);
+    if (isNaN(startDate.getTime())) return { url: '#', type: 'link' };
 
-  if (provider === 'apple') {
-    const icsContent = [
-      'BEGIN:VCALENDAR',
-      'VERSION:2.0',
-      'BEGIN:VEVENT',
-      `DTSTART:${formatDate(startDate)}`,
-      `DTEND:${formatDate(endDate)}`,
-      `SUMMARY:${title}`,
-      `DESCRIPTION:${description.replace(/\n/g, '\\n')}`,
-      `LOCATION:${location}`,
-      'END:VEVENT',
-      'END:VCALENDAR'
-    ].join('\n');
-    const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
-    return { url: URL.createObjectURL(blob), type: 'download', filename: 'cita.ics' };
+    const duration = appt.duration_minutes || 30;
+    const endDate = new Date(startDate.getTime() + duration * 60000);
+    
+    const title = `Consulta: ${appt.title || appt.patient_name || 'Paciente'}`;
+    const description = `Tipo: ${appt.type}\nNotas: ${appt.notes || 'Sin notas'}\n---\nGenerado por MediScribe AI`;
+    const location = 'Consultorio Médico';
+    
+    // Formato ISO estricto para calendarios (UTC)
+    const formatDate = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
+
+    if (provider === 'google') {
+      const params = new URLSearchParams({
+        action: 'TEMPLATE',
+        text: title,
+        dates: `${formatDate(startDate)}/${formatDate(endDate)}`,
+        details: description,
+        location: location,
+      });
+      return { url: `https://calendar.google.com/calendar/render?${params.toString()}`, type: 'link' };
+    }
+    
+    if (provider === 'outlook') {
+      const params = new URLSearchParams({
+        path: '/calendar/action/compose',
+        rru: 'addevent',
+        startdt: startDate.toISOString(),
+        enddt: endDate.toISOString(),
+        subject: title,
+        body: description,
+        location: location
+      });
+      return { url: `https://outlook.live.com/calendar/0/deeplink/compose?${params.toString()}`, type: 'link' };
+    }
+
+    if (provider === 'apple') {
+      const icsContent = [
+        'BEGIN:VCALENDAR',
+        'VERSION:2.0',
+        'BEGIN:VEVENT',
+        `DTSTART:${formatDate(startDate)}`,
+        `DTEND:${formatDate(endDate)}`,
+        `SUMMARY:${title}`,
+        `DESCRIPTION:${description.replace(/\n/g, '\\n')}`,
+        `LOCATION:${location}`,
+        'END:VEVENT',
+        'END:VCALENDAR'
+      ].join('\n');
+      const blob = new Blob([icsContent], { type: 'text/calendar;charset=utf-8' });
+      return { url: URL.createObjectURL(blob), type: 'download', filename: 'cita.ics' };
+    }
+  } catch (error) {
+    console.error("Error generando link de calendario", error);
   }
 
   return { url: '#', type: 'link' };
 };
 
-// --- MODAL DE CONFIGURACIÓN (VERSION RICA RECUPERADA) ---
+// --- MODAL DE CONFIGURACIÓN ---
 const SyncConfigModal = ({ isOpen, onClose, currentProvider, setProvider }: { isOpen: boolean; onClose: () => void; currentProvider: CalendarProvider; setProvider: (p: CalendarProvider) => void }) => {
   if (!isOpen) return null;
 
@@ -126,8 +134,8 @@ const SyncConfigModal = ({ isOpen, onClose, currentProvider, setProvider }: { is
   ];
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-100 overflow-hidden">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-lg border border-slate-100 overflow-hidden" onClick={e => e.stopPropagation()}>
         <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
           <h3 className="font-bold text-slate-800 flex items-center gap-2">
             <Settings size={20} className="text-teal-600"/> 
@@ -137,7 +145,6 @@ const SyncConfigModal = ({ isOpen, onClose, currentProvider, setProvider }: { is
         </div>
         
         <div className="p-6">
-          {/* SECCIÓN EDUCATIVA RECUPERADA */}
           <div className="mb-6 bg-teal-50 border border-teal-100 rounded-lg p-4 text-sm text-teal-800">
             <p className="font-bold mb-1">¿Cómo funciona?</p>
             <p className="opacity-90 leading-relaxed">
@@ -184,7 +191,7 @@ const SyncConfigModal = ({ isOpen, onClose, currentProvider, setProvider }: { is
   );
 };
 
-// --- MODAL DE CITA (INTEGRADO CON TODO) ---
+// --- MODAL DE CITA ---
 const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, existingAppt, patients, loading, provider }: any) => {
   const [isManual, setIsManual] = useState(false);
   const [formData, setFormData] = useState({ patient_id: '', manual_name: '', type: 'consulta', duration_minutes: 30, notes: '' });
@@ -235,6 +242,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, exis
     });
   };
 
+  // Safe generation of sync data
   const syncData = existingAppt ? getCalendarLink({
       start_time: existingAppt.date_time,
       duration_minutes: existingAppt.duration_minutes,
@@ -244,8 +252,8 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, exis
   }, provider) : null;
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
-      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100">
+    <div className="fixed inset-0 z-[90] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
+      <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden border border-slate-100" onClick={e => e.stopPropagation()}>
         <div className="bg-slate-50 px-6 py-4 border-b border-slate-100 flex justify-between items-center">
           <h3 className="font-semibold text-slate-800 flex items-center gap-2">
             {existingAppt ? 'Editar Cita' : 'Nueva Cita'}
@@ -307,7 +315,7 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, exis
                  <button type="button" onClick={() => onDelete(existingAppt.id)} className="p-2.5 text-red-500 bg-red-50 rounded-lg hover:bg-red-100 transition-colors" title="Eliminar"><Trash2 size={20}/></button>
              )}
              
-             {/* BOTÓN DE SINCRONIZACIÓN RECUPERADO */}
+             {/* BOTÓN DE SINCRONIZACIÓN */}
              {existingAppt && syncData && (
                <a 
                  href={syncData.url}
@@ -315,9 +323,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, exis
                  download={syncData.type === 'download' ? syncData.filename : undefined}
                  rel="noopener noreferrer"
                  className={`p-2.5 rounded-lg transition-colors flex items-center justify-center ${
-                    provider === 'google' ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' :
-                    provider === 'outlook' ? 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100' :
-                    'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                   provider === 'google' ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' :
+                   provider === 'outlook' ? 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100' :
+                   'bg-slate-100 text-slate-600 hover:bg-slate-200'
                  }`}
                  title={`Sincronizar con ${provider}`}
                >
@@ -344,7 +352,7 @@ const AgendaView = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Settings State Recuperado
+  // Settings State
   const [calendarProvider, setCalendarProvider] = useState<CalendarProvider>('google');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   
@@ -478,7 +486,7 @@ const AgendaView = () => {
                                 <span className="block text-xs font-bold text-slate-400 uppercase">{format(day, 'EEE', { locale: es })}</span>
                                 <span className={`block text-lg font-bold ${isToday(day) ? 'text-teal-600' : 'text-slate-700'}`}>{format(day, 'd')}</span>
                             </div>
-                            <div className="flex-1 p-1 space-y-1 overflow-y-auto" onClick={() => handleDayClick(day)}>
+                            <div className="flex-1 p-1 space-y-1 overflow-y-auto cursor-pointer hover:bg-slate-50/50" onClick={() => handleDayClick(day)}>
                                 {dayAppts.map(appt => (
                                     <div key={appt.id} onClick={(e) => handleApptClick(e, appt)} className="p-1.5 bg-white border border-slate-200 rounded-lg shadow-sm text-[10px] cursor-pointer hover:border-teal-400">
                                         <div className="font-bold text-slate-700">{format(parseISO(appt.date_time), 'HH:mm')}</div>
