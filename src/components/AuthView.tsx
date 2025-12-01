@@ -1,8 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { 
-  Mail, Lock, User, Stethoscope, ArrowRight, AlertCircle, 
+  Mail, Lock, User, Stethoscope, ArrowRight, AlertTriangle, 
   BadgeCheck, KeyRound, ArrowLeft, CheckCircle2, BookOpen,
-  Eye, EyeOff, FileBadge, ShieldCheck, Loader2, AlertTriangle
+  Eye, EyeOff, FileBadge, Loader2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
@@ -23,7 +23,13 @@ const AuthView: React.FC<AuthProps> = ({
   // ESTADOS DE FLUJO
   const [isRegistering, setIsRegistering] = useState(false);
   const [isRecovering, setIsRecovering] = useState(false);
-  const [isResettingPassword, setIsResettingPassword] = useState(forceResetMode);
+  
+  // ESTADO CRÍTICO: Bloqueo de Recuperación
+  // Si detectamos el hash de recuperación, forzamos este modo y bloqueamos el login automático
+  const [isResettingPassword, setIsResettingPassword] = useState(() => {
+    const hash = window.location.hash;
+    return forceResetMode || (hash && hash.includes('type=recovery'));
+  });
   
   // ESTADOS DE UI
   const [loading, setLoading] = useState(false);
@@ -44,36 +50,30 @@ const AuthView: React.FC<AuthProps> = ({
 
   // --- DETECTOR DE RECUPERACIÓN (MEJORADO) ---
   useEffect(() => {
-    // 1. CHEQUEO DE URL (PRIORIDAD ALTA)
+    // 1. CHEQUEO INICIAL DE URL (PRIORIDAD MÁXIMA)
     const hash = window.location.hash;
-    const isRecoveryHash = hash && hash.includes('type=recovery');
+    const isRecoveryLink = hash && hash.includes('type=recovery');
 
-    if (forceResetMode || isRecoveryHash) {
-      console.log("Modo Recuperación Detectado por URL/Props");
+    if (isRecoveryLink) {
+      console.log("Modo Recuperación Detectado por URL - Bloqueando redirección automática");
       setIsResettingPassword(true);
       setIsRecovering(false);
       setIsRegistering(false);
     }
 
-    // 2. LISTENER DE EVENTOS (RESPALDO)
+    // 2. LISTENER DE EVENTOS (SEGURIDAD ADICIONAL)
     const { data: authListener } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (event === 'PASSWORD_RECOVERY') {
-        console.log("Evento PASSWORD_RECOVERY detectado");
         setIsResettingPassword(true);
-        setIsRecovering(false);
-        setIsRegistering(false);
-      } else if (event === 'SIGNED_IN') {
-        // Si no estamos reseteando password, permitimos el login normal
-        if (!isResettingPassword && !isRecoveryHash) {
-           // Flujo normal
-        }
-      }
+      } 
+      // NOTA: Ignoramos el evento SIGNED_IN aquí si isResettingPassword es true
+      // para evitar que el componente padre nos saque de la pantalla.
     });
 
     return () => {
       authListener.subscription.unsubscribe();
     };
-  }, [forceResetMode]);
+  }, []);
 
   // --- VALIDADOR DE CONTRASEÑA ---
   const validatePasswordStrength = (pass: string): string | null => {
@@ -137,7 +137,7 @@ const AuthView: React.FC<AuthProps> = ({
         });
         if (error) throw error;
         
-        // Bloqueo de redirección si es reset
+        // Bloqueo de redirección si estamos en proceso de reset
         if (onLoginSuccess && !isResettingPassword) onLoginSuccess();
       }
     } catch (error: any) {
@@ -150,11 +150,13 @@ const AuthView: React.FC<AuthProps> = ({
     }
   };
 
-  // --- RECUPERACIÓN ---
+  // --- RECUPERACIÓN (OLVIDÉ MI CLAVE) ---
   const handleRecoveryRequest = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     try {
+      // Usamos window.location.origin para asegurar que el link apunte a la raíz de la app
+      // Asegúrate de tener esta URL en "Redirect URLs" en tu Dashboard de Supabase
       const { error } = await supabase.auth.resetPasswordForEmail(formData.email, {
         redirectTo: window.location.origin, 
       });
@@ -169,7 +171,7 @@ const AuthView: React.FC<AuthProps> = ({
     }
   };
 
-  // --- ACTUALIZAR PASSWORD ---
+  // --- ACTUALIZAR PASSWORD (FINAL DEL FLUJO) ---
   const handlePasswordUpdate = async (e: React.FormEvent) => {
     e.preventDefault();
     
@@ -184,15 +186,15 @@ const AuthView: React.FC<AuthProps> = ({
       if (error) throw error;
       toast.success("Contraseña actualizada exitosamente.");
       
+      // Limpiamos el hash para salir del modo recuperación
       window.history.replaceState(null, '', window.location.pathname);
+      setIsResettingPassword(false);
 
+      // AHORA SÍ permitimos el acceso
       if (onPasswordResetSuccess) {
         onPasswordResetSuccess();
       } else if (onLoginSuccess) {
         onLoginSuccess();
-      } else {
-        setIsResettingPassword(false);
-        setIsRecovering(false);
       }
     } catch (error: any) {
       toast.error("Error al actualizar: " + error.message);
@@ -201,7 +203,7 @@ const AuthView: React.FC<AuthProps> = ({
     }
   };
 
-  // VISTA: VERIFICACIÓN ENVIADA
+  // VISTAS DE ESTADO
   if (verificationSent) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 animate-fade-in-up">
@@ -215,7 +217,6 @@ const AuthView: React.FC<AuthProps> = ({
     );
   }
 
-  // VISTA: RECUPERACIÓN ENVIADA
   if (recoverySent) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 animate-fade-in-up">
