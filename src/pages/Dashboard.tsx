@@ -1,14 +1,14 @@
-// Archivo: src/pages/Dashboard.tsx
 import React, { useEffect, useState, useMemo } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, MapPin, ChevronRight, Sun, Moon, Bell, CloudRain, Cloud, 
   ShieldCheck, Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
   Stethoscope, UserCircle, ArrowRight, AlertTriangle, FileText,
-  Clock, TrendingUp, UserPlus, Zap, Activity, LogOut // <--- ÍCONOS NECESARIOS AGREGADOS
+  Clock, TrendingUp, UserPlus, Zap, Activity, LogOut,
+  CalendarX, RefreshCcw, UserX // <--- NUEVOS ICONOS
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
+import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays, isPast, addMinutes } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getTimeOfDayGreeting } from '../utils/greetingUtils';
 import { toast } from 'sonner';
@@ -331,7 +331,6 @@ const Dashboard: React.FC = () => {
 
   const antiFatigueBg = "bg-[#F2F9F7] dark:bg-slate-950"; 
   
-  // CORRECCIÓN VISUAL: Agregado border-white/5 para eliminar línea negra
   const mobileHeroStyle = isNight 
     ? { bg: "bg-gradient-to-br from-slate-900 to-teal-950 border border-white/5", text: "text-teal-100", darkText: false }
     : { bg: "bg-gradient-to-br from-[#CDEDE0] to-[#A0DBC6] border border-white/5", text: "text-teal-900", darkText: true };
@@ -396,6 +395,27 @@ const Dashboard: React.FC = () => {
     fetchData();
     return () => window.removeEventListener('focus', fetchData);
   }, []);
+
+  // --- ACCIONES RÁPIDAS PARA CITAS VENCIDAS ---
+  const handleQuickAction = async (action: 'reschedule' | 'noshow' | 'cancel', apt: DashboardAppointment) => {
+    try {
+        if (action === 'noshow') {
+            await supabase.from('appointments').update({ status: 'cancelled', notes: 'No asistió (Marcado desde Dashboard)' }).eq('id', apt.id);
+            toast.success("Marcado como inasistencia");
+        } else if (action === 'cancel') {
+            if(confirm('¿Cancelar cita?')) {
+                await supabase.from('appointments').delete().eq('id', apt.id);
+                toast.success("Cita cancelada");
+            } else return;
+        } else if (action === 'reschedule') {
+            // Lógica simple: mover a mañana misma hora
+            const newDate = addDays(parseISO(apt.start_time), 1);
+            await supabase.from('appointments').update({ start_time: newDate.toISOString() }).eq('id', apt.id);
+            toast.success("Reagendada para mañana");
+        }
+        fetchData();
+    } catch (e) { toast.error("Error al actualizar cita"); }
+  };
 
   const formatTime = (isoString: string) => format(parseISO(isoString), 'h:mm a', { locale: es });
   
@@ -515,9 +535,6 @@ const Dashboard: React.FC = () => {
 
         {/* VERSIÓN PC: PANORÁMICO Y GRID NUEVO */}
         <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-xl h-56 relative overflow-hidden transition-all duration-1000 border border-slate-200/20`}>
-            {/* ... (Contenido PC igual, oculto para brevedad, pero SÍ ESTÁ EN EL CÓDIGO COMPLETO ARRIBA) ... */}
-            {/* NOTA: El código de arriba YA INCLUYE la versión PC completa. No falta nada. */}
-            
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
 
             <div className="w-1/3 p-8 flex flex-col justify-between relative z-10 border-r border-white/5">
@@ -619,37 +636,77 @@ const Dashboard: React.FC = () => {
                                 <div key={day} className="animate-fade-in-up">
                                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-wider mb-3 ml-1">{day}</h4>
                                     <div className="grid gap-3">
-                                        {dayApts.map((apt) => (
+                                        {dayApts.map((apt) => {
+                                            // LÓGICA: CITAS VENCIDAS
+                                            const isOverdue = isPast(parseISO(apt.start_time)) && apt.status === 'scheduled';
+                                            
+                                            return (
                                             <div 
                                                 key={apt.id} 
-                                                onClick={() => navigate('/calendar')}
-                                                className="group bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-brand-teal/30 transition-all cursor-pointer flex items-center gap-4"
+                                                className={`group bg-white dark:bg-slate-800 p-4 rounded-xl border shadow-sm transition-all flex flex-col sm:flex-row items-start sm:items-center gap-4 relative ${isOverdue ? 'border-amber-200 dark:border-amber-900/30' : 'border-slate-100 dark:border-slate-800 hover:shadow-md hover:border-brand-teal/30 cursor-pointer'}`}
+                                                onClick={!isOverdue ? () => navigate('/calendar') : undefined}
                                             >
-                                                <div className="flex flex-col items-center justify-center h-14 w-16 bg-slate-50 dark:bg-slate-900 rounded-lg border border-slate-200 dark:border-slate-700 group-hover:bg-teal-50 dark:group-hover:bg-teal-900/20 transition-colors">
-                                                    <span className="text-[10px] font-bold text-slate-400 uppercase">Hora</span>
-                                                    <span className="text-sm font-bold text-slate-900 dark:text-white">{formatTime(apt.start_time)}</span>
+                                                <div className={`flex flex-col items-center justify-center h-14 w-16 rounded-lg border transition-colors shrink-0 ${isOverdue ? 'bg-amber-50 dark:bg-amber-900/20 border-amber-100' : 'bg-slate-50 dark:bg-slate-900 border-slate-200 dark:border-slate-700 group-hover:bg-teal-50 dark:group-hover:bg-teal-900/20'}`}>
+                                                    <span className={`text-[10px] font-bold uppercase ${isOverdue ? 'text-amber-600' : 'text-slate-400'}`}>{isOverdue ? 'Vencida' : 'Hora'}</span>
+                                                    <span className={`text-sm font-bold ${isOverdue ? 'text-amber-700 dark:text-amber-500' : 'text-slate-900 dark:text-white'}`}>{formatTime(apt.start_time)}</span>
                                                 </div>
-                                                <div className="flex-1 min-w-0">
-                                                    <h4 className="font-bold text-slate-800 dark:text-white text-base truncate group-hover:text-brand-teal transition-colors">
-                                                        {apt.patient?.name || "Sin nombre"}
-                                                    </h4>
+                                                
+                                                <div className="flex-1 min-w-0 w-full">
+                                                    <div className="flex justify-between items-start">
+                                                        <h4 className="font-bold text-slate-800 dark:text-white text-base truncate group-hover:text-brand-teal transition-colors">
+                                                            {apt.patient?.name || "Sin nombre"}
+                                                        </h4>
+                                                        {isOverdue && (
+                                                            <span className="text-[9px] font-bold bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full animate-pulse">Atención Requerida</span>
+                                                        )}
+                                                    </div>
                                                     <div className="flex items-center gap-2 text-xs text-slate-500 mt-1">
                                                         <UserCircle size={12}/>
                                                         <span className="truncate">{apt.title || 'Consulta General'}</span>
-                                                        <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
-                                                            apt.status === 'completed' ? 'bg-green-100 text-green-700' : 
-                                                            apt.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
-                                                            'bg-blue-100 text-blue-700'
-                                                        }`}>
-                                                            {apt.status === 'scheduled' ? 'Confirmada' : apt.status}
-                                                        </span>
+                                                        {!isOverdue && (
+                                                            <span className={`px-1.5 py-0.5 rounded text-[9px] font-bold uppercase ${
+                                                                apt.status === 'completed' ? 'bg-green-100 text-green-700' : 
+                                                                apt.status === 'cancelled' ? 'bg-red-100 text-red-700' : 
+                                                                'bg-blue-100 text-blue-700'
+                                                            }`}>
+                                                                {apt.status === 'scheduled' ? 'Confirmada' : apt.status}
+                                                            </span>
+                                                        )}
                                                     </div>
+                                                    
+                                                    {/* BOTONES DE ACCIÓN RÁPIDA (SOLO SI ESTÁ VENCIDA) */}
+                                                    {isOverdue && (
+                                                        <div className="flex gap-2 mt-3 border-t border-slate-100 dark:border-slate-700 pt-3">
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleQuickAction('reschedule', apt); }}
+                                                                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-slate-50 hover:bg-slate-100 dark:bg-slate-700 dark:hover:bg-slate-600 text-slate-600 dark:text-slate-300 text-xs font-bold rounded-lg transition-colors"
+                                                            >
+                                                                <RefreshCcw size={12}/> Reagendar
+                                                            </button>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleQuickAction('noshow', apt); }}
+                                                                className="flex-1 flex items-center justify-center gap-1 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 text-amber-700 dark:text-amber-400 text-xs font-bold rounded-lg transition-colors"
+                                                            >
+                                                                <UserX size={12}/> No Asistió
+                                                            </button>
+                                                            <button 
+                                                                onClick={(e) => { e.stopPropagation(); handleQuickAction('cancel', apt); }}
+                                                                className="px-3 py-1.5 bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 text-red-600 dark:text-red-400 rounded-lg transition-colors"
+                                                            >
+                                                                <X size={14}/>
+                                                            </button>
+                                                        </div>
+                                                    )}
                                                 </div>
-                                                <div className="hidden md:block p-2 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-300 group-hover:text-brand-teal transition-colors">
-                                                    <ChevronRight size={18} />
-                                                </div>
+                                                
+                                                {!isOverdue && (
+                                                    <div className="hidden md:block p-2 bg-slate-50 dark:bg-slate-800 rounded-full text-slate-300 group-hover:text-brand-teal transition-colors">
+                                                        <ChevronRight size={18} />
+                                                    </div>
+                                                )}
                                             </div>
-                                        ))}
+                                            );
+                                        })}
                                     </div>
                                 </div>
                             ))}
