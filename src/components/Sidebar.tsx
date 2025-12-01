@@ -1,3 +1,4 @@
+// Archivo: src/components/Sidebar.tsx
 import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom'; 
 import { 
@@ -149,7 +150,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
             <span>Cerrar Sesión</span>
           </button>
 
-          {/* --- PROTECCIÓN LEGAL NOM-024 --- */}
           <div className="mt-4 text-[10px] text-slate-400 text-center leading-tight opacity-70 hover:opacity-100 transition-opacity">
             <p className="font-bold">Clasificación: Asistente de Transcripción</p>
             <p className="text-[9px] mt-0.5 opacity-80">No sustituye al Expediente Legal (NOM-024)</p>
