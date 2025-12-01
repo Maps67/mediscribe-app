@@ -77,9 +77,8 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   
-  // SOLUCIÓN DEFINITIVA: Inicialización Lazy basada en URL
-  // Si la URL tiene el hash de recuperación, arrancamos en modo recuperación INMEDIATAMENTE.
-  // Esto evita que el Dashboard se renderice ni por un milisegundo.
+  // SOLUCIÓN DEFINITIVA: Detección síncrona al montar
+  // Si la URL tiene el hash, activamos el modo recuperación inmediatamente.
   const [isRecoveryFlow, setIsRecoveryFlow] = useState(() => 
     window.location.hash.includes('type=recovery')
   );
@@ -89,12 +88,13 @@ const App: React.FC = () => {
 
   useEffect(() => {
     let mounted = true;
+
     const initSession = async () => {
       try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         if (mounted) {
           setSession(initialSession);
-          // Si ya teníamos sesión pero detectamos hash de recuperación, mantenemos el flag en true
+          // Refuerzo: Si al cargar vemos el hash, forzamos true sin importar la sesión
           if (window.location.hash.includes('type=recovery')) {
              setIsRecoveryFlow(true);
           }
@@ -109,8 +109,10 @@ const App: React.FC = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
       if (!mounted) return;
 
+      console.log("Auth Event:", event); // Para depuración
+
       if (event === 'PASSWORD_RECOVERY') {
-        // Evento explícito de recuperación
+        // Evento dorado: Supabase nos dice explícitamente que es una recuperación
         setIsRecoveryFlow(true);
       } 
       else if (event === 'SIGNED_OUT') {
@@ -119,19 +121,11 @@ const App: React.FC = () => {
         setIsClosing(false); 
       } 
       else if (event === 'SIGNED_IN') {
-        // LÓGICA CRÍTICA DE SEMÁFORO:
-        // Verificamos si esto es un login normal o parte del flujo de recuperación
-        const isRecoveryHash = window.location.hash.includes('type=recovery');
-        
-        if (isRecoveryHash) {
-           // Es una recuperación: MANTENEMOS el flujo activo y NO limpiamos la URL todavía
-           setIsRecoveryFlow(true);
-        } else {
-           // Es un login normal: Limpiamos URL y mostramos Dashboard
-           window.history.replaceState(null, '', '/');
-           setIsRecoveryFlow(false);
-        }
         setSession(newSession);
+        // CORRECCIÓN CRÍTICA: NO TOCAMOS isRecoveryFlow AQUÍ.
+        // Si estaba en true (por URL o evento previo), se queda en true.
+        // Si estaba en false (login normal), se queda en false.
+        // Esto evita que el login automático "apague" el modo recuperación.
       }
       else if (event === 'TOKEN_REFRESHED') {
         setSession(newSession);
@@ -166,6 +160,13 @@ const App: React.FC = () => {
     }
   };
 
+  const handleRecoverySuccess = () => {
+      // Esta función se llama SOLO cuando el usuario ha cambiado exitosamente su password
+      setIsRecoveryFlow(false);
+      // Limpiamos la URL para que al recargar no vuelva a entrar en modo recuperación
+      window.history.replaceState(null, '', '/');
+  };
+
   if (showSplash) return <ThemeProvider><SplashScreen /></ThemeProvider>;
 
   if (isClosing) {
@@ -187,7 +188,9 @@ const App: React.FC = () => {
       );
   }
 
-  // AQUÍ ESTÁ LA CLAVE: Si isRecoveryFlow es true, mostramos AuthView aunque exista sesión.
+  // LÓGICA DE RENDERIZADO:
+  // Si no hay sesión O estamos en flujo de recuperación -> Mostramos AuthView
+  // Esto tiene precedencia sobre el Dashboard.
   if (!session || isRecoveryFlow) {
     return (
       <ThemeProvider>
@@ -195,19 +198,17 @@ const App: React.FC = () => {
         <ReloadPrompt />
         <AuthView 
             authService={{ supabase }} 
-            onLoginSuccess={() => {}} 
+            onLoginSuccess={() => {
+                // Si es un login normal, no hacemos nada extra aquí, el estado session cambiará y redibujará
+            }} 
             forceResetMode={isRecoveryFlow} 
-            onPasswordResetSuccess={() => {
-                // Solo cuando el usuario completa el cambio de password exitosamente,
-                // apagamos el modo recuperación y permitimos el acceso al Dashboard.
-                setIsRecoveryFlow(false);
-                window.history.replaceState(null, '', '/');
-            }}
+            onPasswordResetSuccess={handleRecoverySuccess}
         />
       </ThemeProvider>
     );
   }
 
+  // Si hay sesión Y NO es recuperación -> Mostramos App
   return (
     <ThemeProvider>
       <BrowserRouter>
