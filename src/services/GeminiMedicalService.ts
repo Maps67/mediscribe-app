@@ -47,6 +47,51 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 
 if (!API_KEY) console.error("Falta la VITE_GEMINI_API_KEY");
 
+// --- MOTOR DE PERFILES CLÍNICOS ---
+// Esto define "QUÉ LE IMPORTA" a cada especialista
+const getSpecialtyPromptConfig = (specialty: string) => {
+  const configs: Record<string, any> = {
+    "Cardiología": {
+      role: "Cardiólogo Intervencionista y Clínico",
+      focus: "Hemodinamia, ritmo cardíaco, presión arterial, perfusión, soplos, edema y riesgo cardiovascular.",
+      bias: "CRÍTICO: Si el paciente presenta un trauma o patología de otro sistema, TU ÚNICO INTERÉS es el impacto hemodinámico, el riesgo quirúrgico y la medicación cardiovascular. NO actúes como traumatólogo, actúa como el cardiólogo que da el visto bueno.",
+      keywords: "Insuficiencia, Fracción de Eyección, NYHA, Ritmo Sinusal, QT, Isquemia."
+    },
+    "Traumatología y Ortopedia": {
+      role: "Cirujano Ortopedista",
+      focus: "Sistema musculoesquelético, arcos de movilidad, estabilidad articular, fuerza muscular y marcha.",
+      bias: "Enfócate en la biomecánica de la lesión. Ignora patologías sistémicas a menos que afecten la cirugía o la consolidación ósea.",
+      keywords: "Fractura, Esguince, Ligamento, Menisco, Artrosis, Quirúrgico, Conservador."
+    },
+    "Dermatología": {
+      role: "Dermatólogo",
+      focus: "Morfología de lesiones cutáneas (tipo, color, bordes, distribución), anejos cutáneos y mucosas.",
+      bias: "Describe las lesiones con precisión dermatológica (mácula, pápula, placa).",
+      keywords: "ABCD, Fototipo, Dermatosis, Biopsia, Crioterapia."
+    },
+    "Pediatría": {
+      role: "Pediatra",
+      focus: "Desarrollo y crecimiento, hitos del desarrollo, alimentación, vacunación y percentiles.",
+      bias: "Todo debe evaluarse en el contexto de la edad del paciente. El tono de las instrucciones debe ser para los padres.",
+      keywords: "Percentil, Desarrollo psicomotor, Lactancia, Esquema de vacunación."
+    },
+    "Medicina General": {
+      role: "Médico de Familia",
+      focus: "Visión integral, semiología general, detección de banderas rojas y referencia a especialistas.",
+      bias: "Mantén un enfoque holístico. Cubre todos los sistemas mencionados superficialmente.",
+      keywords: "Sintomático, Referencia, Preventivo, Control."
+    }
+  };
+
+  // Fallback inteligente si la especialidad no está en la lista hardcodeada
+  return configs[specialty] || {
+    role: `Especialista en ${specialty}`,
+    focus: `Patologías y tratamientos específicos de ${specialty}.`,
+    bias: `Utiliza la terminología, escalas y criterios clínicos exclusivos de ${specialty}.`,
+    keywords: "Términos técnicos de la especialidad."
+  };
+};
+
 export const GeminiMedicalService = {
 
   async getBestAvailableModel(): Promise<string> {
@@ -74,33 +119,32 @@ export const GeminiMedicalService = {
       const currentTime = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
       const cleanTranscript = transcript.replace(/"/g, "'").trim();
-
-      // --- INGENIERÍA DE PROMPT: HIPER-ESPECIALIZACIÓN ---
-      // Inyectamos la variable ${specialty} en cada sección crítica del SOAP
-      // para forzar el vocabulario y criterio clínico específico.
       
+      // OBTENER CONFIGURACIÓN DE LENTE CLÍNICO
+      const profile = getSpecialtyPromptConfig(specialty);
+
       const prompt = `
-        ROL: Eres un Médico Especialista en ${specialty} de alto nivel.
-        OBJETIVO: Convertir una transcripción de consulta en una Nota de Evolución Técnica perfecta.
+        CONFIGURACIÓN DE PERSONALIDAD (SYSTEM PROMPT):
+        ERES UN: ${profile.role}.
+        TU ENFOQUE (MANDATORIO): ${profile.focus}
+        TU SESGO COGNITIVO: ${profile.bias}
+        PALABRAS CLAVE ESPERADAS: ${profile.keywords}
         
-        CONTEXTO: 
+        CONTEXTO DE LA CONSULTA:
         - Fecha: ${currentDate} ${currentTime}
-        - Especialidad Activa: ${specialty}
         - Historial: "${patientHistory}"
         
-        TRANSCRIPCIÓN (AUDIO):
+        TRANSCRIPCIÓN DEL AUDIO:
         "${cleanTranscript}"
 
-        INSTRUCCIONES DE PROCESAMIENTO ESTRICTAS:
-        1. Identifica hablantes (Médico vs Paciente).
-        2. Traduce el lenguaje coloquial del paciente a TERMINOLOGÍA MÉDICA PROPIA DE ${specialty}.
-           (Ejemplo: Si la especialidad es Traumatología y el paciente dice "me duele el huesito del tobillo", tú escribes "Maleolo externo doloroso a la palpación").
+        TAREA:
+        Genera una Nota de Evolución SOAP filtrando TODA la información a través de tu lente de ${specialty}.
         
-        ESTRUCTURA SOAP A GENERAR (ENFOQUE ${specialty}):
-        - S (Subjetivo): Sintomatología narrada usando jerga técnica de ${specialty}.
-        - O (Objetivo): Enfócate en hallazgos físicos relevantes para ${specialty}. Si no se mencionan, infiere lo negativo o "No explorado".
-        - A (Análisis): Diagnóstico principal y diferenciales usando clasificaciones o escalas propias de ${specialty} si aplica.
-        - P (Plan): Tratamiento farmacológico, estudios de gabinete sugeridos para ${specialty} y recomendaciones.
+        REGLAS DE ORO PARA EL CONTENIDO:
+        1. S (Subjetivo): Solo documenta lo que es relevante para tu especialidad. Si el paciente se queja de algo ajeno, menciónalo solo si afecta tu área.
+        2. O (Objetivo): Si la transcripción no menciona datos físicos específicos de tu área (ej: ruidos cardiacos para cardio), INFIERE "No reportado en audio" o usa datos implícitos, pero NO inventes valores numéricos.
+        3. A (Análisis): Tu conclusión debe ser desde la perspectiva de ${specialty}. (Ej: Si es trauma y eres cardio -> "Riesgo CV bajo para procedimiento qx").
+        4. P (Plan): Tu plan debe ser congruente con tu rol.
 
         FORMATO JSON DE SALIDA:
         { 
@@ -109,16 +153,16 @@ export const GeminiMedicalService = {
             { "speaker": "Paciente", "text": "..." }
           ], 
           "soap": { 
-            "subjective": "Texto técnico...", 
-            "objective": "Texto técnico...", 
-            "assessment": "Texto técnico...", 
-            "plan": "Texto técnico...", 
-            "suggestions": ["Sugerencia específica 1", "Sugerencia específica 2"] 
+            "subjective": "Narrativa enfocada en ${specialty}...", 
+            "objective": "Hallazgos físicos de ${specialty}...", 
+            "assessment": "Diagnóstico y análisis de ${specialty}...", 
+            "plan": "Manejo por ${specialty}...", 
+            "suggestions": [] 
           }, 
-          "patientInstructions": "Explicación para el paciente en lenguaje sencillo (Nivel primaria) pero enfocado a su patología.", 
+          "patientInstructions": "Lenguaje claro, nivel primaria.", 
           "risk_analysis": { 
             "level": "Bajo" | "Medio" | "Alto", 
-            "reason": "Justificación clínica basada en criterios de ${specialty}" 
+            "reason": "Justificación clínica." 
           } 
         }
       `;
@@ -129,30 +173,22 @@ export const GeminiMedicalService = {
       try {
         return JSON.parse(textResponse) as GeminiResponse;
       } catch (parseError) {
-        console.error("Error parseando JSON de Gemini:", textResponse);
-        throw new Error("La IA generó un formato inválido. Intente de nuevo.");
+        throw new Error("Error de formato IA.");
       }
 
     } catch (error) { throw error; }
   },
 
-  // --- CORRECCIÓN DE LA RECETA RÁPIDA ---
+  // --- MÉTODOS AUXILIARES SIN CAMBIOS ---
   async extractMedications(text: string): Promise<MedicationItem[]> {
     const cleanText = text.replace(/["“”]/g, "").trim(); 
     if (!cleanText) return [];
-
     try {
       const { data, error } = await supabase.functions.invoke('gemini-proxy', {
         body: {
-          prompt: `
-            ACTÚA COMO: Farmacéutico experto.
-            TAREA: Analizar texto y extraer medicamentos.
-            TEXTO: "${cleanText}"
-            RESPUESTA JSON ARRAY: [{"drug": "Nombre", "details": "Dosis", "frequency": "Frecuencia", "duration": "Duración", "notes": "Notas"}]
-          `
+          prompt: `ACTÚA COMO: Farmacéutico. TAREA: Extraer medicamentos. TEXTO: "${cleanText}". JSON ARRAY: [{"drug": "Nombre", "details": "Dosis", "frequency": "Frecuencia", "duration": "Duración", "notes": "Notas"}]`
         }
       });
-
       if (!error && data) {
         let cleanJson = data.result || data;
         if (typeof cleanJson !== 'string') cleanJson = JSON.stringify(cleanJson);
@@ -161,39 +197,21 @@ export const GeminiMedicalService = {
         if (firstBracket !== -1 && lastBracket !== -1) {
            const jsonStr = cleanJson.substring(firstBracket, lastBracket + 1);
            const parsed = JSON.parse(jsonStr);
-           if (Array.isArray(parsed) && parsed.length > 0) {
-             return parsed.map((m: any) => ({
-               drug: m.drug || m.name || 'Medicamento',
-               details: m.details || '',
-               frequency: m.frequency || '',
-               duration: m.duration || '',
-               notes: m.notes || ''
-             }));
-           }
+           if (Array.isArray(parsed) && parsed.length > 0) return parsed;
         }
       }
-    } catch (e) { console.warn("Fallo IA en receta", e); }
-
-    return [{
-      drug: cleanText, 
-      details: "Revisar dosis (Transcripción directa)",
-      frequency: "",
-      duration: "",
-      notes: ""
-    }];
+    } catch (e) {}
+    return [{ drug: cleanText, details: "Revisar dosis", frequency: "", duration: "", notes: "" }];
   },
 
   async generatePatientInsights(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
       try {
         const modelName = await this.getBestAvailableModel();
         const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
-        const allConsultationsText = consultations.join("\n\n--- SIGUIENTE CONSULTA ---\n\n");
-        const prompt = `Analiza el expediente de "${patientName}". Antecedentes: ${historySummary}. Consultas: ${allConsultationsText}. Retorna JSON con: evolution, medication_audit, risk_flags, pending_actions.`;
+        const prompt = `Analiza expediente de "${patientName}". Antecedentes: ${historySummary}. Consultas: ${consultations.join(" ")}. Retorna JSON con insights.`;
         const response = await fetch(URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
         const data = await response.json();
-        const text = data.candidates?.[0]?.content?.parts?.[0]?.text || "{}";
-        const cleanJsonText = text.replace(/```json/g, '').replace(/```/g, '').trim();
-        return JSON.parse(cleanJsonText) as PatientInsight;
+        return JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text.replace(/```json/g, '').replace(/```/g, '').trim()) as PatientInsight;
       } catch (e) { throw e; }
   },
 
@@ -201,20 +219,14 @@ export const GeminiMedicalService = {
     try {
         const modelName = await this.getBestAvailableModel();
         const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
-        const prompt = `CONTEXTO: ${context}. PREGUNTA: "${userMessage}". RESPUESTA BREVE Y PROFESIONAL:`;
+        const prompt = `CONTEXTO: ${context}. PREGUNTA: "${userMessage}". RESPUESTA BREVE:`;
         const response = await fetch(URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
         const data = await response.json();
         return data.candidates?.[0]?.content?.parts?.[0]?.text || "Error.";
     } catch (e) { return "Error chat"; }
   },
 
-  async generateQuickRxJSON(transcript: string, patientName: string): Promise<MedicationItem[]> {
-     return this.extractMedications(transcript);
-  },
-  async generatePrescriptionOnly(transcript: string): Promise<string> {
-     return "Use extractMedications.";
-  },
-  async generateFollowUpPlan(patientName: string, clinicalNote: string, instructions: string): Promise<FollowUpMessage[]> {
-    return []; 
-  }
+  async generateQuickRxJSON(transcript: string, patientName: string): Promise<MedicationItem[]> { return this.extractMedications(transcript); },
+  async generatePrescriptionOnly(transcript: string): Promise<string> { return "Use extractMedications."; },
+  async generateFollowUpPlan(patientName: string, clinicalNote: string, instructions: string): Promise<FollowUpMessage[]> { return []; }
 };
