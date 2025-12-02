@@ -4,7 +4,7 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from './context/ThemeContext';
-import { LogOut, Moon, Sun, CloudSun } from 'lucide-react'; 
+import { Moon, Sun, CloudSun } from 'lucide-react'; 
 
 // Components & Pages
 import Sidebar from './components/Sidebar';
@@ -22,6 +22,8 @@ import SplashScreen from './components/SplashScreen';
 import MobileTabBar from './components/MobileTabBar';
 import TermsOfService from './pages/TermsOfService';
 import { TrialMonitor } from './components/TrialMonitor';
+// Importamos la nueva página
+import UpdatePassword from './pages/UpdatePassword';
 
 interface MainLayoutProps {
   session: Session | null;
@@ -38,15 +40,9 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
           <div className="hidden md:flex z-20 h-full">
             <Sidebar isOpen={true} onClose={() => {}} onLogout={onLogout} />
           </div>
-
           <div className="md:hidden">
-              <Sidebar 
-                isOpen={isSidebarOpen} 
-                onClose={() => setIsSidebarOpen(false)} 
-                onLogout={onLogout} 
-              />
+              <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} onLogout={onLogout} />
           </div>
-
           <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col h-full bg-gray-50 dark:bg-slate-950 overflow-hidden">
             <div className="flex-1 overflow-y-auto pb-20 md:pb-0"> 
               <Routes>
@@ -77,60 +73,27 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   
-  // SOLUCIÓN DEFINITIVA: Detección síncrona al montar
-  // Si la URL tiene el hash, activamos el modo recuperación inmediatamente.
-  const [isRecoveryFlow, setIsRecoveryFlow] = useState(() => 
-    window.location.hash.includes('type=recovery')
-  );
-  
   const [isClosing, setIsClosing] = useState(false);
   const [closingName, setClosingName] = useState('');
 
+  // DETECCIÓN SÍNCRONA DE RUTA DE RECUPERACIÓN
+  // Si estamos en /update-password, esa es la verdad absoluta.
+  const isUpdatePasswordRoute = window.location.pathname === '/update-password';
+
   useEffect(() => {
     let mounted = true;
-
     const initSession = async () => {
-      try {
         const { data: { session: initialSession } } = await supabase.auth.getSession();
         if (mounted) {
           setSession(initialSession);
-          // Refuerzo: Si al cargar vemos el hash, forzamos true sin importar la sesión
-          if (window.location.hash.includes('type=recovery')) {
-             setIsRecoveryFlow(true);
-          }
           setLoading(false);
         }
-      } catch (error) {
-        console.error('Error crítico al inicializar sesión:', error);
-      }
     };
     initSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
       if (!mounted) return;
-
-      console.log("Auth Event:", event); // Para depuración
-
-      if (event === 'PASSWORD_RECOVERY') {
-        // Evento dorado: Supabase nos dice explícitamente que es una recuperación
-        setIsRecoveryFlow(true);
-      } 
-      else if (event === 'SIGNED_OUT') {
-        setIsRecoveryFlow(false);
-        setSession(null);
-        setIsClosing(false); 
-      } 
-      else if (event === 'SIGNED_IN') {
-        setSession(newSession);
-        // CORRECCIÓN CRÍTICA: NO TOCAMOS isRecoveryFlow AQUÍ.
-        // Si estaba en true (por URL o evento previo), se queda en true.
-        // Si estaba en false (login normal), se queda en false.
-        // Esto evita que el login automático "apague" el modo recuperación.
-      }
-      else if (event === 'TOKEN_REFRESHED') {
-        setSession(newSession);
-      }
-      
+      setSession(newSession);
       setLoading(false);
     });
 
@@ -148,23 +111,9 @@ const App: React.FC = () => {
   const handleGlobalLogout = async (name?: string) => {
     setClosingName(name || 'Doctor(a)');
     setIsClosing(true);
-    
     await new Promise(resolve => setTimeout(resolve, 2000));
-    
-    try {
-        const { error } = await supabase.auth.signOut();
-        if (error) throw error;
-    } catch (error) {
-        console.error("Error al cerrar sesión:", error);
-        setIsClosing(false);
-    }
-  };
-
-  const handleRecoverySuccess = () => {
-      // Esta función se llama SOLO cuando el usuario ha cambiado exitosamente su password
-      setIsRecoveryFlow(false);
-      // Limpiamos la URL para que al recargar no vuelva a entrar en modo recuperación
-      window.history.replaceState(null, '', '/');
+    await supabase.auth.signOut();
+    setIsClosing(false);
   };
 
   if (showSplash) return <ThemeProvider><SplashScreen /></ThemeProvider>;
@@ -188,27 +137,31 @@ const App: React.FC = () => {
       );
   }
 
-  // LÓGICA DE RENDERIZADO:
-  // Si no hay sesión O estamos en flujo de recuperación -> Mostramos AuthView
-  // Esto tiene precedencia sobre el Dashboard.
-  if (!session || isRecoveryFlow) {
+  // --- LÓGICA DE RENDERIZADO MAESTRA ---
+  
+  // CASO 1: RECUPERACIÓN DE CONTRASEÑA (Prioridad Absoluta)
+  if (isUpdatePasswordRoute) {
+      return (
+        <ThemeProvider>
+            <Toaster position="top-center" richColors />
+            {/* Si hay sesión, UpdatePassword la usará para actualizar. Si no, AuthView mostrará error o pedirá login */}
+            <UpdatePassword onSuccess={() => window.location.href = '/'} />
+        </ThemeProvider>
+      );
+  }
+
+  // CASO 2: NO LOGUEADO -> PANTALLA DE ACCESO
+  if (!session) {
     return (
       <ThemeProvider>
         <Toaster position="top-center" richColors />
         <ReloadPrompt />
-        <AuthView 
-            authService={{ supabase }} 
-            onLoginSuccess={() => {
-                // Si es un login normal, no hacemos nada extra aquí, el estado session cambiará y redibujará
-            }} 
-            forceResetMode={isRecoveryFlow} 
-            onPasswordResetSuccess={handleRecoverySuccess}
-        />
+        <AuthView onLoginSuccess={() => {}} />
       </ThemeProvider>
     );
   }
 
-  // Si hay sesión Y NO es recuperación -> Mostramos App
+  // CASO 3: LOGUEADO Y RUTA NORMAL -> APP COMPLETA
   return (
     <ThemeProvider>
       <BrowserRouter>
