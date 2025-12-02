@@ -4,15 +4,25 @@ import { supabase } from '../lib/supabase';
 import { MedicalDataService } from '../services/MedicalDataService';
 import { toast } from 'sonner';
 
+// LISTA MAESTRA DE ESPECIALIDADES (NORMALIZACIÓN)
+const SPECIALTIES = [
+  "Medicina General", "Cardiología", "Cirugía General", "Cirugía de Columna", "Cirugía de Mano", 
+  "Cirugía Oncológica", "Cirugía Pediátrica", "Cirugía Plástica y Reconstructiva", "Dermatología", 
+  "Endocrinología", "Gastroenterología", "Geriatría", "Ginecología y Obstetricia", "Medicina del Deporte", 
+  "Medicina Interna", "Nefrología", "Neumología", "Neurocirugía", "Neurología", "Oftalmología", 
+  "Otorrinolaringología", "Pediatría", "Psiquiatría", "Reumatología", "Traumatología y Ortopedia", 
+  "Traumatología: Artroscopia", "Urología", "Urgencias Médicas"
+];
+
 const SettingsView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [uploading, setUploading] = useState(false);
-  const [downloading, setDownloading] = useState(false); // Estado para la descarga CSV
+  const [downloading, setDownloading] = useState(false); 
   
   // Campos del formulario
   const [fullName, setFullName] = useState('');
-  const [specialty, setSpecialty] = useState('');
+  const [specialty, setSpecialty] = useState('Medicina General'); // Default seguro
   const [license, setLicense] = useState('');
   const [phone, setPhone] = useState('');
   
@@ -40,7 +50,9 @@ const SettingsView: React.FC = () => {
 
       if (data) {
         setFullName(data.full_name || '');
-        setSpecialty(data.specialty || '');
+        // Si la especialidad guardada no está en la lista (legacy), la mantenemos, pero el select podría mostrar vacío.
+        // Lo ideal es que coincida.
+        setSpecialty(data.specialty || 'Medicina General');
         setLicense(data.license_number || '');
         setPhone(data.phone || '');
         setUniversity(data.university || '');
@@ -122,14 +134,11 @@ const SettingsView: React.FC = () => {
     }
   };
 
-  // --- NUEVA FUNCIÓN: RESPALDO DE DATOS ---
   const handleBackup = async () => {
     if(!confirm("¿Desea descargar una copia completa de sus pacientes y consultas en formato Excel (CSV)?")) return;
     
     setDownloading(true);
     try {
-      // Llamamos al método que agregamos en MedicalDataService (o lo agregaremos a continuación)
-      // Nota: Si MedicalDataService no tiene este método aún, lo implementaremos en el siguiente paso.
       if (typeof MedicalDataService.downloadFullBackup === 'function') {
           const success = await MedicalDataService.downloadFullBackup();
           if(success) toast.success("Respaldo descargado correctamente.");
@@ -154,7 +163,6 @@ const SettingsView: React.FC = () => {
               <p className="text-slate-500 dark:text-slate-400 text-sm">Datos del consultorio y cuenta.</p>
           </div>
           
-          {/* BOTÓN DE RESPALDO (SOBERANÍA DE DATOS) */}
           <button 
             onClick={handleBackup}
             disabled={downloading}
@@ -179,11 +187,23 @@ const SettingsView: React.FC = () => {
                         <input type="text" required value={fullName} onChange={e => setFullName(e.target.value)} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none dark:bg-slate-900 dark:text-white" placeholder="Dr. Juan Pérez" />
                     </div>
                     <div>
+                        {/* --- CAMBIO: SELECTOR NORMALIZADO --- */}
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Especialidad</label>
-                        <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-brand-teal">
-                            <Stethoscope size={16} className="text-slate-400 mr-2"/>
-                            <input type="text" required value={specialty} onChange={e => setSpecialty(e.target.value)} className="w-full py-3 outline-none bg-transparent dark:text-white" placeholder="Cardiología" />
+                        <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-brand-teal relative">
+                            <Stethoscope size={16} className="text-slate-400 mr-2 pointer-events-none"/>
+                            <select
+                                value={specialty}
+                                onChange={e => setSpecialty(e.target.value)}
+                                className="w-full py-3 outline-none bg-transparent dark:text-white appearance-none cursor-pointer"
+                            >
+                                {SPECIALTIES.map(s => (
+                                    <option key={s} value={s} className="text-slate-800 dark:text-slate-200 dark:bg-slate-800">
+                                        {s}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
+                        {/* ----------------------------------- */}
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Cédula Prof.</label>

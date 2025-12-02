@@ -7,6 +7,16 @@ import {
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
 
+// LISTA MAESTRA DE ESPECIALIDADES (NORMALIZACIÓN)
+const SPECIALTIES = [
+  "Medicina General", "Cardiología", "Cirugía General", "Cirugía de Columna", "Cirugía de Mano", 
+  "Cirugía Oncológica", "Cirugía Pediátrica", "Cirugía Plástica y Reconstructiva", "Dermatología", 
+  "Endocrinología", "Gastroenterología", "Geriatría", "Ginecología y Obstetricia", "Medicina del Deporte", 
+  "Medicina Interna", "Nefrología", "Neumología", "Neurocirugía", "Neurología", "Oftalmología", 
+  "Otorrinolaringología", "Pediatría", "Psiquiatría", "Reumatología", "Traumatología y Ortopedia", 
+  "Traumatología: Artroscopia", "Urología", "Urgencias Médicas"
+];
+
 interface AuthProps {
   authService?: any;
   onLoginSuccess?: () => void;
@@ -36,7 +46,7 @@ const AuthView: React.FC<AuthProps> = ({
     password: '',
     newPassword: '',
     fullName: '',
-    specialty: 'Medicina General',
+    specialty: 'Medicina General', // Valor por defecto válido de la lista
     cedula: '', 
     termsAccepted: false 
   });
@@ -78,12 +88,12 @@ const AuthView: React.FC<AuthProps> = ({
             setLoading(false); return;
         }
 
-        // CREAR CUENTA (FIX: AGREGADO emailRedirectTo)
+        // CREAR CUENTA
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
           options: {
-            emailRedirectTo: window.location.origin, // <--- ESTO ERA LO QUE FALTABA
+            emailRedirectTo: window.location.origin, 
             data: { 
                 full_name: formData.fullName, 
                 specialty: formData.specialty, 
@@ -235,7 +245,7 @@ const AuthView: React.FC<AuthProps> = ({
       {/* DERECHA: FORMULARIO */}
       <div className="flex-1 flex items-center justify-center p-6 relative bg-white dark:bg-slate-950">
         
-        {/* --- BOTÓN DEL MANUAL: Ubicación Estratégica (Top Right) --- */}
+        {/* --- BOTÓN DEL MANUAL --- */}
         <a 
             href="/manual.html" 
             target="_blank" 
@@ -245,7 +255,7 @@ const AuthView: React.FC<AuthProps> = ({
           <BookOpen className="w-4 h-4" />
           <span>Manual de Usuario</span>
         </a>
-        {/* ---------------------------------------------------------- */}
+        {/* ---------------------- */}
 
         <div className="w-full max-w-md space-y-8 animate-fade-in-up">
           
@@ -304,10 +314,21 @@ const AuthView: React.FC<AuthProps> = ({
                            <div className="relative"><User size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input required type="text" className="block w-full pl-10 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-teal" value={formData.fullName} onChange={e => setFormData({...formData, fullName: e.target.value})} placeholder="Dr. Juan Pérez"/></div>
                        </div>
                        <div className="grid grid-cols-2 gap-4">
+                           {/* --- CAMBIO: SELECTOR DE ESPECIALIDAD (NORMALIZACIÓN) --- */}
                            <div>
                                <label className="block text-sm font-medium text-slate-700 mb-1">Especialidad</label>
-                               <div className="relative"><Stethoscope size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input className="block w-full pl-10 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-teal" value={formData.specialty} onChange={e => setFormData({...formData, specialty: e.target.value})} placeholder="General"/></div>
+                               <div className="relative">
+                                   <Stethoscope size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none" />
+                                   <select 
+                                       className="block w-full pl-10 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-teal appearance-none bg-white text-slate-700 cursor-pointer text-sm" 
+                                       value={formData.specialty} 
+                                       onChange={e => setFormData({...formData, specialty: e.target.value})}
+                                   >
+                                       {SPECIALTIES.map(s => <option key={s} value={s}>{s}</option>)}
+                                   </select>
+                               </div>
                            </div>
+                           {/* -------------------------------------------------------- */}
                            <div>
                                <label className="block text-sm font-medium text-slate-700 mb-1">Cédula</label>
                                <div className="relative"><FileBadge size={18} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" /><input required type="text" className="block w-full pl-10 p-3 border border-slate-200 rounded-xl outline-none focus:ring-2 focus:ring-brand-teal" value={formData.cedula} onChange={e => setFormData({...formData, cedula: e.target.value.replace(/\D/g,'')})} maxLength={8}/></div>
