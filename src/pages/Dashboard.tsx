@@ -550,11 +550,12 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* VERSIÓN PC */}
+        {/* VERSIÓN PC - SIN BORDE IZQUIERDO */}
         <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-xl h-56 relative overflow-hidden transition-all duration-1000 border border-slate-200/20`}>
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
 
-            <div className="w-1/3 p-8 flex flex-col justify-between relative z-10 border-r border-white/5">
+            {/* SE ELIMINÓ 'border-r border-white/5' DE ESTE DIV */}
+            <div className="w-1/3 p-8 flex flex-col justify-between relative z-10">
                 <div className="flex justify-between items-start">
                     <div className={`flex items-center gap-2 ${leftTextColor}`}>
                         <MapPin size={16} />
@@ -657,12 +658,7 @@ const Dashboard: React.FC = () => {
                                             const aptDate = parseISO(apt.start_time);
                                             
                                             // --- LÓGICA DE VISUALIZACIÓN (SMART LABELING) ---
-                                            // 1. Prioridad: Nombre de la DB (si existe)
-                                            // 2. Fallback: Título manual (si no hay ID de paciente)
-                                            // 3. Último recurso: "Cita sin nombre"
                                             const displayName = apt.patient?.name || apt.title || "Cita sin nombre";
-                                            
-                                            // Subtítulo inteligente: No repetir el nombre
                                             const displaySubtitle = apt.patient?.name 
                                                 ? (apt.title && apt.title !== apt.patient.name ? apt.title : 'Consulta General') 
                                                 : 'Paciente no registrado';
@@ -691,8 +687,18 @@ const Dashboard: React.FC = () => {
                                                     </div>
 
                                                     {isOverdue ? (
-                                                        <div className="mt-3 pt-3 border-t border-amber-200/50 dark:border-amber-800/30">
-                                                            <p className="text-[10px] font-bold text-amber-700 uppercase tracking-wide mb-2 flex items-center gap-1"><AlertTriangle size={10}/> Atención Requerida</p>
+                                                        // --- NUEVO DISEÑO DE ALERTA ESTÉTICA ---
+                                                        <div className="mt-3">
+                                                            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/50 flex items-center gap-3 mb-3">
+                                                                <div className="bg-amber-100 dark:bg-amber-800/50 p-2 rounded-full text-amber-600 dark:text-amber-400">
+                                                                    <AlertTriangle size={16} />
+                                                                </div>
+                                                                <div>
+                                                                    <p className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase">Atención Requerida</p>
+                                                                    <p className="text-[10px] text-amber-600 dark:text-amber-400">Cita vencida sin finalizar.</p>
+                                                                </div>
+                                                            </div>
+                                                            
                                                             <div className="grid grid-cols-3 gap-2">
                                                                 <button onClick={(e) => {e.stopPropagation(); handleQuickAction('reschedule', apt)}} className="flex flex-col items-center justify-center p-2 rounded-xl bg-white border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-95 transition-all text-blue-600"><RefreshCcw size={18} className="mb-1"/><span className="text-[9px] font-bold">Reagendar</span></button>
                                                                 <button onClick={(e) => {e.stopPropagation(); handleQuickAction('noshow', apt)}} className="flex flex-col items-center justify-center p-2 rounded-xl bg-white border border-slate-200 shadow-sm hover:bg-slate-50 active:scale-95 transition-all text-amber-600"><UserX size={18} className="mb-1"/><span className="text-[9px] font-bold">No Vino</span></button>
