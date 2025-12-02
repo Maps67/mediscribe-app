@@ -38,7 +38,7 @@ const ConsultationView: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
-  const [currentUserId, setCurrentUserId] = useState<string | null>(null); // NUEVO: ID del usuario actual
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null); 
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -80,37 +80,30 @@ const ConsultationView: React.FC = () => {
     return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
   }, []);
 
-  // --- EFECTO DE CARGA INICIAL CON SEGURIDAD DE SESIÓN ---
   useEffect(() => {
     let mounted = true;
     const loadInitialData = async () => {
       try {
-        // 1. OBTENER USUARIO ACTUAL
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return; // Si no hay usuario, no hacemos nada
+        if (!user) return; 
 
         if (mounted) {
-            setCurrentUserId(user.id); // Guardamos el ID para validaciones futuras
+            setCurrentUserId(user.id); 
 
-            // 2. CARGAR PACIENTES
             const { data: patientsData } = await supabase.from('patients').select('*').order('created_at', { ascending: false });
             setPatients(patientsData || []);
             
-            // 3. CARGAR PERFIL MÉDICO
             const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
             if (profileData) {
                 setDoctorProfile(profileData as DoctorProfile);
                 if (profileData.specialty) setSelectedSpecialty(profileData.specialty);
             }
 
-            // 4. RECUPERAR BORRADOR SEGURO
-            // Solo recuperamos si el borrador pertenece a ESTE usuario
-            const savedDraft = localStorage.getItem(`draft_${user.id}`); // CLAVE ÚNICA POR USUARIO
+            const savedDraft = localStorage.getItem(`draft_${user.id}`); 
             if (savedDraft && !transcript) { 
                 setTranscript(savedDraft); 
                 toast.info("Borrador recuperado.", { icon: <Save size={16}/> }); 
             } else {
-                // Si no hay borrador específico o es otro usuario, aseguramos limpieza
                 if (!transcript) setTranscript(''); 
             }
         }
@@ -118,14 +111,13 @@ const ConsultationView: React.FC = () => {
     };
     loadInitialData();
     return () => { mounted = false; };
-  }, [setTranscript]); // Quitamos transcript del array para evitar loops, solo al montar
+  }, [setTranscript]); 
 
   useEffect(() => {
     if (selectedPatient) {
         setPatientInsights(null);
         if (transcript && confirm("¿Desea limpiar el dictado anterior para el nuevo paciente?")) {
             resetTranscript();
-            // Limpiamos también el storage específico del usuario
             if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`);
             setGeneratedNote(null);
             setIsRiskExpanded(false);
@@ -136,12 +128,10 @@ const ConsultationView: React.FC = () => {
     }
   }, [selectedPatient]); 
 
-  // --- EFECTO DE GUARDADO SEGURO ---
   useEffect(() => { 
     if (isListening && textareaRef.current) {
         textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
     }
-    // Guardamos SIEMPRE asociado al ID del usuario actual
     if (transcript && currentUserId) {
         localStorage.setItem(`draft_${currentUserId}`, transcript);
     }
@@ -489,7 +479,7 @@ const ConsultationView: React.FC = () => {
                                     </div>
                                     <div className="flex flex-col items-end gap-2">
                                         <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-4 py-2 rounded-lg font-bold flex gap-2 hover:bg-teal-600 shadow-md transition-all disabled:opacity-70 text-sm items-center">
-                                                {isSaving?<RefreshCw className="animate-spin" size={16}/>:<Save size={16}/>} Guardar
+                                                {isSaving?<RefreshCw className="animate-spin" size={16}/>:<Save size={16}/>} Validar y Guardar
                                         </button>
                                     </div>
                                 </div>
@@ -604,7 +594,7 @@ const ConsultationView: React.FC = () => {
                           <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 overflow-hidden">
                                 <div className="bg-yellow-50 text-yellow-800 p-2 text-sm rounded mb-2 dark:bg-yellow-900/30 dark:text-yellow-200">Formato antiguo.</div>
                               <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar"><FormattedText content={generatedNote.clinicalNote}/></div>
-                              <div className="border-t dark:border-slate-800 pt-4 flex justify-end"><button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-xl font-bold flex gap-2 hover:bg-teal-600 shadow-lg disabled:opacity-70">{isSaving?<RefreshCw className="animate-spin"/>:<Save/>} Guardar</button></div>
+                              <div className="border-t dark:border-slate-800 pt-4 flex justify-end"><button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-xl font-bold flex gap-2 hover:bg-teal-600 shadow-lg disabled:opacity-70">{isSaving?<RefreshCw className="animate-spin"/>:<Save/>} Validar y Guardar</button></div>
                           </div>
                       )}
 
