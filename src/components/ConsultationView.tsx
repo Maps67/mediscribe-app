@@ -96,7 +96,14 @@ const ConsultationView: React.FC = () => {
             const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
             if (profileData) {
                 setDoctorProfile(profileData as DoctorProfile);
-                if (profileData.specialty) setSelectedSpecialty(profileData.specialty);
+                
+                // --- FIX SMART DEFAULT (NORMALIZACIÓN) ---
+                if (profileData.specialty) {
+                    // Buscamos si la especialidad del perfil (ej: "MEDICINA INTERNA") existe en la lista (ej: "Medicina Interna")
+                    // Esto arregla el problema de mayúsculas/minúsculas en el selector
+                    const matchedSpecialty = SPECIALTIES.find(s => s.toLowerCase() === profileData.specialty.toLowerCase());
+                    setSelectedSpecialty(matchedSpecialty || profileData.specialty);
+                }
             }
 
             const savedDraft = localStorage.getItem(`draft_${user.id}`); 
