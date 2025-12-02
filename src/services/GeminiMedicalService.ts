@@ -48,47 +48,45 @@ const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
 if (!API_KEY) console.error("Falta la VITE_GEMINI_API_KEY");
 
 // --- MOTOR DE PERFILES CLÍNICOS ---
-// Esto define "QUÉ LE IMPORTA" a cada especialista
 const getSpecialtyPromptConfig = (specialty: string) => {
   const configs: Record<string, any> = {
     "Cardiología": {
-      role: "Cardiólogo Intervencionista y Clínico",
-      focus: "Hemodinamia, ritmo cardíaco, presión arterial, perfusión, soplos, edema y riesgo cardiovascular.",
-      bias: "CRÍTICO: Si el paciente presenta un trauma o patología de otro sistema, TU ÚNICO INTERÉS es el impacto hemodinámico, el riesgo quirúrgico y la medicación cardiovascular. NO actúes como traumatólogo, actúa como el cardiólogo que da el visto bueno.",
-      keywords: "Insuficiencia, Fracción de Eyección, NYHA, Ritmo Sinusal, QT, Isquemia."
+      role: "Cardiólogo Intervencionista",
+      focus: "Hemodinamia, ritmo, presión arterial, perfusión, soplos y riesgo cardiovascular.",
+      bias: "Prioriza el impacto hemodinámico. Traduce síntomas vagos a equivalentes cardiológicos.",
+      keywords: "Insuficiencia, FEVI, NYHA, Ritmo Sinusal, QT, Isquemia."
     },
     "Traumatología y Ortopedia": {
       role: "Cirujano Ortopedista",
-      focus: "Sistema musculoesquelético, arcos de movilidad, estabilidad articular, fuerza muscular y marcha.",
-      bias: "Enfócate en la biomecánica de la lesión. Ignora patologías sistémicas a menos que afecten la cirugía o la consolidación ósea.",
-      keywords: "Fractura, Esguince, Ligamento, Menisco, Artrosis, Quirúrgico, Conservador."
+      focus: "Sistema musculoesquelético, arcos de movilidad, estabilidad, fuerza y marcha.",
+      bias: "Describe la biomecánica de la lesión.",
+      keywords: "Fractura, Esguince, Ligamento, Quirúrgico, Conservador, Neurovascular."
     },
     "Dermatología": {
       role: "Dermatólogo",
-      focus: "Morfología de lesiones cutáneas (tipo, color, bordes, distribución), anejos cutáneos y mucosas.",
-      bias: "Describe las lesiones con precisión dermatológica (mácula, pápula, placa).",
+      focus: "Morfología de lesiones cutáneas (tipo, color, bordes), anejos y mucosas.",
+      bias: "Usa terminología dermatológica precisa.",
       keywords: "ABCD, Fototipo, Dermatosis, Biopsia, Crioterapia."
     },
     "Pediatría": {
       role: "Pediatra",
-      focus: "Desarrollo y crecimiento, hitos del desarrollo, alimentación, vacunación y percentiles.",
-      bias: "Todo debe evaluarse en el contexto de la edad del paciente. El tono de las instrucciones debe ser para los padres.",
-      keywords: "Percentil, Desarrollo psicomotor, Lactancia, Esquema de vacunación."
+      focus: "Desarrollo, crecimiento, hitos, alimentación y vacunación.",
+      bias: "Evalúa todo en contexto de la edad. Tono para padres.",
+      keywords: "Percentil, Desarrollo psicomotor, Lactancia, Esquema."
     },
     "Medicina General": {
       role: "Médico de Familia",
-      focus: "Visión integral, semiología general, detección de banderas rojas y referencia a especialistas.",
-      bias: "Mantén un enfoque holístico. Cubre todos los sistemas mencionados superficialmente.",
-      keywords: "Sintomático, Referencia, Preventivo, Control."
+      focus: "Visión integral, semiología general y referencia.",
+      bias: "Enfoque holístico.",
+      keywords: "Sintomático, Referencia, Preventivo."
     }
   };
 
-  // Fallback inteligente si la especialidad no está en la lista hardcodeada
   return configs[specialty] || {
     role: `Especialista en ${specialty}`,
-    focus: `Patologías y tratamientos específicos de ${specialty}.`,
-    bias: `Utiliza la terminología, escalas y criterios clínicos exclusivos de ${specialty}.`,
-    keywords: "Términos técnicos de la especialidad."
+    focus: `Patologías de ${specialty}.`,
+    bias: `Criterios clínicos de ${specialty}.`,
+    keywords: "Términos técnicos."
   };
 };
 
@@ -119,56 +117,63 @@ export const GeminiMedicalService = {
       const currentTime = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
       const cleanTranscript = transcript.replace(/"/g, "'").trim();
-      
-      // OBTENER CONFIGURACIÓN DE LENTE CLÍNICO
       const profile = getSpecialtyPromptConfig(specialty);
 
+      // --- FUSIÓN HÍBRIDA: PROMPT MAESTRO LEGAL + ESPECIALIDAD ---
       const prompt = `
-        CONFIGURACIÓN DE PERSONALIDAD (SYSTEM PROMPT):
-        ERES UN: ${profile.role}.
-        TU ENFOQUE (MANDATORIO): ${profile.focus}
-        TU SESGO COGNITIVO: ${profile.bias}
-        PALABRAS CLAVE ESPERADAS: ${profile.keywords}
+        ROL DEL SISTEMA (HÍBRIDO):
+        Actúas como "MediScribe AI", un asistente de documentación clínica administrativa.
+        SIN EMBARGO, posees el conocimiento clínico profundo de un: ${profile.role}.
+
+        TU OBJETIVO: 
+        Procesar la transcripción y generar una Nota de Evolución (SOAP) estructurada y técnica, pero manteniendo un perfil legal de "Asistente de Apoyo" (NOM-024).
+
+        CONTEXTO LEGAL Y DE SEGURIDAD (CRÍTICO - NO NEGOCIABLE):
+        1. NO DIAGNOSTICAS: Eres software de gestión. Nunca afirmes una enfermedad como absoluta. 
+           - MAL: "El paciente tiene infarto".
+           - BIEN: "Cuadro clínico sugerente de síndrome coronario", "Compatible con", "Patrón que coincide con".
+        2. DETECCIÓN DE RIESGOS (TRIAJE): Tu prioridad #1 es identificar "Red Flags" (Banderas Rojas).
+           - Si detectas peligro vital o funcional, el campo 'risk_analysis' DEBE ser 'Alto'.
+        3. FILTRADO DE RUIDO: Distingue entre lo que el paciente *cree* tener (subjetivo) y lo que *describe* fisiológicamente (real).
+           - Si el paciente dice "tengo gastritis" pero describe "dolor opresivo al esfuerzo", PRIORIZA LA GRAVEDAD (Dolor opresivo).
+
+        CONFIGURACIÓN DE LENTE CLÍNICO (${specialty}):
+        - TU ENFOQUE: ${profile.focus}
+        - TU SESGO: ${profile.bias}
         
         CONTEXTO DE LA CONSULTA:
         - Fecha: ${currentDate} ${currentTime}
         - Historial: "${patientHistory}"
         
-        TRANSCRIPCIÓN DEL AUDIO:
+        TRANSCRIPCIÓN BRUTA:
         "${cleanTranscript}"
 
-        TAREA:
-        Genera una Nota de Evolución SOAP filtrando TODA la información a través de tu lente de ${specialty}.
-        
-        INSTRUCCIONES DE SEGURIDAD (CLÁUSULA DE BANDERAS ROJAS):
-        1. Tu prioridad es redactar como ${specialty}.
-        2. EXCEPCIÓN DE SEGURIDAD CRÍTICA: Si detectas una condición de OTRA especialidad que ponga en PELIGRO INMINENTE la vida del paciente (ej: Infarto en consulta de Derma, Fractura expuesta en consulta de Cardio, Ideación suicida), DEBES mencionarla brevemente en la sección 'assessment' como un "HALLAZGO INCIDENTAL CRÍTICO". ¡NO LA OCULTES!
-        3. Nunca inventes signos vitales. Si no se mencionan en el audio, asume "No cuantificado" o infiere lo negativo.
-        
-        REGLAS DE ORO PARA EL CONTENIDO:
-        1. S (Subjetivo): Solo documenta lo que es relevante para tu especialidad. Si el paciente se queja de algo ajeno, menciónalo solo si afecta tu área.
-        2. O (Objetivo): Si la transcripción no menciona datos físicos específicos de tu área (ej: ruidos cardiacos para cardio), INFIERE "No reportado en audio" o usa datos implícitos.
-        3. A (Análisis): Tu conclusión debe ser desde la perspectiva de ${specialty}.
-        4. P (Plan): Tu plan debe ser congruente con tu rol.
+        TAREA DE GENERACIÓN JSON:
+        Genera un objeto JSON estricto con la siguiente estructura y lógica:
+
+        1. conversation_log: Reconstruye el diálogo separando Médico/Paciente.
+        2. soap:
+           - Subjective: Narrativa técnica filtrada por tu especialidad.
+           - Objective: Hallazgos físicos (si no se mencionan, infiere "No reportado").
+           - Assessment: Juicio clínico usando LENGUAJE PROBABILÍSTICO (ej: "Probable...", "A descartar...").
+           - Plan: Pasos a seguir congruentes con ${specialty}.
+        3. risk_analysis:
+           - level: "Alto" (Peligro vital/funcional), "Medio" (Atención pronta), "Bajo" (Rutina).
+           - reason: Justificación breve y contundente para el médico (ej: "POSIBLE SÍNDROME CORONARIO por clínica de dolor referido").
+        4. patientInstructions: Lenguaje nivel primaria, claro y empático.
 
         FORMATO JSON DE SALIDA:
         { 
-          "conversation_log": [
-            { "speaker": "Médico", "text": "..." },
-            { "speaker": "Paciente", "text": "..." }
-          ], 
+          "conversation_log": [{ "speaker": "Médico", "text": "..." }, { "speaker": "Paciente", "text": "..." }], 
           "soap": { 
-            "subjective": "Narrativa enfocada en ${specialty}...", 
-            "objective": "Hallazgos físicos de ${specialty}...", 
-            "assessment": "Diagnóstico y análisis de ${specialty}...", 
-            "plan": "Manejo por ${specialty}...", 
+            "subjective": "...", 
+            "objective": "...", 
+            "assessment": "...", 
+            "plan": "...", 
             "suggestions": [] 
           }, 
-          "patientInstructions": "Lenguaje claro, nivel primaria.", 
-          "risk_analysis": { 
-            "level": "Bajo" | "Medio" | "Alto", 
-            "reason": "Justificación clínica." 
-          } 
+          "patientInstructions": "...", 
+          "risk_analysis": { "level": "Bajo" | "Medio" | "Alto", "reason": "..." } 
         }
       `;
 
@@ -184,7 +189,7 @@ export const GeminiMedicalService = {
     } catch (error) { throw error; }
   },
 
-  // --- MÉTODOS AUXILIARES SIN CAMBIOS ---
+  // --- MÉTODOS AUXILIARES (Sin cambios) ---
   async extractMedications(text: string): Promise<MedicationItem[]> {
     const cleanText = text.replace(/["“”]/g, "").trim(); 
     if (!cleanText) return [];
