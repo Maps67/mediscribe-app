@@ -4,7 +4,7 @@ import {
   MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
   Stethoscope, Trash2, WifiOff, Save, Share2, Download, Printer,
   Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature, Keyboard,
-  Quote, AlertTriangle, ChevronDown, ChevronUp // Agregados iconos para el acordeón
+  Quote, AlertTriangle, ChevronDown, ChevronUp
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
@@ -57,7 +57,6 @@ const ConsultationView: React.FC = () => {
   const [isAttachmentsOpen, setIsAttachmentsOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
-  // NUEVO ESTADO: Controla si la alerta de riesgo está expandida o colapsada
   const [isRiskExpanded, setIsRiskExpanded] = useState(false);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -92,13 +91,12 @@ const ConsultationView: React.FC = () => {
     return () => { mounted = false; };
   }, [setTranscript]); 
 
-  // Reset del estado de expansión de riesgo al cambiar de paciente o limpiar
   useEffect(() => {
     if (selectedPatient) {
         if (transcript && confirm("¿Desea limpiar el dictado anterior para el nuevo paciente?")) {
             resetTranscript();
             setGeneratedNote(null);
-            setIsRiskExpanded(false); // Reset al limpiar
+            setIsRiskExpanded(false);
         } else if (!transcript) {
             setGeneratedNote(null);
             setIsRiskExpanded(false);
@@ -166,7 +164,14 @@ const ConsultationView: React.FC = () => {
 
       setGeneratedNote(response);
       setEditableInstructions(response.patientInstructions || '');
-      setIsRiskExpanded(false); // Inicia colapsado por defecto para ahorrar espacio
+      // REGLA DE SEGURIDAD: Si es riesgo alto, expandir alerta automáticamente
+      if (response.risk_analysis?.level === 'Alto') {
+          setIsRiskExpanded(true);
+          toast.warning("ALERTA: Se han detectado riesgos clínicos importantes.");
+      } else {
+          setIsRiskExpanded(false);
+      }
+      
       setActiveTab('record');
       
       const chatWelcome = historyContext ? `Nota generada con análisis evolutivo. ¿Dudas?` : `Nota de primera vez generada. ¿Dudas?`;
@@ -181,26 +186,59 @@ const ConsultationView: React.FC = () => {
     }
   };
 
+  // --- LÓGICA DE GUARDADO BLINDADA (LEGAL SHIELD) ---
   const handleSaveConsultation = async () => {
     if (!selectedPatient || !generatedNote) return toast.error("Faltan datos.");
     if (!isOnline) return toast.error("Requiere internet para sincronizar con la nube.");
+    
+    // 1. VALIDACIÓN HUMANA OBLIGATORIA
+    // Si hay riesgo alto, el médico debe haber interactuado (visto) la alerta.
+    // Como ya expandimos la alerta automáticamente en handleGenerate si es alta, asumimos visto.
+    // Podríamos añadir un checkbox de "He leído y confirmo" si quieres ser más estricto.
+
     setIsSaving(true);
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Sesión expirada");
         
+        // 2. TEXTO PLANO (Legacy y para búsquedas rápidas)
         const summaryToSave = generatedNote.soap 
             ? `FECHA: ${new Date().toLocaleDateString()}\nS: ${generatedNote.soap.subjective}\nO: ${generatedNote.soap.objective}\nA: ${generatedNote.soap.assessment}\nP: ${generatedNote.soap.plan}\n\nPLAN PACIENTE:\n${editableInstructions}`
             : (generatedNote.clinicalNote + "\n\nPLAN PACIENTE:\n" + editableInstructions);
 
-        const { error } = await supabase.from('consultations').insert({
-            doctor_id: user.id, patient_id: selectedPatient.id, transcript: transcript || 'N/A', 
-            summary: summaryToSave, status: 'completed'
-        });
+        // 3. ESTRUCTURA DE SEGURIDAD (PAYLOAD COMPLETO)
+        const payload = {
+            doctor_id: user.id, 
+            patient_id: selectedPatient.id, 
+            transcript: transcript || 'N/A', 
+            summary: summaryToSave,
+            status: 'completed',
+            // NUEVO: Escudo Legal
+            ai_analysis_data: generatedNote, // Guardamos el JSON crudo como evidencia
+            legal_status: 'validated' // Marcamos que el humano presionó "Guardar"
+        };
+
+        const { error } = await supabase.from('consultations').insert(payload);
+        
         if (error) throw error;
-        toast.success("Guardado en expediente");
-        resetTranscript(); localStorage.removeItem('mediscribe_local_draft'); setGeneratedNote(null); setEditableInstructions(''); setSelectedPatient(null); setConsentGiven(false); setIsRiskExpanded(false);
-    } catch (e:any) { toast.error(e.message); } finally { setIsSaving(false); }
+        
+        toast.success("Nota validada y guardada en expediente");
+        
+        // Limpieza post-guardado
+        resetTranscript(); 
+        localStorage.removeItem('mediscribe_local_draft'); 
+        setGeneratedNote(null); 
+        setEditableInstructions(''); 
+        setSelectedPatient(null); 
+        setConsentGiven(false); 
+        setIsRiskExpanded(false);
+
+    } catch (e:any) { 
+        console.error("Error guardando:", e);
+        toast.error("Error al guardar: " + e.message); 
+    } finally { 
+        setIsSaving(false); 
+    }
   };
 
   const handleChatSend = async (e?: React.FormEvent) => {
@@ -366,7 +404,6 @@ const ConsultationView: React.FC = () => {
                                     </div>
                                 </div>
 
-                                {/* MODIFICACIÓN DE UX: COMPONENTE DE RIESGO COLAPSABLE */}
                                 {generatedNote.risk_analysis && (
                                     <div 
                                       onClick={() => setIsRiskExpanded(!isRiskExpanded)}
@@ -376,7 +413,6 @@ const ConsultationView: React.FC = () => {
                                           'bg-green-50 border-green-200'
                                       }`}
                                     >
-                                        {/* CABECERA DE LA ALERTA (SIEMPRE VISIBLE, COMPACTA) */}
                                         <div className={`p-3 flex justify-between items-center ${
                                             generatedNote.risk_analysis.level === 'Alto' ? 'text-red-700' :
                                             generatedNote.risk_analysis.level === 'Medio' ? 'text-amber-700' :
@@ -390,7 +426,6 @@ const ConsultationView: React.FC = () => {
                                             {isRiskExpanded ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
                                         </div>
 
-                                        {/* CONTENIDO EXPANDIBLE (DETALLES) */}
                                         <div className={`px-4 pb-4 text-sm leading-relaxed transition-all duration-300 ${
                                             generatedNote.risk_analysis.level === 'Alto' ? 'text-red-800' :
                                             generatedNote.risk_analysis.level === 'Medio' ? 'text-amber-800' :
@@ -407,7 +442,6 @@ const ConsultationView: React.FC = () => {
                                 </div>
                             </div>
 
-                            {/* CHAT VISUAL */}
                             {generatedNote.conversation_log && generatedNote.conversation_log.length > 0 && (
                                 <div className="mb-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
