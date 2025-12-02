@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Mail, Lock, User, Stethoscope, ArrowRight, AlertTriangle, 
   KeyRound, ArrowLeft, CheckCircle2, BookOpen,
-  Eye, EyeOff, FileBadge, Loader2, HelpCircle
+  Eye, EyeOff, FileBadge, Loader2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
@@ -78,27 +78,40 @@ const AuthView: React.FC<AuthProps> = ({
             setLoading(false); return;
         }
 
+        // CREAR CUENTA (FIX: AGREGADO emailRedirectTo)
         const { data, error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
           options: {
-            data: { full_name: formData.fullName, specialty: formData.specialty, cedula: cedulaLimpia },
+            emailRedirectTo: window.location.origin, // <--- ESTO ERA LO QUE FALTABA
+            data: { 
+                full_name: formData.fullName, 
+                specialty: formData.specialty, 
+                cedula: cedulaLimpia 
+            },
           },
         });
 
         if (error) throw error;
 
+        // CREAR PERFIL
         if (data.user) {
-            await supabase.from('profiles').insert({
+            // Verificamos si ya existe para no duplicar (idempotencia)
+            const { error: profileError } = await supabase.from('profiles').insert({
                 id: data.user.id,
                 full_name: formData.fullName,
                 specialty: formData.specialty,
                 cedula: cedulaLimpia,
                 email: formData.email
             });
+            
+            // Si el error es que ya existe, lo ignoramos (el usuario pudo haber reintentado)
+            if (profileError && profileError.code !== '23505') {
+                console.error("Error creando perfil:", profileError);
+            }
         }
         setVerificationSent(true);
-        toast.success("Cuenta creada exitosamente.");
+        toast.success("Cuenta creada. Revise su correo.");
 
       } else {
         const { error } = await supabase.auth.signInWithPassword({
@@ -113,6 +126,7 @@ const AuthView: React.FC<AuthProps> = ({
       console.error(error);
       let msg = error.message;
       if (msg === "Invalid login credentials") msg = "Correo o contraseña incorrectos";
+      if (msg.includes("User already registered")) msg = "Este correo ya está registrado. Intente iniciar sesión.";
       toast.error(msg);
     } finally {
       setLoading(false);
@@ -172,6 +186,7 @@ const AuthView: React.FC<AuthProps> = ({
           <div className="w-20 h-20 bg-green-100 text-green-600 rounded-full flex items-center justify-center mx-auto mb-6"><Mail size={40} /></div>
           <h2 className="text-2xl font-bold text-slate-800 mb-2">¡Casi listo!</h2>
           <p className="text-slate-600 mb-6">Hemos enviado confirmación a: <span className="font-bold text-brand-teal">{formData.email}</span></p>
+          <p className="text-xs text-slate-400 mb-6">Si no llega en 1 minuto, revise SPAM.</p>
           <button onClick={() => { setVerificationSent(false); setIsRegistering(false); }} className="w-full bg-brand-teal text-white py-3 rounded-xl font-bold hover:bg-teal-600 transition-all">Ir a Iniciar Sesión</button>
         </div>
       </div>
