@@ -4,13 +4,13 @@ import {
   MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
   Stethoscope, Trash2, WifiOff, Save, Share2, Download, Printer,
   Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature, Keyboard,
-  Quote, AlertTriangle, ChevronDown, ChevronUp
+  Quote, AlertTriangle, ChevronDown, ChevronUp, Sparkles // Agregado Sparkles
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
 import { GeminiMedicalService, ChatMessage, GeminiResponse } from '../services/GeminiMedicalService';
 import { supabase } from '../lib/supabase';
-import { Patient, DoctorProfile } from '../types';
+import { Patient, DoctorProfile, PatientInsight } from '../types';
 import FormattedText from './FormattedText';
 import { toast } from 'sonner';
 import { pdf } from '@react-pdf/renderer';
@@ -19,6 +19,7 @@ import { AppointmentService } from '../services/AppointmentService';
 import QuickRxModal from './QuickRxModal';
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { UploadMedico } from './UploadMedico';
+import { InsightsPanel } from './InsightsPanel'; // Importamos el panel
 
 type TabType = 'record' | 'patient' | 'chat';
 
@@ -59,6 +60,11 @@ const ConsultationView: React.FC = () => {
 
   const [isRiskExpanded, setIsRiskExpanded] = useState(false);
 
+  // --- ESTADOS PARA INSIGHTS 360 ---
+  const [isInsightsOpen, setIsInsightsOpen] = useState(false);
+  const [patientInsights, setPatientInsights] = useState<PatientInsight | null>(null);
+  const [isLoadingInsights, setIsLoadingInsights] = useState(false);
+
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -93,6 +99,7 @@ const ConsultationView: React.FC = () => {
 
   useEffect(() => {
     if (selectedPatient) {
+        setPatientInsights(null); // Reset insights al cambiar paciente
         if (transcript && confirm("¿Desea limpiar el dictado anterior para el nuevo paciente?")) {
             resetTranscript();
             setGeneratedNote(null);
@@ -135,6 +142,42 @@ const ConsultationView: React.FC = () => {
       if(confirm("¿Borrar borrador permanentemente?")) { resetTranscript(); localStorage.removeItem('mediscribe_local_draft'); setGeneratedNote(null); setIsRiskExpanded(false); }
   };
 
+  // --- FUNCIÓN PARA CARGAR INSIGHTS 360 ---
+  const handleLoadInsights = async () => {
+      if (!selectedPatient) return toast.error("Seleccione un paciente primero.");
+      
+      setIsInsightsOpen(true);
+      if (patientInsights) return; // Si ya los tenemos, solo abrimos el modal
+
+      setIsLoadingInsights(true);
+      try {
+          // 1. Obtener últimas 5 consultas
+          const { data: history } = await supabase
+            .from('consultations')
+            .select('summary, created_at')
+            .eq('patient_id', selectedPatient.id)
+            .order('created_at', { ascending: false })
+            .limit(5);
+          
+          const consultationsText = history?.map(h => `[Fecha: ${new Date(h.created_at).toLocaleDateString()}] ${h.summary}`) || [];
+          
+          // 2. Llamar a la IA
+          const analysis = await GeminiMedicalService.generatePatient360Analysis(
+              selectedPatient.name, 
+              selectedPatient.history || "No registrado", 
+              consultationsText
+          );
+          
+          setPatientInsights(analysis);
+      } catch (error) {
+          toast.error("Error analizando historial.");
+          console.error(error);
+          setIsInsightsOpen(false);
+      } finally {
+          setIsLoadingInsights(false);
+      }
+  };
+
   const handleGenerate = async () => {
     if (!transcript) return toast.error("Sin audio.");
     if (!isOnline) { 
@@ -164,7 +207,6 @@ const ConsultationView: React.FC = () => {
 
       setGeneratedNote(response);
       setEditableInstructions(response.patientInstructions || '');
-      // REGLA DE SEGURIDAD: Si es riesgo alto, expandir alerta automáticamente
       if (response.risk_analysis?.level === 'Alto') {
           setIsRiskExpanded(true);
           toast.warning("ALERTA: Se han detectado riesgos clínicos importantes.");
@@ -186,36 +228,27 @@ const ConsultationView: React.FC = () => {
     }
   };
 
-  // --- LÓGICA DE GUARDADO BLINDADA (LEGAL SHIELD) ---
   const handleSaveConsultation = async () => {
     if (!selectedPatient || !generatedNote) return toast.error("Faltan datos.");
     if (!isOnline) return toast.error("Requiere internet para sincronizar con la nube.");
     
-    // 1. VALIDACIÓN HUMANA OBLIGATORIA
-    // Si hay riesgo alto, el médico debe haber interactuado (visto) la alerta.
-    // Como ya expandimos la alerta automáticamente en handleGenerate si es alta, asumimos visto.
-    // Podríamos añadir un checkbox de "He leído y confirmo" si quieres ser más estricto.
-
     setIsSaving(true);
     try {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Sesión expirada");
         
-        // 2. TEXTO PLANO (Legacy y para búsquedas rápidas)
         const summaryToSave = generatedNote.soap 
             ? `FECHA: ${new Date().toLocaleDateString()}\nS: ${generatedNote.soap.subjective}\nO: ${generatedNote.soap.objective}\nA: ${generatedNote.soap.assessment}\nP: ${generatedNote.soap.plan}\n\nPLAN PACIENTE:\n${editableInstructions}`
             : (generatedNote.clinicalNote + "\n\nPLAN PACIENTE:\n" + editableInstructions);
 
-        // 3. ESTRUCTURA DE SEGURIDAD (PAYLOAD COMPLETO)
         const payload = {
             doctor_id: user.id, 
             patient_id: selectedPatient.id, 
             transcript: transcript || 'N/A', 
             summary: summaryToSave,
             status: 'completed',
-            // NUEVO: Escudo Legal
-            ai_analysis_data: generatedNote, // Guardamos el JSON crudo como evidencia
-            legal_status: 'validated' // Marcamos que el humano presionó "Guardar"
+            ai_analysis_data: generatedNote, 
+            legal_status: 'validated'
         };
 
         const { error } = await supabase.from('consultations').insert(payload);
@@ -224,7 +257,6 @@ const ConsultationView: React.FC = () => {
         
         toast.success("Nota validada y guardada en expediente");
         
-        // Limpieza post-guardado
         resetTranscript(); 
         localStorage.removeItem('mediscribe_local_draft'); 
         setGeneratedNote(null); 
@@ -232,6 +264,7 @@ const ConsultationView: React.FC = () => {
         setSelectedPatient(null); 
         setConsentGiven(false); 
         setIsRiskExpanded(false);
+        setPatientInsights(null);
 
     } catch (e:any) { 
         console.error("Error guardando:", e);
@@ -302,7 +335,19 @@ const ConsultationView: React.FC = () => {
             </div>
         </div>
         <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
-            <label className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase flex gap-1"><Stethoscope size={14}/> Especialidad</label>
+            <div className="flex justify-between items-center mb-1">
+                <label className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase flex gap-1"><Stethoscope size={14}/> Especialidad</label>
+                {/* BOTÓN INSIGHTS 360 */}
+                {selectedPatient && (
+                    <button 
+                        onClick={handleLoadInsights} 
+                        className="flex items-center gap-1 text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full hover:bg-indigo-200 transition-colors"
+                        title="Ver Balance 360"
+                    >
+                        <Sparkles size={10} /> Balance 360°
+                    </button>
+                )}
+            </div>
             <select value={selectedSpecialty} onChange={(e)=>setSelectedSpecialty(e.target.value)} className="w-full bg-transparent border-b border-indigo-200 outline-none py-1 text-sm dark:text-white cursor-pointer">{SPECIALTIES.map(s=><option key={s} value={s}>{s}</option>)}</select>
         </div>
         <div className="relative z-10">
@@ -345,6 +390,7 @@ const ConsultationView: React.FC = () => {
             <div ref={transcriptEndRef}/>
             
             <div className="flex w-full gap-2 mt-auto flex-col xl:flex-row z-20 pt-4">
+                
                 <button 
                     onClick={handleToggleRecording} 
                     disabled={!isOnline || !consentGiven || (!isAPISupported && !isListening)} 
@@ -442,6 +488,7 @@ const ConsultationView: React.FC = () => {
                                 </div>
                             </div>
 
+                            {/* CHAT VISUAL */}
                             {generatedNote.conversation_log && generatedNote.conversation_log.length > 0 && (
                                 <div className="mb-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
@@ -532,8 +579,21 @@ const ConsultationView: React.FC = () => {
         </div>
       )}
 
+      {/* MODALES */}
       {isAppointmentModalOpen && <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4"><div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-sm w-full animate-fade-in-up"><h3 className="font-bold text-lg mb-4 dark:text-white">Agendar Seguimiento</h3><input type="datetime-local" className="w-full border dark:border-slate-700 p-3 rounded-xl mb-6 bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal" value={nextApptDate} onChange={e=>setNextApptDate(e.target.value)}/><div className="flex justify-end gap-3"><button onClick={()=>setIsAppointmentModalOpen(false)} className="text-slate-500 font-medium">Cancelar</button><button onClick={handleConfirmAppointment} className="bg-brand-teal text-white px-4 py-2 rounded-xl font-bold">Confirmar</button></div></div></div>}
+      
       {isQuickRxModalOpen && selectedPatient && doctorProfile && <QuickRxModal isOpen={isQuickRxModalOpen} onClose={()=>setIsQuickRxModalOpen(false)} initialTranscript={transcript} patientName={selectedPatient.name} doctorProfile={doctorProfile}/>}
+      
+      {/* INSIGHTS PANEL (NUEVO) */}
+      {selectedPatient && (
+        <InsightsPanel 
+            isOpen={isInsightsOpen}
+            onClose={() => setIsInsightsOpen(false)}
+            insights={patientInsights}
+            isLoading={isLoadingInsights}
+            patientName={selectedPatient.name}
+        />
+      )}
     </div>
   );
 };

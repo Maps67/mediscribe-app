@@ -1,5 +1,6 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase } from '../lib/supabase'; 
+import { PatientInsight } from '../types';
 
 export interface SoapNote {
   subjective: string;
@@ -34,13 +35,6 @@ export interface MedicationItem {
 export interface FollowUpMessage {
   day: number;
   message: string;
-}
-
-export interface PatientInsight {
-  evolution: string;
-  medication_audit: string;
-  risk_flags: string[];
-  pending_actions: string[];
 }
 
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
@@ -106,6 +100,7 @@ export const GeminiMedicalService = {
     } catch (error) { return "gemini-1.5-flash"; }
   },
 
+  // --- FUNCIÓN PRINCIPAL: NOTA CLÍNICA (CON ESCUDO LEGAL) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const modelName = await this.getBestAvailableModel(); 
@@ -119,7 +114,6 @@ export const GeminiMedicalService = {
       const cleanTranscript = transcript.replace(/"/g, "'").trim();
       const profile = getSpecialtyPromptConfig(specialty);
 
-      // --- FUSIÓN HÍBRIDA: PROMPT MAESTRO LEGAL + ESPECIALIDAD ---
       const prompt = `
         ROL DEL SISTEMA (HÍBRIDO):
         Actúas como "MediScribe AI", un asistente de documentación clínica administrativa.
@@ -128,14 +122,11 @@ export const GeminiMedicalService = {
         TU OBJETIVO: 
         Procesar la transcripción y generar una Nota de Evolución (SOAP) estructurada y técnica, pero manteniendo un perfil legal de "Asistente de Apoyo" (NOM-024).
 
-        CONTEXTO LEGAL Y DE SEGURIDAD (CRÍTICO - NO NEGOCIABLE):
-        1. NO DIAGNOSTICAS: Eres software de gestión. Nunca afirmes una enfermedad como absoluta. 
-           - MAL: "El paciente tiene infarto".
-           - BIEN: "Cuadro clínico sugerente de síndrome coronario", "Compatible con", "Patrón que coincide con".
-        2. DETECCIÓN DE RIESGOS (TRIAJE): Tu prioridad #1 es identificar "Red Flags" (Banderas Rojas).
+        CONTEXTO LEGAL Y DE SEGURIDAD (CRÍTICO):
+        1. NO DIAGNOSTICAS: Eres software de gestión. Nunca afirmes una enfermedad como absoluta. Usa "Cuadro compatible con", "Probable".
+        2. DETECCIÓN DE RIESGOS (TRIAJE): Tu prioridad #1 es identificar "Red Flags".
            - Si detectas peligro vital o funcional, el campo 'risk_analysis' DEBE ser 'Alto'.
-        3. FILTRADO DE RUIDO: Distingue entre lo que el paciente *cree* tener (subjetivo) y lo que *describe* fisiológicamente (real).
-           - Si el paciente dice "tengo gastritis" pero describe "dolor opresivo al esfuerzo", PRIORIZA LA GRAVEDAD (Dolor opresivo).
+        3. FILTRADO DE RUIDO: Prioriza lo que el paciente describe fisiológicamente sobre lo que cree tener.
 
         CONFIGURACIÓN DE LENTE CLÍNICO (${specialty}):
         - TU ENFOQUE: ${profile.focus}
@@ -149,18 +140,11 @@ export const GeminiMedicalService = {
         "${cleanTranscript}"
 
         TAREA DE GENERACIÓN JSON:
-        Genera un objeto JSON estricto con la siguiente estructura y lógica:
-
-        1. conversation_log: Reconstruye el diálogo separando Médico/Paciente.
-        2. soap:
-           - Subjective: Narrativa técnica filtrada por tu especialidad.
-           - Objective: Hallazgos físicos (si no se mencionan, infiere "No reportado").
-           - Assessment: Juicio clínico usando LENGUAJE PROBABILÍSTICO (ej: "Probable...", "A descartar...").
-           - Plan: Pasos a seguir congruentes con ${specialty}.
-        3. risk_analysis:
-           - level: "Alto" (Peligro vital/funcional), "Medio" (Atención pronta), "Bajo" (Rutina).
-           - reason: Justificación breve y contundente para el médico (ej: "POSIBLE SÍNDROME CORONARIO por clínica de dolor referido").
-        4. patientInstructions: Lenguaje nivel primaria, claro y empático.
+        Genera un objeto JSON estricto:
+        1. conversation_log: Diálogo Médico/Paciente.
+        2. soap: Estructura SOAP técnica.
+        3. risk_analysis: Nivel de riesgo y justificación.
+        4. patientInstructions: Instrucciones claras.
 
         FORMATO JSON DE SALIDA:
         { 
@@ -189,7 +173,53 @@ export const GeminiMedicalService = {
     } catch (error) { throw error; }
   },
 
-  // --- MÉTODOS AUXILIARES (Sin cambios) ---
+  // --- NUEVA FUNCIÓN: BALANCE CLÍNICO 360 (INSIGHTS) ---
+  async generatePatient360Analysis(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
+      try {
+        const modelName = await this.getBestAvailableModel();
+        const genAI = new GoogleGenerativeAI(API_KEY);
+        const model = genAI.getGenerativeModel({ model: modelName, generationConfig: { responseMimeType: "application/json" } });
+
+        // Si no hay consultas previas, la IA debe saberlo
+        const contextText = consultations.length > 0 
+            ? consultations.join("\n\n--- SIGUIENTE CONSULTA (CRONOLÓGICA) ---\n\n")
+            : "No hay consultas previas registradas en el sistema.";
+
+        const prompt = `
+            ACTÚA COMO: Jefe de Servicio Clínico y Auditor Médico.
+            OBJETIVO: Generar un "Balance Clínico 360" para el paciente "${patientName}".
+            
+            DATOS DE ENTRADA:
+            1. Antecedentes (History): ${historySummary || "No registrados"}
+            2. Historial de Consultas Recientes:
+            ${contextText}
+
+            TAREA DE ANÁLISIS PROFUNDO:
+            1. EVOLUCIÓN: ¿El paciente está mejorando, empeorando o estancado? Detecta patrones sutiles.
+            2. AUDITORÍA DE MEDICAMENTOS: ¿Qué fármacos se han recetado? ¿Cuáles funcionaron?
+            3. BANDERAS ROJAS (RIESGOS): Identifica riesgos latentes (ej: hipertensión refractaria, alergias ignoradas).
+            4. ACCIONES PENDIENTES: Estudios solicitados anteriormente que nunca se revisaron.
+
+            FORMATO DE SALIDA (JSON REQUERIDO):
+            {
+              "evolution": "Resumen narrativo breve sobre la trayectoria clínica.",
+              "medication_audit": "Resumen de la farmacoterapia.",
+              "risk_flags": ["Riesgo 1", "Riesgo 2"],
+              "pending_actions": ["Pendiente 1", "Pendiente 2"]
+            }
+        `;
+
+        const result = await model.generateContent(prompt);
+        const textResponse = result.response.text();
+        return JSON.parse(textResponse) as PatientInsight;
+
+      } catch (e) { 
+          console.error("Error generating 360 insights:", e);
+          throw e; 
+      }
+  },
+
+  // --- MÉTODOS AUXILIARES ---
   async extractMedications(text: string): Promise<MedicationItem[]> {
     const cleanText = text.replace(/["“”]/g, "").trim(); 
     if (!cleanText) return [];
@@ -215,21 +245,14 @@ export const GeminiMedicalService = {
   },
 
   async generatePatientInsights(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
-      try {
-        const modelName = await this.getBestAvailableModel();
-        const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
-        const prompt = `Analiza expediente de "${patientName}". Antecedentes: ${historySummary}. Consultas: ${consultations.join(" ")}. Retorna JSON con insights.`;
-        const response = await fetch(URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
-        const data = await response.json();
-        return JSON.parse(data.candidates?.[0]?.content?.parts?.[0]?.text.replace(/```json/g, '').replace(/```/g, '').trim()) as PatientInsight;
-      } catch (e) { throw e; }
+      return this.generatePatient360Analysis(patientName, historySummary, consultations);
   },
 
   async chatWithContext(context: string, userMessage: string): Promise<string> {
     try {
         const modelName = await this.getBestAvailableModel();
         const URL = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
-        const prompt = `CONTEXTO: ${context}. PREGUNTA: "${userMessage}". RESPUESTA BREVE:`;
+        const prompt = `CONTEXTO: ${context}. PREGUNTA: "${userMessage}". RESPUESTA BREVE Y PROFESIONAL:`;
         const response = await fetch(URL, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ contents: [{ parts: [{ text: prompt }] }] }) });
         const data = await response.json();
         return data.candidates?.[0]?.content?.parts?.[0]?.text || "Error.";
