@@ -38,6 +38,7 @@ const ConsultationView: React.FC = () => {
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
+  const [currentUserId, setCurrentUserId] = useState<string | null>(null); // NUEVO: ID del usuario actual
   
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -46,7 +47,6 @@ const ConsultationView: React.FC = () => {
   const [consentGiven, setConsentGiven] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('record');
   
-  // ESTADO INICIAL: Medicina General (Fallback)
   const [selectedSpecialty, setSelectedSpecialty] = useState('Medicina General');
   
   const [editableInstructions, setEditableInstructions] = useState('');
@@ -63,7 +63,6 @@ const ConsultationView: React.FC = () => {
 
   const [isRiskExpanded, setIsRiskExpanded] = useState(false);
 
-  // --- ESTADOS PARA INSIGHTS 360 ---
   const [isInsightsOpen, setIsInsightsOpen] = useState(false);
   const [patientInsights, setPatientInsights] = useState<PatientInsight | null>(null);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
@@ -81,42 +80,53 @@ const ConsultationView: React.FC = () => {
     return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
   }, []);
 
+  // --- EFECTO DE CARGA INICIAL CON SEGURIDAD DE SESIÓN ---
   useEffect(() => {
     let mounted = true;
     const loadInitialData = async () => {
       try {
-        const { data: patientsData } = await supabase.from('patients').select('*').order('created_at', { ascending: false });
-        if (mounted && patientsData) setPatients(patientsData);
-        
+        // 1. OBTENER USUARIO ACTUAL
         const { data: { user } } = await supabase.auth.getUser();
-        if (user && mounted) {
-          const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-          if (profileData) {
-              setDoctorProfile(profileData as DoctorProfile);
-              // --- SMART DEFAULT: AUTO-SELECCIÓN DE ESPECIALIDAD ---
-              // Si el médico tiene especialidad registrada, la ponemos por defecto.
-              if (profileData.specialty && SPECIALTIES.includes(profileData.specialty)) {
-                  setSelectedSpecialty(profileData.specialty);
-              } else if (profileData.specialty) {
-                  // Si no está en la lista pero existe, la agregamos visualmente o la seteamos igual
-                  // Para este caso, forzamos el set aunque no esté en el array (HTML select lo manejará o mostrará el valor)
-                  setSelectedSpecialty(profileData.specialty);
-              }
-          }
+        if (!user) return; // Si no hay usuario, no hacemos nada
+
+        if (mounted) {
+            setCurrentUserId(user.id); // Guardamos el ID para validaciones futuras
+
+            // 2. CARGAR PACIENTES
+            const { data: patientsData } = await supabase.from('patients').select('*').order('created_at', { ascending: false });
+            setPatients(patientsData || []);
+            
+            // 3. CARGAR PERFIL MÉDICO
+            const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+            if (profileData) {
+                setDoctorProfile(profileData as DoctorProfile);
+                if (profileData.specialty) setSelectedSpecialty(profileData.specialty);
+            }
+
+            // 4. RECUPERAR BORRADOR SEGURO
+            // Solo recuperamos si el borrador pertenece a ESTE usuario
+            const savedDraft = localStorage.getItem(`draft_${user.id}`); // CLAVE ÚNICA POR USUARIO
+            if (savedDraft && !transcript) { 
+                setTranscript(savedDraft); 
+                toast.info("Borrador recuperado.", { icon: <Save size={16}/> }); 
+            } else {
+                // Si no hay borrador específico o es otro usuario, aseguramos limpieza
+                if (!transcript) setTranscript(''); 
+            }
         }
       } catch (e) {}
     };
     loadInitialData();
-    const savedDraft = localStorage.getItem('mediscribe_local_draft');
-    if (savedDraft && !transcript) { setTranscript(savedDraft); toast.info("Borrador recuperado.", { icon: <Save size={16}/> }); }
     return () => { mounted = false; };
-  }, [setTranscript]); 
+  }, [setTranscript]); // Quitamos transcript del array para evitar loops, solo al montar
 
   useEffect(() => {
     if (selectedPatient) {
         setPatientInsights(null);
         if (transcript && confirm("¿Desea limpiar el dictado anterior para el nuevo paciente?")) {
             resetTranscript();
+            // Limpiamos también el storage específico del usuario
+            if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`);
             setGeneratedNote(null);
             setIsRiskExpanded(false);
         } else if (!transcript) {
@@ -126,12 +136,16 @@ const ConsultationView: React.FC = () => {
     }
   }, [selectedPatient]); 
 
+  // --- EFECTO DE GUARDADO SEGURO ---
   useEffect(() => { 
     if (isListening && textareaRef.current) {
         textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
     }
-    if (transcript) localStorage.setItem('mediscribe_local_draft', transcript);
-  }, [transcript, isListening]);
+    // Guardamos SIEMPRE asociado al ID del usuario actual
+    if (transcript && currentUserId) {
+        localStorage.setItem(`draft_${currentUserId}`, transcript);
+    }
+  }, [transcript, isListening, currentUserId]);
 
   useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, activeTab]);
 
@@ -154,10 +168,14 @@ const ConsultationView: React.FC = () => {
   };
 
   const handleClearTranscript = () => {
-      if(confirm("¿Borrar borrador permanentemente?")) { resetTranscript(); localStorage.removeItem('mediscribe_local_draft'); setGeneratedNote(null); setIsRiskExpanded(false); }
+      if(confirm("¿Borrar borrador permanentemente?")) { 
+          resetTranscript(); 
+          if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`); 
+          setGeneratedNote(null); 
+          setIsRiskExpanded(false); 
+      }
   };
 
-  // --- FUNCIÓN DE EDICIÓN EN TIEMPO REAL (HITL) ---
   const handleSoapChange = (section: 'subjective' | 'objective' | 'assessment' | 'plan', value: string) => {
       if (!generatedNote || !generatedNote.soap) return;
       setGeneratedNote(prev => {
@@ -172,7 +190,6 @@ const ConsultationView: React.FC = () => {
       });
   };
 
-  // --- FUNCIÓN PARA CARGAR INSIGHTS 360 ---
   const handleLoadInsights = async () => {
       if (!selectedPatient) return toast.error("Seleccione un paciente primero.");
       
@@ -286,7 +303,7 @@ const ConsultationView: React.FC = () => {
         toast.success("Nota validada y guardada en expediente");
         
         resetTranscript(); 
-        localStorage.removeItem('mediscribe_local_draft'); 
+        if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`); 
         setGeneratedNote(null); 
         setEditableInstructions(''); 
         setSelectedPatient(null); 
