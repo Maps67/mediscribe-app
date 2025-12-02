@@ -68,7 +68,6 @@ const getCalendarLink = (appt: any, provider: CalendarProvider) => {
   const title = `Consulta: ${appt.title || appt.patient_name}`;
   const description = `Tipo: ${appt.type}\nNotas: ${appt.notes || ''}\n---\nGenerado por MediScribe AI`;
   const location = 'Consultorio';
-  // Formato simple para links
   const formatDate = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
 
   if (provider === 'google') {
@@ -115,7 +114,7 @@ const getCalendarLink = (appt: any, provider: CalendarProvider) => {
   return { url: '#', type: 'link' };
 };
 
-// --- MODAL DE CONFIGURACIÓN (VERSION RICA RECUPERADA) ---
+// --- MODAL DE CONFIGURACIÓN ---
 const SyncConfigModal = ({ isOpen, onClose, currentProvider, setProvider }: { isOpen: boolean; onClose: () => void; currentProvider: CalendarProvider; setProvider: (p: CalendarProvider) => void }) => {
   if (!isOpen) return null;
 
@@ -137,7 +136,6 @@ const SyncConfigModal = ({ isOpen, onClose, currentProvider, setProvider }: { is
         </div>
         
         <div className="p-6">
-          {/* SECCIÓN EDUCATIVA RECUPERADA */}
           <div className="mb-6 bg-teal-50 border border-teal-100 rounded-lg p-4 text-sm text-teal-800">
             <p className="font-bold mb-1">¿Cómo funciona?</p>
             <p className="opacity-90 leading-relaxed">
@@ -184,7 +182,7 @@ const SyncConfigModal = ({ isOpen, onClose, currentProvider, setProvider }: { is
   );
 };
 
-// --- MODAL DE CITA (INTEGRADO CON TODO) ---
+// --- MODAL DE CITA ---
 const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, existingAppt, patients, loading, provider }: any) => {
   const [isManual, setIsManual] = useState(false);
   const [formData, setFormData] = useState({ patient_id: '', manual_name: '', type: 'consulta', duration_minutes: 30, notes: '' });
@@ -254,8 +252,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, exis
         </div>
         
         <form onSubmit={handleSubmit} className="p-6 space-y-4">
-          
-          {/* PACIENTE */}
           <div>
             <div className="flex justify-between items-center mb-1">
                 <label className="text-xs font-bold text-slate-500 uppercase">Paciente</label>
@@ -276,7 +272,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, exis
             </div>
           </div>
 
-          {/* FECHA Y HORA */}
           <div className="grid grid-cols-2 gap-4">
             <div>
                 <label className="text-xs font-bold text-slate-500 uppercase">Fecha</label>
@@ -294,7 +289,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, exis
             </div>
           </div>
 
-          {/* TIPO Y DURACIÓN */}
           <div className="grid grid-cols-2 gap-4">
              <div><label className="text-xs font-bold text-slate-500 uppercase">Tipo</label><select className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-teal-500" value={formData.type} onChange={e => setFormData({...formData, type: e.target.value as any})}><option value="consulta">Consulta</option><option value="seguimiento">Seguimiento</option><option value="urgencia">Urgencia</option></select></div>
              <div><label className="text-xs font-bold text-slate-500 uppercase">Minutos</label><input type="number" min="5" step="5" className="w-full p-2 border border-slate-200 rounded-lg text-sm outline-none focus:border-teal-500" value={formData.duration_minutes} onChange={e => setFormData({...formData, duration_minutes: parseInt(e.target.value)})} /></div>
@@ -307,7 +301,6 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, exis
                  <button type="button" onClick={() => onDelete(existingAppt.id)} className="p-2.5 text-red-500 bg-red-50 rounded-lg hover:bg-red-100 transition-colors" title="Eliminar"><Trash2 size={20}/></button>
              )}
              
-             {/* BOTÓN DE SINCRONIZACIÓN RECUPERADO */}
              {existingAppt && syncData && (
                <a 
                  href={syncData.url}
@@ -315,9 +308,9 @@ const AppointmentModal = ({ isOpen, onClose, onSave, onDelete, initialDate, exis
                  download={syncData.type === 'download' ? syncData.filename : undefined}
                  rel="noopener noreferrer"
                  className={`p-2.5 rounded-lg transition-colors flex items-center justify-center ${
-                    provider === 'google' ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' :
-                    provider === 'outlook' ? 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100' :
-                    'bg-slate-100 text-slate-600 hover:bg-slate-200'
+                   provider === 'google' ? 'bg-blue-50 text-blue-600 hover:bg-blue-100' :
+                   provider === 'outlook' ? 'bg-cyan-50 text-cyan-600 hover:bg-cyan-100' :
+                   'bg-slate-100 text-slate-600 hover:bg-slate-200'
                  }`}
                  title={`Sincronizar con ${provider}`}
                >
@@ -344,7 +337,6 @@ const AgendaView = () => {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   
-  // Settings State Recuperado
   const [calendarProvider, setCalendarProvider] = useState<CalendarProvider>('google');
   const [isConfigOpen, setIsConfigOpen] = useState(false);
   
@@ -360,11 +352,9 @@ const AgendaView = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) return;
 
-        // Pacientes
         const { data: patientsData } = await supabase.from('patients').select('id, name').eq('doctor_id', user.id);
         if (patientsData) setPatients(patientsData);
 
-        // Citas (Rango dinámico)
         let start, end;
         if (view === 'day') {
             start = new Date(currentDate); start.setHours(0,0,0,0);
@@ -492,7 +482,7 @@ const AgendaView = () => {
             </div>
         );
     }
-    // VISTA MES
+    // VISTA MES (Con Mejora Móvil: DOTS)
     const firstDay = startOfMonth(currentDate);
     const startDayIndex = getDay(firstDay) === 0 ? 6 : getDay(firstDay) - 1;
     const daysInMonth = eachDayOfInterval({ start: firstDay, end: endOfMonth(currentDate) });
@@ -504,21 +494,37 @@ const AgendaView = () => {
             </div>
             <div className="grid grid-cols-7 auto-rows-fr flex-1 bg-slate-50/20 overflow-y-auto">
                 {Array.from({ length: startDayIndex }).map((_, i) => <div key={`empty-${i}`} className="bg-slate-50/50 border-b border-r border-slate-100/50" />)}
-                {daysInMonth.map(day => (
+                {daysInMonth.map(day => {
+                    const dayAppts = appointments.filter(a => isSameDay(parseISO(a.date_time), day));
+                    return (
                     <div key={day.toString()} onClick={() => handleDayClick(day)} className={`relative min-h-[100px] p-2 border-b border-r border-slate-100 hover:bg-white transition-all group cursor-pointer ${isToday(day) ? 'bg-teal-50/30' : ''}`}>
                         <div className="flex justify-between items-start mb-2">
                             <span className={`text-sm font-semibold w-8 h-8 flex items-center justify-center rounded-full ${isToday(day) ? 'bg-teal-600 text-white shadow-md' : 'text-slate-500 group-hover:bg-slate-200'}`}>{format(day, 'd')}</span>
                             <button className="opacity-0 group-hover:opacity-100 text-teal-500"><Plus size={16} /></button>
                         </div>
-                        <div className="flex flex-col gap-1 overflow-y-auto max-h-[80px] custom-scrollbar">
-                            {appointments.filter(a => isSameDay(parseISO(a.date_time), day)).map(app => (
+                        
+                        {/* --- MEJORA UX MÓVIL: DOTS INDICATORS --- */}
+                        <div className="md:hidden flex flex-wrap gap-1 mt-1 justify-center">
+                            {dayAppts.slice(0, 5).map(app => (
+                                <div 
+                                    key={app.id} 
+                                    className={`w-1.5 h-1.5 rounded-full ${app.type === 'urgencia' ? 'bg-red-500' : 'bg-teal-500'}`}
+                                />
+                            ))}
+                            {dayAppts.length > 5 && <span className="text-[8px] text-slate-400 leading-none">+</span>}
+                        </div>
+
+                        {/* --- VISTA ESCRITORIO: LISTA DETALLADA --- */}
+                        <div className="hidden md:flex flex-col gap-1 overflow-y-auto max-h-[80px] custom-scrollbar">
+                            {dayAppts.map(app => (
                                 <div key={app.id} onClick={(e) => handleApptClick(e, app)} className={`px-2 py-1 text-[10px] rounded border truncate ${app.type === 'urgencia' ? 'bg-red-50 border-red-100 text-red-700' : 'bg-teal-50 border-teal-100 text-teal-700'}`}>
                                     <b>{format(parseISO(app.date_time), 'HH:mm')}</b> {app.patient_name}
                                 </div>
                             ))}
                         </div>
                     </div>
-                ))}
+                    )
+                })}
             </div>
         </div>
     );
