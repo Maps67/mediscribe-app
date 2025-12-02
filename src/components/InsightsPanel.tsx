@@ -1,6 +1,7 @@
 import React from 'react';
-import { TrendingUp, Pill, AlertTriangle, ListChecks, X } from 'lucide-react';
+import { TrendingUp, Pill, AlertTriangle, ListChecks, X, Copy, ShieldAlert } from 'lucide-react';
 import { PatientInsight } from '../types';
+import { toast } from 'sonner';
 
 interface InsightsPanelProps {
   insights: PatientInsight | null;
@@ -12,6 +13,11 @@ interface InsightsPanelProps {
 
 export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights, isOpen, onClose, isLoading, patientName }) => {
   if (!isOpen) return null;
+
+  const handleCopy = (text: string, label: string) => {
+      navigator.clipboard.writeText(text);
+      toast.success(`${label} copiado al portapapeles`);
+  };
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-sm animate-in fade-in">
@@ -47,11 +53,12 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights, isOpen, 
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
               {/* 1. EVOLUCIÓN (Principal) */}
-              <div className="md:col-span-2 bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border-l-4 border-blue-500">
+              <div className="md:col-span-2 bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border-l-4 border-blue-500 relative group">
+                <button onClick={() => handleCopy(insights.evolution, 'Evolución')} className="absolute top-4 right-4 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100"><Copy size={16}/></button>
                 <h4 className="font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-2 uppercase text-xs tracking-wider">
                   <TrendingUp size={16} /> Evolución Cronológica
                 </h4>
-                <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+                <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-line">
                   {insights.evolution || "Sin datos suficientes para determinar evolución."}
                 </p>
               </div>
@@ -72,11 +79,12 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights, isOpen, 
               </div>
 
               {/* 3. MEDICAMENTOS */}
-              <div className="bg-green-50 dark:bg-green-900/10 p-5 rounded-xl border border-green-100 dark:border-green-900/30">
+              <div className="bg-green-50 dark:bg-green-900/10 p-5 rounded-xl border border-green-100 dark:border-green-900/30 relative group">
+                <button onClick={() => handleCopy(insights.medication_audit, 'Medicamentos')} className="absolute top-4 right-4 text-green-300 hover:text-green-600 transition-colors opacity-0 group-hover:opacity-100"><Copy size={16}/></button>
                 <h4 className="font-bold text-green-700 dark:text-green-400 mb-2 flex items-center gap-2 uppercase text-xs tracking-wider">
                   <Pill size={16} /> Auditoría Farmacológica
                 </h4>
-                <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
+                <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-line">
                   {insights.medication_audit || "Sin cambios farmacológicos recientes."}
                 </p>
               </div>
@@ -102,10 +110,16 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights, isOpen, 
           )}
         </div>
         
-        {/* FOOTER */}
-        <div className="p-4 bg-slate-50 dark:bg-slate-800/50 border-t border-slate-100 dark:border-slate-800 text-center">
-            <p className="text-[10px] text-slate-400 uppercase tracking-widest">
-                Análisis generado por IA • Requiere validación médica
+        {/* FOOTER LEGAL - ESCUDO DE RESPONSABILIDAD */}
+        <div className="p-4 bg-red-50 dark:bg-red-900/20 border-t border-red-100 dark:border-red-900/30 text-center">
+            <div className="flex items-center justify-center gap-2 text-red-600 dark:text-red-400 mb-1">
+                <ShieldAlert size={14} />
+                <span className="text-[10px] font-bold uppercase tracking-widest">Aviso de Responsabilidad</span>
+            </div>
+            <p className="text-[10px] text-red-500/80 dark:text-red-300/70 leading-tight max-w-lg mx-auto">
+                Este análisis es generado por Inteligencia Artificial con fines informativos. 
+                <span className="font-bold"> El médico tratante es el único responsable</span> de verificar la veracidad de los datos y tomar decisiones clínicas. 
+                Al usar esta información, usted acepta validarla contra el expediente original.
             </p>
         </div>
       </div>
