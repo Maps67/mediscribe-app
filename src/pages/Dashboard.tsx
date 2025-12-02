@@ -3,7 +3,7 @@ import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, MapPin, ChevronRight, Sun, Moon, Bell, CloudRain, Cloud, 
   ShieldCheck, Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
-  Stethoscope, UserCircle, ArrowRight, AlertTriangle, FileText,
+  Stethoscope, UserCircle, AlertTriangle, FileText,
   Clock, TrendingUp, UserPlus, Zap, Activity, LogOut,
   CalendarX, RefreshCcw, UserX, Trash2, MoreHorizontal
 } from 'lucide-react';
@@ -13,6 +13,7 @@ import { es } from 'date-fns/locale';
 import { getTimeOfDayGreeting } from '../utils/greetingUtils';
 import { toast } from 'sonner';
 
+// --- IMPORTACIONES V4.0 ---
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { AssistantService } from '../services/AssistantService';
 import { AgentResponse } from '../services/GeminiAgent';
@@ -26,7 +27,7 @@ interface DashboardAppointment {
   status: string;
   patient?: {
     name: string;
-    history?: string; // Agregado para leer alergias
+    history?: string; 
   };
 }
 
@@ -347,7 +348,7 @@ const Dashboard: React.FC = () => {
               const todayStart = startOfDay(new Date()); 
               const nextWeekEnd = endOfDay(addDays(new Date(), 7));
 
-              // FIX: CONSULTAR EL HISTORIAL DEL PACIENTE TAMBIÉN (Para las alergias)
+              // FIX: TRAEMOS 'history' PARA DETECTAR ALERGIAS
               let query = supabase
                   .from('appointments')
                   .select(`id, title, start_time, status, patient:patients (name, history)`)
@@ -433,16 +434,16 @@ const Dashboard: React.FC = () => {
   const completedCount = todayAppointments.filter(a => a.status === 'completed').length;
   const progressPercent = Math.round((completedCount / totalToday) * 100);
 
-  // --- FUNCIÓN PARSEADORA DE ALERTAS ---
+  // --- DETECTOR DE ALERTAS CRÍTICAS ---
   const getCriticalTags = (historyJSON: string | undefined) => {
     if (!historyJSON) return null;
     try {
         const h = JSON.parse(historyJSON);
-        // Priorizamos el campo 'allergies' estructurado del nuevo Wizard
+        // Buscamos alergias en la estructura nueva y en la vieja (legacyNote)
         const allergies = h.allergies || h.legacyNote;
-        // Limpieza simple si viene sucio
+        // Limpiamos el string
         const cleanAllergies = allergies?.replace(/^alergia[s]?\s*[:]\s*/i, '') || '';
-        const hasCritical = cleanAllergies && cleanAllergies.length > 2; // Evitar strings vacíos
+        const hasCritical = cleanAllergies && cleanAllergies.length > 2 && !cleanAllergies.toLowerCase().includes("negada");
 
         if (!hasCritical) return null;
 
@@ -531,8 +532,13 @@ const Dashboard: React.FC = () => {
                             <p className="text-xs font-medium opacity-90">Hoy</p>
                         </div>
                     </div>
+                    
                     <LiveClockMobile isDark={!mobileHeroStyle.darkText} />
-                    <button onClick={() => setIsAssistantOpen(true)} className={`mt-4 py-2.5 px-4 w-full justify-center group flex items-center gap-3 backdrop-blur-md border rounded-full transition-all active:scale-95 shadow-sm hover:shadow-lg ${mobileHeroStyle.darkText ? 'bg-teal-900/10 border-teal-900/20 hover:bg-teal-900/20' : 'bg-white/10 border-white/20 hover:bg-white/20'}`}>
+                    
+                    <button 
+                        onClick={() => setIsAssistantOpen(true)} 
+                        className={`mt-4 py-2.5 px-4 w-full justify-center group flex items-center gap-3 backdrop-blur-md border rounded-full transition-all active:scale-95 shadow-sm hover:shadow-lg ${mobileHeroStyle.darkText ? 'bg-teal-900/10 border-teal-900/20 hover:bg-teal-900/20' : 'bg-white/10 border-white/20 hover:bg-white/20'}`}
+                    >
                         <Bot size={18} className={mobileHeroStyle.darkText ? "text-teal-900" : "text-white"} />
                         <span className={`font-bold text-xs tracking-wide ${mobileHeroStyle.darkText ? "text-teal-900" : "text-white"}`}>Asistente Inteligente V4</span>
                     </button>
@@ -547,39 +553,57 @@ const Dashboard: React.FC = () => {
         {/* VERSIÓN PC */}
         <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-xl h-56 relative overflow-hidden transition-all duration-1000 border border-slate-200/20`}>
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
+
             <div className="w-1/3 p-8 flex flex-col justify-between relative z-10 border-r border-white/5">
                 <div className="flex justify-between items-start">
                     <div className={`flex items-center gap-2 ${leftTextColor}`}>
-                        <MapPin size={16} /><span className="text-xs font-bold uppercase tracking-wider">Consultorio</span>
+                        <MapPin size={16} />
+                        <span className="text-xs font-bold uppercase tracking-wider">Consultorio</span>
                     </div>
-                    <div className="transform scale-110 drop-shadow-md">{getWeatherIcon(isNight)}</div>
+                    <div className="transform scale-110 drop-shadow-md">
+                        {getWeatherIcon(isNight)}
+                    </div>
                 </div>
                 <div>
                     <h2 className={`text-6xl font-black ${isNight ? 'text-white' : 'text-teal-900'} tracking-tighter`}>{weather.temp}°</h2>
                     <p className={`text-sm font-bold ${isNight ? 'text-slate-400' : 'text-teal-700/70'} mt-1`}>Temperatura</p>
                 </div>
             </div>
+
             <div className="w-1/3 flex items-center justify-center relative z-10">
                 <LiveClockDesktop />
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/10 rounded-full blur-[80px] pointer-events-none"></div>
             </div>
+
             <div className="w-1/3 p-8 relative z-10 flex flex-col justify-between text-right border-l border-white/5">
                 <div className="flex justify-end items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-teal-200/80">Pulso del Día</span>
                     <Activity size={14} className="text-teal-300 animate-pulse" />
                 </div>
+
                 <div className="flex items-center justify-end gap-6">
-                    <div className="text-right"><div className="text-4xl font-bold text-white leading-none">{pendingCount}</div><div className="text-xs text-teal-200 font-medium">Pendientes</div></div>
+                    <div className="text-right">
+                        <div className="text-4xl font-bold text-white leading-none">{pendingCount}</div>
+                        <div className="text-xs text-teal-200 font-medium">Pendientes</div>
+                    </div>
                     <div className="relative w-16 h-16">
                          <svg className="w-full h-full transform -rotate-90">
                             <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-teal-900/50" />
-                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" strokeDasharray={175} strokeDashoffset={175 - (175 * progressPercent) / 100} className="text-white transition-all duration-1000 ease-out" strokeLinecap="round"/>
+                            <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" 
+                                strokeDasharray={175} 
+                                strokeDashoffset={175 - (175 * progressPercent) / 100} 
+                                className="text-white transition-all duration-1000 ease-out" 
+                                strokeLinecap="round"
+                            />
                         </svg>
-                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">{progressPercent}%</div>
+                        <div className="absolute inset-0 flex items-center justify-center text-[10px] font-bold text-white">
+                            {progressPercent}%
+                        </div>
                     </div>
                 </div>
                  <div className="mt-auto pt-4 flex items-center justify-end gap-2 text-teal-100/70 text-xs">
-                    <LogOut size={12} /><span>Salida est: {format(addDays(new Date(), 0).setHours(new Date().getHours() + (pendingCount * 0.5)), 'h:mm a')}</span>
+                    <LogOut size={12} />
+                    <span>Salida est: {format(addDays(new Date(), 0).setHours(new Date().getHours() + (pendingCount * 0.5)), 'h:mm a')}</span>
                 </div>
             </div>
         </div>
@@ -589,7 +613,10 @@ const Dashboard: React.FC = () => {
                 <button onClick={() => setIsUploadModalOpen(true)} className="md:hidden w-full bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 p-4 rounded-xl flex items-center justify-between shadow-sm active:scale-95 transition-transform">
                   <div className="flex items-center gap-3">
                     <div className="bg-teal-50 dark:bg-teal-900/30 p-3 rounded-full text-brand-teal"><Upload size={20} /></div>
-                    <div className="text-left"><p className="font-bold text-slate-800 dark:text-white text-sm">Subir Archivos</p><p className="text-xs text-slate-500">Gestión documental</p></div>
+                    <div className="text-left">
+                      <p className="font-bold text-slate-800 dark:text-white text-sm">Subir Archivos</p>
+                      <p className="text-xs text-slate-500">Gestión documental</p>
+                    </div>
                   </div>
                   <ChevronRight size={18} className="text-slate-300" />
                 </button>
@@ -599,16 +626,25 @@ const Dashboard: React.FC = () => {
                         <h3 className="text-lg font-bold text-slate-900 dark:text-white flex items-center gap-2">
                             <Calendar className="text-brand-teal" size={20}/> Próximos Pacientes
                         </h3>
-                        {appointments.length > 0 && <button onClick={() => navigate('/calendar')} className="text-brand-teal text-xs font-bold uppercase tracking-wide bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 rounded-full active:scale-95 transition-transform">Ver Todo</button>}
+                        {appointments.length > 0 && (
+                            <button onClick={() => navigate('/calendar')} className="text-brand-teal text-xs font-bold uppercase tracking-wide bg-teal-50 dark:bg-teal-900/20 px-3 py-1.5 rounded-full active:scale-95 transition-transform">
+                                Ver Todo
+                            </button>
+                        )}
                     </div>
 
                     {loading ? (
                         <div className="p-8 text-center text-slate-400 text-sm animate-pulse bg-white dark:bg-slate-900 rounded-2xl border border-gray-100 dark:border-slate-800">Sincronizando agenda...</div>
                     ) : appointments.length === 0 ? (
                         <div className="bg-white dark:bg-slate-900 rounded-2xl p-8 text-center border border-dashed border-gray-200 dark:border-slate-800 shadow-sm">
-                            <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3"><Calendar size={20} className="text-slate-400"/></div>
+                            <div className="w-12 h-12 bg-slate-50 dark:bg-slate-800 rounded-full flex items-center justify-center mx-auto mb-3">
+                                <Calendar size={20} className="text-slate-400"/>
+                            </div>
                             <p className="text-slate-600 dark:text-slate-300 font-medium text-sm">Tu agenda está libre.</p>
-                            <button onClick={() => navigate('/consultation')} className="w-full bg-slate-800 dark:bg-slate-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-slate-700 transition-colors flex items-center justify-center gap-2 mt-4"><Stethoscope size={16}/> Iniciar Consulta</button>
+                            <p className="text-slate-400 text-xs mt-1 mb-4">No hay citas programadas para los próximos 7 días.</p>
+                            <button onClick={() => navigate('/consultation')} className="w-full bg-slate-800 dark:bg-slate-700 text-white py-3 rounded-xl font-bold text-sm shadow-sm hover:bg-slate-700 transition-colors flex items-center justify-center gap-2">
+                                <Stethoscope size={16}/> Iniciar Consulta
+                            </button>
                         </div>
                     ) : (
                         <div className="space-y-4">
@@ -620,6 +656,17 @@ const Dashboard: React.FC = () => {
                                             const isOverdue = isPast(parseISO(apt.start_time)) && apt.status === 'scheduled';
                                             const aptDate = parseISO(apt.start_time);
                                             
+                                            // --- LÓGICA DE VISUALIZACIÓN (SMART LABELING) ---
+                                            // 1. Prioridad: Nombre de la DB (si existe)
+                                            // 2. Fallback: Título manual (si no hay ID de paciente)
+                                            // 3. Último recurso: "Cita sin nombre"
+                                            const displayName = apt.patient?.name || apt.title || "Cita sin nombre";
+                                            
+                                            // Subtítulo inteligente: No repetir el nombre
+                                            const displaySubtitle = apt.patient?.name 
+                                                ? (apt.title && apt.title !== apt.patient.name ? apt.title : 'Consulta General') 
+                                                : 'Paciente no registrado';
+
                                             return (
                                             <div key={apt.id} className="relative group">
                                                 <div className={`absolute -left-[31px] mt-1.5 h-3.5 w-3.5 rounded-full border-4 border-slate-50 dark:border-slate-950 shadow-sm z-10 ${isOverdue ? 'bg-amber-500' : apt.status === 'completed' ? 'bg-green-500' : 'bg-brand-teal'}`}></div>
@@ -627,13 +674,15 @@ const Dashboard: React.FC = () => {
                                                 <div className={`bg-white dark:bg-slate-900 rounded-2xl p-4 shadow-sm border transition-all ${isOverdue ? 'border-amber-200 dark:border-amber-900/40 bg-amber-50/30 dark:bg-amber-900/10' : 'border-slate-100 dark:border-slate-800 hover:shadow-md hover:border-slate-200 dark:hover:border-slate-700'}`} onClick={!isOverdue ? () => navigate('/calendar') : undefined}>
                                                     <div className="flex justify-between items-start mb-2">
                                                         <div className="flex flex-col">
+                                                            {/* NOMBRE CORREGIDO Y ALERTA DE RIESGO */}
                                                             <h4 className="font-bold text-slate-800 dark:text-white text-base leading-tight group-hover:text-brand-teal transition-colors">
-                                                                {apt.patient?.name || "Sin nombre"}
+                                                                {displayName}
                                                             </h4>
-                                                            {/* INYECCIÓN: ALERTA DE RIESGO EN DASHBOARD */}
                                                             {getCriticalTags(apt.patient?.history)}
                                                             
-                                                            <span className="text-xs text-slate-500 font-medium mt-0.5">{apt.title || 'Consulta General'}</span>
+                                                            <span className="text-xs text-slate-500 font-medium mt-0.5">
+                                                                {displaySubtitle}
+                                                            </span>
                                                         </div>
                                                         <div className="text-right">
                                                             <p className="text-lg font-black text-slate-900 dark:text-white leading-none tracking-tight">{format(aptDate, 'h:mm')}</p>
