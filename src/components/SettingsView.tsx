@@ -3,6 +3,8 @@ import { Save, User, Stethoscope, Hash, Phone, MapPin, BookOpen, Upload, Image a
 import { supabase } from '../lib/supabase';
 import { MedicalDataService } from '../services/MedicalDataService';
 import { toast } from 'sonner';
+// IMPORTACIÓN CRÍTICA: Traemos el componente de planes corregido
+import { SubscriptionPlans } from './SubscriptionPlans';
 
 // LISTA MAESTRA DE ESPECIALIDADES (NORMALIZACIÓN)
 const SPECIALTIES = [
@@ -22,7 +24,7 @@ const SettingsView: React.FC = () => {
   
   // Campos del formulario
   const [fullName, setFullName] = useState('');
-  const [specialty, setSpecialty] = useState('Medicina General'); // Default seguro
+  const [specialty, setSpecialty] = useState('Medicina General');
   const [license, setLicense] = useState('');
   const [phone, setPhone] = useState('');
   
@@ -50,8 +52,6 @@ const SettingsView: React.FC = () => {
 
       if (data) {
         setFullName(data.full_name || '');
-        // Si la especialidad guardada no está en la lista (legacy), la mantenemos, pero el select podría mostrar vacío.
-        // Lo ideal es que coincida.
         setSpecialty(data.specialty || 'Medicina General');
         setLicense(data.license_number || '');
         setPhone(data.phone || '');
@@ -173,7 +173,7 @@ const SettingsView: React.FC = () => {
           </button>
       </div>
       
-      <form onSubmit={updateProfile} className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <form onSubmit={updateProfile} className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
         
         {/* COLUMNA 1: DATOS TEXTO */}
         <div className="lg:col-span-2 space-y-6">
@@ -187,7 +187,6 @@ const SettingsView: React.FC = () => {
                         <input type="text" required value={fullName} onChange={e => setFullName(e.target.value)} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none dark:bg-slate-900 dark:text-white" placeholder="Dr. Juan Pérez" />
                     </div>
                     <div>
-                        {/* --- CAMBIO: SELECTOR NORMALIZADO --- */}
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Especialidad</label>
                         <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-brand-teal relative">
                             <Stethoscope size={16} className="text-slate-400 mr-2 pointer-events-none"/>
@@ -203,7 +202,6 @@ const SettingsView: React.FC = () => {
                                 ))}
                             </select>
                         </div>
-                        {/* ----------------------------------- */}
                     </div>
                     <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Cédula Prof.</label>
@@ -318,7 +316,16 @@ const SettingsView: React.FC = () => {
 
       </form>
       
-      <div className="mt-8 p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/50 rounded-xl flex gap-3 items-start">
+      {/* --- INYECCIÓN DE PLANES DE SUSCRIPCIÓN --- */}
+      <div className="mb-10">
+        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
+            <ShieldCheck className="text-brand-teal"/> Mi Suscripción
+        </h3>
+        <SubscriptionPlans />
+      </div>
+      {/* ------------------------------------------- */}
+      
+      <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/50 rounded-xl flex gap-3 items-start">
          <ShieldCheck className="text-amber-600 shrink-0" size={20} />
          <div>
              <p className="text-sm font-bold text-amber-800 dark:text-amber-200">Privacidad y Seguridad de Datos</p>
