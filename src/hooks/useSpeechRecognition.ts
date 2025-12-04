@@ -38,18 +38,38 @@ export const useSpeechRecognition = () => {
   const finalTranscriptRef = useRef('');
   const interimTranscriptRef = useRef('');
 
-  // --- GESTIÓN DE ENERGÍA (WAKE LOCK) ---
+  // --- GESTIÓN DE ENERGÍA (WAKE LOCK MEJORADO) ---
   const requestWakeLock = useCallback(async () => {
     if ('wakeLock' in navigator) {
-      try { wakeLockRef.current = await (navigator as any).wakeLock.request('screen'); } catch (err) {}
+      try { 
+        wakeLockRef.current = await (navigator as any).wakeLock.request('screen'); 
+        // console.log("Pantalla mantenida despierta"); // Debug opcional
+      } catch (err) {
+        // console.warn("No se pudo bloquear la pantalla:", err);
+      }
     }
   }, []);
 
   const releaseWakeLock = useCallback(async () => {
     if (wakeLockRef.current) {
-      try { await wakeLockRef.current.release(); wakeLockRef.current = null; } catch (err) {}
+      try { 
+        await wakeLockRef.current.release(); 
+        wakeLockRef.current = null; 
+      } catch (err) {}
     }
   }, []);
+
+  // --- VIGILANTE DE VISIBILIDAD (NUEVO) ---
+  // Si el usuario cambia de tab o minimiza y vuelve, recuperamos el bloqueo
+  useEffect(() => {
+    const handleVisibilityChange = async () => {
+      if (wakeLockRef.current !== null && document.visibilityState === 'visible') {
+        await requestWakeLock();
+      }
+    };
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    return () => document.removeEventListener('visibilitychange', handleVisibilityChange);
+  }, [requestWakeLock]);
 
   // --- LÓGICA DE RECONOCIMIENTO ---
   const startListening = useCallback(() => {
