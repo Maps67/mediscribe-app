@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useLocation } from 'react-router-dom'; // <--- NUEVO: Para recibir datos del Dashboard
 import { 
   Mic, Square, RefreshCw, FileText, Search, X, 
   MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
@@ -34,6 +35,7 @@ const SPECIALTIES = [
 
 const ConsultationView: React.FC = () => {
   const { isListening, transcript, startListening, stopListening, resetTranscript, setTranscript, isAPISupported } = useSpeechRecognition();
+  const location = useLocation(); // <--- HOOK DE NAVEGACIÓN
   
   const [patients, setPatients] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
@@ -91,39 +93,61 @@ const ConsultationView: React.FC = () => {
             setCurrentUserId(user.id); 
 
             const { data: patientsData } = await supabase.from('patients').select('*').order('created_at', { ascending: false });
-            setPatients(patientsData || []);
+            const loadedPatients = patientsData || [];
+            setPatients(loadedPatients);
             
             const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
             if (profileData) {
                 setDoctorProfile(profileData as DoctorProfile);
-                
-                // --- FIX SMART DEFAULT (NORMALIZACIÓN) ---
                 if (profileData.specialty) {
-                    // Buscamos si la especialidad del perfil (ej: "MEDICINA INTERNA") existe en la lista (ej: "Medicina Interna")
-                    // Esto arregla el problema de mayúsculas/minúsculas en el selector
                     const matchedSpecialty = SPECIALTIES.find(s => s.toLowerCase() === profileData.specialty.toLowerCase());
                     setSelectedSpecialty(matchedSpecialty || profileData.specialty);
                 }
             }
 
-            const savedDraft = localStorage.getItem(`draft_${user.id}`); 
-            if (savedDraft && !transcript) { 
-                setTranscript(savedDraft); 
-                toast.info("Borrador recuperado.", { icon: <Save size={16}/> }); 
+            // --- LÓGICA DE PUENTE (DASHBOARD -> CONSULTA) ---
+            if (location.state?.patientName) {
+                const incomingName = location.state.patientName;
+                // Buscamos si el paciente existe en la lista cargada
+                const existingPatient = loadedPatients.find((p: any) => p.name.toLowerCase() === incomingName.toLowerCase());
+
+                if (existingPatient) {
+                    setSelectedPatient(existingPatient);
+                    toast.success(`Paciente cargado: ${incomingName}`);
+                } else {
+                    // Si no existe (cita manual), creamos un objeto temporal para permitir la consulta
+                    const tempPatient: any = { 
+                        id: 'temp_' + Date.now(), 
+                        name: incomingName,
+                        isTemporary: true // Marca para saber que debemos crearlo al guardar
+                    };
+                    setSelectedPatient(tempPatient);
+                    toast.info(`Consulta para: ${incomingName} (No registrado)`);
+                }
+                // Limpiamos el estado para no recargar al refrescar
+                window.history.replaceState({}, document.title);
             } else {
-                if (!transcript) setTranscript(''); 
+                // Carga de borrador normal si no viene del dashboard
+                const savedDraft = localStorage.getItem(`draft_${user.id}`); 
+                if (savedDraft && !transcript) { 
+                    setTranscript(savedDraft); 
+                    toast.info("Borrador recuperado.", { icon: <Save size={16}/> }); 
+                }
             }
         }
       } catch (e) {}
     };
     loadInitialData();
     return () => { mounted = false; };
-  }, [setTranscript]); 
+  }, [setTranscript, location.state]); // Agregamos location.state
 
   useEffect(() => {
     if (selectedPatient) {
         setPatientInsights(null);
-        if (transcript && confirm("¿Desea limpiar el dictado anterior para el nuevo paciente?")) {
+        // Si es temporal, no preguntamos por limpiar borrador anterior
+        const isTemp = (selectedPatient as any).isTemporary;
+
+        if (!isTemp && transcript && confirm("¿Desea limpiar el dictado anterior para el nuevo paciente?")) {
             resetTranscript();
             if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`);
             setGeneratedNote(null);
@@ -189,7 +213,8 @@ const ConsultationView: React.FC = () => {
 
   const handleLoadInsights = async () => {
       if (!selectedPatient) return toast.error("Seleccione un paciente primero.");
-      
+      if ((selectedPatient as any).isTemporary) return toast.warning("Guarde la consulta primero para ver historial.");
+
       setIsInsightsOpen(true);
       if (patientInsights) return;
 
@@ -234,7 +259,8 @@ const ConsultationView: React.FC = () => {
 
     try {
       let historyContext = "";
-      if (selectedPatient) {
+      // Solo buscamos historial si NO es temporal
+      if (selectedPatient && !(selectedPatient as any).isTemporary) {
           const { data: historyData } = await supabase.from('consultations').select('created_at, summary').eq('patient_id', selectedPatient.id).order('created_at', { ascending: false }).limit(3);
           if (historyData && historyData.length > 0) {
              historyContext = historyData.map(h => `[Fecha: ${new Date(h.created_at).toLocaleDateString()}] RESUMEN: ${h.summary.substring(0, 300)}...`).join("\n\n");
@@ -279,13 +305,30 @@ const ConsultationView: React.FC = () => {
         const { data: { user } } = await supabase.auth.getUser();
         if (!user) throw new Error("Sesión expirada");
         
+        // --- LÓGICA DE CREACIÓN ON-THE-FLY ---
+        let finalPatientId = selectedPatient.id;
+        if ((selectedPatient as any).isTemporary) {
+            const { data: newPatient, error: createError } = await supabase.from('patients').insert({
+                name: selectedPatient.name,
+                doctor_id: user.id,
+                history: JSON.stringify({ created_via: 'dashboard_quick_consult' })
+            }).select().single();
+            
+            if (createError) throw createError;
+            finalPatientId = newPatient.id;
+            toast.success("Paciente registrado automáticamente.");
+        }
+
         const summaryToSave = generatedNote.soap 
             ? `FECHA: ${new Date().toLocaleDateString()}\nS: ${generatedNote.soap.subjective}\nO: ${generatedNote.soap.objective}\nA: ${generatedNote.soap.assessment}\nP: ${generatedNote.soap.plan}\n\nPLAN PACIENTE:\n${editableInstructions}`
             : (generatedNote.clinicalNote + "\n\nPLAN PACIENTE:\n" + editableInstructions);
 
+        // --- CERRAR CICLO AGENDA ---
+        await AppointmentService.markAppointmentAsCompleted(finalPatientId);
+
         const payload = {
             doctor_id: user.id, 
-            patient_id: selectedPatient.id, 
+            patient_id: finalPatientId, 
             transcript: transcript || 'N/A', 
             summary: summaryToSave,
             status: 'completed',
@@ -379,7 +422,7 @@ const ConsultationView: React.FC = () => {
         <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
             <div className="flex justify-between items-center mb-1">
                 <label className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase flex gap-1"><Stethoscope size={14}/> Especialidad</label>
-                {selectedPatient && (
+                {selectedPatient && !(selectedPatient as any).isTemporary && (
                     <button 
                         onClick={handleLoadInsights} 
                         className="flex items-center gap-1 text-[10px] bg-indigo-100 text-indigo-700 px-2 py-0.5 rounded-full hover:bg-indigo-200 transition-colors"
@@ -431,7 +474,6 @@ const ConsultationView: React.FC = () => {
             <div ref={transcriptEndRef}/>
             
             <div className="flex w-full gap-2 mt-auto flex-col xl:flex-row z-20 pt-4">
-                
                 <button 
                     onClick={handleToggleRecording} 
                     disabled={!isOnline || !consentGiven || (!isAPISupported && !isListening)} 
@@ -556,42 +598,22 @@ const ConsultationView: React.FC = () => {
                             <div className="space-y-8">
                                 <div className="group relative">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Subjetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    <textarea 
-                                        className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-blue-200 rounded p-1 transition-all"
-                                        value={generatedNote.soap.subjective}
-                                        onChange={(e) => handleSoapChange('subjective', e.target.value)}
-                                        ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                    />
+                                    <textarea className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-blue-200 rounded p-1 transition-all" value={generatedNote.soap.subjective} onChange={(e) => handleSoapChange('subjective', e.target.value)} ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}/>
                                 </div>
                                 <hr className="border-slate-100 dark:border-slate-800" />
                                 <div className="group relative">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ClipboardList size={14} className="text-green-500"/> Objetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    <textarea 
-                                        className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-green-200 rounded p-1 transition-all"
-                                        value={generatedNote.soap.objective}
-                                        onChange={(e) => handleSoapChange('objective', e.target.value)}
-                                        ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                    />
+                                    <textarea className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-green-200 rounded p-1 transition-all" value={generatedNote.soap.objective} onChange={(e) => handleSoapChange('objective', e.target.value)} ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}/>
                                 </div>
                                 <hr className="border-slate-100 dark:border-slate-800" />
                                 <div className="group relative">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    <textarea 
-                                        className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-amber-200 rounded p-1 transition-all"
-                                        value={generatedNote.soap.assessment}
-                                        onChange={(e) => handleSoapChange('assessment', e.target.value)}
-                                        ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                    />
+                                    <textarea className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-amber-200 rounded p-1 transition-all" value={generatedNote.soap.assessment} onChange={(e) => handleSoapChange('assessment', e.target.value)} ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}/>
                                 </div>
                                 <hr className="border-slate-100 dark:border-slate-800" />
                                 <div className="group relative">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><FileSignature size={14} className="text-purple-500"/> Plan Médico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    <textarea 
-                                        className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-purple-200 rounded p-1 transition-all"
-                                        value={generatedNote.soap.plan}
-                                        onChange={(e) => handleSoapChange('plan', e.target.value)}
-                                        ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                    />
+                                    <textarea className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-purple-200 rounded p-1 transition-all" value={generatedNote.soap.plan} onChange={(e) => handleSoapChange('plan', e.target.value)} ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}/>
                                 </div>
                             </div>
                         </div>
@@ -601,7 +623,7 @@ const ConsultationView: React.FC = () => {
                           <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 overflow-hidden">
                                 <div className="bg-yellow-50 text-yellow-800 p-2 text-sm rounded mb-2 dark:bg-yellow-900/30 dark:text-yellow-200">Formato antiguo.</div>
                               <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar"><FormattedText content={generatedNote.clinicalNote}/></div>
-                              <div className="border-t dark:border-slate-800 pt-4 flex justify-end"><button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-xl font-bold flex gap-2 hover:bg-teal-600 shadow-lg disabled:opacity-70">{isSaving?<RefreshCw className="animate-spin"/>:<Save/>} Validar y Guardar</button></div>
+                              <div className="border-t dark:border-slate-800 pt-4 flex justify-end"><button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-xl font-bold flex gap-2 hover:bg-teal-600 shadow-lg disabled:opacity-70">{isSaving?<RefreshCw className="animate-spin"/>:<Save/>} Guardar</button></div>
                           </div>
                       )}
 
