@@ -6,7 +6,7 @@ import {
   Stethoscope, UserCircle, ArrowRight, AlertTriangle, FileText,
   Clock, TrendingUp, UserPlus, Zap, Activity, LogOut,
   CalendarX, RefreshCcw, UserX, Trash2, MoreHorizontal, AlertCircle,
-  Repeat, Ban // Iconos añadidos para el rediseño
+  Repeat, Ban // Iconos para la mejora visual
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays, isPast, addMinutes } from 'date-fns';
@@ -298,6 +298,7 @@ const Dashboard: React.FC = () => {
   const [weather, setWeather] = useState({ temp: '--', code: 0 });
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  
   const [totalConsultations, setTotalConsultations] = useState(0);
   
   const now = new Date();
@@ -335,9 +336,11 @@ const Dashboard: React.FC = () => {
   const mobileHeroStyle = isNight 
     ? { bg: "bg-gradient-to-br from-slate-900 to-teal-950 border border-white/5", text: "text-teal-100", darkText: false }
     : { bg: "bg-gradient-to-br from-[#CDEDE0] to-[#A0DBC6] border border-white/5", text: "text-teal-900", darkText: true };
+
   const panoramicGradient = isNight
     ? "bg-gradient-to-r from-slate-900 via-teal-900 to-emerald-950" 
     : "bg-gradient-to-r from-emerald-50 via-teal-500 to-teal-800";
+
   const leftTextColor = isNight ? "text-slate-300" : "text-teal-800";
 
   const fetchData = async () => {
@@ -345,12 +348,14 @@ const Dashboard: React.FC = () => {
           const { data: { user } } = await supabase.auth.getUser();
           if (user) {
               const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
-              setDoctorName(`Dr. ${profile?.full_name?.split(' ')[0] || 'Colega'}`);
+              const rawName = profile?.full_name?.split(' ')[0] || 'Colega';
+              setDoctorName(`Dr. ${rawName}`);
 
               const { count } = await supabase
                   .from('consultations')
                   .select('*', { count: 'exact', head: true })
                   .eq('doctor_id', user.id);
+              
               setTotalConsultations(count || 0);
 
               const todayStart = startOfDay(new Date()); 
@@ -381,13 +386,14 @@ const Dashboard: React.FC = () => {
               }
 
               if (aptsData) {
-                  setAppointments(aptsData.map((item: any) => ({
+                  const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
                       id: item.id,
                       title: item.title,
                       start_time: item.start_time,
                       status: item.status,
                       patient: item.patient
-                  })));
+                  }));
+                  setAppointments(formattedApts);
               }
           }
       } catch (e) { console.error(e); } finally { setLoading(false); }
@@ -436,8 +442,10 @@ const Dashboard: React.FC = () => {
 
   const todayAppointments = appointments.filter(a => isToday(parseISO(a.start_time)));
   const pendingCount = todayAppointments.filter(a => a.status === 'scheduled').length;
-  
-  // --- LÓGICA ROI Y GET CRITICAL TAGS (MANTENIDOS DEL CODIGO ANTERIOR) ---
+  const completedCount = todayAppointments.filter(a => a.status === 'completed').length;
+  const totalToday = todayAppointments.length || 1;
+  const progressPercent = Math.round((completedCount / totalToday) * 100);
+
   const getCriticalTags = (historyJSON: string | undefined) => {
     if (!historyJSON) return null;
     try {
@@ -458,7 +466,6 @@ const Dashboard: React.FC = () => {
         );
     } catch (e) { return null; }
   };
-  // ---------------------------------------------------------------------
 
   return (
     <div className={`min-h-screen ${antiFatigueBg} font-sans w-full overflow-x-hidden flex flex-col relative transition-colors duration-500`}>
@@ -496,7 +503,6 @@ const Dashboard: React.FC = () => {
 
       <div className="flex-1 p-4 md:p-8 space-y-6 animate-fade-in-up w-full max-w-7xl mx-auto pb-32 md:pb-8">
         
-        {/* HERO */}
         <div className="flex justify-between items-end">
             <div className="mt-1">
                 <div className="flex items-center gap-3 mb-1">
@@ -549,10 +555,10 @@ const Dashboard: React.FC = () => {
         </div>
 
         {/* VERSIÓN PC */}
-        <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-xl h-56 relative overflow-hidden transition-all duration-1000`}>
+        <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-xl h-56 relative overflow-hidden transition-all duration-1000 border border-slate-200/20`}>
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
 
-            <div className="w-1/3 p-8 flex flex-col justify-between relative z-10">
+            <div className="w-1/3 p-8 flex flex-col justify-between relative z-10 border-r border-white/5">
                 <div className="flex justify-between items-start">
                     <div className={`flex items-center gap-2 ${leftTextColor}`}>
                         <MapPin size={16} />
@@ -573,7 +579,7 @@ const Dashboard: React.FC = () => {
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/10 rounded-full blur-[80px] pointer-events-none"></div>
             </div>
 
-            <div className="w-1/3 p-8 relative z-10 flex flex-col justify-between text-right">
+            <div className="w-1/3 p-8 relative z-10 flex flex-col justify-between text-right border-l border-white/5">
                 <div className="flex justify-end items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-teal-200/80">Pulso del Día</span>
                     <Activity size={14} className="text-teal-300 animate-pulse" />
@@ -679,29 +685,39 @@ const Dashboard: React.FC = () => {
                                                     </div>
 
                                                     {isOverdue ? (
-                                                        // --- DISEÑO PULIDO DE ACCIONES VENCIDAS ---
+                                                        // --- MEJORA UX/UI: ACCIONES COMPACTAS (PILLS) ---
                                                         <div className="mt-3">
-                                                            <div className="p-3 bg-amber-50 dark:bg-amber-900/20 rounded-xl border border-amber-100 dark:border-amber-800/50 flex items-center gap-3 mb-3">
-                                                                <div className="bg-amber-100 dark:bg-amber-800/50 p-2 rounded-full text-amber-600 dark:text-amber-400">
-                                                                    <AlertCircle size={16} />
-                                                                </div>
-                                                                <div>
-                                                                    <p className="text-xs font-bold text-amber-800 dark:text-amber-300 uppercase">Atención Requerida</p>
-                                                                    <p className="text-[10px] text-amber-600 dark:text-amber-400">Cita vencida sin finalizar.</p>
-                                                                </div>
+                                                            <div className="flex items-center gap-2 mb-3 bg-amber-100/50 dark:bg-amber-900/30 px-3 py-1.5 rounded-lg w-fit">
+                                                                <AlertCircle size={12} className="text-amber-700 dark:text-amber-400 animate-pulse"/>
+                                                                <span className="text-[10px] font-bold text-amber-800 dark:text-amber-300 uppercase tracking-wide">
+                                                                    Acción Requerida
+                                                                </span>
                                                             </div>
-                                                            
-                                                            <div className="grid grid-cols-3 gap-2">
-                                                                <button onClick={(e) => {e.stopPropagation(); handleQuickAction('reschedule', apt)}} className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 border border-blue-100 dark:border-blue-800 transition-all active:scale-95 group">
+
+                                                            <div className="flex gap-2 overflow-x-auto pb-1 no-scrollbar">
+                                                                <button 
+                                                                    onClick={(e) => {e.stopPropagation(); handleQuickAction('reschedule', apt)}} 
+                                                                    className="flex items-center gap-1.5 py-1.5 px-3 rounded-full bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 border border-blue-100 dark:border-blue-800 transition-all active:scale-95 group whitespace-nowrap"
+                                                                >
                                                                     <Repeat size={14} className="text-blue-600 dark:text-blue-400 group-hover:rotate-180 transition-transform duration-500"/>
                                                                     <span className="text-[10px] font-bold text-blue-700 dark:text-blue-300">Reagendar</span>
                                                                 </button>
-                                                                <button onClick={(e) => {e.stopPropagation(); handleQuickAction('noshow', apt)}} className="flex items-center justify-center gap-1.5 py-2 px-3 rounded-full bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 border border-amber-100 dark:border-amber-800 transition-all active:scale-95 group">
+
+                                                                <button 
+                                                                    onClick={(e) => {e.stopPropagation(); handleQuickAction('noshow', apt)}} 
+                                                                    className="flex items-center gap-1.5 py-1.5 px-3 rounded-full bg-amber-50 hover:bg-amber-100 dark:bg-amber-900/20 dark:hover:bg-amber-900/40 border border-amber-100 dark:border-amber-800 transition-all active:scale-95 group whitespace-nowrap"
+                                                                >
                                                                     <UserX size={14} className="text-amber-600 dark:text-amber-400"/>
                                                                     <span className="text-[10px] font-bold text-amber-700 dark:text-amber-300">No Vino</span>
                                                                 </button>
-                                                                <button onClick={(e) => {e.stopPropagation(); handleQuickAction('cancel', apt)}} className="flex items-center justify-center py-2 px-3 rounded-full bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-800 transition-all active:scale-95 group">
-                                                                    <Trash2 size={14} className="text-red-600 dark:text-red-400 group-hover:shake"/>
+
+                                                                <button 
+                                                                    onClick={(e) => {e.stopPropagation(); handleQuickAction('cancel', apt)}} 
+                                                                    className="flex items-center gap-1.5 py-1.5 px-3 rounded-full bg-red-50 hover:bg-red-100 dark:bg-red-900/20 dark:hover:bg-red-900/40 border border-red-100 dark:border-red-800 transition-all active:scale-95 group whitespace-nowrap"
+                                                                    title="Cancelar Cita"
+                                                                >
+                                                                    <Ban size={14} className="text-red-600 dark:text-red-400 group-hover:shake"/>
+                                                                    <span className="text-[10px] font-bold text-red-700 dark:text-red-300">Cancelar</span>
                                                                 </button>
                                                             </div>
                                                         </div>
