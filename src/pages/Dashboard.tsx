@@ -570,7 +570,8 @@ const Dashboard: React.FC = () => {
         <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-xl h-56 relative overflow-hidden transition-all duration-1000 border border-slate-200/20`}>
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
 
-            <div className="w-1/3 p-8 flex flex-col justify-between relative z-10 border-r border-white/5">
+            {/* COLUMNA IZQUIERDA: Borde eliminado (border-r border-white/5) */}
+            <div className="w-1/3 p-8 flex flex-col justify-between relative z-10">
                 <div className="flex justify-between items-start">
                     <div className={`flex items-center gap-2 ${leftTextColor}`}>
                         <MapPin size={16} />
@@ -591,7 +592,8 @@ const Dashboard: React.FC = () => {
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/10 rounded-full blur-[80px] pointer-events-none"></div>
             </div>
 
-            <div className="w-1/3 p-8 relative z-10 flex flex-col justify-between text-right border-l border-white/5">
+            {/* COLUMNA DERECHA: Borde eliminado (border-l border-white/5) */}
+            <div className="w-1/3 p-8 relative z-10 flex flex-col justify-between text-right">
                 <div className="flex justify-end items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-teal-200/80">Pulso del Día</span>
                     <Activity size={14} className="text-teal-300 animate-pulse" />
@@ -603,7 +605,7 @@ const Dashboard: React.FC = () => {
                         <div className="text-xs text-teal-200 font-medium">Pendientes</div>
                     </div>
                     <div className="relative w-16 h-16">
-                         <svg className="w-full h-full transform -rotate-90">
+                          <svg className="w-full h-full transform -rotate-90">
                             <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" className="text-teal-900/50" />
                             <circle cx="32" cy="32" r="28" stroke="currentColor" strokeWidth="6" fill="transparent" 
                                 strokeDasharray={175} 
