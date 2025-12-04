@@ -1,3 +1,18 @@
+/*
+  🛑 🛑 🛑 ZONA BLINDADA - NO TOCAR 🛑 🛑 🛑
+  
+  Este componente maneja el Registro Crítico de Médicos.
+  Estado: FUNCIONANDO (Validado el 03/12/2025).
+  
+  ADVERTENCIA:
+  - No cambiar la lógica de 'handleAuth' sin hacer un backup completo antes.
+  - El registro depende del Trigger 'handle_new_user_automatizado' en Supabase.
+  - Si cambias los nombres de los campos en 'options.data', romperás el Trigger.
+*/
+
+import React, { useState, useEffect } from 'react';
+// ... resto del código
+// 
 import React, { useState, useEffect } from 'react';
 import { 
   Mail, Lock, User, Stethoscope, ArrowRight, AlertTriangle, 
