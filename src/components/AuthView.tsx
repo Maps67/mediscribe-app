@@ -11,9 +11,6 @@
 */
 
 import React, { useState, useEffect } from 'react';
-// ... resto del código
-// 
-import React, { useState, useEffect } from 'react';
 import { 
   Mail, Lock, User, Stethoscope, ArrowRight, AlertTriangle, 
   KeyRound, ArrowLeft, CheckCircle2, BookOpen,

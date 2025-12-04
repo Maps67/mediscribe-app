@@ -1,3 +1,8 @@
+export interface ChatMessage {
+  role: 'user' | 'model';
+  text: string;
+}
+
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { supabase } from '../lib/supabase'; 
 import { PatientInsight } from '../types';

@@ -57,7 +57,8 @@ const LiveClockDesktop = () => {
             <span className="text-xl font-medium opacity-80">{format(time, 'a')}</span>
         </div>
       </div>
-      <span className="text-sm font-bold uppercase tracking-[0.2em] opacity-90 mt-1 border-t border-white/30 pt-1 px-4">
+      {/* LIMPIEZA VISUAL: Se eliminó border-t para evitar líneas negras */}
+      <span className="text-sm font-bold uppercase tracking-[0.2em] opacity-90 mt-1 pt-1 px-4">
         {format(time, "EEEE d 'de' MMMM", { locale: es })}
       </span>
     </div>
@@ -554,11 +555,11 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* VERSIÓN PC */}
-        <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-xl h-56 relative overflow-hidden transition-all duration-1000 border border-slate-200/20`}>
+        {/* VERSIÓN PC (LIMPIEZA APLICADA) */}
+        <div className={`hidden md:flex ${panoramicGradient} rounded-[2rem] shadow-xl h-56 relative overflow-hidden transition-all duration-1000 border-none`}>
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-[0.03]"></div>
 
-            <div className="w-1/3 p-8 flex flex-col justify-between relative z-10 border-r border-white/5">
+            <div className="w-1/3 p-8 flex flex-col justify-between relative z-10">
                 <div className="flex justify-between items-start">
                     <div className={`flex items-center gap-2 ${leftTextColor}`}>
                         <MapPin size={16} />
@@ -579,7 +580,7 @@ const Dashboard: React.FC = () => {
                 <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-64 h-64 bg-white/10 rounded-full blur-[80px] pointer-events-none"></div>
             </div>
 
-            <div className="w-1/3 p-8 relative z-10 flex flex-col justify-between text-right border-l border-white/5">
+            <div className="w-1/3 p-8 relative z-10 flex flex-col justify-between text-right">
                 <div className="flex justify-end items-center gap-2 mb-2">
                     <span className="text-[10px] font-bold uppercase tracking-widest text-teal-200/80">Pulso del Día</span>
                     <Activity size={14} className="text-teal-300 animate-pulse" />
@@ -685,7 +686,6 @@ const Dashboard: React.FC = () => {
                                                     </div>
 
                                                     {isOverdue ? (
-                                                        // --- MEJORA UX/UI: ACCIONES COMPACTAS (PILLS) ---
                                                         <div className="mt-3">
                                                             <div className="flex items-center gap-2 mb-3 bg-amber-100/50 dark:bg-amber-900/30 px-3 py-1.5 rounded-lg w-fit">
                                                                 <AlertCircle size={12} className="text-amber-700 dark:text-amber-400 animate-pulse"/>

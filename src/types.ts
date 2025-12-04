@@ -88,3 +88,16 @@ export interface FollowUpMessage {
   role: 'user' | 'model';
   text: string;
 }
+
+export interface Appointment {
+  id?: string;
+  patient_id: string;
+  doctor_id?: string;
+  title: string;
+  start_time: string;
+  end_time?: string;
+  duration_minutes?: number;
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  notes?: string;
+  created_at?: string;
+}
