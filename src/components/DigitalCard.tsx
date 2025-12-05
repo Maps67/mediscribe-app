@@ -129,6 +129,7 @@ const DigitalCard: React.FC = () => {
     return () => { mounted = false; };
   }, []);
 
+  // --- CORRECCIÓN A (Backend Fetch & Fallback) ---
   const fetchNews = async () => {
     try {
       const { data, error } = await supabase
@@ -137,7 +138,11 @@ const DigitalCard: React.FC = () => {
         .order('created_at', { ascending: false })
         .limit(10);
 
-      if (!error && data && data.length > 0) {
+      // Si hay error (ej. tabla no creada) o no hay datos, usamos estáticos
+      if (error) {
+        console.warn('Usando noticias estáticas (Tabla medical_news no accesible)');
+        setNewsFeed(STATIC_NEWS);
+      } else if (data && data.length > 0) {
         setNewsFeed(data);
       } else {
         setNewsFeed(STATIC_NEWS); 
@@ -193,19 +198,23 @@ const DigitalCard: React.FC = () => {
     return Math.round((filled / fields.length) * 100);
   }, [profile]);
 
+  // --- CORRECCIÓN B (Seguridad Tabnabbing) ---
   const handleNewsClick = (newsItem: MedicalNews) => {
-    if (newsItem.url && newsItem.url.startsWith('http')) {
-        window.open(newsItem.url, '_blank');
+    if (!newsItem.url) return;
+
+    if (newsItem.url.startsWith('http')) {
+        // SEGURIDAD: noopener,noreferrer previene ataques de hijacking de pestaña
+        window.open(newsItem.url, '_blank', 'noopener,noreferrer');
     } else {
         const query = encodeURIComponent(newsItem.title + " medical study");
-        window.open(`https://www.google.com/search?q=${query}`, '_blank');
+        window.open(`https://www.google.com/search?q=${query}`, '_blank', 'noopener,noreferrer');
     }
   };
 
   const handleSearch = (e: React.FormEvent) => {
       e.preventDefault();
       if(!searchTerm.trim()) return;
-      window.open(`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(searchTerm)}`, '_blank');
+      window.open(`https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(searchTerm)}`, '_blank', 'noopener,noreferrer');
   };
 
   const getQRTarget = () => {
