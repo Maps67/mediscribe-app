@@ -333,8 +333,11 @@ const ConsultationView: React.FC = () => {
       let historyContext = "";
       if (selectedPatient && !(selectedPatient as any).isTemporary) {
           const { data: historyData } = await supabase.from('consultations').select('created_at, summary').eq('patient_id', selectedPatient.id).order('created_at', { ascending: false }).limit(3);
+          
           if (historyData && historyData.length > 0) {
-             historyContext = historyData.map(h => `[Fecha: ${new Date(h.created_at).toLocaleDateString()}] RESUMEN: ${h.summary.substring(0, 300)}...`).join("\n\n");
+             // MEJORA RADAR: Encapsulamiento XML estricto para evitar alucinaciones
+             const rawHistory = historyData.map(h => `--- CITA DEL ${new Date(h.created_at).toLocaleDateString()} ---\n${h.summary}`).join("\n\n");
+             historyContext = `<HISTORIAL_MEDICO_PREVIO>\n${rawHistory}\n</HISTORIAL_MEDICO_PREVIO>\n\nINSTRUCCIÓN CRÍTICA: La información anterior es SOLO contexto. NO la incluyas en la nota actual a menos que sea relevante para la evolución. Tu fuente de verdad es el TRANSCRIPT actual.`;
           }
       }
 
@@ -615,9 +618,9 @@ const ConsultationView: React.FC = () => {
                                     <div 
                                       onClick={() => setIsRiskExpanded(!isRiskExpanded)}
                                       className={`mt-2 w-full rounded-xl border cursor-pointer transition-all duration-300 overflow-hidden ${
-                                          generatedNote.risk_analysis.level === 'Alto' ? 'bg-red-50 border-red-200' :
-                                          generatedNote.risk_analysis.level === 'Medio' ? 'bg-amber-50 border-amber-200' :
-                                          'bg-green-50 border-green-200'
+                                        generatedNote.risk_analysis.level === 'Alto' ? 'bg-red-50 border-red-200' :
+                                        generatedNote.risk_analysis.level === 'Medio' ? 'bg-amber-50 border-amber-200' :
+                                        'bg-green-50 border-green-200'
                                       }`}
                                     >
                                         <div className={`p-3 flex justify-between items-center ${
