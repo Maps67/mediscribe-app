@@ -82,6 +82,7 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 export const GeminiMedicalService = {
 
   // --- FUNCIÓN PRINCIPAL: NOTA CLÍNICA (VÍA EDGE FUNCTION) ---
+  // ✅ MODIFICADO: Ahora conecta la memoria (history) con la nube
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const now = new Date();
@@ -91,7 +92,8 @@ export const GeminiMedicalService = {
       const cleanTranscript = transcript.replace(/"/g, "'").trim();
       const profile = getSpecialtyPromptConfig(specialty);
 
-      // Construimos el prompt aquí, pero lo enviamos a la Bóveda para procesar
+      // Construimos el prompt principal (El "presente")
+      // NOTA: Ya no pegamos el historial aquí dentro, se envía por separado.
       const prompt = `
         ROL DEL SISTEMA (HÍBRIDO):
         Actúas como "MediScribe AI", un asistente de documentación clínica administrativa.
@@ -110,9 +112,8 @@ export const GeminiMedicalService = {
         - TU ENFOQUE: ${profile.focus}
         - TU SESGO: ${profile.bias}
         
-        CONTEXTO DE LA CONSULTA:
+        CONTEXTO DE LA CONSULTA ACTUAL:
         - Fecha: ${currentDate} ${currentTime}
-        - Historial: "${patientHistory}"
         
         TRANSCRIPCIÓN BRUTA:
         "${cleanTranscript}"
@@ -140,8 +141,12 @@ export const GeminiMedicalService = {
       `;
 
       // 🔥 LLAMADA A LA BÓVEDA (Edge Function)
+      // ✅ AQUÍ ESTÁ LA MAGIA: Enviamos 'history' por separado para activar el RAG
       const { data, error } = await supabase.functions.invoke('gemini-proxy', {
-        body: { prompt }
+        body: { 
+          prompt: prompt,
+          history: patientHistory // <--- ESTO ACTIVA LA MEMORIA EN LA NUBE
+        }
       });
 
       if (error) throw new Error(`Error Edge Function: ${error.message}`);
