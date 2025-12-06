@@ -87,26 +87,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
             </NavLink>
           ))}
 
-          {/* BOTÓN UPGRADE */}
-          <div className="pt-4 mt-2">
-            <button 
-                onClick={() => navigate('/settings')} 
-                className="w-full relative overflow-hidden group bg-gradient-to-r from-amber-100 to-amber-200 dark:from-amber-900/40 dark:to-amber-800/40 border border-amber-200 dark:border-amber-700/50 rounded-xl p-3 shadow-sm hover:shadow-md transition-all"
-            >
-                <div className="flex items-center justify-between relative z-10">
-                    <div className="flex items-center gap-3">
-                        <div className="bg-white/80 dark:bg-black/20 p-1.5 rounded-lg text-amber-600 dark:text-amber-400">
-                            <Crown size={18} fill="currentColor" />
-                        </div>
-                        <div className="text-left">
-                            <p className="text-xs font-bold text-amber-900 dark:text-amber-100 uppercase tracking-wider">Plan PRO</p>
-                            <p className="text-[10px] text-amber-700 dark:text-amber-300 font-medium">Desbloquear todo</p>
-                        </div>
-                    </div>
-                </div>
-                <div className="absolute top-0 -left-[100%] group-hover:left-[100%] w-full h-full bg-gradient-to-r from-transparent via-white/40 to-transparent transition-all duration-1000 ease-in-out transform skew-x-12"></div>
-            </button>
-          </div>
+          {/* BOTÓN UPGRADE ELIMINADO - Zona Limpia */}
 
           <button onClick={toggleTheme} className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 mt-2 font-medium">
             {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
