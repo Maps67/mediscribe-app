@@ -42,9 +42,11 @@ export interface FollowUpMessage {
   message: string;
 }
 
-const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || "";
+// --- CAMBIO APLICADO AQUÍ: Estandarización de nombre de variable ---
+const API_KEY = import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 
-if (!API_KEY) console.error("Falta la VITE_GEMINI_API_KEY");
+if (!API_KEY) console.error("Falta la VITE_GOOGLE_GENAI_API_KEY en el archivo .env");
+// ------------------------------------------------------------------
 
 // --- MOTOR DE PERFILES CLÍNICOS ---
 const getSpecialtyPromptConfig = (specialty: string) => {
