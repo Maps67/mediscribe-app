@@ -680,7 +680,7 @@ const Dashboard: React.FC = () => {
                                                             <div 
                                                                 onClick={(e) => {
                                                                     e.stopPropagation(); 
-                                                                    navigate('/consultation', { state: { patientName: displayName } });
+                                                                    navigate('/consultation', { state: { patientName: displayName, appointmentId: apt.id } }); // <--- CORRECCIÓN AQUÍ: SE PASA EL ID
                                                                 }}
                                                                 className="group/patient flex items-center gap-2 cursor-pointer w-fit p-1 -ml-1 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-all"
                                                                 title="Clic para iniciar consulta inmediatamente"
