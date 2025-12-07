@@ -1,24 +1,24 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 import { PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V9: SISTEMA TANQUE (Fuerza Bruta + V8 Features)");
+console.log("🚀 V9.1: SISTEMA TANQUE (Bypass con Gemini 2.0 Exp)");
 
 // ==========================================
-// 1. CONFIGURACIÓN Y LISTA DE COMBATE
+// 1. CONFIGURACIÓN
 // ==========================================
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 
-if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada. Revisa tu archivo .env");
+if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada en .env");
 
-// LISTA ORDENADA DE MODELOS A PROBAR
-// El sistema no pregunta. Dispara a esta lista en orden hasta que uno responde.
+// LISTA DE SUPERVIVENCIA ACTUALIZADA
+// Hemos puesto 'gemini-2.0-flash-exp' primero porque Google está bloqueando los 1.5 en tu cuenta.
 const MODELS_TO_TRY = [
-  "gemini-1.5-flash-8b",     // 1. La versión más nueva y rápida (Suele estar libre)
-  "gemini-1.5-flash-002",    // 2. La actualización estable
-  "gemini-1.5-flash-001",    // 3. La versión original estable
-  "gemini-1.5-flash",        // 4. El alias genérico (A veces da 404, por eso va 4to)
-  "gemini-1.5-pro",          // 5. El potente (Respaldo fuerte)
-  "gemini-pro"               // 6. El legado (Última esperanza)
+  "gemini-2.0-flash-exp",    // 1. La "Puerta Trasera": Modelo nuevo, gratuito y potente.
+  "gemini-1.5-flash",        // 2. Estándar (Backup)
+  "gemini-1.5-flash-001",    // 3. Estable (Backup)
+  "gemini-1.5-flash-8b",     // 4. Ligero
+  "gemini-1.5-pro",          // 5. Potente
+  "gemini-pro"               // 6. Legado
 ];
 
 // ==========================================
@@ -43,7 +43,6 @@ export interface FollowUpMessage { day: number; message: string; }
 // 3. UTILIDADES Y MOTOR "TANQUE"
 // ==========================================
 
-// Tu limpieza JSON intacta
 const cleanJSON = (text: string) => {
   let clean = text.replace(/```json/g, '').replace(/```/g, '');
   const firstCurly = clean.indexOf('{');
@@ -65,14 +64,14 @@ const cleanJSON = (text: string) => {
   return clean.trim();
 };
 
-// MOTOR DE CONEXIÓN ROBUSTA (Reemplaza al Radar)
+// MOTOR DE CONEXIÓN ROBUSTA (FAILOVER)
 async function generateWithFallback(prompt: string): Promise<string> {
   const genAI = new GoogleGenerativeAI(API_KEY);
   let lastError: any = null;
 
   for (const modelName of MODELS_TO_TRY) {
     try {
-      // console.log(`🔄 Probando conexión con: ${modelName}...`);
+      console.log(`🔄 Probando conexión con: ${modelName}...`);
       const model = genAI.getGenerativeModel({ model: modelName });
       
       const result = await model.generateContent(prompt);
@@ -80,13 +79,13 @@ async function generateWithFallback(prompt: string): Promise<string> {
       const text = response.text();
 
       if (text) {
-        // console.log(`✅ ¡Conectado exitosamente con ${modelName}!`);
+        console.log(`✅ ¡Conectado exitosamente con ${modelName}!`);
         return text; 
       }
     } catch (error: any) {
       console.warn(`⚠️ Falló ${modelName}. Saltando al siguiente...`);
       lastError = error;
-      continue; // Si falla, prueba el siguiente de la lista
+      continue; 
     }
   }
   throw lastError || new Error("Todos los modelos de IA fallaron. Verifica tu conexión a internet.");
@@ -134,7 +133,6 @@ export const GeminiMedicalService = {
         }
       `;
 
-      // Usamos el Motor Tanque
       const rawText = await generateWithFallback(prompt);
       return JSON.parse(cleanJSON(rawText)) as GeminiResponse;
 
@@ -173,7 +171,7 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- EXTRACCIÓN MEDICAMENTOS (100% Cliente - Sin Edge Function) ---
+  // --- EXTRACCIÓN MEDICAMENTOS (100% Cliente) ---
   async extractMedications(transcript: string): Promise<MedicationItem[]> {
     const cleanText = transcript.trim();
     if (!cleanText) return [];
