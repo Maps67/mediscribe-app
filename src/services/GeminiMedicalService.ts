@@ -2,14 +2,21 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 import { PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
 // ==========================================
-// 1. CONFIGURACIÓN BLINDADA (Cliente Puro)
+// 1. CONFIGURACIÓN
 // ==========================================
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 
 if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada en .env");
 
-// Variable para caché del Radar
-let CACHED_MODEL: string | null = null;
+// LISTA DE INTENTOS (Orden de prioridad)
+// El sistema probará uno por uno hasta que funcione.
+const MODELS_TO_TRY = [
+  "gemini-1.5-flash",        // 1. La opción estándar (rápida)
+  "gemini-1.5-flash-001",    // 2. Versión estable numerada
+  "gemini-1.5-flash-002",    // 3. Versión actualizada numerada
+  "gemini-1.5-pro",          // 4. Versión potente (si Flash falla)
+  "gemini-pro"               // 5. Versión legado (vieja confiable)
+];
 
 // ==========================================
 // 2. DEFINICIÓN DE TIPOS
@@ -37,45 +44,8 @@ export interface GeminiResponse {
 }
 
 // ==========================================
-// 3. RADAR DE PRECISIÓN (SOLO VERSIONES ESTABLES)
+// 3. MOTOR DE RESILIENCIA (FAILOVER)
 // ==========================================
-
-async function resolveBestModel(): Promise<string> {
-  if (CACHED_MODEL) return CACHED_MODEL;
-
-  try {
-    const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${API_KEY}`;
-    const response = await fetch(listUrl);
-    
-    if (!response.ok) throw new Error("Fallo al listar modelos");
-    
-    const data = await response.json();
-    const models = data.models || [];
-
-    // Filtramos SOLO modelos que soporten generación de contenido
-    const validModels = models.filter((m: any) => 
-      m.supportedGenerationMethods?.includes("generateContent")
-    );
-
-    // BÚSQUEDA EXACTA: Buscamos versiones numeradas (002 o 001) que son estables.
-    // Evitamos el alias genérico "gemini-1.5-flash" porque a veces da 404.
-    const flash002 = validModels.find((m: any) => m.name.includes("gemini-1.5-flash-002"));
-    const flash001 = validModels.find((m: any) => m.name.includes("gemini-1.5-flash-001"));
-    const flash8b = validModels.find((m: any) => m.name.includes("gemini-1.5-flash-8b"));
-
-    // Selección: Preferimos el 002 (Mejor), luego 001 (Estable), luego 8b (Rápido).
-    // FALLBACK ABSOLUTO: "gemini-1.5-flash-001" (Nunca falla).
-    const bestMatch = flash002?.name || flash001?.name || flash8b?.name || "models/gemini-1.5-flash-001";
-    
-    CACHED_MODEL = bestMatch.replace("models/", "");
-    console.log("📡 Radar Estabilizado: Modelo seleccionado ->", CACHED_MODEL);
-    
-    return CACHED_MODEL!;
-  } catch (e) {
-    console.warn("⚠️ Radar falló, forzando versión estable 001.");
-    return "gemini-1.5-flash-001"; // Fallback inquebrantable
-  }
-}
 
 const cleanJSON = (text: string) => {
   let clean = text.replace(/```json/g, '').replace(/```/g, '');
@@ -86,6 +56,43 @@ const cleanJSON = (text: string) => {
   }
   return clean.trim();
 };
+
+// Esta función intenta generar contenido probando múltiples modelos si es necesario
+async function generateWithFailover(prompt: string): Promise<string> {
+  const genAI = new GoogleGenerativeAI(API_KEY);
+  
+  let lastError: any = null;
+
+  for (const modelName of MODELS_TO_TRY) {
+    try {
+      console.log(`🔄 Intentando conectar con modelo: ${modelName}...`);
+      
+      const model = genAI.getGenerativeModel({ 
+        model: modelName,
+        // Eliminamos responseMimeType aquí para máxima compatibilidad con modelos viejos
+        // Lo manejamos con limpieza manual
+      });
+
+      const result = await model.generateContent(prompt);
+      const response = await result.response;
+      const text = response.text();
+
+      if (text) {
+        console.log(`✅ ¡Éxito con ${modelName}!`);
+        return text; // Si llegamos aquí, funcionó. Retornamos y salimos del bucle.
+      }
+    } catch (error: any) {
+      console.warn(`⚠️ Falló modelo ${modelName}:`, error.message || error);
+      lastError = error;
+      // No lanzamos error, dejamos que el bucle continúe con el siguiente modelo
+      continue; 
+    }
+  }
+
+  // Si terminamos el bucle y nada funcionó:
+  console.error("❌ TODOS los modelos fallaron.");
+  throw lastError || new Error("No se pudo conectar con ningún modelo de IA.");
+}
 
 // ==========================================
 // 4. MOTOR DE PERSONALIDAD CLÍNICA
@@ -140,23 +147,12 @@ export const GeminiMedicalService = {
   // --- NOTA CLÍNICA (SOAP) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      // 1. Radar Estabilizado
-      const modelName = await resolveBestModel();
-      
-      const genAI = new GoogleGenerativeAI(API_KEY);
-      const model = genAI.getGenerativeModel({ 
-        model: modelName, 
-        generationConfig: { responseMimeType: "application/json" } 
-      });
-
       const now = new Date();
       const currentDate = now.toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' });
       const currentTime = now.toLocaleTimeString('es-MX', { hour: '2-digit', minute: '2-digit' });
 
-      // 2. Inyección de Personalidad
       const profile = getSpecialtyPromptConfig(specialty);
 
-      // 3. Prompt Maestro v4.2
       const prompt = `
         ROL DEL SISTEMA (HÍBRIDO):
         Actúas como "MediScribe AI", un asistente de documentación clínica administrativa.
@@ -183,7 +179,7 @@ export const GeminiMedicalService = {
         "${transcript.replace(/"/g, "'").trim()}"
 
         TAREA DE GENERACIÓN JSON:
-        Genera un objeto JSON estricto:
+        Genera un objeto JSON estricto (NO uses Markdown, solo texto plano JSON):
         1. conversation_log: Diálogo Médico/Paciente.
         2. soap: Estructura SOAP técnica.
         3. risk_analysis: Nivel de riesgo y justificación.
@@ -204,13 +200,18 @@ export const GeminiMedicalService = {
         }
       `;
 
-      const result = await model.generateContent(prompt);
-      const textResponse = result.response.text();
+      // USAMOS EL SISTEMA DE RESPALDO AUTOMÁTICO
+      const rawText = await generateWithFailover(prompt);
       
-      return JSON.parse(cleanJSON(textResponse)) as GeminiResponse;
+      try {
+        return JSON.parse(cleanJSON(rawText)) as GeminiResponse;
+      } catch (e) {
+        console.error("Error parseando JSON final:", rawText);
+        throw new Error("La IA respondió, pero el formato JSON no es válido.");
+      }
 
     } catch (error: any) {
-      console.error("❌ Error Nota Clínica:", error);
+      console.error("❌ Error Fatal Nota Clínica:", error);
       throw error;
     }
   },
@@ -218,10 +219,6 @@ export const GeminiMedicalService = {
   // --- BALANCE CLÍNICO 360 ---
   async generatePatient360Analysis(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
     try {
-      const modelName = await resolveBestModel();
-      const genAI = new GoogleGenerativeAI(API_KEY);
-      const model = genAI.getGenerativeModel({ model: modelName, generationConfig: { responseMimeType: "application/json" } });
-
       const contextText = consultations.length > 0 
           ? consultations.join("\n\n--- SIGUIENTE CONSULTA (CRONOLÓGICA) ---\n\n")
           : "No hay consultas previas registradas.";
@@ -241,7 +238,7 @@ export const GeminiMedicalService = {
           3. RIESGOS: Banderas rojas latentes.
           4. PENDIENTES: Acciones no cerradas.
 
-          JSON SALIDA:
+          JSON SALIDA ESTRICTO:
           {
             "evolution": "...",
             "medication_audit": "...",
@@ -250,24 +247,20 @@ export const GeminiMedicalService = {
           }
       `;
 
-      const result = await model.generateContent(prompt);
-      return JSON.parse(cleanJSON(result.response.text())) as PatientInsight;
+      const rawText = await generateWithFailover(prompt);
+      return JSON.parse(cleanJSON(rawText)) as PatientInsight;
     } catch (e) {
-      return { evolution: "No disponible", medication_audit: "", risk_flags: [], pending_actions: [] };
+      return { evolution: "No disponible (Error IA)", medication_audit: "", risk_flags: [], pending_actions: [] };
     }
   },
 
   // --- EXTRAER MEDICAMENTOS ---
   async extractMedications(text: string): Promise<MedicationItem[]> {
     try {
-      const modelName = await resolveBestModel();
-      const genAI = new GoogleGenerativeAI(API_KEY);
-      const model = genAI.getGenerativeModel({ model: modelName, generationConfig: { responseMimeType: "application/json" } });
-
-      const prompt = `ACTÚA COMO: Farmacéutico. EXTRAE: Medicamentos de "${text.replace(/"/g, "'")}". JSON ARRAY: [{"drug": "Nombre", "details": "Dosis", "frequency": "Frecuencia", "duration": "Duración", "notes": "Notas"}]`;
+      const prompt = `ACTÚA COMO: Farmacéutico. EXTRAE: Medicamentos de "${text.replace(/"/g, "'")}". JSON ARRAY ESTRICTO: [{"drug": "Nombre", "details": "Dosis", "frequency": "Frecuencia", "duration": "Duración", "notes": "Notas"}]`;
       
-      const result = await model.generateContent(prompt);
-      const res = JSON.parse(cleanJSON(result.response.text()));
+      const rawText = await generateWithFailover(prompt);
+      const res = JSON.parse(cleanJSON(rawText));
       return Array.isArray(res) ? res : [];
     } catch (e) { return []; }
   },
@@ -275,12 +268,8 @@ export const GeminiMedicalService = {
   // --- CHAT CONTEXTUAL ---
   async chatWithContext(context: string, userMessage: string): Promise<string> {
     try {
-       const modelName = await resolveBestModel();
-       const genAI = new GoogleGenerativeAI(API_KEY);
-       const model = genAI.getGenerativeModel({ model: modelName });
-       
-       const result = await model.generateContent(`CONTEXTO: ${context}. USUARIO: ${userMessage}. RESPUESTA PROFESIONAL:`);
-       return result.response.text();
+       const prompt = `CONTEXTO: ${context}. USUARIO: ${userMessage}. RESPUESTA PROFESIONAL:`;
+       return await generateWithFailover(prompt);
     } catch (e) { return "Error de conexión con IA."; }
   },
 
