@@ -37,7 +37,7 @@ export interface GeminiResponse {
 }
 
 // ==========================================
-// 3. RADAR INTELIGENTE (FILTRO ANTI-ERROR 429)
+// 3. RADAR DE PRECISIÓN (SOLO VERSIONES ESTABLES)
 // ==========================================
 
 async function resolveBestModel(): Promise<string> {
@@ -52,28 +52,28 @@ async function resolveBestModel(): Promise<string> {
     const data = await response.json();
     const models = data.models || [];
 
-    // --- CORRECCIÓN CRÍTICA AQUÍ ---
-    // Filtramos SOLO modelos de la familia 1.5 para evitar el límite de 20 peticiones del 2.5
+    // Filtramos SOLO modelos que soporten generación de contenido
     const validModels = models.filter((m: any) => 
-      m.supportedGenerationMethods?.includes("generateContent") &&
-      m.name.includes("1.5") // <--- ESTO EVITA QUE USE EL 2.5
+      m.supportedGenerationMethods?.includes("generateContent")
     );
 
-    // Prioridad: Buscamos la versión más reciente de la 1.5 Flash
+    // BÚSQUEDA EXACTA: Buscamos versiones numeradas (002 o 001) que son estables.
+    // Evitamos el alias genérico "gemini-1.5-flash" porque a veces da 404.
     const flash002 = validModels.find((m: any) => m.name.includes("gemini-1.5-flash-002"));
     const flash001 = validModels.find((m: any) => m.name.includes("gemini-1.5-flash-001"));
-    const flashLegacy = validModels.find((m: any) => m.name.includes("flash"));
-    
-    // Selección en cascada (Fallback seguro)
-    const bestMatch = flash002?.name || flash001?.name || flashLegacy?.name || "models/gemini-1.5-flash";
+    const flash8b = validModels.find((m: any) => m.name.includes("gemini-1.5-flash-8b"));
+
+    // Selección: Preferimos el 002 (Mejor), luego 001 (Estable), luego 8b (Rápido).
+    // FALLBACK ABSOLUTO: "gemini-1.5-flash-001" (Nunca falla).
+    const bestMatch = flash002?.name || flash001?.name || flash8b?.name || "models/gemini-1.5-flash-001";
     
     CACHED_MODEL = bestMatch.replace("models/", "");
-    console.log("📡 Radar Seguro: Modelo seleccionado ->", CACHED_MODEL);
+    console.log("📡 Radar Estabilizado: Modelo seleccionado ->", CACHED_MODEL);
     
     return CACHED_MODEL!;
   } catch (e) {
-    console.warn("⚠️ Radar falló, usando fallback blindado.");
-    return "gemini-1.5-flash-001"; // Fallback manual ultra seguro
+    console.warn("⚠️ Radar falló, forzando versión estable 001.");
+    return "gemini-1.5-flash-001"; // Fallback inquebrantable
   }
 }
 
@@ -140,7 +140,7 @@ export const GeminiMedicalService = {
   // --- NOTA CLÍNICA (SOAP) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      // 1. Radar Seguro (Solo 1.5)
+      // 1. Radar Estabilizado
       const modelName = await resolveBestModel();
       
       const genAI = new GoogleGenerativeAI(API_KEY);
@@ -156,7 +156,7 @@ export const GeminiMedicalService = {
       // 2. Inyección de Personalidad
       const profile = getSpecialtyPromptConfig(specialty);
 
-      // 3. Prompt Maestro v4.1
+      // 3. Prompt Maestro v4.2
       const prompt = `
         ROL DEL SISTEMA (HÍBRIDO):
         Actúas como "MediScribe AI", un asistente de documentación clínica administrativa.
