@@ -2,7 +2,7 @@ import { GoogleGenerativeAI } from "@google/generative-ai";
 // Importamos interfaces locales para evitar errores de compilación
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-ULTIMATE: MODO PRO (Facturación + Inteligencia Completa + Memoria)");
+console.log("🚀 V-ULTIMATE: MODO PRO (Facturación + Inteligencia Completa + Hybrid Retrieval)");
 
 // ==========================================
 // 1. CONFIGURACIÓN ROBUSTA
@@ -109,51 +109,58 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- A. NOTA CLÍNICA (Con Memoria de Historial) ---
+  // --- A. NOTA CLÍNICA (Con Lógica Hybrid Retrieval) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      // --- DEBUG: Verificar si llega la memoria ---
-      // console.log("🧠 Memoria Inyectada:", patientHistory ? "SÍ" : "NO");
-
       const now = new Date();
       const profile = getSpecialtyPromptConfig(specialty);
 
+      // Implementación del Hybrid Retrieval en el Prompt
       const prompt = `
         ROL: Actúas como "MediScribe AI", asistente de documentación clínica.
         PERFIL CLÍNICO: Tienes el conocimiento experto de un ${profile.role}.
-        
         ENFOQUE DE ANÁLISIS: ${profile.focus}
         SESGO CLÍNICO: ${profile.bias}
 
-        CONTEXTO LEGAL Y SEGURIDAD (CRÍTICO):
-        1. NO DIAGNOSTICAS: Eres una herramienta de apoyo. Usa "Cuadro compatible con" o "Impresión diagnóstica".
-        2. BANDERAS ROJAS: Si detectas riesgo vital o funcional, marca 'risk_analysis' como 'Alto' y justifica.
-        3. INTEGRIDAD: Basa tu nota SOLO en la transcripción y el historial provisto.
+        🔥🔥 ESTRATEGIA DE MEMORIA: HYBRID RETRIEVAL (BÚSQUEDA HÍBRIDA) 🔥🔥
+        Para generar esta nota, debes procesar dos fuentes de información con jerarquía distinta:
+
+        1. FUENTE A: CHUNK ESTÁTICO (SAFETY LAYER) [PRIORIDAD ALTA]
+           - Contiene: Alergias, Enfermedades Crónicas, Medicación Activa (Datos duros de SQL).
+           - Instrucción: Estos datos son la VERDAD ABSOLUTA del paciente. Si el plan actual los contradice, es una ALERTA.
+
+        2. FUENTE B: CHUNK DINÁMICO (VECTOR LAYER) [CONTEXTO EPISÓDICO]
+           - Contiene: La transcripción de la consulta actual (Dolor, motivo de visita).
+        
+        🛑 PROTOCOLO DE SEGURIDAD (CRUCE DE FUENTES):
+        - Antes de validar cualquier medicamento o tratamiento en la Fuente B, crúzalo contra la Fuente A.
+        - Ejemplo: Si Fuente B dice "Recetar Diclofenaco" pero Fuente A dice "Insuficiencia Renal", TU DEBER es marcar 'risk_analysis' como ALTO.
 
         DATOS DE ENTRADA:
         - Fecha: ${now.toLocaleDateString()}
-        
-        🔥🔥 MEMORIA DEL PACIENTE (HISTORIAL PREVIO) 🔥🔥:
-        "${patientHistory || "Sin antecedentes registrados."}"
-        -----------------------------------------------------
 
-        - Transcripción de Consulta Actual: 
+        ============== [FUENTE A: CHUNK ESTÁTICO / SAFETY LAYER] ==============
+        "${patientHistory || "Sin datos críticos registrados (Asumir paciente sano bajo riesgo)."}"
+        =======================================================================
+
+        ============== [FUENTE B: CHUNK DINÁMICO / TRANSCRIPT] ================
         "${transcript.replace(/"/g, "'").trim()}"
+        =======================================================================
 
         GENERA JSON EXACTO (GeminiResponse):
         {
-          "clinicalNote": "Narrativa técnica y profesional...",
+          "clinicalNote": "Narrativa técnica integrando ambas fuentes...",
           "soap": {
-            "subjective": "Síntomas reportados (S)...",
-            "objective": "Signos vitales, exploración física y hallazgos (O)...",
-            "assessment": "Análisis, diagnóstico diferencial y presuntivo (A)...",
-            "plan": "Tratamiento farmacológico, estudios solicitados y recomendaciones (P)...",
-            "suggestions": ["Sugerencia clínica 1", "Sugerencia clínica 2"]
+            "subjective": "S...",
+            "objective": "O...",
+            "assessment": "A...",
+            "plan": "P...",
+            "suggestions": ["Sugerencia clínica 1"]
           },
-          "patientInstructions": "Instrucciones claras, sencillas y empáticas para el paciente...",
+          "patientInstructions": "Instrucciones...",
           "risk_analysis": {
             "level": "Bajo" | "Medio" | "Alto",
-            "reason": "Justificación breve del nivel de riesgo."
+            "reason": "SI HAY CONFLICTO ENTRE CHUNK ESTÁTICO Y DINÁMICO, EXPLÍCALO AQUÍ."
           },
           "conversation_log": [
              { "speaker": "Médico", "text": "..." },
