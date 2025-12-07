@@ -1,248 +1,292 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
-import { PatientInsight, MedicationItem, FollowUpMessage } from '../types';
+// Importamos interfaces locales para evitar errores de compilación
+import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V9.1: SISTEMA TANQUE (Bypass con Gemini 2.0 Exp)");
+console.log("🚀 V-ULTIMATE: MODO PRO (Facturación + Inteligencia Completa)");
 
 // ==========================================
-// 1. CONFIGURACIÓN
+// 1. CONFIGURACIÓN ROBUSTA
 // ==========================================
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 
-if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada en .env");
+if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada. Revisa tu archivo .env");
 
-// LISTA DE SUPERVIVENCIA ACTUALIZADA
-// Hemos puesto 'gemini-2.0-flash-exp' primero porque Google está bloqueando los 1.5 en tu cuenta.
+// LISTA DE COMBATE (Failover System)
+// El sistema intentará usar el modelo principal. Si falla (por error de Google),
+// saltará automáticamente a los de respaldo para que el médico nunca se quede sin servicio.
 const MODELS_TO_TRY = [
-  "gemini-2.0-flash-exp",    // 1. La "Puerta Trasera": Modelo nuevo, gratuito y potente.
-  "gemini-1.5-flash",        // 2. Estándar (Backup)
-  "gemini-1.5-flash-001",    // 3. Estable (Backup)
-  "gemini-1.5-flash-8b",     // 4. Ligero
-  "gemini-1.5-pro",          // 5. Potente
-  "gemini-pro"               // 6. Legado
+  "gemini-1.5-flash-002",    // 1. La versión más inteligente y actual (Prioridad)
+  "gemini-1.5-flash",        // 2. La versión estándar estable
+  "gemini-1.5-pro",          // 3. Respaldo de alta potencia
+  "gemini-2.0-flash-exp"     // 4. Último recurso
 ];
 
 // ==========================================
-// 2. INTERFACES (Tus tipos originales V8)
-// ==========================================
-export interface ChatMessage { role: 'user' | 'model'; text: string; }
-export interface SoapNote { subjective: string; objective: string; assessment: string; plan: string; suggestions: string[]; }
-export interface ConversationLine { speaker: 'Médico' | 'Paciente'; text: string; }
-export interface GeminiResponse {
-  conversation_log?: ConversationLine[]; 
-  clinicalNote?: string; 
-  soap?: SoapNote; 
-  risk_analysis?: { level: 'Bajo' | 'Medio' | 'Alto', reason: string };
-  audit?: { status: 'Incompleto' | 'Completo'; administrative_gaps: string[]; };
-  patientInstructions?: string;
-  actionItems?: any;
-}
-export interface MedicationItem { drug: string; details: string; frequency: string; duration: string; notes: string; }
-export interface FollowUpMessage { day: number; message: string; }
-
-// ==========================================
-// 3. UTILIDADES Y MOTOR "TANQUE"
+// 2. UTILIDADES DE INTELIGENCIA
 // ==========================================
 
 const cleanJSON = (text: string) => {
   let clean = text.replace(/```json/g, '').replace(/```/g, '');
   const firstCurly = clean.indexOf('{');
-  const firstSquare = clean.indexOf('[');
-  let startIndex = -1;
-  let endIndex = -1;
-
-  if (firstCurly !== -1 && (firstSquare === -1 || firstCurly < firstSquare)) {
-      startIndex = firstCurly;
-      endIndex = clean.lastIndexOf('}');
-  } else if (firstSquare !== -1) {
-      startIndex = firstSquare;
-      endIndex = clean.lastIndexOf(']');
-  }
-
-  if (startIndex !== -1 && endIndex !== -1) {
-    clean = clean.substring(startIndex, endIndex + 1);
+  const lastCurly = clean.lastIndexOf('}');
+  if (firstCurly !== -1 && lastCurly !== -1) {
+    clean = clean.substring(firstCurly, lastCurly + 1);
   }
   return clean.trim();
 };
 
-// MOTOR DE CONEXIÓN ROBUSTA (FAILOVER)
-async function generateWithFallback(prompt: string): Promise<string> {
+/**
+ * MOTOR DE CONEXIÓN BLINDADO (FAILOVER)
+ * Prueba modelos en cascada hasta obtener respuesta.
+ */
+async function generateWithFailover(prompt: string, jsonMode: boolean = false): Promise<string> {
   const genAI = new GoogleGenerativeAI(API_KEY);
   let lastError: any = null;
 
   for (const modelName of MODELS_TO_TRY) {
     try {
-      console.log(`🔄 Probando conexión con: ${modelName}...`);
-      const model = genAI.getGenerativeModel({ model: modelName });
+      const model = genAI.getGenerativeModel({ 
+        model: modelName,
+        generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined
+      });
       
       const result = await model.generateContent(prompt);
-      const response = await result.response;
-      const text = response.text();
+      const text = result.response.text();
 
-      if (text) {
-        console.log(`✅ ¡Conectado exitosamente con ${modelName}!`);
-        return text; 
-      }
+      if (text) return text; // ¡Éxito!
     } catch (error: any) {
-      console.warn(`⚠️ Falló ${modelName}. Saltando al siguiente...`);
+      console.warn(`⚠️ Modelo ${modelName} falló/ocupado. Cambiando al siguiente...`);
       lastError = error;
       continue; 
     }
   }
-  throw lastError || new Error("Todos los modelos de IA fallaron. Verifica tu conexión a internet.");
+  throw lastError || new Error("Todos los modelos de IA fallaron. Verifica tu conexión.");
 }
 
-// Tus Perfiles Clínicos V8
+/**
+ * MOTOR DE PERFILES (PERSONALIDAD CLÍNICA)
+ * Ajusta el cerebro de la IA según la especialidad.
+ */
 const getSpecialtyPromptConfig = (specialty: string) => {
   const configs: Record<string, any> = {
-    "Cardiología": { role: "Cardiólogo", focus: "Hemodinamia y riesgo CV.", bias: "Prioriza impacto hemodinámico." },
-    "Traumatología y Ortopedia": { role: "Ortopedista", focus: "Musculoesquelético y movilidad.", bias: "Biomecánica." },
-    "Medicina General": { role: "Médico Familiar", focus: "Integral.", bias: "Holístico." }
+    "Cardiología": {
+      role: "Cardiólogo Intervencionista",
+      focus: "Hemodinamia, ritmo, presión arterial, perfusión, soplos y riesgo cardiovascular.",
+      bias: "Prioriza el impacto hemodinámico. Traduce síntomas vagos a equivalentes cardiológicos."
+    },
+    "Traumatología y Ortopedia": {
+      role: "Cirujano Ortopedista",
+      focus: "Sistema musculoesquelético, arcos de movilidad, estabilidad, fuerza y marcha.",
+      bias: "Describe la biomecánica de la lesión."
+    },
+    "Dermatología": {
+      role: "Dermatólogo",
+      focus: "Morfología de lesiones cutáneas (tipo, color, bordes), anejos y mucosas.",
+      bias: "Usa terminología dermatológica precisa."
+    },
+    "Pediatría": {
+      role: "Pediatra",
+      focus: "Desarrollo, crecimiento, hitos, alimentación y vacunación.",
+      bias: "Evalúa todo en contexto de la edad. Usa tono adecuado para padres."
+    },
+    "Ginecología y Obstetricia": {
+      role: "Ginecólogo Obstetra",
+      focus: "Salud reproductiva, ciclo menstrual, embarazo, vitalidad fetal.",
+      bias: "Enfoque en bienestar materno-fetal."
+    },
+    "Medicina General": {
+      role: "Médico de Familia",
+      focus: "Visión integral, semiología general y referencia oportuna.",
+      bias: "Enfoque holístico y preventivo."
+    }
   };
-  return configs[specialty] || { role: `Especialista en ${specialty}`, focus: "General", bias: "Clínico" };
+
+  return configs[specialty] || {
+    role: `Especialista en ${specialty}`,
+    focus: `Patologías y terminología de ${specialty}.`,
+    bias: `Criterios clínicos estándar de ${specialty}.`
+  };
 };
 
 // ==========================================
-// 4. SERVICIO PRINCIPAL (V8 Features + Motor Tanque)
+// 3. SERVICIO PRINCIPAL
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- GENERAR NOTA (SOAP) ---
+  // --- A. NOTA CLÍNICA (Con Blindaje Legal + Especialidad) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const now = new Date();
-      const cleanTranscript = transcript.replace(/"/g, "'").trim();
       const profile = getSpecialtyPromptConfig(specialty);
 
       const prompt = `
-        ROL: ${profile.role}.
-        TAREA: Generar Nota de Evolución SOAP.
-        TRANSCRIPCIÓN: "${cleanTranscript}"
-        HISTORIAL: "${patientHistory}"
-        FECHA: ${now.toLocaleDateString()}
-        ENFOQUE: ${profile.focus}
+        ROL: Actúas como "MediScribe AI", asistente de documentación clínica.
+        PERFIL CLÍNICO: Tienes el conocimiento experto de un ${profile.role}.
         
-        IMPORTANTE: Tu salida debe ser ÚNICAMENTE un objeto JSON válido:
-        { 
-          "conversation_log": [{ "speaker": "Médico", "text": "..." }, { "speaker": "Paciente", "text": "..." }], 
-          "soap": { 
-            "subjective": "Sintomas...", "objective": "Signos...", "assessment": "Diagnóstico...", "plan": "Tratamiento...", 
-            "suggestions": ["Sugerencia 1"] 
-          }, 
-          "patientInstructions": "Instrucciones...", 
-          "risk_analysis": { "level": "Bajo" | "Medio" | "Alto", "reason": "..." } 
+        ENFOQUE DE ANÁLISIS: ${profile.focus}
+        SESGO CLÍNICO: ${profile.bias}
+
+        CONTEXTO LEGAL Y SEGURIDAD (CRÍTICO):
+        1. NO DIAGNOSTICAS: Eres una herramienta de apoyo. Usa "Cuadro compatible con" o "Impresión diagnóstica".
+        2. BANDERAS ROJAS: Si detectas riesgo vital o funcional, marca 'risk_analysis' como 'Alto' y justifica.
+        3. INTEGRIDAD: Basa tu nota SOLO en la transcripción y el historial provisto. No inventes datos.
+
+        DATOS DE ENTRADA:
+        - Fecha: ${now.toLocaleDateString()}
+        - Historial Previo: "${patientHistory}"
+        - Transcripción de Consulta: "${transcript.replace(/"/g, "'").trim()}"
+
+        GENERA JSON EXACTO (GeminiResponse):
+        {
+          "clinicalNote": "Narrativa técnica y profesional de la evolución...",
+          "soap": {
+            "subjective": "Síntomas reportados (S)...",
+            "objective": "Signos vitales, exploración física y hallazgos (O)...",
+            "assessment": "Análisis, diagnóstico diferencial y presuntivo (A)...",
+            "plan": "Tratamiento farmacológico, estudios solicitados y recomendaciones (P)...",
+            "suggestions": ["Sugerencia clínica 1", "Sugerencia clínica 2"]
+          },
+          "patientInstructions": "Instrucciones claras, sencillas y empáticas para el paciente...",
+          "risk_analysis": {
+            "level": "Bajo" | "Medio" | "Alto",
+            "reason": "Justificación breve del nivel de riesgo."
+          },
+          "conversation_log": [
+             { "speaker": "Médico", "text": "..." },
+             { "speaker": "Paciente", "text": "..." }
+          ]
         }
       `;
 
-      const rawText = await generateWithFallback(prompt);
+      // Usamos Failover y forzamos modo JSON
+      const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText)) as GeminiResponse;
 
-    } catch (error) { 
-        console.error("Error nota:", error);
-        throw error; 
+    } catch (error) {
+      console.error("❌ Error Nota Clínica:", error);
+      throw error;
     }
   },
 
-  // --- AUDITORÍA (Restaurada & Blindada) ---
-  async generateClinicalNoteAudit(noteContent: string): Promise<any> {
-    const fallbackResult = {
-        riskLevel: "Medio", score: 50, analysis: "Error de conexión IA.", recommendations: ["Revisión manual"]
-    };
-
+  // --- B. BALANCE 360 (Análisis Integral) ---
+  async generatePatient360Analysis(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
     try {
-        const prompt = `
-          ACTÚA COMO: Auditor Médico.
-          OBJETIVO: Auditar nota clínica.
-          NOTA: "${noteContent}"
-          
-          Responde SOLO JSON:
-          {
-            "riskLevel": "Bajo" | "Medio" | "Alto",
-            "score": 85,
-            "analysis": "Breve análisis.",
-            "recommendations": ["Rec 1", "Rec 2"]
-          }
-        `;
-        
-        const rawText = await generateWithFallback(prompt);
-        return JSON.parse(cleanJSON(rawText));
+      const contextText = consultations.length > 0 
+          ? consultations.join("\n\n--- CONSULTA PREVIA ---\n\n") 
+          : "Sin historial previo.";
 
-    } catch (error: any) {
-        return fallbackResult;
-    }
-  },
-
-  // --- EXTRACCIÓN MEDICAMENTOS (100% Cliente) ---
-  async extractMedications(transcript: string): Promise<MedicationItem[]> {
-    const cleanText = transcript.trim();
-    if (!cleanText) return [];
-
-    try {
       const prompt = `
-        Extrae medicamentos de: "${cleanText}".
-        Responde SOLO Array JSON:
-        [{"drug": "Nombre", "details": "Dosis", "frequency": "...", "duration": "...", "notes": "..."}]
+          ACTÚA COMO: Auditor Médico Senior y Jefe de Servicio.
+          TAREA: Realizar Balance Clínico 360 para el paciente "${patientName}".
+          
+          HISTORIAL MÉDICO: ${historySummary || "No registrado"}
+          CONSULTAS RECIENTES: ${contextText}
+
+          OBJETIVOS DE ANÁLISIS:
+          1. EVOLUCIÓN: ¿El paciente mejora, empeora o está estancado?
+          2. AUDITORÍA RX: ¿Qué fármacos se usan? ¿Hay duplicidad o interacciones?
+          3. RIESGOS: Identifica banderas rojas latentes.
+          4. PENDIENTES: Estudios o acciones que quedaron abiertas.
+
+          SALIDA JSON (PatientInsight):
+          {
+            "evolution": "Resumen narrativo de la trayectoria...",
+            "medication_audit": "Análisis farmacológico...",
+            "risk_flags": ["Riesgo 1", "Riesgo 2"],
+            "pending_actions": ["Acción 1", "Acción 2"]
+          }
       `;
 
-      const rawText = await generateWithFallback(prompt);
-      const items = JSON.parse(cleanJSON(rawText));
-      return Array.isArray(items) ? items : [];
+      const rawText = await generateWithFailover(prompt, true);
+      return JSON.parse(cleanJSON(rawText));
+    } catch (e) {
+      return { evolution: "Análisis no disponible", medication_audit: "", risk_flags: [], pending_actions: [] };
+    }
+  },
 
+  // --- C. EXTRACCIÓN DE MEDICAMENTOS (Farmacéutico IA) ---
+  async extractMedications(text: string): Promise<MedicationItem[]> {
+    if (!text) return [];
+    try {
+      const prompt = `
+        ACTÚA COMO: Farmacéutico Clínico.
+        TAREA: Extraer medicamentos, dosis y frecuencias del siguiente texto.
+        TEXTO: "${text.replace(/"/g, "'")}"
+        
+        SALIDA JSON ARRAY (MedicationItem[]):
+        [
+          {
+            "drug": "Nombre genérico/comercial",
+            "details": "Dosis y presentación",
+            "frequency": "Cada cuánto tiempo",
+            "duration": "Por cuánto tiempo",
+            "notes": "Indicaciones especiales (con alimentos, etc)"
+          }
+        ]
+      `;
+      const rawText = await generateWithFailover(prompt, true);
+      const res = JSON.parse(cleanJSON(rawText));
+      return Array.isArray(res) ? res : [];
     } catch (e) { return []; }
   },
 
-  // --- PLAN DE SEGUIMIENTO ---
+  // --- D. AUDITORÍA DE CALIDAD (El "Jefe de Servicio") ---
+  async generateClinicalNoteAudit(noteContent: string): Promise<any> {
+    try {
+      const prompt = `
+        ACTÚA COMO: Auditor de Calidad Médica.
+        OBJETIVO: Evaluar la calidad, seguridad y completitud de la siguiente nota.
+        NOTA: "${noteContent}"
+        
+        SALIDA JSON:
+        {
+          "riskLevel": "Bajo" | "Medio" | "Alto",
+          "score": 85,
+          "analysis": "Breve análisis de fortalezas y debilidades de la documentación.",
+          "recommendations": ["Recomendación accionable 1", "Recomendación 2"]
+        }
+      `;
+      const rawText = await generateWithFailover(prompt, true);
+      return JSON.parse(cleanJSON(rawText));
+    } catch (e) {
+      return { riskLevel: "Medio", score: 0, analysis: "No disponible", recommendations: [] };
+    }
+  },
+
+  // --- E. PLAN DE SEGUIMIENTO (WhatsApp Automático) ---
   async generateFollowUpPlan(patientName: string, clinicalNote: string, instructions: string): Promise<FollowUpMessage[]> {
     try {
-        const prompt = `
-            Genera 3 mensajes de seguimiento WhatsApp para ${patientName}.
-            Nota: "${clinicalNote}"
-            Instrucciones: "${instructions}"
+      const prompt = `
+        ACTÚA COMO: Asistente Médico Empático.
+        TAREA: Redactar 3 mensajes cortos de seguimiento para WhatsApp para el paciente ${patientName}.
+        CONTEXTO: Nota: "${clinicalNote}". Instrucciones: "${instructions}".
+        
+        REGLAS:
+        - Tono cercano pero profesional.
+        - Mensaje 1 (Día 1): Preguntar cómo se siente con el inicio del tratamiento.
+        - Mensaje 2 (Día 3): Verificar evolución de síntomas.
+        - Mensaje 3 (Día 7): Recordatorio de cita o cierre.
 
-            Responde SOLO Array JSON:
-            [{ "day": 1, "message": "..." }, { "day": 3, "message": "..." }, { "day": 7, "message": "..." }]
-        `;
-
-        const rawText = await generateWithFallback(prompt);
-        const msgs = JSON.parse(cleanJSON(rawText));
-        return Array.isArray(msgs) ? msgs : [];
+        SALIDA JSON ARRAY:
+        [{ "day": 1, "message": "..." }, { "day": 3, "message": "..." }, { "day": 7, "message": "..." }]
+      `;
+      const rawText = await generateWithFailover(prompt, true);
+      const res = JSON.parse(cleanJSON(rawText));
+      return Array.isArray(res) ? res : [];
     } catch (e) { return []; }
   },
 
-  // --- ANÁLISIS 360 ---
-  async generatePatient360Analysis(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
-      try {
-        const contextText = consultations.length > 0 ? consultations.join("\n") : "Sin historial.";
-        
-        const prompt = `
-            PACIENTE: ${patientName}
-            HISTORIAL: ${historySummary}
-            CONSULTAS: ${contextText}
-
-            Genera JSON Insights:
-            {
-              "evolution": "...", "medication_audit": "...", "risk_flags": [], "pending_actions": []
-            }
-        `;
-
-        const rawText = await generateWithFallback(prompt);
-        return JSON.parse(cleanJSON(rawText)) as PatientInsight;
-      } catch (e) { 
-          return { evolution: "No disponible", medication_audit: "", risk_flags: [], pending_actions: [] };
-      }
-  },
-
-  // --- SOPORTE ---
+  // --- F. CHAT CONTEXTUAL ---
   async chatWithContext(context: string, userMessage: string): Promise<string> {
     try {
-        return await generateWithFallback(`Contexto: ${context}. Usuario: ${userMessage}. Responde breve.`);
-    } catch (e) { return "Error en chat."; }
+       // Para chat no forzamos JSON, queremos texto libre natural
+       const prompt = `CONTEXTO CLÍNICO: ${context}. \n\nPREGUNTA USUARIO: ${userMessage}. \n\nRESPUESTA EXPERTA Y BREVE:`;
+       return await generateWithFailover(prompt, false);
+    } catch (e) { return "Lo siento, hubo un error de conexión."; }
   },
 
-  async generateQuickRxJSON(transcript: string, patientName: string): Promise<MedicationItem[]> { 
-      return this.extractMedications(transcript); 
-  },
-  
-  async generatePatientInsights(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
-      return this.generatePatient360Analysis(patientName, historySummary, consultations);
-  }
+  // --- HELPERS DE COMPATIBILIDAD ---
+  async generatePatientInsights(p: string, h: string, c: string[]): Promise<any> { return this.generatePatient360Analysis(p, h, c); },
+  async generateQuickRxJSON(t: string, p: string): Promise<MedicationItem[]> { return this.extractMedications(t); },
+  async generatePrescriptionOnly(t: string): Promise<string> { return "Use extractMedications."; }
 };
