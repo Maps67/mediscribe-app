@@ -317,50 +317,98 @@ const ConsultationView: React.FC = () => {
       }
   };
 
+  // =================================================================================
+  // 🚀 FUNCIÓN ACTUALIZADA: INTEGRACIÓN V-ULTIMATE (HYBRID RETRIEVAL)
+  // =================================================================================
   const handleGenerate = async () => {
     if (!transcript) return toast.error("Sin audio.");
+    
+    // Verificación de conexión (Modo Blindado)
     if (!isOnline) { 
-        toast.warning("Sin internet: La IA no puede procesar.", { icon: <WifiOff/> });
+        toast.warning("Modo Offline activo: La IA requiere internet.", { icon: <WifiOff/> });
         toast.info("La nota se ha guardado localmente. Genérela cuando recupere la conexión.");
         return; 
     }
 
+    // Cancelar peticiones previas
     if (abortControllerRef.current) abortControllerRef.current.abort();
     abortControllerRef.current = new AbortController();
+    
     setIsProcessing(true);
+    const loadingToast = toast.loading("Analizando caso clínico (RAG Híbrido)...");
 
     try {
-      let historyContext = "";
+      let fullMedicalContext = "";
+      
+      // SOLO si es un paciente registrado (no temporal), construimos el Safety Layer
       if (selectedPatient && !(selectedPatient as any).isTemporary) {
-          const { data: historyData } = await supabase.from('consultations').select('created_at, summary').eq('patient_id', selectedPatient.id).order('created_at', { ascending: false }).limit(3);
-          if (historyData && historyData.length > 0) {
-             historyContext = historyData.map(h => `[Fecha: ${new Date(h.created_at).toLocaleDateString()}] RESUMEN: ${h.summary.substring(0, 300)}...`).join("\n\n");
-          }
+          
+          // 1. Recuperar Contexto Episódico (Últimas consultas)
+          const { data: historyData } = await supabase
+              .from('consultations')
+              .select('created_at, summary')
+              .eq('patient_id', selectedPatient.id)
+              .order('created_at', { ascending: false })
+              .limit(3); 
+
+          // 2. Recuperar Contexto Estático (Safety Layer - Alergias/Crónicos)
+          const staticHistory = selectedPatient.history || "Sin antecedentes patológicos registrados.";
+          
+          const episodicHistory = historyData && historyData.length > 0
+              ? historyData.map(h => `[FECHA: ${new Date(h.created_at).toLocaleDateString()}] RESUMEN: ${h.summary.substring(0, 300)}...`).join("\n\n")
+              : "Sin consultas previas en plataforma.";
+
+          // 3. Construcción del Prompt Híbrido
+          fullMedicalContext = `
+            === [FUENTE A: HISTORIAL CLÍNICO CRÍTICO (VERDAD ABSOLUTA)] ===
+            ${staticHistory}
+            
+            === [FUENTE B: EVOLUCIÓN RECIENTE (CONTEXTO)] ===
+            ${episodicHistory}
+          `;
       }
 
-      const response = await GeminiMedicalService.generateClinicalNote(transcript, selectedSpecialty, historyContext);
+      // 4. Inyección al Servicio IA (V-ULTIMATE)
+      const response = await GeminiMedicalService.generateClinicalNote(
+          transcript, 
+          selectedSpecialty, 
+          fullMedicalContext // <--- AQUÍ VA EL CONTEXTO HÍBRIDO
+      );
       
+      // Validación defensiva de respuesta
       if (!response || (!response.soap && !response.clinicalNote)) {
           throw new Error("La IA generó una respuesta vacía o inválida.");
       }
 
       setGeneratedNote(response);
       setEditableInstructions(response.patientInstructions || '');
+      
+      // Manejo de Alertas de Riesgo (Safety Trigger)
       if (response.risk_analysis?.level === 'Alto') {
           setIsRiskExpanded(true);
-          toast.warning("ALERTA: Se han detectado riesgos clínicos importantes.");
+          toast.dismiss(loadingToast);
+          toast.error("⚠️ ALERTA: Se han detectado riesgos clínicos importantes.");
+      } else if (response.risk_analysis?.level === 'Medio') {
+          setIsRiskExpanded(false);
+          toast.dismiss(loadingToast);
+          toast.warning("Atención: Revise las alertas de riesgo moderado.");
       } else {
           setIsRiskExpanded(false);
+          toast.dismiss(loadingToast);
+          toast.success("Nota generada exitosamente.");
       }
       
       setActiveTab('record');
       
-      const chatWelcome = historyContext ? `Nota generada con análisis evolutivo. ¿Dudas?` : `Nota de primera vez generada. ¿Dudas?`;
+      const chatWelcome = fullMedicalContext 
+          ? `He analizado la transcripción cruzándola con el historial de ${selectedPatient?.name}. ¿Desea ajustar algo?` 
+          : `Nota de primera vez generada. ¿Dudas?`;
+          
       setChatMessages([{ role: 'model', text: chatWelcome }]);
-      toast.success("Análisis completado. Revise y edite si es necesario.");
 
     } catch (e) { 
-        console.error("Error generating note:", e);
+        console.error("❌ Error Critical en handleGenerate:", e);
+        toast.dismiss(loadingToast);
         if(e instanceof Error && e.name !== 'AbortError') toast.error(`Error IA: ${e.message}`); 
     } finally { 
         setIsProcessing(false); 
