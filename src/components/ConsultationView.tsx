@@ -69,7 +69,6 @@ const ConsultationView: React.FC = () => {
   const [patientInsights, setPatientInsights] = useState<PatientInsight | null>(null);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   
-  // ESTADO NUEVO PARA ENLAZAR CITA
   const [linkedAppointmentId, setLinkedAppointmentId] = useState<string | null>(null);
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -95,10 +94,8 @@ const ConsultationView: React.FC = () => {
         if (mounted) {
             setCurrentUserId(user.id); 
 
-            // Carga Inicial de Pacientes
             const { data: patientsData } = await supabase.from('patients').select('*').order('created_at', { ascending: false });
             
-            // Carga de Citas "Fantasma" (Backup por si se accede directo sin state)
             const today = new Date();
             today.setHours(0,0,0,0);
             
@@ -136,18 +133,15 @@ const ConsultationView: React.FC = () => {
                 }
             }
 
-            // --- LÓGICA DE PUENTE (DASHBOARD -> CONSULTA) ---
             if (location.state?.patientData) {
                 const incoming = location.state.patientData;
                 
-                // Si viene como fantasma (sin ID real), lo procesamos como tal
                 if (incoming.isGhost) {
                      handleSelectPatient(incoming);
                 } else {
-                     // Paciente real
                      const realPatient = loadedPatients.find(p => p.id === incoming.id);
                      if (realPatient) setSelectedPatient(realPatient);
-                     else setSelectedPatient(incoming); // Fallback
+                     else setSelectedPatient(incoming);
                      toast.success(`Paciente cargado: ${incoming.name}`);
                 }
 
@@ -156,10 +150,8 @@ const ConsultationView: React.FC = () => {
                     console.log("🔗 Cita vinculada para cierre automático:", location.state.linkedAppointmentId);
                 }
                 
-                // Limpiamos el state para evitar re-lecturas erróneas al recargar
                 window.history.replaceState({}, document.title);
             }
-            // Soporte Legacy (Solo nombre) -> Walk-in
             else if (location.state?.patientName) {
                 const incomingName = location.state.patientName;
                 const existingPatient = loadedPatients.find((p: any) => p.name.toLowerCase() === incomingName.toLowerCase());
@@ -260,6 +252,17 @@ const ConsultationView: React.FC = () => {
           setSelectedPatient(patient);
       }
       setSearchTerm('');
+  };
+
+  const handleCreateTemporary = (name: string) => {
+      const tempPatient: any = { 
+          id: 'temp_' + Date.now(), 
+          name: name,
+          isTemporary: true 
+      };
+      setSelectedPatient(tempPatient);
+      setSearchTerm('');
+      toast.info(`Nuevo paciente temporal: ${name}`);
   };
 
   const handleToggleRecording = () => {
@@ -429,7 +432,6 @@ const ConsultationView: React.FC = () => {
         
         let finalPatientId = selectedPatient.id;
 
-        // 1. REGISTRO AUTOMÁTICO DE WALK-IN
         if ((selectedPatient as any).isTemporary) {
             const { data: newPatient, error: createError } = await supabase.from('patients').insert({
                 name: selectedPatient.name,
@@ -446,14 +448,12 @@ const ConsultationView: React.FC = () => {
             ? `FECHA: ${new Date().toLocaleDateString()}\nS: ${generatedNote.soap.subjective}\nO: ${generatedNote.soap.objective}\nA: ${generatedNote.soap.assessment}\nP: ${generatedNote.soap.plan}\n\nPLAN PACIENTE:\n${editableInstructions}`
             : (generatedNote.clinicalNote + "\n\nPLAN PACIENTE:\n" + editableInstructions);
 
-        // 2. CIERRE DE CITA VINCULADA (LA MAGIA DEL PUENTE)
         if (linkedAppointmentId) {
              await supabase.from('appointments')
                 .update({ status: 'completed' })
                 .eq('id', linkedAppointmentId);
              console.log("✅ Cita marcada como completada en Dashboard");
         } else {
-             // Fallback para citas fantasmas internas
              await AppointmentService.markAppointmentAsCompleted(finalPatientId);
         }
 
@@ -481,7 +481,7 @@ const ConsultationView: React.FC = () => {
         setConsentGiven(false); 
         setIsRiskExpanded(false);
         setPatientInsights(null);
-        setLinkedAppointmentId(null); // Reset del link
+        setLinkedAppointmentId(null); 
 
     } catch (e:any) { 
         console.error("Error guardando:", e);
@@ -579,6 +579,15 @@ const ConsultationView: React.FC = () => {
                             {p.isGhost && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1"><Calendar size={10}/> Cita sin registro</span>}
                         </div>
                     ))}
+                    {filteredPatients.length === 0 && (
+                        <div 
+                            onClick={() => handleCreateTemporary(searchTerm)} 
+                            className="p-3 hover:bg-teal-50 dark:hover:bg-teal-900/20 cursor-pointer border-b dark:border-slate-700 text-brand-teal font-bold text-sm flex items-center gap-2"
+                        >
+                            <UserPlus size={16}/>
+                            <span>Crear Nuevo: "{searchTerm}"</span>
+                        </div>
+                    )}
                 </div>
             )}
         </div>

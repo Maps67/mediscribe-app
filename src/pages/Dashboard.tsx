@@ -699,7 +699,10 @@ const Dashboard: React.FC = () => {
                                                         </div>
 
                                                         <button 
-                                                            onClick={() => handleStartConsultation(apt)}
+                                                            onClick={(e) => {
+                                                                e.stopPropagation(); // SOLUCIÓN CRÍTICA: Detiene la propagación al padre
+                                                                handleStartConsultation(apt);
+                                                            }}
                                                             className="flex items-center gap-2 bg-brand-teal hover:bg-teal-600 text-white px-4 py-2 rounded-xl font-bold text-xs shadow-md shadow-teal-500/20 active:scale-95 transition-all"
                                                         >
                                                             <PlayCircle size={16} fill="currentColor" className="text-teal-800/30"/>
