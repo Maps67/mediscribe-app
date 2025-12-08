@@ -1,5 +1,6 @@
 import { supabase } from '../lib/supabase';
-import { startOfWeek, endOfWeek } from 'date-fns';
+import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO, format } from 'date-fns';
+import { es } from 'date-fns/locale';
 
 export interface InactivePatient {
   id: string;
@@ -96,64 +97,63 @@ export const AnalyticsService = {
         .slice(0, 4);
   },
 
-  // 🔴 3. ACTIVIDAD SEMANAL (CORREGIDO Y BLINDADO)
+  // 🔴 3. ACTIVIDAD SEMANAL (VERSIÓN BYPASS SQL - CLIENT SIDE)
+  // Esta versión NO usa RPC, usa SELECT normal que sabemos que funciona.
   async getWeeklyActivity(): Promise<WeeklyStats> {
     try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) throw new Error("No auth");
+
         const today = new Date();
-        // Forzamos inicio Lunes 00:00 y fin Domingo 23:59
-        const start = startOfWeek(today, { weekStartsOn: 1 }); 
-        const end = endOfWeek(today, { weekStartsOn: 1 });
+        const start = startOfWeek(today, { weekStartsOn: 1 }); // Lunes 00:00
+        const end = endOfWeek(today, { weekStartsOn: 1 });     // Domingo 23:59
 
-        console.log("📊 Consultando actividad:", { 
-            start: start.toISOString(), 
-            end: end.toISOString() 
-        });
+        console.log("📊 Consultando rango:", start.toISOString(), "->", end.toISOString());
 
-        const { data, error } = await supabase.rpc('get_weekly_activity_counts', {
-            start_date: start.toISOString(),
-            end_date: end.toISOString()
-        });
+        // CONSULTA DIRECTA (Infalible)
+        const { data, error } = await supabase
+            .from('consultations')
+            .select('created_at') // Solo traemos la fecha, es muy ligero
+            .eq('doctor_id', user.id)
+            .gte('created_at', start.toISOString())
+            .lte('created_at', end.toISOString())
+            .neq('status', 'cancelled'); // Ignoramos canceladas
 
         if (error) {
-            console.error("❌ Error RPC Supabase:", error);
+            console.error("❌ Error Supabase Select:", error);
             throw error;
         }
 
-        console.log("✅ Datos crudos de DB:", data);
+        console.log("✅ Consultas encontradas:", data?.length || 0);
 
-        // Inicializar array de 7 días (Lunes=0 ... Domingo=6)
-        const rawCounts = [0, 0, 0, 0, 0, 0, 0];
+        // PROCESAMIENTO LOCAL (Javascript)
+        // Generamos los 7 días de la semana
+        const daysInterval = eachDayOfInterval({ start, end });
+        
+        // Mapeamos Lunes a Domingo
+        const rawCounts = daysInterval.map(day => {
+            // Filtramos las consultas que coinciden con este día
+            return data?.filter(c => isSameDay(parseISO(c.created_at), day)).length || 0;
+        });
 
-        if (data && Array.isArray(data)) {
-            data.forEach((item: any) => {
-                // Asegurar conversión a número
-                const dayIndex = Number(item.day_index); // SQL devuelve 1..7
-                const count = Number(item.total_count);
+        // Etiquetas L, M, M...
+        const labels = daysInterval.map(day => 
+            format(day, 'eeeee', { locale: es }).toUpperCase()
+        );
 
-                // Mapeo: SQL(1)=Lunes -> Array(0)
-                const arrayPos = dayIndex - 1;
-
-                if (arrayPos >= 0 && arrayPos < 7) {
-                    rawCounts[arrayPos] = count;
-                }
-            });
-        }
-
-        console.log("📈 Conteos procesados:", rawCounts);
-
-        // Calcular alturas relativas (evitando división por cero)
-        const maxVal = Math.max(...rawCounts);
-        const values = rawCounts.map(c => maxVal === 0 ? 0 : Math.round((c / maxVal) * 100));
+        // Altura de barras (Normalización)
+        const maxVal = Math.max(...rawCounts, 1);
+        const values = rawCounts.map(c => Math.round((c / maxVal) * 100));
 
         return {
-            labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'],
+            labels,
             values,
             rawCounts,
             growth: 0 
         };
 
     } catch (e) {
-        console.error("Error crítico en AnalyticsService:", e);
+        console.error("Error crítico en AnalyticsService (Client-Side):", e);
         return { 
             labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], 
             values: [0,0,0,0,0,0,0], 
