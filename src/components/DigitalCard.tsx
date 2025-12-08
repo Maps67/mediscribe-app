@@ -9,7 +9,7 @@ import {
   Calendar, Stethoscope, Briefcase
 } from 'lucide-react';
 
-// --- TIPOS ---
+// --- TIPOS (Coincidentes con Schema v5.0) ---
 interface MedicalNews {
   id?: string;
   title: string;
@@ -114,6 +114,7 @@ const DigitalCard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
+  // Fallback seguro en caso de error de red o DB vacía
   const STATIC_NEWS: MedicalNews[] = [
     { title: 'FDA Aprueba Voyxact', summary: 'Tratamiento para nefropatía por IgA.', source: 'FDA', url: 'https://www.fda.gov' },
     { title: 'Guías IDSA 2025', summary: 'Manejo de infecciones urinarias.', source: 'IDSA', url: 'https://www.idsociety.org' }
@@ -131,6 +132,7 @@ const DigitalCard: React.FC = () => {
 
   const fetchNews = async () => {
     try {
+      // Ahora esta llamada está protegida por RLS (Solo Lectura)
       const { data, error } = await supabase
         .from('medical_news')
         .select('*')
@@ -159,17 +161,19 @@ const DigitalCard: React.FC = () => {
         const { count: countDoc } = await supabase.from('patients').select('*', { count: 'exact', head: true }).eq('doctor_id', user.id);
         if (countDoc !== null) finalCount = countDoc;
         else {
+            // Soporte legacy para pacientes sin doctor_id mapeado
             const { count: countUser } = await supabase.from('patients').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
             if (countUser !== null) finalCount = countUser;
         }
 
         let calculatedAvg = 0;
+        // Métrica rápida: Usamos 'summary' como proxy de complejidad o 'duration_minutes'
         const { data: consults } = await supabase.from('consultations').select('summary').eq('doctor_id', user.id).limit(50);
         if (consults && consults.length > 0) {
             const total = consults.reduce((acc, curr) => acc + (15 + Math.round((curr.summary?.length || 0)/50)), 0);
             calculatedAvg = Math.round(total / consults.length);
         } else {
-             const { data: appts } = await supabase.from('appointments').select('duration_minutes').eq('user_id', user.id);
+             const { data: appts } = await supabase.from('appointments').select('duration_minutes').eq('doctor_id', user.id); // Corregido a doctor_id
              if (appts && appts.length > 0) {
                  const total = appts.reduce((acc, curr) => acc + (curr.duration_minutes || 0), 0);
                  calculatedAvg = Math.round(total / appts.length);
@@ -181,19 +185,18 @@ const DigitalCard: React.FC = () => {
     } catch (error) { console.error(error); } finally { setLoading(false); }
   };
 
-  // --- FIX CRÍTICO: VALIDACIÓN DE TIPOS ---
   const profileCompleteness = useMemo(() => {
     if (!profile) return 0;
     const fields = ['full_name', 'specialty', 'phone', 'license_number', 'logo_url', 'website_url', 'address'];
     const filled = fields.filter(f => {
         const val = profile[f];
-        // Solo contamos si es un string válido y no está vacío
         return typeof val === 'string' && val.trim() !== '';
     }).length;
     return Math.round((filled / fields.length) * 100);
   }, [profile]);
 
   const handleNewsClick = (newsItem: MedicalNews) => {
+    // Validación básica de seguridad frontend
     if (newsItem.url && newsItem.url.startsWith('http')) {
         window.open(newsItem.url, '_blank');
     } else {
@@ -218,8 +221,6 @@ const DigitalCard: React.FC = () => {
     if (navigator.share) try { await navigator.share({ title: `Dr. ${profile?.full_name}`, url: getQRTarget() }); } catch (e) {}
     else alert("Enlace copiado manualmente.");
   };
-
-  const copyToClipboard = () => { navigator.clipboard.writeText(getQRTarget()); alert("Enlace copiado."); };
 
   if (loading) return <div className="flex justify-center items-center h-full text-slate-400 gap-2"><Activity className="animate-spin"/> Cargando Hub...</div>;
 
@@ -329,7 +330,7 @@ const DigitalCard: React.FC = () => {
                 </div>
             </div>
 
-            {/* Feed de Noticias */}
+            {/* Feed de Noticias (BLINDADO) */}
             <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex-1 max-h-[400px] overflow-y-auto custom-scrollbar relative">
                 <div className="p-4 border-b border-slate-100 bg-white/90 backdrop-blur sticky top-0 z-20 flex justify-between items-center">
                     <h3 className="font-bold text-slate-800 flex items-center gap-2"><span className="flex h-2.5 w-2.5 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span> Actualizaciones Médicas</h3>

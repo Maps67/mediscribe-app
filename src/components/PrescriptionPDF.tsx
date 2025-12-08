@@ -1,15 +1,9 @@
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Image, Font } from '@react-pdf/renderer';
+import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/renderer';
 import { MedicationItem } from '../types';
 
-// Fuentes estándar
-Font.register({
-  family: 'Helvetica',
-  fonts: [
-    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/helvetica@1.0.4/Helvetica.ttf' },
-    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/helvetica@1.0.4/Helvetica-Bold.ttf', fontWeight: 'bold' }
-  ]
-});
+// NO registramos fuentes externas para evitar bloqueos de red/CORS.
+// Usamos Helvetica estándar que viene en todos los lectores PDF.
 
 const styles = StyleSheet.create({
   page: { padding: 40, fontFamily: 'Helvetica', fontSize: 10, color: '#333' },
@@ -17,6 +11,7 @@ const styles = StyleSheet.create({
   logoSection: { width: '20%', marginRight: 10 },
   logo: { width: 60, height: 60, objectFit: 'contain' },
   doctorInfo: { width: '80%', justifyContent: 'center' },
+  // Helvetica-Bold es una fuente estándar, no requiere registro
   doctorName: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#0d9488', marginBottom: 2, textTransform: 'uppercase' },
   specialty: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#555', marginBottom: 2, textTransform: 'uppercase' },
   detailsLegal: { fontSize: 8, color: '#444', marginBottom: 1 },
@@ -48,7 +43,7 @@ interface PrescriptionPDFProps {
   logoUrl?: string;
   signatureUrl?: string;
   patientName: string;
-  patientAge?: string; // Recibe la edad
+  patientAge?: string; 
   date: string;
   medications?: MedicationItem[];
   content?: string; 
@@ -81,8 +76,6 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
   return (
     <Document>
       <Page size="LETTER" style={styles.page}>
-        
-        {/* ENCABEZADO */}
         <View style={styles.header}>
           <View style={styles.logoSection}>
              {isValidUrl(logoUrl) && <Image src={logoUrl!} style={styles.logo} />}
@@ -96,19 +89,16 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
           </View>
         </View>
 
-        {/* PACIENTE */}
         <View style={styles.patientSection}>
             <View>
                 <Text><Text style={styles.label}>PACIENTE: </Text>{patientName}</Text>
             </View>
             <View style={{flexDirection: 'row', gap: 15}}>
-                {/* Aquí renderizamos la edad si existe */}
                 {patientAge && <Text><Text style={styles.label}>EDAD: </Text>{patientAge}</Text>}
                 <Text><Text style={styles.label}>FECHA: </Text>{date}</Text>
             </View>
         </View>
 
-        {/* CUERPO */}
         <View style={styles.rxSection}>
           <Text style={styles.docTitle}>{documentTitle}</Text>
           {content ? (
@@ -124,7 +114,6 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
           )}
         </View>
 
-        {/* PIE DE PÁGINA */}
         <View style={styles.footer}>
           <View style={styles.legalTextContainer}>
              <Text style={{fontSize: 7, fontFamily: 'Helvetica-Bold', marginBottom: 2}}>AVISO LEGAL:</Text>
@@ -148,7 +137,6 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
              <Text style={{fontSize: 7, marginTop: 1}}>Céd. Prof. {license}</Text>
           </View>
         </View>
-
       </Page>
     </Document>
   );
