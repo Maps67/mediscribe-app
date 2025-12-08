@@ -560,7 +560,26 @@ const ConsultationView: React.FC = () => {
 
   const generatePDFBlob = async () => {
       if (!selectedPatient || !doctorProfile) return null;
-      return await pdf(<PrescriptionPDF doctorName={doctorProfile.full_name} specialty={doctorProfile.specialty} license={doctorProfile.license_number} phone={doctorProfile.phone} university={doctorProfile.university} address={doctorProfile.address} logoUrl={doctorProfile.logo_url} signatureUrl={doctorProfile.signature_url} patientName={selectedPatient.name} date={new Date().toLocaleDateString()} content={editableInstructions} />).toBlob();
+      
+      // Cálculo de edad si tuvieras la fecha, o placeholder legal
+      const ageDisplay = "No registrada"; 
+
+      return await pdf(
+        <PrescriptionPDF 
+            doctorName={doctorProfile.full_name} 
+            specialty={doctorProfile.specialty} 
+            license={doctorProfile.license_number} 
+            university={doctorProfile.university || "Universidad Nacional"} // Fallback
+            phone={doctorProfile.phone || ""}
+            address={doctorProfile.address || ""}
+            logoUrl={doctorProfile.logo_url} 
+            signatureUrl={doctorProfile.signature_url} 
+            patientName={selectedPatient.name}
+            patientAge={ageDisplay} // NUEVO CAMPO
+            date={new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
+            content={editableInstructions} 
+        />
+      ).toBlob();
   };
   const handlePrint = async () => { const blob = await generatePDFBlob(); if(blob) window.open(URL.createObjectURL(blob), '_blank'); };
   
