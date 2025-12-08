@@ -106,8 +106,8 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                  </div>
                ) : (
                  <button 
-                    onClick={status === 'listening' ? () => {stopListening(); setStatus('processing'); setTimeout(() => handleExecute(), 1500);} : () => {startListening(); setStatus('listening');}} 
-                    className={`w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse ring-8 ring-red-100' : 'bg-slate-900 text-white hover:bg-black hover:scale-105'}`}
+                   onClick={status === 'listening' ? () => {stopListening(); setStatus('processing'); setTimeout(() => handleExecute(), 1500);} : () => {startListening(); setStatus('listening');}} 
+                   className={`w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse ring-8 ring-red-100' : 'bg-slate-900 text-white hover:bg-black hover:scale-105'}`}
                  >
                    {status === 'listening' ? <Square size={28} fill="currentColor"/> : <Mic size={28} />}
                  </button>
@@ -268,7 +268,7 @@ const MorningBriefing = ({ greeting, message, weather, systemStatus, onOpenAssis
                 </div>
                 
                 <div className="flex gap-4">
-                    {/* BARRA DE COMANDOS DE ESCRITORIO */}
+                    {/* BARRA DE COMANDOS DE ESCRITORIO - OCULTO TEMPORALMENTE 
                     <button 
                         onClick={onOpenAssistant}
                         className="hidden md:flex items-center gap-3 bg-white/20 backdrop-blur-md border border-white/30 text-white px-5 py-3 rounded-2xl hover:bg-white/30 transition-all active:scale-95 group"
@@ -281,6 +281,7 @@ const MorningBriefing = ({ greeting, message, weather, systemStatus, onOpenAssis
                             <p className="text-[10px] font-medium">"Agendar cita..."</p>
                         </div>
                     </button>
+                    */}
 
                     <div className="flex items-center gap-6 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 shadow-inner">
                         <div className="text-right">
@@ -494,10 +495,11 @@ const Dashboard: React.FC = () => {
       {/* MODAL DE DOCUMENTOS LEGALES */}
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile} defaultType={docType} />
 
-      {/* FAB - BOTÓN FLOTANTE MÓVIL (🔴 MODIFICADO: AHORA ES LEFT-6 🔴) */}
+      {/* FAB - BOTÓN FLOTANTE MÓVIL (🔴 MODIFICADO: AHORA ES LEFT-6 🔴) - OCULTO TEMPORALMENTE
       <button onClick={() => setIsAssistantOpen(true)} className="md:hidden fixed bottom-24 left-6 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center z-40 active:scale-95 border-4 border-white/20">
           <Bot size={32}/>
       </button>
+      */}
 
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} />
     </div>
