@@ -305,7 +305,8 @@ const MorningBriefing = ({ greeting, message, weather, systemStatus, onOpenAssis
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
   const [doctorProfile, setDoctorProfile] = useState<any>(null); 
-  const [doctorName, setDoctorName] = useState<string>(''); // ESTADO PARA EL NOMBRE FORMATEADO
+  // Estado explícito para el nombre formateado
+  const [doctorName, setDoctorName] = useState<string>('Dr. Colega'); 
   const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]); 
   const [loading, setLoading] = useState(true);
@@ -323,7 +324,7 @@ const Dashboard: React.FC = () => {
   const hour = now.getHours();
   const isNight = hour >= 19 || hour < 6;
   const dateStr = now.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
-  const dynamicGreeting = useMemo(() => getTimeOfDayGreeting(doctorName), [doctorName]); // USA EL NOMBRE FORMATEADO
+  const dynamicGreeting = useMemo(() => getTimeOfDayGreeting(doctorName), [doctorName]);
 
   const fetchData = useCallback(async () => {
       try {
@@ -336,9 +337,9 @@ const Dashboard: React.FC = () => {
           // LÓGICA DE PREFIJO "DR." FORZOSA
           if (profile?.full_name) {
               const name = profile.full_name;
-              setDoctorName(name.startsWith('Dr.') || name.startsWith('Dra.') ? name : `Dr. ${name}`);
-          } else {
-              setDoctorName('Dr. Colega');
+              // Si no empieza con Dr. o Dra., se lo ponemos
+              const formattedName = (name.startsWith('Dr.') || name.startsWith('Dra.')) ? name : `Dr. ${name}`;
+              setDoctorName(formattedName);
           }
           
           const todayStart = startOfDay(new Date()); 
@@ -391,9 +392,13 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans w-full pb-32 md:pb-8 relative overflow-hidden">
       
+      {/* HEADER MÓVIL */}
       <div className="md:hidden px-5 py-4 flex justify-between items-center bg-white sticky top-0 z-30 shadow-sm">
         <span className="font-bold text-lg text-indigo-700">MediScribe</span>
-        <div className="h-8 w-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">{doctorName.charAt(doctorName.indexOf(' ')+1) || 'D'}</div>
+        <div className="h-8 w-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">
+            {/* Inicial del nombre ya formateado */}
+            {doctorName.replace(/^(Dr\.|Dra\.)\s*/, '').charAt(0) || 'D'}
+        </div>
       </div>
 
       <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-[1600px] mx-auto w-full">
@@ -406,9 +411,8 @@ const Dashboard: React.FC = () => {
             onOpenAssistant={() => setIsAssistantOpen(true)}
          />
 
+         {/* ... (El resto del Bento Grid se mantiene intacto y funciona correctamente) ... */}
          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
-             
-             {/* ZONA IZQUIERDA (OPERATIVA) - 8 COLS */}
              <div className="xl:col-span-8 flex flex-col gap-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-auto md:h-64">
                      <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-1 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
@@ -458,7 +462,6 @@ const Dashboard: React.FC = () => {
                  </div>
              </div>
 
-             {/* ZONA DERECHA */}
              <div className="xl:col-span-4 flex flex-col gap-8">
                  <ActionRadar items={pendingItems} />
                  <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex-1 flex flex-col min-h-[400px]">
@@ -489,10 +492,10 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL DE DOCUMENTOS LEGALES (Pasa el perfil COMPLETO para que el modal decida el nombre) */}
+      {/* MODAL DE DOCUMENTOS LEGALES (Pasa el perfil COMPLETO) */}
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile} defaultType={docType} />
 
-      {/* FAB: CORREGIDO A IZQUIERDA Y ELEVADO */}
+      {/* FAB CORREGIDO: IZQUIERDA (left-6) Y ELEVADO (bottom-24) */}
       <button onClick={() => setIsAssistantOpen(true)} className="md:hidden fixed bottom-24 left-6 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center z-50 active:scale-95 border-4 border-white/20">
           <Bot size={32}/>
       </button>

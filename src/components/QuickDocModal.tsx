@@ -28,9 +28,10 @@ export const QuickDocModal: React.FC<QuickDocModalProps> = ({ isOpen, onClose, d
         const titleMap = { 'justificante': 'JUSTIFICANTE MÉDICO', 'certificado': 'CERTIFICADO DE SALUD', 'receta': 'RECETA MÉDICA' };
         const finalTitle = titleMap[docType];
         
-        // LÓGICA DE PREFIJO "DR." FORZOSO PARA DOCUMENTOS
+        // --- LOGICA DE PREFIJO DR. ASEGURADO ---
         let finalDrName = doctorProfile?.full_name || 'Dr.';
-        if (!finalDrName.startsWith('Dr.') && !finalDrName.startsWith('Dra.')) {
+        // Si el nombre no empieza con Dr. o Dra. (ignorando mayúsculas/minúsculas), se lo agregamos
+        if (!/^Dr(a)?\./i.test(finalDrName)) {
             finalDrName = `Dr. ${finalDrName}`;
         }
 
@@ -53,7 +54,7 @@ export const QuickDocModal: React.FC<QuickDocModalProps> = ({ isOpen, onClose, d
         
         const blob = await pdf(
             <PrescriptionPDF 
-                doctorName={finalDrName} // <--- Pasamos el nombre con prefijo asegurado
+                doctorName={finalDrName} // Usamos el nombre corregido
                 specialty={doctorProfile?.specialty || 'Medicina General'} 
                 license={doctorProfile?.license_number || ''} 
                 university={doctorProfile?.university || ''} 
