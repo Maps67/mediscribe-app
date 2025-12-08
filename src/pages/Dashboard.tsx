@@ -4,10 +4,10 @@ import {
   Calendar, MapPin, ChevronRight, Sun, Moon, Cloud, 
   Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
   Stethoscope, UserCircle, AlertTriangle, FileText,
-  Clock, UserPlus, Activity,
+  Clock, UserPlus, Activity, Search, // <--- Search importado
   CalendarX, Repeat, Ban, PlayCircle, PenLine, Calculator, Sparkles,
   BarChart3, FileSignature, Microscope, StickyNote, FileCheck, Printer,
-  Sunrise, Sunset, MoonStar // <--- NUEVOS ICONOS DE TIEMPO
+  Sunrise, Sunset, MoonStar
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays, isPast } from 'date-fns';
@@ -25,7 +25,7 @@ import { QuickNotes } from '../components/QuickNotes';
 import { MedicalCalculators } from '../components/MedicalCalculators';
 import { QuickDocModal } from '../components/QuickDocModal';
 
-// --- INTERFACES ---
+// ... (Interfaces DashboardAppointment, PendingItem se mantienen igual) ...
 interface DashboardAppointment {
   id: string; title: string; start_time: string; status: string;
   patient?: { id: string; name: string; history?: string; };
@@ -36,13 +36,24 @@ interface PendingItem {
     id: string; type: 'note' | 'lab' | 'appt'; title: string; subtitle: string; date: string;
 }
 
-// --- ASISTENTE DE VOZ ---
+// ... (AssistantModal se mantiene igual) ...
 const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'confirming'>('idle');
   const [aiResponse, setAiResponse] = useState<AgentResponse | null>(null);
   const navigate = useNavigate(); 
-  useEffect(() => { isOpen ? (resetTranscript(), setStatus('idle'), setAiResponse(null)) : stopListening(); }, [isOpen]);
+  
+  // Efecto para iniciar escucha automática si se abre el modal
+  useEffect(() => { 
+      if (isOpen) {
+          resetTranscript(); 
+          setStatus('listening'); // Auto-start listening al abrir
+          startListening();
+          setAiResponse(null);
+      } else {
+          stopListening();
+      }
+  }, [isOpen]); // Dependencia simplificada
 
   const handleExecute = async () => {
     if (!aiResponse) return;
@@ -90,9 +101,19 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                <div className={`text-center text-xl font-medium leading-relaxed ${transcript ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`}>
                  "{transcript || 'Diga un comando...'}"
                </div>
-               <button onClick={status === 'listening' ? () => {stopListening(); setStatus('processing'); setTimeout(() => handleExecute(), 2000);} : () => {startListening(); setStatus('listening');}} className={`w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse ring-8 ring-red-100' : 'bg-slate-900 text-white hover:bg-black hover:scale-105'}`}>
+               {status === 'processing' ? (
+                 <div className="flex items-center gap-2 text-indigo-600 font-bold animate-pulse">
+                   <Loader2 className="animate-spin" /> Procesando...
+                 </div>
+               ) : (
+                 // Botón central de micrófono
+                 <button 
+                    onClick={status === 'listening' ? () => {stopListening(); setStatus('processing'); setTimeout(() => handleExecute(), 1500);} : () => {startListening(); setStatus('listening');}} 
+                    className={`w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse ring-8 ring-red-100' : 'bg-slate-900 text-white hover:bg-black hover:scale-105'}`}
+                 >
                    {status === 'listening' ? <Square size={28} fill="currentColor"/> : <Mic size={28} />}
-               </button>
+                 </button>
+               )}
             </div>
           )}
           {status === 'confirming' && aiResponse && (
@@ -108,13 +129,14 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
             </div>
           )}
         </div>
-        <div className="bg-slate-50 p-4 text-center"><button onClick={onClose} className="text-slate-400 text-xs font-bold uppercase tracking-wider hover:text-slate-600">Cerrar</button></div>
+        <div className="bg-slate-50 p-4 text-center"><button onClick={onClose} className="text-slate-400 text-xs font-bold uppercase tracking-wider hover:text-slate-600">CERRAR</button></div>
       </div>
     </div>
   );
 };
 
-// --- WIDGETS ---
+// ... (StatusWidget, ActivityGraph, QuickDocs, ActionRadar se mantienen igual) ...
+// (Omito el código repetido de los widgets visuales para no hacer el mensaje eterno, ya los tienes en la v5.1)
 const StatusWidget = ({ weather, totalApts, pendingApts, isNight, location }: any) => {
     const [time, setTime] = useState(new Date());
     useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
@@ -224,54 +246,22 @@ const ActionRadar = ({ items }: { items: PendingItem[] }) => {
     );
 };
 
-// --- HEADER DINÁMICO ("CEREZA DEL PASTEL") ---
-// Este componente cambia su diseño entero basado en la hora real.
-const MorningBriefing = ({ greeting, message, weather, systemStatus }: any) => {
+// --- HEADER DINÁMICO ---
+const MorningBriefing = ({ greeting, message, weather, systemStatus, onOpenAssistant }: any) => {
     const hour = new Date().getHours();
     
-    // DEFINICIÓN DE TEMAS CIRCADIANOS
-    let theme = {
-        gradient: "from-orange-400 via-amber-500 to-yellow-500", // Amanecer
-        icon: Sunrise,
-        label: "Buenos Días",
-        text: "text-amber-50",
-        shadow: "shadow-orange-200/50"
-    };
-
-    if (hour >= 12 && hour < 18) {
-        theme = {
-            gradient: "from-blue-500 via-cyan-500 to-teal-400", // Día Productivo
-            icon: Sun,
-            label: "Buenas Tardes",
-            text: "text-blue-50",
-            shadow: "shadow-blue-200/50"
-        };
-    } else if (hour >= 18 && hour < 22) {
-        theme = {
-            gradient: "from-indigo-600 via-purple-600 to-pink-500", // Atardecer (Tu favorito)
-            icon: Sunset,
-            label: "Buenas Noches",
-            text: "text-indigo-100",
-            shadow: "shadow-indigo-200/50"
-        };
-    } else if (hour >= 22 || hour < 5) {
-        theme = {
-            gradient: "from-slate-900 via-slate-800 to-blue-950", // Noche Profunda
-            icon: MoonStar,
-            label: "Guardia Nocturna",
-            text: "text-slate-400",
-            shadow: "shadow-slate-800/50"
-        };
-    }
+    let theme = { gradient: "from-orange-400 via-amber-500 to-yellow-500", icon: Sunrise, label: "Buenos Días", text: "text-amber-50", shadow: "shadow-orange-200/50" };
+    if (hour >= 12 && hour < 18) theme = { gradient: "from-blue-500 via-cyan-500 to-teal-400", icon: Sun, label: "Buenas Tardes", text: "text-blue-50", shadow: "shadow-blue-200/50" };
+    else if (hour >= 18 && hour < 22) theme = { gradient: "from-indigo-600 via-purple-600 to-pink-500", icon: Sunset, label: "Buenas Noches", text: "text-indigo-100", shadow: "shadow-indigo-200/50" };
+    else if (hour >= 22 || hour < 5) theme = { gradient: "from-slate-900 via-slate-800 to-blue-950", icon: MoonStar, label: "Guardia Nocturna", text: "text-slate-400", shadow: "shadow-slate-800/50" };
 
     return (
         <div className={`relative w-full rounded-[2.5rem] bg-gradient-to-r ${theme.gradient} p-8 shadow-2xl ${theme.shadow} dark:shadow-none text-white overflow-hidden mb-8 transition-all duration-1000 ease-in-out`}>
             <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-            {/* Decoración de fondo dinámica */}
             <div className="absolute -right-10 -top-10 w-64 h-64 bg-white/10 rounded-full blur-[80px] animate-pulse"></div>
             
             <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
-                <div>
+                <div className="flex-1">
                     <div className={`flex items-center gap-2 mb-2 opacity-90 ${theme.text}`}>
                         <theme.icon size={18} className="animate-pulse-slow" />
                         <span className="text-xs font-bold uppercase tracking-widest">{theme.label}</span>
@@ -280,18 +270,34 @@ const MorningBriefing = ({ greeting, message, weather, systemStatus }: any) => {
                     <p className="text-white/90 font-medium max-w-lg leading-relaxed">{message}</p>
                 </div>
                 
-                <div className="flex items-center gap-6 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 shadow-inner">
-                    <div className="text-right">
-                        <p className="text-3xl font-bold leading-none">{weather.temp}°</p>
-                        <p className="text-[10px] opacity-80 uppercase font-bold mt-1">Clima</p>
-                    </div>
-                    <div className="h-10 w-px bg-white/20"></div>
-                    <div>
-                        <div className="flex items-center gap-2">
-                            <div className={`w-2.5 h-2.5 rounded-full ${systemStatus ? 'bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse' : 'bg-red-500'}`}></div>
-                            <span className="font-bold text-sm tracking-tight">{systemStatus ? 'Sistema Online' : 'Offline'}</span>
+                <div className="flex gap-4">
+                    {/* BARRA DE COMANDOS DE ESCRITORIO (NUEVO) */}
+                    <button 
+                        onClick={onOpenAssistant}
+                        className="hidden md:flex items-center gap-3 bg-white/20 backdrop-blur-md border border-white/30 text-white px-5 py-3 rounded-2xl hover:bg-white/30 transition-all active:scale-95 group"
+                    >
+                        <div className="bg-white text-indigo-600 p-1.5 rounded-lg group-hover:scale-110 transition-transform">
+                            <Mic size={16} fill="currentColor"/>
                         </div>
-                        <p className="text-[10px] opacity-80 mt-1 font-medium">{format(new Date(), "EEEE d 'de' MMMM", { locale: es })}</p>
+                        <div className="text-left">
+                            <p className="text-xs font-bold opacity-80">Asistente de Voz</p>
+                            <p className="text-[10px] font-medium">"Agendar cita..."</p>
+                        </div>
+                    </button>
+
+                    <div className="flex items-center gap-6 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 shadow-inner">
+                        <div className="text-right">
+                            <p className="text-3xl font-bold leading-none">{weather.temp}°</p>
+                            <p className="text-[10px] opacity-80 uppercase font-bold mt-1">Clima</p>
+                        </div>
+                        <div className="h-10 w-px bg-white/20"></div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2.5 h-2.5 rounded-full ${systemStatus ? 'bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse' : 'bg-red-500'}`}></div>
+                                <span className="font-bold text-sm tracking-tight">{systemStatus ? 'Online' : 'Offline'}</span>
+                            </div>
+                            <p className="text-[10px] opacity-80 mt-1 font-medium">{format(new Date(), "EEEE d 'de' MMMM", { locale: es })}</p>
+                        </div>
                     </div>
                 </div>
             </div>
@@ -387,7 +393,14 @@ const Dashboard: React.FC = () => {
 
       <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-[1600px] mx-auto w-full">
          
-         <MorningBriefing greeting={dynamicGreeting.greeting} message={dynamicGreeting.message} weather={weather} systemStatus={systemStatus} />
+         {/* HEADER CON BOTÓN DE ASISTENTE INTEGRADO */}
+         <MorningBriefing 
+            greeting={dynamicGreeting.greeting} 
+            message={dynamicGreeting.message} 
+            weather={weather} 
+            systemStatus={systemStatus} 
+            onOpenAssistant={() => setIsAssistantOpen(true)}
+         />
 
          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
              
@@ -475,7 +488,11 @@ const Dashboard: React.FC = () => {
       {/* MODAL DE DOCUMENTOS LEGALES */}
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile} defaultType={docType} />
 
-      <button onClick={() => setIsAssistantOpen(true)} className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center z-40 active:scale-95"><Bot size={28}/></button>
+      {/* FAB - BOTÓN FLOTANTE MÓVIL (SOLO MÓVIL) */}
+      <button onClick={() => setIsAssistantOpen(true)} className="md:hidden fixed bottom-6 right-6 w-16 h-16 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center z-40 active:scale-95 border-4 border-white/20">
+          <Bot size={32}/>
+      </button>
+
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} />
     </div>
   );
