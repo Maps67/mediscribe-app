@@ -16,15 +16,15 @@ export interface DiagnosisTrend {
 }
 
 export interface WeeklyStats {
-  labels: string[]; // ['L', 'M', 'M', 'J', 'V', 'S', 'D']
-  values: number[]; // Altura porcentual para el gráfico (0-100)
-  rawCounts: number[]; // Cantidad real de pacientes (tooltip)
+  labels: string[]; 
+  values: number[]; 
+  rawCounts: number[]; 
   growth: number; 
 }
 
 export const AnalyticsService = {
 
-  // 1. DETECTAR PACIENTES INACTIVOS (Oportunidad de Venta)
+  // 1. PACIENTES INACTIVOS (Sin cambios)
   async getInactivePatients(monthsThreshold: number = 6): Promise<InactivePatient[]> {
     const { data: patients, error } = await supabase
       .from('patients')
@@ -37,12 +37,10 @@ export const AnalyticsService = {
 
     patients.forEach(patient => {
       let lastDate = new Date(patient.created_at);
-      
       if (patient.consultations && patient.consultations.length > 0) {
         const dates = patient.consultations.map((c: any) => new Date(c.created_at).getTime());
         lastDate = new Date(Math.max(...dates));
       }
-
       const diffTime = Math.abs(now.getTime() - lastDate.getTime());
       const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
       const diffMonths = diffDays / 30;
@@ -57,11 +55,10 @@ export const AnalyticsService = {
         });
       }
     });
-
     return opportunities.sort((a, b) => b.daysSince - a.daysSince).slice(0, 5);
   },
 
-  // 2. ANALIZAR TENDENCIAS (Minería de Texto Básica)
+  // 2. TENDENCIAS (Sin cambios)
   async getDiagnosisTrends(): Promise<DiagnosisTrend[]> {
     const { data: consultations } = await supabase
       .from('consultations')
@@ -89,7 +86,7 @@ export const AnalyticsService = {
         });
     });
 
-    const trends = Object.keys(wordMap)
+    return Object.keys(wordMap)
         .map(key => ({
             topic: key.charAt(0).toUpperCase() + key.slice(1),
             count: wordMap[key],
@@ -97,55 +94,66 @@ export const AnalyticsService = {
         }))
         .sort((a, b) => b.count - a.count)
         .slice(0, 4);
-
-    return trends;
   },
 
-  // 🔴 3. ACTIVIDAD SEMANAL REAL (CONECTADO A SQL RPC)
+  // 🔴 3. ACTIVIDAD SEMANAL (CORREGIDO Y BLINDADO)
   async getWeeklyActivity(): Promise<WeeklyStats> {
     try {
         const today = new Date();
-        // Definimos la semana actual (Lunes a Domingo)
+        // Forzamos inicio Lunes 00:00 y fin Domingo 23:59
         const start = startOfWeek(today, { weekStartsOn: 1 }); 
         const end = endOfWeek(today, { weekStartsOn: 1 });
 
-        // LLAMADA A LA FUNCIÓN BLINDADA EN SUPABASE
+        console.log("📊 Consultando actividad:", { 
+            start: start.toISOString(), 
+            end: end.toISOString() 
+        });
+
         const { data, error } = await supabase.rpc('get_weekly_activity_counts', {
             start_date: start.toISOString(),
             end_date: end.toISOString()
         });
 
-        if (error) throw error;
+        if (error) {
+            console.error("❌ Error RPC Supabase:", error);
+            throw error;
+        }
 
-        // Inicializamos array de 7 ceros (Lunes a Domingo)
-        // Índice 0 = Lunes, 6 = Domingo
+        console.log("✅ Datos crudos de DB:", data);
+
+        // Inicializar array de 7 días (Lunes=0 ... Domingo=6)
         const rawCounts = [0, 0, 0, 0, 0, 0, 0];
 
-        // Mapeamos los resultados de la DB al array
-        // La DB devuelve day_index: 1 (Lunes) ... 7 (Domingo)
-        if (data) {
-            (data as any[]).forEach(item => {
-                const arrayIndex = item.day_index - 1; // Ajustamos a base 0
-                if (arrayIndex >= 0 && arrayIndex < 7) {
-                    rawCounts[arrayIndex] = Number(item.total_count);
+        if (data && Array.isArray(data)) {
+            data.forEach((item: any) => {
+                // Asegurar conversión a número
+                const dayIndex = Number(item.day_index); // SQL devuelve 1..7
+                const count = Number(item.total_count);
+
+                // Mapeo: SQL(1)=Lunes -> Array(0)
+                const arrayPos = dayIndex - 1;
+
+                if (arrayPos >= 0 && arrayPos < 7) {
+                    rawCounts[arrayPos] = count;
                 }
             });
         }
 
-        // Calcular porcentaje relativo para la altura visual de las barras
-        const maxVal = Math.max(...rawCounts, 1); // Evitamos dividir por cero
-        const values = rawCounts.map(count => Math.round((count / maxVal) * 100));
+        console.log("📈 Conteos procesados:", rawCounts);
+
+        // Calcular alturas relativas (evitando división por cero)
+        const maxVal = Math.max(...rawCounts);
+        const values = rawCounts.map(c => maxVal === 0 ? 0 : Math.round((c / maxVal) * 100));
 
         return {
             labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'],
-            values,     // Para CSS height
-            rawCounts,  // Para tooltip (número real)
-            growth: 0   // Pendiente para V6.0
+            values,
+            rawCounts,
+            growth: 0 
         };
 
     } catch (e) {
-        console.error("Error en Analytics RPC:", e);
-        // Fallback silencioso para no romper UI
+        console.error("Error crítico en AnalyticsService:", e);
         return { 
             labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], 
             values: [0,0,0,0,0,0,0], 
