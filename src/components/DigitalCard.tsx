@@ -9,9 +9,10 @@ import {
   Calendar, Stethoscope, Briefcase
 } from 'lucide-react';
 
-// IMPORTACIÓN DE NUEVOS MÓDULOS
+// IMPORTACIÓN DE MÓDULOS
 import { InteractiveClinicalCase } from './InteractiveClinicalCase';
 import { MedicalCalculators } from './MedicalCalculators';
+import { QuickNotes } from './QuickNotes'; // <--- AQUÍ IMPORTAMOS EL BLOC
 
 // --- TIPOS ---
 interface MedicalNews {
@@ -188,7 +189,7 @@ const DigitalCard: React.FC = () => {
       
       <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">Hub Profesional <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full uppercase tracking-wider">v2.0</span></h1>
+            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">Hub Profesional <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full uppercase tracking-wider">v2.1</span></h1>
             <p className="text-slate-500 text-sm">Panel de control estratégico y herramientas clínicas.</p>
         </div>
         <div className="flex gap-2">
@@ -244,18 +245,22 @@ const DigitalCard: React.FC = () => {
                     </button>
                 )}
             </div>
+
+            {/* --- INTEGRACIÓN BLOC DE NOTAS --- */}
+            <QuickNotes />
+
         </div>
 
         {/* COLUMNA DERECHA (OPERACIONES) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
             
-            {/* NUEVA ZONA: Herramientas Clínicas */}
+            {/* ZONA: Herramientas Clínicas */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <InteractiveClinicalCase />
                 <MedicalCalculators />
             </div>
 
-            {/* KPIs & Accesos Rápidos (Bento Grid) */}
+            {/* KPIs & Accesos Rápidos */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
                 <div className="bg-white p-4 rounded-2xl border border-slate-100 shadow-sm flex flex-col justify-between aspect-square md:aspect-auto md:h-28 group hover:border-blue-200 transition-colors">
                     <div className="flex justify-between items-start"><div className="p-2 bg-blue-50 text-blue-600 rounded-xl group-hover:scale-110 transition-transform"><Users size={20}/></div></div>
