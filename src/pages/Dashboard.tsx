@@ -1,12 +1,12 @@
 import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Calendar, MapPin, ChevronRight, Sun, Moon, Bell, CloudRain, Cloud, 
-  ShieldCheck, Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
-  Stethoscope, UserCircle, ArrowRight, AlertTriangle, FileText,
-  Clock, TrendingUp, UserPlus, Zap, Activity, LogOut,
+  Calendar, MapPin, ChevronRight, Sun, Moon, Cloud, 
+  Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
+  Stethoscope, UserCircle, AlertTriangle, FileText,
+  Clock, UserPlus, Activity,
   CalendarX, Repeat, Ban, PlayCircle, PenLine, Calculator, Sparkles,
-  BarChart3, FileSignature, Microscope, StickyNote
+  BarChart3, FileSignature, Microscope, StickyNote, FileCheck, Printer
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays, isPast } from 'date-fns';
@@ -20,30 +20,33 @@ import { AgentResponse } from '../services/GeminiAgent';
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
-// IMPORTACIÓN DE TUS COMPONENTES (No los desconectamos)
 import { QuickNotes } from '../components/QuickNotes';
 import { MedicalCalculators } from '../components/MedicalCalculators';
+import { QuickDocModal } from '../components/QuickDocModal'; // <--- IMPORTAMOS EL NUEVO COMPONENTE
 
 // --- INTERFACES ---
 interface DashboardAppointment {
-  id: string;
-  title: string;
-  start_time: string;
-  status: string;
+  id: string; title: string; start_time: string; status: string;
   patient?: { id: string; name: string; history?: string; };
   criticalAlert?: string | null;
 }
 
-// --- MICRO-COMPONENTES VISUALES ---
+interface PendingItem {
+    id: string;
+    type: 'note' | 'lab' | 'appt';
+    title: string;
+    subtitle: string;
+    date: string;
+}
 
+// ... (AssistantModal se mantiene igual, omito para brevedad si ya lo tienes, si no avísame y lo pego) ...
+// (Asumo que AssistantModal está definido como en la versión anterior)
 const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'confirming'>('idle');
   const [aiResponse, setAiResponse] = useState<AgentResponse | null>(null);
   const navigate = useNavigate(); 
-
   useEffect(() => { isOpen ? (resetTranscript(), setStatus('idle'), setAiResponse(null)) : stopListening(); }, [isOpen]);
-
   const handleExecute = async () => {
     if (!aiResponse) return;
     switch (aiResponse.intent) {
@@ -72,64 +75,88 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
       default: toast.info("No entendí la acción"); setStatus('idle'); resetTranscript();
     }
   };
-  
   if (!isOpen) return null;
-  // (Simplificado visualmente para mantener el archivo limpio, la lógica es la misma)
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden border border-white/20">
-        <div className="bg-gradient-to-r from-indigo-600 to-purple-600 p-6 text-white text-center">
-            <Bot size={40} className="mx-auto mb-2"/>
-            <h3 className="text-xl font-bold">Asistente IA</h3>
-            <p className="text-indigo-100 text-sm">{status === 'listening' ? 'Escuchando...' : '¿En qué te ayudo?'}</p>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden border border-white/20 ring-1 ring-black/5">
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-8 text-white text-center relative overflow-hidden">
+          <Bot size={48} className="mx-auto mb-3 relative z-10 drop-shadow-lg" />
+          <h3 className="text-2xl font-black relative z-10 tracking-tight">Copiloto Clínico</h3>
+          <p className="text-indigo-100 text-sm relative z-10 font-medium">Escuchando órdenes médicas...</p>
         </div>
-        <div className="p-6 text-center">
-            {status === 'confirming' ? (
-                <div>
-                    <p className="font-bold text-lg mb-2">¿Ejecutar acción?</p>
-                    <p className="text-slate-500 mb-4">{aiResponse?.message}</p>
-                    <div className="flex gap-2">
-                        <button onClick={() => setStatus('idle')} className="flex-1 py-3 bg-slate-100 rounded-xl font-bold text-slate-500">Cancelar</button>
-                        <button onClick={handleExecute} className="flex-1 py-3 bg-indigo-600 text-white rounded-xl font-bold">Confirmar</button>
-                    </div>
-                </div>
-            ) : (
-                <div className="flex flex-col items-center gap-6">
-                    <p className="text-lg text-slate-600 min-h-[3rem] flex items-center justify-center">"{transcript || '...'}"</p>
-                    <button onClick={status === 'listening' ? () => {stopListening(); setStatus('processing'); setTimeout(() => handleExecute(), 2000);} : () => {startListening(); setStatus('listening');}} className={`w-16 h-16 rounded-full flex items-center justify-center transition-all ${status === 'listening' ? 'bg-red-500 animate-pulse' : 'bg-slate-900'} text-white`}>
-                        {status === 'listening' ? <Square size={24} fill="currentColor"/> : <Mic size={24}/>}
-                    </button>
-                </div>
-            )}
+        <div className="p-8">
+          {status !== 'confirming' && (
+            <div className="flex flex-col items-center gap-8">
+               <div className={`text-center text-xl font-medium leading-relaxed ${transcript ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`}>
+                 "{transcript || 'Diga un comando...'}"
+               </div>
+               <button onClick={status === 'listening' ? () => {stopListening(); setStatus('processing'); setTimeout(() => handleExecute(), 2000);} : () => {startListening(); setStatus('listening');}} className={`w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse ring-8 ring-red-100' : 'bg-slate-900 text-white hover:bg-black hover:scale-105'}`}>
+                   {status === 'listening' ? <Square size={28} fill="currentColor"/> : <Mic size={28} />}
+               </button>
+            </div>
+          )}
+          {status === 'confirming' && aiResponse && (
+            <div className="animate-in slide-in-from-bottom-4 fade-in">
+              <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl p-5 border border-indigo-100 dark:border-indigo-800 mb-6">
+                <h4 className="font-bold text-slate-800 dark:text-white text-lg">Acción Detectada</h4>
+                <p className="text-slate-600 dark:text-slate-300 text-sm mt-1">{aiResponse.message}</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => { setStatus('idle'); resetTranscript(); }} className="flex-1 py-3.5 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
+                <button onClick={handleExecute} className="flex-1 py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 active:scale-95 flex items-center justify-center gap-2">Ejecutar</button>
+              </div>
+            </div>
+          )}
         </div>
-        <button onClick={onClose} className="w-full py-3 text-xs font-bold text-slate-400 bg-slate-50 hover:bg-slate-100">CERRAR</button>
+        <div className="bg-slate-50 p-4 text-center"><button onClick={onClose} className="text-slate-400 text-xs font-bold uppercase tracking-wider hover:text-slate-600">Cerrar</button></div>
       </div>
     </div>
   );
 };
 
-// --- WIDGET: GRÁFICA DE ACTIVIDAD (Simulada Visualmente) ---
-// Esto llena el espacio blanco con color y datos visuales atractivos
-const ActivityGraph = () => {
-    const days = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
-    const values = [40, 65, 45, 80, 55, 30, 10]; // Porcentajes simulados para estética
+// --- WIDGETS ---
+const StatusWidget = ({ weather, totalApts, pendingApts, isNight, location }: any) => {
+    // ... (Igual que antes)
+    const [time, setTime] = useState(new Date());
+    useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
+    const completed = totalApts - pendingApts;
+    const progress = totalApts > 0 ? (completed / totalApts) * 100 : 0;
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group">
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[2rem] p-6 border border-white/50 dark:border-slate-700 shadow-xl h-full flex flex-col justify-between relative overflow-hidden">
+             <div className="absolute inset-0 bg-gradient-to-br from-white via-transparent to-blue-50/50 opacity-50"></div>
+             <div className="flex justify-between items-start z-10 relative">
+                 <div>
+                     <div className="flex items-baseline gap-1">
+                        <p className="text-4xl font-black text-slate-800 dark:text-white tracking-tighter">{format(time, 'h:mm')}</p>
+                        <span className="text-sm font-bold text-slate-400">{format(time, 'a')}</span>
+                     </div>
+                     <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mt-1 flex items-center gap-1"><MapPin size={12} /> {location}</p>
+                 </div>
+                 <div className="text-right bg-white/50 p-2 rounded-2xl backdrop-blur-sm"><span className="text-2xl font-bold text-slate-700">{weather.temp}°</span></div>
+             </div>
+             <div className="mt-4 z-10 relative">
+                 <div className="flex justify-between text-xs font-bold mb-2"><span className="text-slate-500">Progreso</span><span className="text-indigo-600">{completed}/{totalApts} Pacientes</span></div>
+                 <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-indigo-400 to-purple-500 transition-all duration-1000" style={{width: `${progress}%`}}></div></div>
+             </div>
+        </div>
+    );
+};
+
+const ActivityGraph = () => {
+    // ... (Igual que antes, estético)
+    const days = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
+    const values = [40, 65, 45, 80, 55, 30, 10]; 
+    return (
+        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 shadow-sm h-full group">
             <div className="flex justify-between items-center mb-6">
-                <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
-                    <div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><BarChart3 size={18}/></div>
-                    Actividad Semanal
-                </h3>
-                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+12% vs ayer</span>
+                <h3 className="font-bold text-slate-800 flex items-center gap-2"><div className="p-2 bg-blue-50 text-blue-600 rounded-lg"><BarChart3 size={18}/></div> Actividad</h3>
+                <span className="text-xs font-bold text-emerald-600 bg-emerald-50 px-2 py-1 rounded-full">+12%</span>
             </div>
             <div className="flex items-end justify-between h-32 gap-2">
                 {values.map((h, i) => (
                     <div key={i} className="flex-1 flex flex-col items-center gap-2 group/bar">
-                        <div className="w-full bg-slate-100 dark:bg-slate-800 rounded-t-lg relative h-full overflow-hidden">
-                            <div 
-                                className="absolute bottom-0 w-full bg-gradient-to-t from-blue-500 to-indigo-400 rounded-t-lg transition-all duration-1000 group-hover/bar:from-blue-400 group-hover/bar:to-indigo-300" 
-                                style={{height: `${h}%`}}
-                            ></div>
+                        <div className="w-full bg-slate-100 rounded-t-lg relative h-full overflow-hidden">
+                            <div className="absolute bottom-0 w-full bg-gradient-to-t from-blue-500 to-indigo-400 rounded-t-lg transition-all duration-1000 group-hover/bar:from-blue-400 group-hover/bar:to-indigo-300" style={{height: `${h}%`}}></div>
                         </div>
                         <span className="text-[10px] font-bold text-slate-400">{days[i]}</span>
                     </div>
@@ -139,104 +166,76 @@ const ActivityGraph = () => {
     );
 };
 
-// --- WIDGET: RADAR OPERATIVO (Pendientes) ---
-const ActionRadar = () => {
+// --- RADAR CONECTADO A DB ---
+const ActionRadar = ({ items }: { items: PendingItem[] }) => {
+    if (items.length === 0) return (
+        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center h-48">
+            <CheckCircle2 size={40} className="text-green-500 mb-2 opacity-50"/>
+            <p className="font-bold text-slate-600">Todo en orden</p>
+            <p className="text-xs text-slate-400">No hay pendientes urgentes.</p>
+        </div>
+    );
+
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
-            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-4">
+        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 shadow-sm">
+            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
                 <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><AlertTriangle size={18}/></div>
                 Radar de Pendientes
             </h3>
-            <div className="space-y-3">
-                <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-white hover:shadow-md transition-all group">
-                    <div className="w-2 h-2 rounded-full bg-red-500"></div>
-                    <div className="flex-1">
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Firmar Recetas (2)</p>
-                        <p className="text-xs text-slate-400">Dr. Ortiz • Hace 2h</p>
+            <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar">
+                {items.map(item => (
+                    <div key={item.id} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-white hover:shadow-md transition-all group">
+                        <div className={`w-2 h-2 rounded-full ${item.type === 'note' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
+                        <div className="flex-1">
+                            <p className="text-sm font-bold text-slate-700">{item.title}</p>
+                            <p className="text-xs text-slate-400">{item.subtitle}</p>
+                        </div>
+                        {item.type === 'note' ? <StickyNote size={16} className="text-slate-300"/> : <Clock size={16} className="text-slate-300"/>}
                     </div>
-                    <FileSignature size={16} className="text-slate-300 group-hover:text-slate-500"/>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-white hover:shadow-md transition-all group">
-                    <div className="w-2 h-2 rounded-full bg-amber-500"></div>
-                    <div className="flex-1">
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Revisar Laboratorios</p>
-                        <p className="text-xs text-slate-400">Juan Pérez • Química S.</p>
-                    </div>
-                    <Microscope size={16} className="text-slate-300 group-hover:text-slate-500"/>
-                </div>
-                <div className="flex items-center gap-3 p-3 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-white hover:shadow-md transition-all group">
-                    <div className="w-2 h-2 rounded-full bg-emerald-500"></div>
-                    <div className="flex-1">
-                        <p className="text-sm font-bold text-slate-700 dark:text-slate-300">Notas Incompletas</p>
-                        <p className="text-xs text-slate-400">Cierre de ayer</p>
-                    </div>
-                    <StickyNote size={16} className="text-slate-300 group-hover:text-slate-500"/>
-                </div>
+                ))}
             </div>
         </div>
     );
 };
 
-// --- HEADER "MORNING BRIEFING" (Con Color) ---
-const MorningBriefing = ({ greeting, message, weather, doctorName }: any) => (
-    <div className="relative w-full rounded-[2.5rem] bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 p-8 shadow-2xl shadow-indigo-200/50 dark:shadow-none text-white overflow-hidden mb-8">
-        <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-        {/* Decoración de fondo */}
-        <div className="absolute -right-10 -top-10 w-64 h-64 bg-white/10 rounded-full blur-[80px]"></div>
-        
-        <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
-            <div>
-                <div className="flex items-center gap-2 mb-2 opacity-80">
-                    <Sparkles size={16} className="text-yellow-300"/>
-                    <span className="text-xs font-bold uppercase tracking-widest">Resumen Diario</span>
-                </div>
-                <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-2">{greeting}</h1>
-                <p className="text-indigo-100 font-medium max-w-lg">{message}</p>
-            </div>
-            
-            <div className="flex items-center gap-6 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10">
-                <div className="text-right">
-                    <p className="text-2xl font-bold leading-none">{weather.temp}°</p>
-                    <p className="text-xs opacity-70 uppercase font-bold mt-1">CDMX</p>
-                </div>
-                <div className="h-8 w-px bg-white/20"></div>
-                <div>
-                    <div className="flex items-center gap-2">
-                        <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                        <span className="font-bold text-sm">Sistema Activo</span>
-                    </div>
-                    <p className="text-xs opacity-70 mt-1">{format(new Date(), "EEEE d 'de' MMMM", { locale: es })}</p>
-                </div>
-            </div>
-        </div>
-    </div>
-);
-
 // --- COMPONENTE PRINCIPAL ---
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [doctorName, setDoctorName] = useState<string>('');
+  const [doctorProfile, setDoctorProfile] = useState<any>(null); // Perfil completo para documentos
   const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]); // Items reales del radar
   const [loading, setLoading] = useState(true);
   const [weather, setWeather] = useState({ temp: '--', code: 0 });
+  const [locationName, setLocationName] = useState('Localizando...');
+  const [systemStatus, setSystemStatus] = useState(true); 
+  
+  // Modales
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [docType, setDocType] = useState<'justificante' | 'certificado' | 'receta'>('justificante');
+
   const [toolsTab, setToolsTab] = useState<'notes' | 'calc'>('notes');
   
   const now = new Date();
-  const dynamicGreeting = useMemo(() => getTimeOfDayGreeting(doctorName), [doctorName]);
+  const hour = now.getHours();
+  const isNight = hour >= 19 || hour < 6;
+  const dateStr = now.toLocaleDateString('es-MX', { weekday: 'long', day: 'numeric', month: 'long' });
+  const dynamicGreeting = useMemo(() => getTimeOfDayGreeting(doctorProfile?.full_name || ''), [doctorProfile]);
 
-  // --- DATA FETCHING (Sin cambios en lógica) ---
   const fetchData = useCallback(async () => {
       try {
           const { data: { user } } = await supabase.auth.getUser();
-          if (!user) return;
-          const { data: profile } = await supabase.from('profiles').select('full_name').eq('id', user.id).single();
-          const rawName = profile?.full_name?.split(' ')[0] || 'Colega';
-          setDoctorName(`Dr. ${rawName}`);
+          if (!user) { setSystemStatus(false); return; }
+          
+          setSystemStatus(true);
+          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+          setDoctorProfile(profile);
           
           const todayStart = startOfDay(new Date()); 
           const nextWeekEnd = endOfDay(addDays(new Date(), 7));
+          
+          // Cargar Citas Futuras
           const { data: aptsData } = await supabase.from('appointments').select(`id, title, start_time, status, patient:patients (id, name, history)`).eq('doctor_id', user.id).gte('start_time', todayStart.toISOString()).lte('start_time', nextWeekEnd.toISOString()).neq('status', 'cancelled').neq('status', 'completed').order('start_time', { ascending: true }).limit(10);
           
           if (aptsData) {
@@ -246,14 +245,52 @@ const Dashboard: React.FC = () => {
               }));
               setAppointments(formattedApts);
           }
-      } catch (e) { console.error(e); } finally { setLoading(false); }
+
+          // --- LOGICA DEL RADAR (DATOS REALES) ---
+          const radar: PendingItem[] = [];
+          
+          // 1. Consultas Abiertas (Notas Incompletas)
+          const { data: openConsults } = await supabase.from('consultations').select('id, created_at, patient_name').eq('doctor_id', user.id).eq('status', 'in_progress').limit(3);
+          if (openConsults) {
+              openConsults.forEach(c => radar.push({
+                  id: c.id, type: 'note', title: 'Nota Incompleta', subtitle: `${c.patient_name || 'Sin nombre'} • ${format(parseISO(c.created_at), 'dd/MM')}`, date: c.created_at
+              }));
+          }
+
+          // 2. Citas Pasadas sin Cerrar (Olvidadas)
+          const { data: lostApts } = await supabase.from('appointments').select('id, title, start_time').eq('doctor_id', user.id).eq('status', 'scheduled').lt('start_time', new Date().toISOString()).limit(3);
+          if (lostApts) {
+              lostApts.forEach(a => radar.push({
+                  id: a.id, type: 'appt', title: 'Cita por Cerrar', subtitle: `${a.title} • ${format(parseISO(a.start_time), 'dd/MM HH:mm')}`, date: a.start_time
+              }));
+          }
+          
+          setPendingItems(radar);
+
+      } catch (e) { setSystemStatus(false); console.error(e); } finally { setLoading(false); }
   }, []);
 
-  useEffect(() => { 
-      fetchData(); 
-      // Mock weather fetch
-      setWeather({ temp: '24', code: 1 });
+  useEffect(() => {
+    fetchData();
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            try {
+                const { latitude, longitude } = position.coords;
+                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`);
+                const data = await res.json();
+                setWeather({ temp: Math.round(data.current.temperature_2m).toString(), code: data.current.weather_code });
+                const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=es`);
+                const geoData = await geoRes.json();
+                if(geoData.city || geoData.locality) setLocationName(geoData.city || geoData.locality);
+            } catch (e) { setLocationName("México"); }
+        }, () => setLocationName("Ubicación n/a"));
+    }
   }, [fetchData]);
+
+  const openDocModal = (type: 'justificante' | 'certificado' | 'receta') => {
+      setDocType(type);
+      setIsDocModalOpen(true);
+  };
 
   const nextPatient = useMemo(() => appointments.find(a => a.status === 'scheduled') || null, [appointments]);
   const groupedAppointments = useMemo(() => appointments.reduce((acc, apt) => {
@@ -266,71 +303,61 @@ const Dashboard: React.FC = () => {
       navigate('/consultation', { state: { patientData, linkedAppointmentId: apt.id } });
   };
 
-  const handleQuickAction = async (action: string, apt: any) => {
-     // Lógica simplificada visualmente, la real está en tu versión anterior si la necesitas completa
-     if(confirm("¿Confirmar acción en cita?")) {
-         await supabase.from('appointments').update({ status: action === 'cancel' ? 'cancelled' : 'scheduled' }).eq('id', apt.id);
-         fetchData();
-         toast.success("Agenda actualizada");
-     }
-  };
-
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans w-full pb-32 md:pb-8">
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans w-full pb-32 md:pb-8 relative overflow-hidden">
       
-      {/* HEADER MÓVIL (Solo visible en cel) */}
+      {/* HEADER MÓVIL */}
       <div className="md:hidden px-5 py-4 flex justify-between items-center bg-white sticky top-0 z-30 shadow-sm">
         <span className="font-bold text-lg text-indigo-700">MediScribe</span>
-        <div className="h-8 w-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">{doctorName.charAt(4)}</div>
+        <div className="h-8 w-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">{doctorProfile?.full_name?.charAt(0) || 'D'}</div>
       </div>
 
-      {/* CONTENEDOR PRINCIPAL */}
       <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-[1600px] mx-auto w-full">
          
-         {/* 1. HEADER "BRIEFING" (Nuevo: Color y Gradients) */}
-         <MorningBriefing greeting={dynamicGreeting.greeting} message={dynamicGreeting.message} weather={weather} doctorName={doctorName} />
+         <div className="relative w-full rounded-[2.5rem] bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 p-8 shadow-2xl shadow-indigo-200/50 text-white overflow-hidden mb-8">
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+            <div className="absolute -right-10 -top-10 w-64 h-64 bg-white/10 rounded-full blur-[80px]"></div>
+            <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
+                <div>
+                    <div className="flex items-center gap-2 mb-2 opacity-80"><Sparkles size={16} className="text-yellow-300"/><span className="text-xs font-bold uppercase tracking-widest">Resumen Diario</span></div>
+                    <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-2">{dynamicGreeting.greeting}</h1>
+                    <p className="text-indigo-100 font-medium max-w-lg">{dynamicGreeting.message}</p>
+                </div>
+                <div className="flex items-center gap-6 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10">
+                    <div className="text-right"><p className="text-2xl font-bold leading-none">{weather.temp}°</p><p className="text-xs opacity-70 uppercase font-bold mt-1">Clima</p></div>
+                    <div className="h-8 w-px bg-white/20"></div>
+                    <div><div className="flex items-center gap-2"><div className={`w-2.5 h-2.5 rounded-full ${systemStatus ? 'bg-green-400 animate-pulse' : 'bg-red-500'}`}></div><span className="font-bold text-sm">{systemStatus ? 'Sistema Activo' : 'Offline'}</span></div><p className="text-xs opacity-70 mt-1">{format(new Date(), "EEEE d 'de' MMMM", { locale: es })}</p></div>
+                </div>
+            </div>
+         </div>
 
          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
              
-             {/* 2. ZONA IZQUIERDA: ACCIÓN (Hero) + AGENDA + GRÁFICA */}
+             {/* ZONA IZQUIERDA (OPERATIVA) */}
              <div className="xl:col-span-8 flex flex-col gap-8">
-                 
-                 {/* HERO CARD (Paciente Actual) */}
-                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-1 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
-                    <div className={`absolute top-0 left-0 w-2 h-full ${nextPatient ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
-                    <div className="p-8 flex flex-col md:flex-row justify-between items-center gap-6">
-                        <div className="flex items-center gap-6">
-                            <div className={`w-20 h-20 rounded-2xl flex items-center justify-center text-3xl font-bold shadow-lg ${nextPatient ? 'bg-indigo-600 text-white' : 'bg-slate-100 text-slate-300'}`}>
-                                {nextPatient ? nextPatient.title.charAt(0) : <CalendarX/>}
-                            </div>
-                            <div>
-                                <div className="flex items-center gap-2 mb-1">
-                                    <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${nextPatient ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
-                                        {nextPatient ? 'En Espera' : 'Agenda Libre'}
-                                    </span>
-                                    {nextPatient && <span className="text-sm font-bold text-slate-900">{format(parseISO(nextPatient.start_time), 'h:mm a')}</span>}
-                                </div>
-                                <h2 className="text-3xl font-black text-slate-800 dark:text-white leading-tight">
-                                    {nextPatient ? nextPatient.title : 'No hay citas inmediatas'}
-                                </h2>
-                                <p className="text-slate-500 font-medium mt-1">
-                                    {nextPatient ? (nextPatient.patient ? '• Expediente Activo' : '• Primera Vez') : 'Tómese un descanso, Doctor.'}
-                                </p>
-                            </div>
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-auto md:h-64">
+                     {/* HERO CARD PACIENTE */}
+                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-1 shadow-xl shadow-slate-200/50 relative overflow-hidden group">
+                        <div className={`absolute top-0 left-0 w-2 h-full ${nextPatient ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                        <div className="p-8 flex flex-col justify-between h-full relative z-10">
+                             <div className="flex justify-between items-start mb-4">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${nextPatient ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{nextPatient ? 'En Espera' : 'Libre'}</span>
+                                {nextPatient && <span className="text-2xl font-bold text-slate-800">{format(parseISO(nextPatient.start_time), 'h:mm a')}</span>}
+                             </div>
+                             <div>
+                                <h2 className="text-3xl font-black text-slate-800 leading-tight mb-1">{nextPatient ? nextPatient.title : 'Agenda Despejada'}</h2>
+                                <p className="text-slate-500 text-sm">{nextPatient ? (nextPatient.patient ? 'Expediente Activo' : 'Primera Vez') : 'No hay pacientes en cola inmediata.'}</p>
+                             </div>
+                             {nextPatient && <button onClick={() => handleStartConsultation(nextPatient)} className="mt-6 w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-black transition-all"><PlayCircle size={18}/> INICIAR CONSULTA</button>}
                         </div>
-                        {nextPatient && (
-                            <button onClick={() => handleStartConsultation(nextPatient)} className="px-8 py-4 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm shadow-xl hover:shadow-2xl transition-all hover:scale-105 active:scale-95 flex items-center gap-2">
-                                <PlayCircle size={20} className="text-emerald-400"/> INICIAR CONSULTA
-                            </button>
-                        )}
-                    </div>
+                     </div>
+                     <StatusWidget weather={weather} totalApts={10} pendingApts={appointments.length} isNight={isNight} location={locationName} />
                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     {/* AGENDA (Mitad) */}
-                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm min-h-[300px]">
+                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 shadow-sm min-h-[300px]">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Calendar size={20} className="text-indigo-600"/> Agenda</h3>
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Calendar size={20} className="text-indigo-600"/> Agenda</h3>
                             <button onClick={() => navigate('/calendar')} className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">Ver Todo</button>
                         </div>
                         {appointments.length === 0 ? (
@@ -342,11 +369,8 @@ const Dashboard: React.FC = () => {
                                         <div key={apt.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 rounded-xl transition-colors cursor-pointer group" onClick={() => handleStartConsultation(apt)}>
                                             <div className="font-bold text-slate-500 text-xs w-10 text-right">{format(parseISO(apt.start_time), 'HH:mm')}</div>
                                             <div className="w-1 h-8 bg-indigo-200 rounded-full group-hover:bg-indigo-500 transition-colors"></div>
-                                            <div>
-                                                <p className="font-bold text-slate-800 text-sm">{apt.title}</p>
-                                                <p className="text-xs text-slate-400">Consulta General</p>
-                                            </div>
-                                            <div className="ml-auto opacity-0 group-hover:opacity-100 transition-opacity"><ChevronRight size={16} className="text-slate-300"/></div>
+                                            <div className="flex-1"><p className="font-bold text-slate-800 text-sm truncate">{apt.title}</p></div>
+                                            <ChevronRight size={16} className="text-slate-300"/>
                                         </div>
                                     ))
                                 ))}
@@ -354,47 +378,54 @@ const Dashboard: React.FC = () => {
                         )}
                      </div>
 
-                     {/* GRÁFICA SEMANAL (Mitad - Nuevo Módulo de "Color") */}
-                     <ActivityGraph />
+                     <div className="flex flex-col gap-6 h-full">
+                         {/* QUICK DOCS LEGALES (HUECO LLENO) */}
+                         <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex-1">
+                            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4"><div className="p-2 bg-pink-50 text-pink-600 rounded-lg"><FileCheck size={18}/></div> Documentos Rápidos</h3>
+                            <div className="grid grid-cols-2 gap-3">
+                                <button onClick={() => openDocModal('justificante')} className="p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group">
+                                    <FileText size={20} className="text-slate-400 group-hover:text-teal-500 mb-2"/>
+                                    <p className="text-xs font-bold text-slate-700">Justificante</p>
+                                    <p className="text-[10px] text-slate-400">Generar PDF</p>
+                                </button>
+                                <button onClick={() => openDocModal('certificado')} className="p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group">
+                                    <FileSignature size={20} className="text-slate-400 group-hover:text-blue-500 mb-2"/>
+                                    <p className="text-xs font-bold text-slate-700">Certificado</p>
+                                    <p className="text-[10px] text-slate-400">Salud</p>
+                                </button>
+                                <button onClick={() => openDocModal('receta')} className="p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group">
+                                    <Printer size={20} className="text-slate-400 group-hover:text-indigo-500 mb-2"/>
+                                    <p className="text-xs font-bold text-slate-700">Receta Simple</p>
+                                    <p className="text-[10px] text-slate-400">Impresión</p>
+                                </button>
+                                <div className="p-3 bg-slate-50 rounded-xl flex flex-col justify-center items-center text-center">
+                                    <p className="text-lg font-bold text-slate-700">Estimado</p>
+                                    <p className="text-[10px] text-slate-400 font-bold uppercase">--</p>
+                                </div>
+                            </div>
+                         </div>
+                         <div className="h-40"><ActivityGraph /></div>
+                     </div>
                  </div>
              </div>
 
-             {/* 3. ZONA DERECHA: HERRAMIENTAS + RADAR */}
+             {/* ZONA DERECHA */}
              <div className="xl:col-span-4 flex flex-col gap-8">
-                 
-                 {/* RADAR DE PENDIENTES (Nuevo: Llena espacio vertical) */}
-                 <ActionRadar />
-
-                 {/* TOOLS TABS (Con Notas y Calculadora) */}
-                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex-1 flex flex-col min-h-[400px]">
+                 <ActionRadar items={pendingItems} />
+                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/50 flex-1 flex flex-col min-h-[400px]">
                       <div className="flex p-2 gap-2 bg-slate-50/50 border-b border-slate-100">
-                          <button onClick={() => setToolsTab('notes')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${toolsTab === 'notes' ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-100' : 'text-slate-400'}`}>
-                              <PenLine size={14}/> Notas
-                          </button>
-                          <button onClick={() => setToolsTab('calc')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase tracking-wider flex items-center justify-center gap-2 transition-all ${toolsTab === 'calc' ? 'bg-white text-indigo-600 shadow-sm ring-1 ring-slate-100' : 'text-slate-400'}`}>
-                              <Calculator size={14}/> Calc
-                          </button>
+                          <button onClick={() => setToolsTab('notes')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${toolsTab === 'notes' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}><PenLine size={14} className="inline mr-2"/> Notas</button>
+                          <button onClick={() => setToolsTab('calc')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${toolsTab === 'calc' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}><Calculator size={14} className="inline mr-2"/> Calc</button>
                       </div>
                       <div className="p-0 flex-1 relative bg-white">
-                          {toolsTab === 'notes' ? (
-                              <div className="absolute inset-0 p-2"><QuickNotes /></div>
-                          ) : (
-                              <div className="absolute inset-0 p-2 overflow-y-auto"><MedicalCalculators /></div>
-                          )}
+                          {toolsTab === 'notes' ? <div className="absolute inset-0 p-2"><QuickNotes /></div> : <div className="absolute inset-0 p-2 overflow-y-auto"><MedicalCalculators /></div>}
                       </div>
                  </div>
-
-                 {/* ACCIONES RÁPIDAS (Estilo Botón Grande) */}
                  <div className="grid grid-cols-2 gap-4">
-                     <button onClick={() => navigate('/patients')} className="p-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 transition-colors border border-indigo-100">
-                        <UserPlus size={20}/> Nuevo Paciente
-                     </button>
-                     <button onClick={() => setIsUploadModalOpen(true)} className="p-4 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 transition-colors border border-slate-200">
-                        <Upload size={20}/> Subir Archivos
-                     </button>
+                     <button onClick={() => navigate('/patients')} className="p-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 border border-indigo-100"><UserPlus size={20}/> Nuevo Paciente</button>
+                     <button onClick={() => setIsUploadModalOpen(true)} className="p-4 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 border border-slate-200"><Upload size={20}/> Subir Archivos</button>
                  </div>
              </div>
-
          </div>
       </div>
 
@@ -409,11 +440,10 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* BOTÓN FLOTANTE ASISTENTE (Móvil) */}
-      <button onClick={() => setIsAssistantOpen(true)} className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center z-40 active:scale-95">
-          <Bot size={28}/>
-      </button>
+      {/* MODAL DE DOCUMENTOS LEGALES */}
+      <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile} defaultType={docType} />
 
+      <button onClick={() => setIsAssistantOpen(true)} className="md:hidden fixed bottom-6 right-6 w-14 h-14 bg-indigo-600 text-white rounded-full shadow-2xl flex items-center justify-center z-40 active:scale-95"><Bot size={28}/></button>
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} />
     </div>
   );
