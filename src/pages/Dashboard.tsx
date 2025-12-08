@@ -6,7 +6,8 @@ import {
   Stethoscope, UserCircle, AlertTriangle, FileText,
   Clock, UserPlus, Activity,
   CalendarX, Repeat, Ban, PlayCircle, PenLine, Calculator, Sparkles,
-  BarChart3, FileSignature, Microscope, StickyNote, FileCheck, Printer
+  BarChart3, FileSignature, Microscope, StickyNote, FileCheck, Printer,
+  Sunrise, Sunset, MoonStar // <--- NUEVOS ICONOS DE TIEMPO
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays, isPast } from 'date-fns';
@@ -22,7 +23,7 @@ import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
 import { QuickNotes } from '../components/QuickNotes';
 import { MedicalCalculators } from '../components/MedicalCalculators';
-import { QuickDocModal } from '../components/QuickDocModal'; // <--- IMPORTAMOS EL NUEVO COMPONENTE
+import { QuickDocModal } from '../components/QuickDocModal';
 
 // --- INTERFACES ---
 interface DashboardAppointment {
@@ -32,21 +33,17 @@ interface DashboardAppointment {
 }
 
 interface PendingItem {
-    id: string;
-    type: 'note' | 'lab' | 'appt';
-    title: string;
-    subtitle: string;
-    date: string;
+    id: string; type: 'note' | 'lab' | 'appt'; title: string; subtitle: string; date: string;
 }
 
-// ... (AssistantModal se mantiene igual, omito para brevedad si ya lo tienes, si no avísame y lo pego) ...
-// (Asumo que AssistantModal está definido como en la versión anterior)
+// --- ASISTENTE DE VOZ ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'confirming'>('idle');
   const [aiResponse, setAiResponse] = useState<AgentResponse | null>(null);
   const navigate = useNavigate(); 
   useEffect(() => { isOpen ? (resetTranscript(), setStatus('idle'), setAiResponse(null)) : stopListening(); }, [isOpen]);
+
   const handleExecute = async () => {
     if (!aiResponse) return;
     switch (aiResponse.intent) {
@@ -70,16 +67,19 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
         else if (dest.includes('paciente')) navigate('/patients');
         else if (dest.includes('config')) navigate('/settings');
         else navigate('/');
+        toast.success(`Navegando a: ${dest}`);
         break;
       case 'MEDICAL_QUERY': toast.info("Consulta médica resuelta"); break;
       default: toast.info("No entendí la acción"); setStatus('idle'); resetTranscript();
     }
   };
+  
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
       <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden border border-white/20 ring-1 ring-black/5">
         <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-8 text-white text-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
           <Bot size={48} className="mx-auto mb-3 relative z-10 drop-shadow-lg" />
           <h3 className="text-2xl font-black relative z-10 tracking-tight">Copiloto Clínico</h3>
           <p className="text-indigo-100 text-sm relative z-10 font-medium">Escuchando órdenes médicas...</p>
@@ -116,7 +116,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
 
 // --- WIDGETS ---
 const StatusWidget = ({ weather, totalApts, pendingApts, isNight, location }: any) => {
-    // ... (Igual que antes)
     const [time, setTime] = useState(new Date());
     useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
     const completed = totalApts - pendingApts;
@@ -143,7 +142,6 @@ const StatusWidget = ({ weather, totalApts, pendingApts, isNight, location }: an
 };
 
 const ActivityGraph = () => {
-    // ... (Igual que antes, estético)
     const days = ['L', 'M', 'M', 'J', 'V', 'S', 'D'];
     const values = [40, 65, 45, 80, 55, 30, 10]; 
     return (
@@ -166,7 +164,36 @@ const ActivityGraph = () => {
     );
 };
 
-// --- RADAR CONECTADO A DB ---
+const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certificado' | 'receta') => void }) => (
+    <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm h-full">
+        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-4">
+            <div className="p-2 bg-pink-50 text-pink-600 rounded-lg"><FileCheck size={18}/></div>
+            Documentos Rápidos
+        </h3>
+        <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => openModal('justificante')} className="p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group">
+                <FileText size={20} className="text-slate-400 group-hover:text-teal-500 mb-2"/>
+                <p className="text-xs font-bold text-slate-700">Justificante</p>
+                <p className="text-[10px] text-slate-400">Generar PDF</p>
+            </button>
+            <button onClick={() => openModal('certificado')} className="p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group">
+                <FileSignature size={20} className="text-slate-400 group-hover:text-blue-500 mb-2"/>
+                <p className="text-xs font-bold text-slate-700">Certificado</p>
+                <p className="text-[10px] text-slate-400">Salud</p>
+            </button>
+            <button onClick={() => openModal('receta')} className="p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group">
+                <Printer size={20} className="text-slate-400 group-hover:text-indigo-500 mb-2"/>
+                <p className="text-xs font-bold text-slate-700">Receta Simple</p>
+                <p className="text-[10px] text-slate-400">Impresión</p>
+            </button>
+            <div className="p-3 bg-slate-50 rounded-xl flex flex-col justify-center items-center text-center border border-slate-100">
+                 <p className="text-2xl font-black text-slate-700 tracking-tight">$0</p>
+                 <p className="text-[10px] text-slate-400 font-bold uppercase">Ingreso Hoy</p>
+            </div>
+        </div>
+    </div>
+);
+
 const ActionRadar = ({ items }: { items: PendingItem[] }) => {
     if (items.length === 0) return (
         <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center h-48">
@@ -175,7 +202,6 @@ const ActionRadar = ({ items }: { items: PendingItem[] }) => {
             <p className="text-xs text-slate-400">No hay pendientes urgentes.</p>
         </div>
     );
-
     return (
         <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 shadow-sm">
             <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4">
@@ -198,23 +224,96 @@ const ActionRadar = ({ items }: { items: PendingItem[] }) => {
     );
 };
 
+// --- HEADER DINÁMICO ("CEREZA DEL PASTEL") ---
+// Este componente cambia su diseño entero basado en la hora real.
+const MorningBriefing = ({ greeting, message, weather, systemStatus }: any) => {
+    const hour = new Date().getHours();
+    
+    // DEFINICIÓN DE TEMAS CIRCADIANOS
+    let theme = {
+        gradient: "from-orange-400 via-amber-500 to-yellow-500", // Amanecer
+        icon: Sunrise,
+        label: "Buenos Días",
+        text: "text-amber-50",
+        shadow: "shadow-orange-200/50"
+    };
+
+    if (hour >= 12 && hour < 18) {
+        theme = {
+            gradient: "from-blue-500 via-cyan-500 to-teal-400", // Día Productivo
+            icon: Sun,
+            label: "Buenas Tardes",
+            text: "text-blue-50",
+            shadow: "shadow-blue-200/50"
+        };
+    } else if (hour >= 18 && hour < 22) {
+        theme = {
+            gradient: "from-indigo-600 via-purple-600 to-pink-500", // Atardecer (Tu favorito)
+            icon: Sunset,
+            label: "Buenas Noches",
+            text: "text-indigo-100",
+            shadow: "shadow-indigo-200/50"
+        };
+    } else if (hour >= 22 || hour < 5) {
+        theme = {
+            gradient: "from-slate-900 via-slate-800 to-blue-950", // Noche Profunda
+            icon: MoonStar,
+            label: "Guardia Nocturna",
+            text: "text-slate-400",
+            shadow: "shadow-slate-800/50"
+        };
+    }
+
+    return (
+        <div className={`relative w-full rounded-[2.5rem] bg-gradient-to-r ${theme.gradient} p-8 shadow-2xl ${theme.shadow} dark:shadow-none text-white overflow-hidden mb-8 transition-all duration-1000 ease-in-out`}>
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+            {/* Decoración de fondo dinámica */}
+            <div className="absolute -right-10 -top-10 w-64 h-64 bg-white/10 rounded-full blur-[80px] animate-pulse"></div>
+            
+            <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
+                <div>
+                    <div className={`flex items-center gap-2 mb-2 opacity-90 ${theme.text}`}>
+                        <theme.icon size={18} className="animate-pulse-slow" />
+                        <span className="text-xs font-bold uppercase tracking-widest">{theme.label}</span>
+                    </div>
+                    <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-2 drop-shadow-sm">{greeting}</h1>
+                    <p className="text-white/90 font-medium max-w-lg leading-relaxed">{message}</p>
+                </div>
+                
+                <div className="flex items-center gap-6 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 shadow-inner">
+                    <div className="text-right">
+                        <p className="text-3xl font-bold leading-none">{weather.temp}°</p>
+                        <p className="text-[10px] opacity-80 uppercase font-bold mt-1">Clima</p>
+                    </div>
+                    <div className="h-10 w-px bg-white/20"></div>
+                    <div>
+                        <div className="flex items-center gap-2">
+                            <div className={`w-2.5 h-2.5 rounded-full ${systemStatus ? 'bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse' : 'bg-red-500'}`}></div>
+                            <span className="font-bold text-sm tracking-tight">{systemStatus ? 'Sistema Online' : 'Offline'}</span>
+                        </div>
+                        <p className="text-[10px] opacity-80 mt-1 font-medium">{format(new Date(), "EEEE d 'de' MMMM", { locale: es })}</p>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
 // --- COMPONENTE PRINCIPAL ---
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [doctorProfile, setDoctorProfile] = useState<any>(null); // Perfil completo para documentos
+  const [doctorProfile, setDoctorProfile] = useState<any>(null); 
   const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
-  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]); // Items reales del radar
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]); 
   const [loading, setLoading] = useState(true);
   const [weather, setWeather] = useState({ temp: '--', code: 0 });
   const [locationName, setLocationName] = useState('Localizando...');
   const [systemStatus, setSystemStatus] = useState(true); 
   
-  // Modales
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [docType, setDocType] = useState<'justificante' | 'certificado' | 'receta'>('justificante');
-
   const [toolsTab, setToolsTab] = useState<'notes' | 'calc'>('notes');
   
   const now = new Date();
@@ -227,46 +326,25 @@ const Dashboard: React.FC = () => {
       try {
           const { data: { user } } = await supabase.auth.getUser();
           if (!user) { setSystemStatus(false); return; }
-          
           setSystemStatus(true);
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
           setDoctorProfile(profile);
           
           const todayStart = startOfDay(new Date()); 
           const nextWeekEnd = endOfDay(addDays(new Date(), 7));
-          
-          // Cargar Citas Futuras
           const { data: aptsData } = await supabase.from('appointments').select(`id, title, start_time, status, patient:patients (id, name, history)`).eq('doctor_id', user.id).gte('start_time', todayStart.toISOString()).lte('start_time', nextWeekEnd.toISOString()).neq('status', 'cancelled').neq('status', 'completed').order('start_time', { ascending: true }).limit(10);
-          
           if (aptsData) {
               const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
-                  id: item.id, title: item.title, start_time: item.start_time, status: item.status, patient: item.patient,
-                  criticalAlert: null 
+                  id: item.id, title: item.title, start_time: item.start_time, status: item.status, patient: item.patient, criticalAlert: null 
               }));
               setAppointments(formattedApts);
           }
-
-          // --- LOGICA DEL RADAR (DATOS REALES) ---
           const radar: PendingItem[] = [];
-          
-          // 1. Consultas Abiertas (Notas Incompletas)
           const { data: openConsults } = await supabase.from('consultations').select('id, created_at, patient_name').eq('doctor_id', user.id).eq('status', 'in_progress').limit(3);
-          if (openConsults) {
-              openConsults.forEach(c => radar.push({
-                  id: c.id, type: 'note', title: 'Nota Incompleta', subtitle: `${c.patient_name || 'Sin nombre'} • ${format(parseISO(c.created_at), 'dd/MM')}`, date: c.created_at
-              }));
-          }
-
-          // 2. Citas Pasadas sin Cerrar (Olvidadas)
+          if (openConsults) { openConsults.forEach(c => radar.push({ id: c.id, type: 'note', title: 'Nota Incompleta', subtitle: `${c.patient_name || 'Sin nombre'} • ${format(parseISO(c.created_at), 'dd/MM')}`, date: c.created_at })); }
           const { data: lostApts } = await supabase.from('appointments').select('id, title, start_time').eq('doctor_id', user.id).eq('status', 'scheduled').lt('start_time', new Date().toISOString()).limit(3);
-          if (lostApts) {
-              lostApts.forEach(a => radar.push({
-                  id: a.id, type: 'appt', title: 'Cita por Cerrar', subtitle: `${a.title} • ${format(parseISO(a.start_time), 'dd/MM HH:mm')}`, date: a.start_time
-              }));
-          }
-          
+          if (lostApts) { lostApts.forEach(a => radar.push({ id: a.id, type: 'appt', title: 'Cita por Cerrar', subtitle: `${a.title} • ${format(parseISO(a.start_time), 'dd/MM HH:mm')}`, date: a.start_time })); }
           setPendingItems(radar);
-
       } catch (e) { setSystemStatus(false); console.error(e); } finally { setLoading(false); }
   }, []);
 
@@ -287,11 +365,7 @@ const Dashboard: React.FC = () => {
     }
   }, [fetchData]);
 
-  const openDocModal = (type: 'justificante' | 'certificado' | 'receta') => {
-      setDocType(type);
-      setIsDocModalOpen(true);
-  };
-
+  const openDocModal = (type: 'justificante' | 'certificado' | 'receta') => { setDocType(type); setIsDocModalOpen(true); };
   const nextPatient = useMemo(() => appointments.find(a => a.status === 'scheduled') || null, [appointments]);
   const groupedAppointments = useMemo(() => appointments.reduce((acc, apt) => {
     const day = isToday(parseISO(apt.start_time)) ? 'Hoy' : format(parseISO(apt.start_time), 'EEEE d', { locale: es });
@@ -306,7 +380,6 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans w-full pb-32 md:pb-8 relative overflow-hidden">
       
-      {/* HEADER MÓVIL */}
       <div className="md:hidden px-5 py-4 flex justify-between items-center bg-white sticky top-0 z-30 shadow-sm">
         <span className="font-bold text-lg text-indigo-700">MediScribe</span>
         <div className="h-8 w-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">{doctorProfile?.full_name?.charAt(0) || 'D'}</div>
@@ -314,30 +387,14 @@ const Dashboard: React.FC = () => {
 
       <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-[1600px] mx-auto w-full">
          
-         <div className="relative w-full rounded-[2.5rem] bg-gradient-to-r from-indigo-600 via-purple-600 to-pink-500 p-8 shadow-2xl shadow-indigo-200/50 text-white overflow-hidden mb-8">
-            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
-            <div className="absolute -right-10 -top-10 w-64 h-64 bg-white/10 rounded-full blur-[80px]"></div>
-            <div className="relative z-10 flex flex-col md:flex-row justify-between items-end gap-6">
-                <div>
-                    <div className="flex items-center gap-2 mb-2 opacity-80"><Sparkles size={16} className="text-yellow-300"/><span className="text-xs font-bold uppercase tracking-widest">Resumen Diario</span></div>
-                    <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-2">{dynamicGreeting.greeting}</h1>
-                    <p className="text-indigo-100 font-medium max-w-lg">{dynamicGreeting.message}</p>
-                </div>
-                <div className="flex items-center gap-6 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/10">
-                    <div className="text-right"><p className="text-2xl font-bold leading-none">{weather.temp}°</p><p className="text-xs opacity-70 uppercase font-bold mt-1">Clima</p></div>
-                    <div className="h-8 w-px bg-white/20"></div>
-                    <div><div className="flex items-center gap-2"><div className={`w-2.5 h-2.5 rounded-full ${systemStatus ? 'bg-green-400 animate-pulse' : 'bg-red-500'}`}></div><span className="font-bold text-sm">{systemStatus ? 'Sistema Activo' : 'Offline'}</span></div><p className="text-xs opacity-70 mt-1">{format(new Date(), "EEEE d 'de' MMMM", { locale: es })}</p></div>
-                </div>
-            </div>
-         </div>
+         <MorningBriefing greeting={dynamicGreeting.greeting} message={dynamicGreeting.message} weather={weather} systemStatus={systemStatus} />
 
          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
              
-             {/* ZONA IZQUIERDA (OPERATIVA) */}
+             {/* ZONA IZQUIERDA (OPERATIVA) - 8 COLS */}
              <div className="xl:col-span-8 flex flex-col gap-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-auto md:h-64">
-                     {/* HERO CARD PACIENTE */}
-                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-1 shadow-xl shadow-slate-200/50 relative overflow-hidden group">
+                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-1 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
                         <div className={`absolute top-0 left-0 w-2 h-full ${nextPatient ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
                         <div className="p-8 flex flex-col justify-between h-full relative z-10">
                              <div className="flex justify-between items-start mb-4">
@@ -345,19 +402,19 @@ const Dashboard: React.FC = () => {
                                 {nextPatient && <span className="text-2xl font-bold text-slate-800">{format(parseISO(nextPatient.start_time), 'h:mm a')}</span>}
                              </div>
                              <div>
-                                <h2 className="text-3xl font-black text-slate-800 leading-tight mb-1">{nextPatient ? nextPatient.title : 'Agenda Despejada'}</h2>
+                                <h2 className="text-3xl font-black text-slate-800 dark:text-white leading-tight mb-1">{nextPatient ? nextPatient.title : 'Agenda Despejada'}</h2>
                                 <p className="text-slate-500 text-sm">{nextPatient ? (nextPatient.patient ? 'Expediente Activo' : 'Primera Vez') : 'No hay pacientes en cola inmediata.'}</p>
                              </div>
-                             {nextPatient && <button onClick={() => handleStartConsultation(nextPatient)} className="mt-6 w-full py-3 bg-slate-900 text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 hover:bg-black transition-all"><PlayCircle size={18}/> INICIAR CONSULTA</button>}
+                             {nextPatient && <button onClick={() => handleStartConsultation(nextPatient)} className="mt-6 w-full py-3 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"><PlayCircle size={18}/> INICIAR CONSULTA</button>}
                         </div>
                      </div>
                      <StatusWidget weather={weather} totalApts={10} pendingApts={appointments.length} isNight={isNight} location={locationName} />
                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 shadow-sm min-h-[300px]">
+                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm min-h-[300px]">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-slate-800 flex items-center gap-2"><Calendar size={20} className="text-indigo-600"/> Agenda</h3>
+                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Calendar size={20} className="text-indigo-600"/> Agenda</h3>
                             <button onClick={() => navigate('/calendar')} className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">Ver Todo</button>
                         </div>
                         {appointments.length === 0 ? (
@@ -377,33 +434,8 @@ const Dashboard: React.FC = () => {
                             </div>
                         )}
                      </div>
-
                      <div className="flex flex-col gap-6 h-full">
-                         {/* QUICK DOCS LEGALES (HUECO LLENO) */}
-                         <div className="bg-white rounded-[2rem] p-6 border border-slate-100 shadow-sm flex-1">
-                            <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4"><div className="p-2 bg-pink-50 text-pink-600 rounded-lg"><FileCheck size={18}/></div> Documentos Rápidos</h3>
-                            <div className="grid grid-cols-2 gap-3">
-                                <button onClick={() => openDocModal('justificante')} className="p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group">
-                                    <FileText size={20} className="text-slate-400 group-hover:text-teal-500 mb-2"/>
-                                    <p className="text-xs font-bold text-slate-700">Justificante</p>
-                                    <p className="text-[10px] text-slate-400">Generar PDF</p>
-                                </button>
-                                <button onClick={() => openDocModal('certificado')} className="p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group">
-                                    <FileSignature size={20} className="text-slate-400 group-hover:text-blue-500 mb-2"/>
-                                    <p className="text-xs font-bold text-slate-700">Certificado</p>
-                                    <p className="text-[10px] text-slate-400">Salud</p>
-                                </button>
-                                <button onClick={() => openDocModal('receta')} className="p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group">
-                                    <Printer size={20} className="text-slate-400 group-hover:text-indigo-500 mb-2"/>
-                                    <p className="text-xs font-bold text-slate-700">Receta Simple</p>
-                                    <p className="text-[10px] text-slate-400">Impresión</p>
-                                </button>
-                                <div className="p-3 bg-slate-50 rounded-xl flex flex-col justify-center items-center text-center">
-                                    <p className="text-lg font-bold text-slate-700">Estimado</p>
-                                    <p className="text-[10px] text-slate-400 font-bold uppercase">--</p>
-                                </div>
-                            </div>
-                         </div>
+                         <div className="flex-1"><QuickDocs openModal={openDocModal} /></div>
                          <div className="h-40"><ActivityGraph /></div>
                      </div>
                  </div>
@@ -412,7 +444,7 @@ const Dashboard: React.FC = () => {
              {/* ZONA DERECHA */}
              <div className="xl:col-span-4 flex flex-col gap-8">
                  <ActionRadar items={pendingItems} />
-                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 shadow-xl shadow-slate-200/50 flex-1 flex flex-col min-h-[400px]">
+                 <div className="bg-white dark:bg-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex-1 flex flex-col min-h-[400px]">
                       <div className="flex p-2 gap-2 bg-slate-50/50 border-b border-slate-100">
                           <button onClick={() => setToolsTab('notes')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${toolsTab === 'notes' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}><PenLine size={14} className="inline mr-2"/> Notas</button>
                           <button onClick={() => setToolsTab('calc')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${toolsTab === 'calc' ? 'bg-white text-indigo-600 shadow-sm' : 'text-slate-400'}`}><Calculator size={14} className="inline mr-2"/> Calc</button>
