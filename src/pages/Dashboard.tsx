@@ -183,6 +183,7 @@ const ActivityGraph = () => {
     );
 };
 
+// 🔴 MODIFICACIÓN: Eliminado widget de ingresos y rediseñado botón de receta
 const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certificado' | 'receta') => void }) => (
     <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm h-full">
         <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-4">
@@ -200,20 +201,19 @@ const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certific
                 <p className="text-xs font-bold text-slate-700">Certificado</p>
                 <p className="text-[10px] text-slate-400">Salud</p>
             </button>
-            <button onClick={() => openModal('receta')} className="p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group">
-                <Printer size={20} className="text-slate-400 group-hover:text-indigo-500 mb-2"/>
-                <p className="text-xs font-bold text-slate-700">Receta Simple</p>
-                <p className="text-[10px] text-slate-400">Impresión</p>
+            <button onClick={() => openModal('receta')} className="col-span-2 p-3 bg-slate-50 hover:bg-white border border-slate-100 hover:shadow-md rounded-xl text-left transition-all group flex items-center gap-3">
+                <div className="p-2 bg-white rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                    <Printer size={20} className="text-indigo-500"/>
+                </div>
+                <div>
+                    <p className="text-xs font-bold text-slate-700">Receta Simple</p>
+                    <p className="text-[10px] text-slate-400">Impresión Directa</p>
+                </div>
             </button>
-            <div className="p-3 bg-slate-50 rounded-xl flex flex-col justify-center items-center text-center border border-slate-100">
-                 <p className="text-2xl font-black text-slate-700 tracking-tight">$0</p>
-                 <p className="text-[10px] text-slate-400 font-bold uppercase">Ingreso Hoy</p>
-            </div>
         </div>
     </div>
 );
 
-// 🔴 MODIFICACIÓN: Se agrega prop onItemClick para interactividad
 const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick: (item: PendingItem) => void }) => {
     if (items.length === 0) return (
         <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 shadow-sm flex flex-col items-center justify-center text-center h-48">
@@ -230,7 +230,6 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
             </h3>
             <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar">
                 {items.map(item => (
-                    // 🔴 MODIFICACIÓN: Se agrega onClick
                     <div key={item.id} onClick={() => onItemClick(item)} className="flex items-center gap-3 p-3 bg-slate-50 rounded-xl border border-slate-100 cursor-pointer hover:bg-white hover:shadow-md transition-all group">
                         <div className={`w-2 h-2 rounded-full ${item.type === 'note' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
                         <div className="flex-1">
