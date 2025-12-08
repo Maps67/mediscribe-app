@@ -5,11 +5,15 @@ import { supabase } from '../lib/supabase';
 import { 
   Share2, Users, Clock, FileText, 
   Search, BookOpen, Activity, Globe, 
-  ExternalLink, Info, Sparkles, Download, 
+  ExternalLink, Download, 
   Calendar, Stethoscope, Briefcase
 } from 'lucide-react';
 
-// --- TIPOS (Coincidentes con Schema v5.0) ---
+// IMPORTACIÓN DE NUEVOS MÓDULOS
+import { InteractiveClinicalCase } from './InteractiveClinicalCase';
+import { MedicalCalculators } from './MedicalCalculators';
+
+// --- TIPOS ---
 interface MedicalNews {
   id?: string;
   title: string;
@@ -31,11 +35,8 @@ interface UserProfile {
   [key: string]: any;
 }
 
-// --- GENERADOR DE vCARD (BLINDADO) ---
 const generateVCard = (profile: UserProfile | null) => {
     if (!profile) return;
-
-    // Protección contra nombres nulos
     const safeName = profile.full_name || 'Doctor';
     const safeParts = safeName.split(' ');
     const lastName = safeParts.length > 1 ? safeParts.pop() : '';
@@ -69,42 +70,6 @@ const generateVCard = (profile: UserProfile | null) => {
     }
 };
 
-// --- COMPONENTE: PERLA CLÍNICA ---
-const ClinicalPearlCard = () => {
-    const tips = [
-        { title: "Nefroprotección en DM2", text: "En diabetes tipo 2, los iSGLT2 reducen la progresión renal independientemente del control glucémico (Evidencia A)." },
-        { title: "Hipertensión Enmascarada", text: "El monitoreo ambulatorio (MAPA) detecta HTA enmascarada en el 15-30% de pacientes con lecturas normales en consultorio." },
-        { title: "Duración Antibiótica", text: "La duración corta de terapia antibiótica en neumonía adquirida en comunidad (5 días) es igual de efectiva que cursos largos si hay estabilidad clínica." },
-        { title: "Ezetimiba + Estatinas", text: "Añadir ezetimiba a estatinas reduce eventos cardiovasculares adicionales un 6% vs monoterapia (Estudio IMPROVE-IT)." },
-        { title: "Diagnóstico de EPOC", text: "La espirometría es obligatoria para el diagnóstico clínico de EPOC; los síntomas por sí solos no son suficientes." }
-    ];
-    
-    const dayOfYear = Math.floor((new Date().getTime() - new Date(new Date().getFullYear(), 0, 0).getTime()) / 1000 / 60 / 60 / 24);
-    const tip = tips[dayOfYear % tips.length] || tips[0]; // Fallback seguro
-
-    return (
-        <div className="bg-gradient-to-r from-indigo-900 to-slate-900 rounded-2xl p-6 text-white shadow-xl relative overflow-hidden mb-6 group hover:shadow-2xl transition-all duration-500">
-            <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity duration-500 transform group-hover:rotate-12">
-                <Sparkles size={140} />
-            </div>
-            <div className="relative z-10">
-                <div className="flex items-center gap-2 mb-3">
-                    <div className="bg-indigo-500/20 p-1.5 rounded-lg backdrop-blur-sm border border-indigo-500/30">
-                        <Info size={18} className="text-indigo-300" />
-                    </div>
-                    <h3 className="font-bold text-sm uppercase tracking-widest text-indigo-200">Perla Clínica del Día</h3>
-                </div>
-                <h4 className="text-xl font-bold mb-2 text-white">{tip.title}</h4>
-                <p className="text-slate-300 text-sm leading-relaxed max-w-lg font-medium">"{tip.text}"</p>
-                <div className="mt-4 flex gap-2">
-                    <span className="text-[10px] bg-white/10 px-2 py-1 rounded text-slate-400 border border-white/10">Evidencia Nivel A</span>
-                </div>
-            </div>
-        </div>
-    );
-};
-
-// --- COMPONENTE PRINCIPAL ---
 const DigitalCard: React.FC = () => {
   const navigate = useNavigate();
   
@@ -114,7 +79,6 @@ const DigitalCard: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
 
-  // Fallback seguro en caso de error de red o DB vacía
   const STATIC_NEWS: MedicalNews[] = [
     { title: 'FDA Aprueba Voyxact', summary: 'Tratamiento para nefropatía por IgA.', source: 'FDA', url: 'https://www.fda.gov' },
     { title: 'Guías IDSA 2025', summary: 'Manejo de infecciones urinarias.', source: 'IDSA', url: 'https://www.idsociety.org' }
@@ -132,7 +96,6 @@ const DigitalCard: React.FC = () => {
 
   const fetchNews = async () => {
     try {
-      // Ahora esta llamada está protegida por RLS (Solo Lectura)
       const { data, error } = await supabase
         .from('medical_news')
         .select('*')
@@ -154,26 +117,23 @@ const DigitalCard: React.FC = () => {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
         const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-        // Fallback seguro si no hay perfil
         setProfile(profileData || { full_name: 'Doctor', specialty: 'Medicina General' });
 
         let finalCount = 0;
         const { count: countDoc } = await supabase.from('patients').select('*', { count: 'exact', head: true }).eq('doctor_id', user.id);
         if (countDoc !== null) finalCount = countDoc;
         else {
-            // Soporte legacy para pacientes sin doctor_id mapeado
             const { count: countUser } = await supabase.from('patients').select('*', { count: 'exact', head: true }).eq('user_id', user.id);
             if (countUser !== null) finalCount = countUser;
         }
 
         let calculatedAvg = 0;
-        // Métrica rápida: Usamos 'summary' como proxy de complejidad o 'duration_minutes'
         const { data: consults } = await supabase.from('consultations').select('summary').eq('doctor_id', user.id).limit(50);
         if (consults && consults.length > 0) {
             const total = consults.reduce((acc, curr) => acc + (15 + Math.round((curr.summary?.length || 0)/50)), 0);
             calculatedAvg = Math.round(total / consults.length);
         } else {
-             const { data: appts } = await supabase.from('appointments').select('duration_minutes').eq('doctor_id', user.id); // Corregido a doctor_id
+             const { data: appts } = await supabase.from('appointments').select('duration_minutes').eq('doctor_id', user.id);
              if (appts && appts.length > 0) {
                  const total = appts.reduce((acc, curr) => acc + (curr.duration_minutes || 0), 0);
                  calculatedAvg = Math.round(total / appts.length);
@@ -196,7 +156,6 @@ const DigitalCard: React.FC = () => {
   }, [profile]);
 
   const handleNewsClick = (newsItem: MedicalNews) => {
-    // Validación básica de seguridad frontend
     if (newsItem.url && newsItem.url.startsWith('http')) {
         window.open(newsItem.url, '_blank');
     } else {
@@ -229,8 +188,8 @@ const DigitalCard: React.FC = () => {
       
       <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">Hub Profesional <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full uppercase tracking-wider">Beta</span></h1>
-            <p className="text-slate-500 text-sm">Panel de control estratégico y networking.</p>
+            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">Hub Profesional <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full uppercase tracking-wider">v2.0</span></h1>
+            <p className="text-slate-500 text-sm">Panel de control estratégico y herramientas clínicas.</p>
         </div>
         <div className="flex gap-2">
             <button onClick={() => navigate('/consultation')} className="bg-white border border-slate-200 text-slate-600 px-4 py-2 rounded-xl text-sm font-bold shadow-sm hover:bg-slate-50 flex items-center gap-2 transition-all"><Stethoscope size={16}/> Nueva Consulta</button>
@@ -290,7 +249,11 @@ const DigitalCard: React.FC = () => {
         {/* COLUMNA DERECHA (OPERACIONES) */}
         <div className="lg:col-span-8 flex flex-col gap-6">
             
-            <ClinicalPearlCard />
+            {/* NUEVA ZONA: Herramientas Clínicas */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <InteractiveClinicalCase />
+                <MedicalCalculators />
+            </div>
 
             {/* KPIs & Accesos Rápidos (Bento Grid) */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
