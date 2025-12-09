@@ -2,6 +2,7 @@ import { supabase } from '../lib/supabase';
 import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO, format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
+// --- Interfaces (Tipado estricto para seguridad) ---
 export interface InactivePatient {
   id: string;
   name: string;
@@ -25,7 +26,7 @@ export interface WeeklyStats {
 
 export const AnalyticsService = {
 
-  // 1. PACIENTES INACTIVOS (Sin cambios)
+  // 1. PACIENTES INACTIVOS (Lógica original preservada)
   async getInactivePatients(monthsThreshold: number = 6): Promise<InactivePatient[]> {
     const { data: patients, error } = await supabase
       .from('patients')
@@ -39,6 +40,7 @@ export const AnalyticsService = {
     patients.forEach(patient => {
       let lastDate = new Date(patient.created_at);
       if (patient.consultations && patient.consultations.length > 0) {
+        // Obtenemos la fecha más reciente de consulta
         const dates = patient.consultations.map((c: any) => new Date(c.created_at).getTime());
         lastDate = new Date(Math.max(...dates));
       }
@@ -56,10 +58,11 @@ export const AnalyticsService = {
         });
       }
     });
+    // Retornamos los top 5 más antiguos
     return opportunities.sort((a, b) => b.daysSince - a.daysSince).slice(0, 5);
   },
 
-  // 2. TENDENCIAS (Sin cambios)
+  // 2. TENDENCIAS (Lógica de palabras clave preservada)
   async getDiagnosisTrends(): Promise<DiagnosisTrend[]> {
     const { data: consultations } = await supabase
       .from('consultations')
@@ -71,7 +74,8 @@ export const AnalyticsService = {
 
     const wordMap: Record<string, number> = {};
     let totalValidWords = 0;
-    const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'a', 'ante', 'con', 'en', 'por', 'para', 'y', 'o', 'que', 'se', 'su', 'sus', 'es', 'al', 'lo', 'no', 'si', 'paciente', 'refiere', 'presenta', 'acude', 'dolor', 'diagnostico', 'tratamiento', 'nota', 'clinica', 'soap'];
+    // Palabras vacías a ignorar en el análisis
+    const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'a', 'ante', 'con', 'en', 'por', 'para', 'y', 'o', 'que', 'se', 'su', 'sus', 'es', 'al', 'lo', 'no', 'si', 'paciente', 'refiere', 'presenta', 'acude', 'dolor', 'diagnostico', 'tratamiento', 'nota', 'clinica', 'soap', 'fecha', 'firma'];
 
     consultations.forEach(c => {
         if (!c.summary) return;
@@ -97,63 +101,66 @@ export const AnalyticsService = {
         .slice(0, 4);
   },
 
-  // 🔴 3. ACTIVIDAD SEMANAL (VERSIÓN BYPASS SQL - CLIENT SIDE)
-  // Esta versión NO usa RPC, usa SELECT normal que sabemos que funciona.
+  // 🔴 3. ACTIVIDAD SEMANAL (VERSIÓN CLIENT-SIDE BLINDADA)
+  // Esta versión soluciona el problema de la gráfica vacía.
   async getWeeklyActivity(): Promise<WeeklyStats> {
     try {
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) throw new Error("No auth");
+        if (!user) throw new Error("Usuario no autenticado");
 
         const today = new Date();
-        const start = startOfWeek(today, { weekStartsOn: 1 }); // Lunes 00:00
-        const end = endOfWeek(today, { weekStartsOn: 1 });     // Domingo 23:59
+        // Forzamos el inicio de semana al Lunes (weekStartsOn: 1)
+        const start = startOfWeek(today, { weekStartsOn: 1 }); 
+        const end = endOfWeek(today, { weekStartsOn: 1 });     
 
-        console.log("📊 Consultando rango:", start.toISOString(), "->", end.toISOString());
-
-        // CONSULTA DIRECTA (Infalible)
+        // Consultamos solo las fechas, muy rápido y ligero
         const { data, error } = await supabase
             .from('consultations')
-            .select('created_at') // Solo traemos la fecha, es muy ligero
+            .select('created_at') 
             .eq('doctor_id', user.id)
             .gte('created_at', start.toISOString())
             .lte('created_at', end.toISOString())
-            .neq('status', 'cancelled'); // Ignoramos canceladas
+            .neq('status', 'cancelled'); // Importante: ignorar canceladas
 
-        if (error) {
-            console.error("❌ Error Supabase Select:", error);
-            throw error;
+        if (error) throw error;
+
+        // Si no hay datos, retornamos estructura vacía para evitar errores visuales
+        if (!data || data.length === 0) {
+            return { 
+                labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], 
+                values: [0,0,0,0,0,0,0], 
+                rawCounts: [0,0,0,0,0,0,0], 
+                growth: 0 
+            };
         }
 
-        console.log("✅ Consultas encontradas:", data?.length || 0);
-
-        // PROCESAMIENTO LOCAL (Javascript)
-        // Generamos los 7 días de la semana
+        // Generamos el intervalo de días para asegurar que el eje X siempre tenga 7 días
         const daysInterval = eachDayOfInterval({ start, end });
         
-        // Mapeamos Lunes a Domingo
+        // Mapeo Inteligente: Cruzamos los días generados con las fechas de la DB
         const rawCounts = daysInterval.map(day => {
-            // Filtramos las consultas que coinciden con este día
-            return data?.filter(c => isSameDay(parseISO(c.created_at), day)).length || 0;
+            return data.filter(c => isSameDay(parseISO(c.created_at), day)).length;
         });
 
-        // Etiquetas L, M, M...
+        // Generamos etiquetas (L, M, M...)
         const labels = daysInterval.map(day => 
             format(day, 'eeeee', { locale: es }).toUpperCase()
         );
 
-        // Altura de barras (Normalización)
-        const maxVal = Math.max(...rawCounts, 1);
+        // Normalización visual (para que la gráfica se vea bonita aunque sean pocos datos)
+        const maxVal = Math.max(...rawCounts, 1); // Evitamos división por cero
         const values = rawCounts.map(c => Math.round((c / maxVal) * 100));
 
         return {
             labels,
             values,
             rawCounts,
-            growth: 0 
+            growth: 0 // Placeholder para futura implementación
         };
 
     } catch (e) {
-        console.error("Error crítico en AnalyticsService (Client-Side):", e);
+        console.error("⚠️ Error recuperando actividad:", e);
+        // Fallback seguro para no romper el Dashboard
         return { 
             labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], 
             values: [0,0,0,0,0,0,0], 
