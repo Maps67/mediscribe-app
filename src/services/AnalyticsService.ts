@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO, format } from 'date-fns';
+import { startOfWeek, endOfWeek, eachDayOfInterval, isSameDay, parseISO, format, subDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 
 // --- Interfaces ---
@@ -26,7 +26,7 @@ export interface WeeklyStats {
 
 export const AnalyticsService = {
 
-  // 1. PACIENTES INACTIVOS (Preservado)
+  // 1. PACIENTES INACTIVOS (Sin cambios)
   async getInactivePatients(monthsThreshold: number = 6): Promise<InactivePatient[]> {
     try {
       const { data: patients, error } = await supabase
@@ -60,12 +60,11 @@ export const AnalyticsService = {
       });
       return opportunities.sort((a, b) => b.daysSince - a.daysSince).slice(0, 5);
     } catch (e) {
-      console.error("Error en InactivePatients:", e);
       return [];
     }
   },
 
-  // 2. TENDENCIAS (Preservado)
+  // 2. TENDENCIAS (Sin cambios)
   async getDiagnosisTrends(): Promise<DiagnosisTrend[]> {
     try {
       const { data: consultations } = await supabase
@@ -78,7 +77,7 @@ export const AnalyticsService = {
 
       const wordMap: Record<string, number> = {};
       let totalValidWords = 0;
-      const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'a', 'ante', 'con', 'en', 'por', 'para', 'y', 'o', 'que', 'se', 'su', 'sus', 'es', 'al', 'lo', 'no', 'si', 'paciente', 'refiere', 'presenta', 'acude', 'dolor', 'diagnostico', 'tratamiento', 'nota', 'clinica', 'soap', 'fecha', 'firma', 'anos', 'edad', 'masculino', 'femenino'];
+      const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'a', 'ante', 'con', 'en', 'por', 'para', 'y', 'o', 'que', 'se', 'su', 'sus', 'es', 'al', 'lo', 'no', 'si', 'paciente', 'refiere', 'presenta', 'acude', 'dolor', 'diagnostico', 'tratamiento', 'nota', 'clinica', 'soap', 'fecha', 'firma'];
 
       consultations.forEach(c => {
           if (!c.summary) return;
@@ -107,55 +106,54 @@ export const AnalyticsService = {
     }
   },
 
-  // 3. ACTIVIDAD SEMANAL (HÍBRIDO: RPC + FALLBACK CLIENT-SIDE)
+  // 3. ACTIVIDAD SEMANAL (PLAN C: ESTRATEGIA FUERZA BRUTA FRONTEND)
   async getWeeklyActivity(): Promise<WeeklyStats> {
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No autenticado");
+      if (!user) throw new Error("No auth");
 
-      // --- INTENTO A: MÉTODO AVANZADO (RPC en Base de Datos) ---
-      // Ideal para precisión de zonas horarias y relleno de días vacíos
-      try {
-        const { data: rpcData, error: rpcError } = await supabase.rpc('get_weekly_stats', { 
-          timezone: 'America/Mexico_City' 
-        });
-
-        if (!rpcError && rpcData && rpcData.length > 0) {
-          console.log("✅ Usando datos precisos de RPC (Server-Side)");
-          return {
-            labels: rpcData.map((d: any) => d.label),
-            values: rpcData.map((d: any) => Number(d.value)),
-            rawCounts: rpcData.map((d: any) => Number(d.value)),
-            growth: 0
-          };
-        }
-        if (rpcError) console.warn("⚠️ RPC no disponible, cambiando a modo local...", rpcError.message);
-      } catch (innerError) {
-        console.warn("⚠️ Fallo conexión RPC, cambiando a modo local.");
-      }
-
-      // --- INTENTO B: RESPALDO MANUAL (Client-Side Gap Filling) ---
-      // Si el SQL falla, calculamos localmente usando el reloj del navegador
-      console.log("🔄 Ejecutando cálculo local (Fallback Mode)");
-      
       const today = new Date();
-      const start = startOfWeek(today, { weekStartsOn: 1 }); 
-      const end = endOfWeek(today, { weekStartsOn: 1 });     
+      
+      // Definimos el rango visual (Lunes a Domingo de esta semana)
+      const startVisual = startOfWeek(today, { weekStartsOn: 1 });
+      const endVisual = endOfWeek(today, { weekStartsOn: 1 });
 
-      const { data: localData } = await supabase
+      // Para la consulta a DB, pedimos datos desde hace 10 días para asegurar que no perdemos nada por timezone
+      const queryStartDate = subDays(today, 10); 
+
+      console.log("🔍 Buscando consultas desde:", queryStartDate.toISOString());
+
+      const { data, error } = await supabase
           .from('consultations')
-          .select('created_at') 
+          .select('created_at, status')
           .eq('doctor_id', user.id)
-          .gte('created_at', start.toISOString())
-          .lte('created_at', end.toISOString())
+          .gte('created_at', queryStartDate.toISOString()) // Traemos de más para filtrar localmente
           .neq('status', 'cancelled');
 
-      const safeData = localData || [];
-      const daysInterval = eachDayOfInterval({ start, end });
+      if (error) throw error;
+
+      console.log("📦 Datos crudos recibidos de Supabase:", data);
+
+      if (!data || data.length === 0) {
+          console.warn("⚠️ No se encontraron consultas en los últimos 10 días.");
+          return { 
+              labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], 
+              values: [0,0,0,0,0,0,0], 
+              rawCounts: [0,0,0,0,0,0,0], 
+              growth: 0 
+          };
+      }
+
+      // Procesamiento Local (Aquí es donde la magia ocurre en el navegador)
+      const daysInterval = eachDayOfInterval({ start: startVisual, end: endVisual });
       
       const rawCounts = daysInterval.map(day => {
-          return safeData.filter(c => isSameDay(parseISO(c.created_at), day)).length;
+          // Comparamos usando la hora local del navegador
+          const count = data.filter(c => isSameDay(parseISO(c.created_at), day)).length;
+          return count;
       });
+
+      console.log("📊 Conteos por día procesados:", rawCounts);
 
       const labels = daysInterval.map(day => 
           format(day, 'eeeee', { locale: es }).toUpperCase()
@@ -172,8 +170,7 @@ export const AnalyticsService = {
       };
 
     } catch (e) {
-      console.error("❌ Error Crítico Analytics:", e);
-      // Fallback final: Gráfica vacía (No rompe la UI)
+      console.error("❌ Error Analytics:", e);
       return { 
           labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], 
           values: [0,0,0,0,0,0,0], 
