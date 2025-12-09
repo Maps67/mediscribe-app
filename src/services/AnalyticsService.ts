@@ -1,8 +1,9 @@
 import { supabase } from '../lib/supabase';
-import { eachDayOfInterval, isSameDay, parseISO, format, subDays, startOfDay, endOfDay } from 'date-fns';
+// Importamos solo lo necesario para formateo visual, la lógica será nativa
+import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
 
-// --- Interfaces (Tipado estricto) ---
+// --- Interfaces Originales ---
 export interface InactivePatient {
   id: string;
   name: string;
@@ -26,154 +27,155 @@ export interface WeeklyStats {
 
 export const AnalyticsService = {
 
-  // 1. PACIENTES INACTIVOS (Lógica Original Restaurada)
+  // =================================================================
+  // 1. PACIENTES INACTIVOS (CÓDIGO ORIGINAL RESTAURADO)
+  // =================================================================
   async getInactivePatients(monthsThreshold: number = 6): Promise<InactivePatient[]> {
-    try {
-      const { data: patients, error } = await supabase
-        .from('patients')
-        .select('id, name, phone, created_at, consultations(created_at)');
+    const { data: patients, error } = await supabase
+      .from('patients')
+      .select('id, name, phone, created_at, consultations(created_at)');
 
-      if (error || !patients) return [];
+    if (error || !patients) return [];
 
-      const now = new Date();
-      const opportunities: InactivePatient[] = [];
+    const now = new Date();
+    const opportunities: InactivePatient[] = [];
 
-      patients.forEach(patient => {
-        let lastDate = new Date(patient.created_at);
-        if (patient.consultations && patient.consultations.length > 0) {
-          const dates = patient.consultations.map((c: any) => new Date(c.created_at).getTime());
-          lastDate = new Date(Math.max(...dates));
-        }
-        const diffTime = Math.abs(now.getTime() - lastDate.getTime());
-        const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
-        const diffMonths = diffDays / 30;
+    patients.forEach(patient => {
+      let lastDate = new Date(patient.created_at);
+      if (patient.consultations && patient.consultations.length > 0) {
+        const dates = patient.consultations.map((c: any) => new Date(c.created_at).getTime());
+        lastDate = new Date(Math.max(...dates));
+      }
+      const diffTime = Math.abs(now.getTime() - lastDate.getTime());
+      const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+      const diffMonths = diffDays / 30;
 
-        if (diffMonths >= monthsThreshold) {
-          opportunities.push({
-            id: patient.id,
-            name: patient.name,
-            phone: patient.phone,
-            lastVisit: lastDate.toLocaleDateString(),
-            daysSince: diffDays
-          });
-        }
-      });
-      return opportunities.sort((a, b) => b.daysSince - a.daysSince).slice(0, 5);
-    } catch (e) {
-      console.error("Error en InactivePatients:", e);
-      return [];
-    }
+      if (diffMonths >= monthsThreshold) {
+        opportunities.push({
+          id: patient.id,
+          name: patient.name,
+          phone: patient.phone,
+          lastVisit: lastDate.toLocaleDateString(),
+          daysSince: diffDays
+        });
+      }
+    });
+    return opportunities.sort((a, b) => b.daysSince - a.daysSince).slice(0, 5);
   },
 
-  // 2. TENDENCIAS (Lógica Original Restaurada)
+  // =================================================================
+  // 2. TENDENCIAS (CÓDIGO ORIGINAL RESTAURADO)
+  // =================================================================
   async getDiagnosisTrends(): Promise<DiagnosisTrend[]> {
-    try {
-      const { data: consultations } = await supabase
-        .from('consultations')
-        .select('summary')
-        .limit(50)
-        .order('created_at', { ascending: false });
+    const { data: consultations } = await supabase
+      .from('consultations')
+      .select('summary')
+      .limit(50)
+      .order('created_at', { ascending: false });
 
-      if (!consultations) return [];
+    if (!consultations) return [];
 
-      const wordMap: Record<string, number> = {};
-      let totalValidWords = 0;
-      const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'a', 'ante', 'con', 'en', 'por', 'para', 'y', 'o', 'que', 'se', 'su', 'sus', 'es', 'al', 'lo', 'no', 'si', 'paciente', 'refiere', 'presenta', 'acude', 'dolor', 'diagnostico', 'tratamiento', 'nota', 'clinica', 'soap', 'fecha', 'firma', 'anos', 'edad'];
+    const wordMap: Record<string, number> = {};
+    let totalValidWords = 0;
+    const stopWords = ['el', 'la', 'los', 'las', 'un', 'una', 'de', 'del', 'a', 'ante', 'con', 'en', 'por', 'para', 'y', 'o', 'que', 'se', 'su', 'sus', 'es', 'al', 'lo', 'no', 'si', 'paciente', 'refiere', 'presenta', 'acude', 'dolor', 'diagnostico', 'tratamiento', 'nota', 'clinica', 'soap'];
 
-      consultations.forEach(c => {
-          if (!c.summary) return;
-          const words = c.summary.toLowerCase()
-              .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")
-              .split(/\s+/);
+    consultations.forEach(c => {
+        if (!c.summary) return;
+        const words = c.summary.toLowerCase()
+            .replace(/[.,/#!$%^&*;:{}=\-_`~()]/g, "")
+            .split(/\s+/);
 
-          words.forEach(word => {
-              if (word.length > 3 && !stopWords.includes(word)) {
-                  wordMap[word] = (wordMap[word] || 0) + 1;
-                  totalValidWords++;
-              }
-          });
-      });
+        words.forEach(word => {
+            if (word.length > 3 && !stopWords.includes(word)) {
+                wordMap[word] = (wordMap[word] || 0) + 1;
+                totalValidWords++;
+            }
+        });
+    });
 
-      return Object.keys(wordMap)
-          .map(key => ({
-              topic: key.charAt(0).toUpperCase() + key.slice(1),
-              count: wordMap[key],
-              percentage: Math.round((wordMap[key] / totalValidWords) * 100) * 5
-          }))
-          .sort((a, b) => b.count - a.count)
-          .slice(0, 4);
-    } catch (e) {
-      return [];
-    }
+    return Object.keys(wordMap)
+        .map(key => ({
+            topic: key.charAt(0).toUpperCase() + key.slice(1),
+            count: wordMap[key],
+            percentage: Math.round((wordMap[key] / totalValidWords) * 100) * 5
+        }))
+        .sort((a, b) => b.count - a.count)
+        .slice(0, 4);
   },
 
-  // 3. ACTIVIDAD INTELIGENTE (Nueva Lógica Smart Range)
-  // Detecta automáticamente dónde están tus datos (Feb o Dic 2025) y ajusta la gráfica.
+  // =================================================================
+  // 3. ACTIVIDAD SEMANAL (PLAN A: LÓGICA NATIVA DE TEXTO + ANCLAJE)
+  // =================================================================
   async getWeeklyActivity(): Promise<WeeklyStats> {
     try {
-      const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No auth");
+        const { data: { user } } = await supabase.auth.getUser();
+        if (!user) return emptyStats();
 
-      // Pedimos las últimas 100 consultas para encontrar "dónde está la acción"
-      const { data, error } = await supabase
-          .from('consultations')
-          .select('created_at, status')
-          .eq('doctor_id', user.id)
-          .neq('status', 'cancelled')
-          .order('created_at', { ascending: false })
-          .limit(100);
+        // 1. Traemos las últimas 100 consultas (Datos Crudos)
+        // Pedimos muchas para encontrar tus datos de Diciembre 2025
+        const { data, error } = await supabase
+            .from('consultations')
+            .select('created_at')
+            .eq('doctor_id', user.id)
+            .neq('status', 'cancelled')
+            .order('created_at', { ascending: false })
+            .limit(100);
 
-      if (error) throw error;
+        if (error || !data || data.length === 0) return emptyStats();
 
-      // Si no hay datos en absoluto
-      if (!data || data.length === 0) {
-          return { 
-              labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], 
-              values: [0,0,0,0,0,0,0], 
-              rawCounts: [0,0,0,0,0,0,0], 
-              growth: 0 
-          };
-      }
+        // 2. DEFINIR EL "HOY" DE LA GRÁFICA
+        // En lugar de usar la fecha de la computadora, usamos la fecha del ÚLTIMO DATO encontrado.
+        // Si tu último paciente fue el 9 de Dic 2025, la gráfica terminará el 9 de Dic 2025.
+        const anchorDate = new Date(data[0].created_at); // Fecha del registro más reciente
 
-      // FECHA ANCLA: Usamos la fecha de la consulta más reciente encontrada
-      // Esto soluciona el problema de "Diciembre 2025" vs "Febrero 2025"
-      const lastActivityDate = new Date(data[0].created_at);
-      
-      // Definimos la semana visual basada en esa fecha ancla
-      const end = endOfDay(lastActivityDate);
-      const start = startOfDay(subDays(lastActivityDate, 6));
+        const counts = [0, 0, 0, 0, 0, 0, 0];
+        const labels = [];
 
-      // Generamos el intervalo de 7 días
-      const daysInterval = eachDayOfInterval({ start, end });
-      
-      // Mapeamos los datos sobre el intervalo
-      const rawCounts = daysInterval.map(day => {
-          return data.filter(c => isSameDay(parseISO(c.created_at), day)).length;
-      });
+        // 3. Loop de 7 días hacia atrás desde la fecha ancla
+        for (let i = 6; i >= 0; i--) {
+            const d = new Date(anchorDate);
+            d.setDate(anchorDate.getDate() - i);
+            
+            // Etiqueta visual: "LUN", "MAR"
+            const dayName = format(d, 'eeeee', { locale: es }).toUpperCase();
+            labels.push(dayName);
 
-      const labels = daysInterval.map(day => 
-          format(day, 'eeeee', { locale: es }).toUpperCase()
-      );
+            // CLAVE DEL PLAN A: Convertimos a string "YYYY-MM-DD" local
+            // Esto evita cualquier error de hora o zona horaria. Coincidencia exacta.
+            // Usamos 'sv' (Suecia) porque da formato ISO yyyy-mm-dd estándar
+            const targetDateString = d.toLocaleDateString('sv'); 
 
-      const maxVal = Math.max(...rawCounts, 1);
-      const values = rawCounts.map(c => Math.round((c / maxVal) * 100));
+            // Filtramos contando coincidencias de texto
+            const count = data.filter(item => {
+                const itemDateString = new Date(item.created_at).toLocaleDateString('sv');
+                return itemDateString === targetDateString;
+            }).length;
 
-      return {
-          labels,
-          values,
-          rawCounts,
-          growth: 0 
-      };
+            counts[6 - i] = count; 
+        }
+
+        // 4. Calcular Alturas
+        const maxVal = Math.max(...counts, 1);
+        const values = counts.map(c => Math.round((c / maxVal) * 100));
+
+        return {
+            labels,
+            values,
+            rawCounts: counts,
+            growth: 0 
+        };
 
     } catch (e) {
-      console.error("❌ Error Smart Analytics:", e);
-      // Fallback seguro
-      return { 
-          labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'], 
-          values: [0,0,0,0,0,0,0], 
-          rawCounts: [0,0,0,0,0,0,0], 
-          growth: 0 
-      };
+        console.error("Error en WeeklyActivity:", e);
+        return emptyStats();
     }
   }
 };
+
+// Helper seguro para retornar vacío sin romper la app
+const emptyStats = (): WeeklyStats => ({
+  labels: ['L', 'M', 'M', 'J', 'V', 'S', 'D'],
+  values: [0,0,0,0,0,0,0],
+  rawCounts: [0,0,0,0,0,0,0], 
+  growth: 0 
+});
