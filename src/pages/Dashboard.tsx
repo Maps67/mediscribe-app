@@ -1,536 +1,545 @@
-import React, { useState, useEffect } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { 
-  User, 
-  Calendar, 
-  Phone, 
-  MapPin, 
-  Activity, 
-  AlertTriangle, 
-  Save, 
-  X, 
-  Shield, 
-  HeartPulse, 
-  Droplet, 
-  FileText, 
-  Mail, 
-  Hash, 
-  Smartphone 
+  Calendar, MapPin, ChevronRight, Sun, Moon, Cloud, 
+  Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
+  Stethoscope, UserCircle, AlertTriangle, FileText,
+  Clock, UserPlus, Activity, Search,
+  CalendarX, Repeat, Ban, PlayCircle, PenLine, Calculator, Sparkles,
+  BarChart3, FileSignature, Microscope, StickyNote, FileCheck, Printer,
+  Sunrise, Sunset, MoonStar
 } from 'lucide-react';
+import { supabase } from '../lib/supabase';
+import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays, isPast } from 'date-fns';
+import { es } from 'date-fns/locale';
+import { getTimeOfDayGreeting } from '../utils/greetingUtils';
 import { toast } from 'sonner';
 
-// --- TIPOS DE DATOS (ESTRUCTURA ORIGINAL COMPLETA) ---
-export interface WizardData {
-  // Identificación
-  name: string;
-  dob: string;
-  age: string;
-  gender: string;
-  curp: string;         
-  bloodType: string;    
-  maritalStatus: string;
-  
-  // Contacto
-  phone: string;
-  email: string;
-  address: string;
-  occupation: string;
-  emergencyContact: string; 
-  
-  // Clínico Crítico
-  allergies: string; 
-  nonCriticalAllergies: string;
-  background: string; 
-  notes: string; 
-  
-  // Estructura interna
-  pathological?: any;
-  nonPathological?: any;
-  family?: any;
-  obgyn?: any;
-  insurance?: string;
-  rfc?: string;
-  invoice?: boolean;
-  patientType?: string;
-  referral?: string;
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
+import { AssistantService } from '../services/AssistantService';
+import { AgentResponse } from '../services/GeminiAgent';
+import { UploadMedico } from '../components/UploadMedico';
+import { DoctorFileGallery } from '../components/DoctorFileGallery';
+
+import { QuickNotes } from '../components/QuickNotes';
+import { MedicalCalculators } from '../components/MedicalCalculators';
+import { QuickDocModal } from '../components/QuickDocModal';
+
+import { ImpactMetrics } from '../components/ImpactMetrics';
+
+// --- Interfaces ---
+interface DashboardAppointment {
+  id: string; title: string; start_time: string; status: string;
+  patient?: { id: string; name: string; history?: string; };
+  criticalAlert?: string | null;
 }
 
-interface PatientWizardProps {
-  initialData?: Partial<WizardData>;
-  onClose: () => void;
-  onSave: (data: WizardData) => Promise<void>;
+interface PendingItem {
+   id: string; type: 'note' | 'lab' | 'appt'; title: string; subtitle: string; date: string;
 }
 
-export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClose, onSave }) => {
-  const [isSaving, setIsSaving] = useState(false);
-  const [errors, setErrors] = useState<{ [key: string]: boolean }>({});
+// --- Assistant Modal ---
+const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void }) => {
+  const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
+  const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'confirming'>('idle');
+  const [aiResponse, setAiResponse] = useState<AgentResponse | null>(null);
+  const navigate = useNavigate(); 
   
-  // Estado para pestañas
-  const [activeTab, setActiveTab] = useState<'general' | 'background' | 'admin'>('general');
+  useEffect(() => { 
+      if (isOpen) {
+          resetTranscript(); 
+          setStatus('listening'); 
+          startListening();
+          setAiResponse(null);
+      } else {
+          stopListening();
+      }
+  }, [isOpen]);
 
-  const [formData, setFormData] = useState<WizardData>({
-    name: '', 
-    dob: '', 
-    age: '', 
-    gender: 'Masculino', 
-    curp: '', 
-    bloodType: '', 
-    maritalStatus: 'Soltero/a',
-    phone: '', 
-    email: '', 
-    address: '', 
-    occupation: '', 
-    emergencyContact: '',
-    allergies: '', 
-    nonCriticalAllergies: '', 
-    background: '', 
-    notes: '',
-    pathological: {}, 
-    nonPathological: {}, 
-    family: {}, 
-    obgyn: {},
-    insurance: '', 
-    rfc: '', 
-    invoice: false, 
-    patientType: 'Nuevo', 
-    referral: ''
-  });
-
-  // Carga de datos iniciales
-  useEffect(() => {
-    if (initialData) {
-      setFormData(prev => ({ ...prev, ...initialData }));
-    }
-  }, [initialData]);
-
-  // Cálculo Automático de Edad
-  useEffect(() => {
-    if (formData.dob) {
-      const birthDate = new Date(formData.dob);
-      const today = new Date();
-      let age = today.getFullYear() - birthDate.getFullYear();
-      const m = today.getMonth() - birthDate.getMonth();
-      if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) age--;
-      setFormData(prev => ({ ...prev, age: age.toString() }));
-    }
-  }, [formData.dob]);
-
-  const handleChange = (field: keyof WizardData, value: any) => {
-    if (field === 'curp' || field === 'rfc') value = value.toUpperCase();
-    
-    setFormData(prev => ({ ...prev, [field]: value }));
-    
-    if (errors[field]) setErrors(prev => ({ ...prev, [field]: false }));
-  };
-
-  const validateAndSave = async () => {
-    const newErrors: { [key: string]: boolean } = {};
-    
-    if (!formData.name.trim()) newErrors.name = true;
-    if (!formData.gender) newErrors.gender = true;
-
-    if (Object.keys(newErrors).length > 0) {
-      setErrors(newErrors);
-      toast.error("Complete los campos obligatorios marcados en rojo.");
-      setActiveTab('general');
-      return;
-    }
-
-    setIsSaving(true);
-    try {
-      await onSave(formData);
-    } catch (e) {
-      console.error(e);
-      setIsSaving(false);
+  const handleExecute = async () => {
+    if (!aiResponse) return;
+    switch (aiResponse.intent) {
+      case 'CREATE_APPOINTMENT':
+        try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) throw new Error("No autenticado");
+          const { error } = await supabase.from('appointments').insert({
+            doctor_id: user.id, title: aiResponse.data.patientName || "Cita Agendada",
+            start_time: aiResponse.data.start_time, duration_minutes: aiResponse.data.duration_minutes || 30,
+            status: 'scheduled', notes: aiResponse.data.notes || "Agendado por Voz", patient_id: null 
+          });
+          if (error) throw error;
+          toast.success("✅ Cita agendada"); onActionComplete(); onClose();
+        } catch (e: any) { toast.error("Error: " + e.message); }
+        break;
+      case 'NAVIGATION':
+        const dest = aiResponse.data.destination?.toLowerCase();
+        onClose();
+        if (dest.includes('agenda')) navigate('/agenda');
+        else if (dest.includes('paciente')) navigate('/patients');
+        else if (dest.includes('config')) navigate('/settings');
+        else navigate('/');
+        toast.success(`Navegando a: ${dest}`);
+        break;
+      case 'MEDICAL_QUERY': toast.info("Consulta médica resuelta"); break;
+      default: toast.info("No entendí la acción"); setStatus('idle'); resetTranscript();
     }
   };
-
-  const tabs = [
-    { id: 'general', label: 'Ficha General', icon: User },
-    { id: 'background', label: 'Antecedentes', icon: Activity },
-    { id: 'admin', label: 'Administrativo', icon: Shield },
-  ];
-
+  
+  if (!isOpen) return null;
   return (
-    <div className="flex flex-col h-full bg-white dark:bg-slate-950 font-sans">
-      
-      {/* HEADER */}
-      <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-8 py-5 flex justify-between items-center shadow-sm z-20">
-        <div>
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
-            <div className="p-2 bg-teal-50 text-teal-600 rounded-lg">
-                <User size={20} />
-            </div>
-            {initialData ? 'Expediente Clínico' : 'Alta de Paciente'}
-          </h2>
-          <p className="text-xs text-slate-400 mt-1 ml-12 font-medium tracking-wide">
-            Cumplimiento NOM-004-SSA3-2012
-          </p>
+    <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden border border-white/20 ring-1 ring-black/5">
+        <div className="bg-gradient-to-br from-indigo-600 to-purple-700 p-8 text-white text-center relative overflow-hidden">
+          <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+          <Bot size={48} className="mx-auto mb-3 relative z-10 drop-shadow-lg" />
+          <h3 className="text-2xl font-black relative z-10 tracking-tight">Copiloto Clínico</h3>
+          <p className="text-indigo-100 text-sm relative z-10 font-medium">Escuchando órdenes médicas...</p>
         </div>
-        <button onClick={onClose} className="p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-full text-slate-400 hover:text-red-500 transition-colors">
-          <X size={24} />
-        </button>
-      </div>
-
-      {/* TABS DE NAVEGACIÓN */}
-      <div className="flex border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-8 sticky top-0 z-10">
-        {tabs.map(tab => (
-          <button
-            key={tab.id}
-            onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-all ${
-              activeTab === tab.id 
-                ? 'border-teal-500 text-teal-600' 
-                : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
-            }`}
-          >
-            <tab.icon size={16} className={activeTab === tab.id ? 'animate-pulse' : ''} /> {tab.label}
-          </button>
-        ))}
-      </div>
-
-      {/* BODY (BENTO GRID LAYOUT) */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-slate-950 custom-scrollbar">
-        <div className="max-w-5xl mx-auto space-y-6">
-
-          {/* --- PESTAÑA 1: GENERALES --- */}
-          {activeTab === 'general' && (
-            <div className="grid grid-cols-12 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                
-                {/* TARJETA IDENTIDAD */}
-                <div className="col-span-12 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm">
-                    <h4 className="text-xs font-bold text-indigo-500 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <FileText size={14}/> Identificación Principal
-                    </h4>
-                    
-                    <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
-                        {/* Nombre */}
-                        <div className="md:col-span-8">
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                                Nombre Completo <span className="text-red-500">*</span>
-                            </label>
-                            <div className="relative group">
-                                <input 
-                                    className={`w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-lg font-semibold pl-10 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none ${errors.name ? 'border-red-500 ring-red-100' : ''}`}
-                                    value={formData.name} 
-                                    onChange={(e) => handleChange('name', e.target.value)} 
-                                    placeholder="Apellidos y Nombres" 
-                                    autoFocus 
-                                />
-                                <User size={18} className="absolute left-3 top-4 text-slate-400 group-focus-within:text-indigo-500 transition-colors"/>
-                            </div>
-                        </div>
-
-                        {/* Género */}
-                        <div className="md:col-span-4">
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                                Género <span className="text-red-500">*</span>
-                            </label>
-                            <select 
-                                className="w-full px-4 py-3.5 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none"
-                                value={formData.gender} 
-                                onChange={(e) => handleChange('gender', e.target.value)}
-                            >
-                                <option value="Masculino">Masculino</option>
-                                <option value="Femenino">Femenino</option>
-                            </select>
-                        </div>
-
-                        {/* Fecha Nacimiento */}
-                        <div className="md:col-span-4">
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                                Fecha Nacimiento
-                            </label>
-                            <div className="relative">
-                                <input 
-                                    type="date" 
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-semibold pl-10 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none" 
-                                    value={formData.dob} 
-                                    onChange={(e) => handleChange('dob', e.target.value)} 
-                                />
-                                <Calendar size={18} className="absolute left-3 top-3 text-slate-400"/>
-                            </div>
-                        </div>
-
-                        {/* Edad */}
-                        <div className="md:col-span-2">
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                                Edad
-                            </label>
-                            <div className="w-full px-4 py-3 bg-slate-100 dark:bg-slate-800 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-600 dark:text-slate-400 text-center font-bold text-sm">
-                                {formData.age || '--'}
-                            </div>
-                        </div>
-
-                        {/* CURP */}
-                        <div className="md:col-span-6">
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">
-                                CURP
-                            </label>
-                            <div className="relative">
-                                <input 
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-mono uppercase tracking-wide pl-10 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none" 
-                                    value={formData.curp} 
-                                    onChange={(e) => handleChange('curp', e.target.value)} 
-                                    maxLength={18} 
-                                    placeholder="XXXX999999XXXXXX99"
-                                />
-                                <Hash size={16} className="absolute left-3 top-3.5 text-slate-400"/>
-                            </div>
-                        </div>
-                    </div>
-                </div>
-
-                {/* TARJETA CONTACTO */}
-                <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm h-full">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <Smartphone size={14}/> Datos de Contacto
-                    </h4>
-                    <div className="space-y-5">
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Teléfono Móvil</label>
-                            <div className="relative">
-                                <input 
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-semibold pl-10 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none" 
-                                    value={formData.phone} 
-                                    onChange={(e) => handleChange('phone', e.target.value)} 
-                                    placeholder="(000) 000-0000" 
-                                    type="tel" 
-                                />
-                                <Phone size={16} className="absolute left-3 top-3.5 text-slate-400"/>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Correo Electrónico</label>
-                            <div className="relative">
-                                <input 
-                                    className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-semibold pl-10 focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none" 
-                                    value={formData.email} 
-                                    onChange={(e) => handleChange('email', e.target.value)} 
-                                    placeholder="paciente@email.com" 
-                                    type="email" 
-                                />
-                                <Mail size={16} className="absolute left-3 top-3.5 text-slate-400"/>
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Estado Civil</label>
-                            <select 
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none" 
-                                value={formData.maritalStatus} 
-                                onChange={(e) => handleChange('maritalStatus', e.target.value)}
-                            >
-                                <option>Soltero/a</option>
-                                <option>Casado/a</option>
-                                <option>Divorciado/a</option>
-                                <option>Viudo/a</option>
-                                <option>Unión Libre</option>
-                            </select>
-                        </div>
-                    </div>
-                </div>
-
-                {/* TARJETA DOMICILIO */}
-                <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm h-full">
-                    <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <MapPin size={14}/> Domicilio (INE)
-                    </h4>
-                    <div className="space-y-5 h-full">
-                        <div className="h-full">
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Dirección Completa</label>
-                            <textarea 
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none resize-none h-32 leading-relaxed" 
-                                value={formData.address} 
-                                onChange={(e) => handleChange('address', e.target.value)} 
-                                placeholder="Calle, Número Exterior, Interior, Colonia, C.P., Municipio, Estado."
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Ocupación</label>
-                            <input 
-                                className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none" 
-                                value={formData.occupation} 
-                                onChange={(e) => handleChange('occupation', e.target.value)} 
-                                placeholder="Ej. Arquitecto, Estudiante..." 
-                            />
-                        </div>
-                    </div>
-                </div>
-
+        <div className="p-8">
+          {status !== 'confirming' && (
+            <div className="flex flex-col items-center gap-8">
+               <div className={`text-center text-xl font-medium leading-relaxed ${transcript ? 'text-slate-800 dark:text-white' : 'text-slate-400'}`}>
+                 "{transcript || 'Diga un comando...'}"
+               </div>
+               {status === 'processing' ? (
+                 <div className="flex items-center gap-2 text-indigo-600 font-bold animate-pulse">
+                   <Loader2 className="animate-spin" /> Procesando...
+                 </div>
+               ) : (
+                 <button 
+                   onClick={status === 'listening' ? () => {stopListening(); setStatus('processing'); setTimeout(() => handleExecute(), 1500);} : () => {startListening(); setStatus('listening');}} 
+                   className={`w-20 h-20 rounded-full flex items-center justify-center shadow-2xl transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse ring-8 ring-red-100' : 'bg-slate-900 text-white hover:bg-black hover:scale-105'}`}
+                 >
+                   {status === 'listening' ? <Square size={28} fill="currentColor"/> : <Mic size={28} />}
+                 </button>
+               )}
             </div>
           )}
-
-          {/* --- PESTAÑA 2: ANTECEDENTES --- */}
-          {activeTab === 'background' && (
-            <div className="grid grid-cols-12 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                
-                {/* ALERTA ALERGIAS */}
-                <div className="col-span-12 bg-red-50 dark:bg-red-900/10 p-6 rounded-2xl border border-red-200 dark:border-red-900/30">
-                    <div className="flex justify-between items-start mb-4">
-                        <label className="block text-[11px] font-bold text-red-700 dark:text-red-400 uppercase tracking-widest mb-1.5 ml-1 flex items-center gap-2">
-                            <AlertTriangle size={16}/> Alergias Críticas
-                        </label>
-                        <span className="text-[10px] font-bold bg-red-100 text-red-600 px-2 py-1 rounded uppercase">Obligatorio</span>
-                    </div>
-                    <textarea 
-                        className={`w-full px-4 py-3 bg-white border border-red-200 rounded-xl text-slate-700 text-sm font-medium focus:ring-2 focus:ring-red-200 focus:border-red-500 outline-none resize-none h-24 ${errors.allergies ? 'border-red-500' : ''}`}
-                        value={formData.allergies}
-                        onChange={(e) => handleChange('allergies', e.target.value)}
-                        placeholder="¡IMPORTANTE! Escriba 'NEGADAS' si no tiene alergias conocidas."
-                        rows={2}
-                    />
-                </div>
-
-                {/* TIPO DE SANGRE */}
-                <div className="col-span-12 md:col-span-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-4 ml-1 flex items-center gap-2">
-                        <Droplet size={14} className="text-red-500"/> Tipo de Sangre
-                    </label>
-                    <div className="grid grid-cols-3 gap-2">
-                        {['O', 'A', 'B', 'AB'].map(type => (
-                            <button 
-                                key={type} 
-                                onClick={() => handleChange('bloodType', type + (formData.bloodType.includes('-') ? '-' : '+'))}
-                                className={`py-2 rounded-lg text-sm font-bold border transition-all ${formData.bloodType.includes(type) ? 'bg-slate-800 text-white border-slate-800' : 'bg-white border-slate-200 hover:border-slate-400 text-slate-600'}`}
-                            >{type}</button>
-                        ))}
-                    </div>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                         <button onClick={() => handleChange('bloodType', formData.bloodType.replace('-', '+').replace('++','+'))} className={`py-1 text-xs font-bold rounded ${formData.bloodType.includes('+') ? 'bg-red-100 text-red-700' : 'bg-slate-50 text-slate-400'}`}>RH +</button>
-                         <button onClick={() => handleChange('bloodType', formData.bloodType.replace('+', '-').replace('--','-'))} className={`py-1 text-xs font-bold rounded ${formData.bloodType.includes('-') ? 'bg-red-100 text-red-700' : 'bg-slate-50 text-slate-400'}`}>RH -</button>
-                    </div>
-                </div>
-
-                {/* APP */}
-                <div className="col-span-12 md:col-span-8 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 ml-1">Antecedentes Personales Patológicos (APP)</label>
-                    <textarea 
-                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none resize-none h-40" 
-                        value={formData.background} 
-                        onChange={(e) => handleChange('background', e.target.value)} 
-                        placeholder="Cirugías, Crónicos (Diabetes, HTA), Hospitalizaciones..." 
-                    />
-                </div>
-
-                {/* AHF */}
-                <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 ml-1">Heredofamiliares (AHF)</label>
-                    <textarea 
-                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none resize-none h-32" 
-                        value={typeof formData.family === 'string' ? formData.family : JSON.stringify(formData.family)} 
-                        onChange={(e) => handleChange('family', e.target.value)} 
-                        placeholder="Padres/Abuelos con Cáncer, Diabetes, Cardiopatías..." 
-                    />
-                </div>
-
-                {/* APNP */}
-                <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 ml-1">No Patológicos (APNP)</label>
-                    <textarea 
-                        className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-medium focus:ring-2 focus:ring-teal-500/20 focus:border-teal-500 focus:bg-white transition-all outline-none resize-none h-32" 
-                        value={typeof formData.nonPathological === 'string' ? formData.nonPathological : JSON.stringify(formData.nonPathological)} 
-                        onChange={(e) => handleChange('nonPathological', e.target.value)} 
-                        placeholder="Tabaquismo, Alcoholismo, Deportes, Alimentación..." 
-                    />
-                </div>
-
+          {status === 'confirming' && aiResponse && (
+            <div className="animate-in slide-in-from-bottom-4 fade-in">
+              <div className="bg-indigo-50 dark:bg-indigo-900/20 rounded-2xl p-5 border border-indigo-100 dark:border-indigo-800 mb-6">
+                <h4 className="font-bold text-slate-800 dark:text-white text-lg">Acción Detectada</h4>
+                <p className="text-slate-600 dark:text-slate-300 text-sm mt-1">{aiResponse.message}</p>
+              </div>
+              <div className="flex gap-3">
+                <button onClick={() => { setStatus('idle'); resetTranscript(); }} className="flex-1 py-3.5 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">Cancelar</button>
+                <button onClick={handleExecute} className="flex-1 py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 active:scale-95 flex items-center justify-center gap-2">Ejecutar</button>
+              </div>
             </div>
           )}
-
-          {/* --- PESTAÑA 3: ADMINISTRATIVO --- */}
-          {activeTab === 'admin' && (
-            <div className="grid grid-cols-12 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
-                
-                {/* SEGURO */}
-                <div className="col-span-12 bg-indigo-50 dark:bg-indigo-900/10 p-6 rounded-2xl border border-indigo-100 dark:border-indigo-800">
-                    <h4 className="text-xs font-bold text-indigo-600 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <Shield size={14}/> Seguro & Facturación
-                    </h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Aseguradora</label>
-                            <input 
-                                className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl text-slate-700 text-sm font-semibold focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" 
-                                value={formData.insurance} 
-                                onChange={(e) => handleChange('insurance', e.target.value)} 
-                                placeholder="Nombre de la compañía / Poliza" 
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">RFC</label>
-                            <input 
-                                className="w-full px-4 py-3 bg-white border border-indigo-200 rounded-xl text-slate-700 text-sm font-mono uppercase focus:ring-2 focus:ring-indigo-500/20 focus:border-indigo-500 outline-none" 
-                                value={formData.rfc} 
-                                onChange={(e) => handleChange('rfc', e.target.value)} 
-                                placeholder="RFC con Homoclave" 
-                            />
-                        </div>
-                    </div>
-                </div>
-
-                {/* ORIGEN */}
-                <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Origen del Paciente</label>
-                    <div className="grid grid-cols-2 gap-4 mb-4">
-                        <select 
-                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 text-sm font-semibold outline-none col-span-2" 
-                            value={formData.patientType} 
-                            onChange={(e) => handleChange('patientType', e.target.value)}
-                        >
-                            <option>Nuevo</option>
-                            <option>Subsecuente</option>
-                            <option>Referido</option>
-                            <option>VIP</option>
-                        </select>
-                    </div>
-                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1">Referido Por</label>
-                    <div className="relative">
-                        <input 
-                            className="w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 text-sm font-semibold pl-10 outline-none" 
-                            value={formData.referral} 
-                            onChange={(e) => handleChange('referral', e.target.value)} 
-                            placeholder="Nombre del doctor o medio" 
-                        />
-                        <User size={16} className="absolute left-3 top-3.5 text-slate-400"/>
-                    </div>
-                </div>
-
-                {/* NOTAS INTERNAS */}
-                <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-2 ml-1 flex items-center gap-2">
-                        <HeartPulse size={14} className="text-teal-500"/> Notas Administrativas (Internas)
-                    </label>
-                    <textarea 
-                        className="w-full px-4 py-3 bg-yellow-50/50 border border-yellow-100 rounded-xl text-slate-700 text-sm font-medium focus:bg-white focus:border-yellow-300 outline-none resize-none h-32" 
-                        value={formData.notes} 
-                        onChange={(e) => handleChange('notes', e.target.value)} 
-                        placeholder="Preferencias de pago, personalidad, observaciones..." 
-                    />
-                </div>
-
-            </div>
-          )}
-
         </div>
-      </div>
-
-      {/* FOOTER */}
-      <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end gap-4 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-        <button 
-            onClick={onClose} 
-            className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
-        >
-            Cancelar
-        </button>
-
-        <button 
-            onClick={validateAndSave} 
-            disabled={isSaving} 
-            className="px-8 py-3 bg-teal-600 text-white rounded-xl font-bold flex items-center gap-2 hover:bg-teal-700 shadow-lg shadow-teal-500/30 transition-all hover:scale-[1.02] active:scale-95 disabled:opacity-70 disabled:scale-100"
-        >
-            {isSaving ? <Activity className="animate-spin" size={20}/> : <Save size={20} />} 
-            Guardar Expediente
-        </button>
+        <div className="bg-slate-50 p-4 text-center"><button onClick={onClose} className="text-slate-400 text-xs font-bold uppercase tracking-wider hover:text-slate-600">CERRAR</button></div>
       </div>
     </div>
   );
 };
+
+// --- Widgets ---
+// CORREGIDO: StatusWidget ahora calcula su propia hora/noche para evitar errores de props
+const StatusWidget = ({ weather, totalApts, pendingApts, location }: any) => {
+    const [time, setTime] = useState(new Date());
+    useEffect(() => { const t = setInterval(() => setTime(new Date()), 1000); return () => clearInterval(t); }, []);
+    
+    // Cálculo seguro interno
+    const completed = totalApts - pendingApts;
+    const progress = totalApts > 0 ? (completed / totalApts) * 100 : 0;
+    
+    // Definimos isNight internamente basado en la hora local del widget
+    const hour = time.getHours();
+    const isNight = hour >= 19 || hour < 6;
+    
+    return (
+        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[2rem] p-6 border border-white/50 dark:border-slate-700 shadow-xl h-full flex flex-col justify-between relative overflow-hidden">
+             <div className="absolute inset-0 bg-gradient-to-br from-white via-transparent to-blue-50/50 opacity-50"></div>
+             <div className="flex justify-between items-start z-10 relative">
+                 <div>
+                     <div className="flex items-baseline gap-1">
+                        <p className="text-4xl font-black text-slate-800 dark:text-white tracking-tighter">{format(time, 'h:mm')}</p>
+                        <span className="text-sm font-bold text-slate-400">{format(time, 'a')}</span>
+                     </div>
+                     <p className="text-xs font-bold text-indigo-500 uppercase tracking-widest mt-1 flex items-center gap-1"><MapPin size={12} /> {location}</p>
+                 </div>
+                 <div className="text-right bg-white/50 p-2 rounded-2xl backdrop-blur-sm"><span className="text-2xl font-bold text-slate-700">{weather.temp}°</span></div>
+             </div>
+             <div className="mt-4 z-10 relative">
+                 <div className="flex justify-between text-xs font-bold mb-2"><span className="text-slate-500">Progreso</span><span className="text-indigo-600">{completed}/{totalApts} Pacientes</span></div>
+                 <div className="h-3 w-full bg-slate-100 rounded-full overflow-hidden"><div className="h-full bg-gradient-to-r from-indigo-400 to-purple-500 transition-all duration-1000" style={{width: `${progress}%`}}></div></div>
+             </div>
+        </div>
+    );
+};
+
+const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certificado' | 'receta') => void }) => (
+    <div className="bg-gradient-to-br from-white to-pink-50/50 dark:from-slate-900 dark:to-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm h-full">
+        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-4">
+            <div className="p-2 bg-pink-50 text-pink-600 rounded-lg"><FileCheck size={18}/></div>
+            Documentos Rápidos
+        </h3>
+        <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => openModal('justificante')} className="p-3 bg-white hover:bg-pink-50/50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 hover:shadow-md rounded-xl text-left transition-all group">
+                <FileText size={20} className="text-slate-400 group-hover:text-teal-500 mb-2"/>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Justificante</p>
+                <p className="text-[10px] text-slate-400">Generar PDF</p>
+            </button>
+            <button onClick={() => openModal('certificado')} className="p-3 bg-white hover:bg-pink-50/50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 hover:shadow-md rounded-xl text-left transition-all group">
+                <FileSignature size={20} className="text-slate-400 group-hover:text-blue-500 mb-2"/>
+                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Certificado</p>
+                <p className="text-[10px] text-slate-400">Salud</p>
+            </button>
+            <button onClick={() => openModal('receta')} className="col-span-2 p-3 bg-white hover:bg-pink-50/50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 hover:shadow-md rounded-xl text-left transition-all group flex items-center gap-3">
+                <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg shadow-sm group-hover:scale-110 transition-transform">
+                    <Printer size={20} className="text-indigo-500"/>
+                </div>
+                <div>
+                    <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Receta Simple</p>
+                    <p className="text-[10px] text-slate-400">Impresión Directa</p>
+                </div>
+            </button>
+        </div>
+    </div>
+);
+
+const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick: (item: PendingItem) => void }) => {
+    if (items.length === 0) return (
+        <div className="bg-gradient-to-br from-white to-amber-50/50 dark:from-slate-900 dark:to-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center h-48">
+            <CheckCircle2 size={40} className="text-green-500 mb-2 opacity-50"/>
+            <p className="font-bold text-slate-600 dark:text-slate-300">Todo en orden</p>
+            <p className="text-xs text-slate-400">No hay pendientes urgentes.</p>
+        </div>
+    );
+    return (
+        <div className="bg-gradient-to-br from-white to-amber-50/50 dark:from-slate-900 dark:to-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm">
+            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-4">
+                <div className="p-2 bg-amber-50 text-amber-600 rounded-lg"><AlertTriangle size={18}/></div>
+                Radar de Pendientes
+            </h3>
+            <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar">
+                {items.map(item => (
+                    <div key={item.id} onClick={() => onItemClick(item)} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-amber-50 dark:hover:bg-slate-700 hover:shadow-md transition-all group">
+                        <div className={`w-2 h-2 rounded-full ${item.type === 'note' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
+                        <div className="flex-1">
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{item.title}</p>
+                            <p className="text-xs text-slate-400">{item.subtitle}</p>
+                        </div>
+                        {item.type === 'note' ? <StickyNote size={16} className="text-slate-300"/> : <Clock size={16} className="text-slate-300"/>}
+                    </div>
+                ))}
+            </div>
+        </div>
+    );
+};
+
+const MorningBriefing = ({ greeting, message, weather, systemStatus, onOpenAssistant, insights }: any) => {
+    const hour = new Date().getHours();
+    
+    let theme = { gradient: "from-orange-400 via-amber-500 to-yellow-500", icon: Sunrise, label: "Buenos Días", text: "text-amber-50", shadow: "shadow-orange-200/50" };
+    if (hour >= 12 && hour < 18) theme = { gradient: "from-blue-500 via-cyan-500 to-teal-400", icon: Sun, label: "Buenas Tardes", text: "text-blue-50", shadow: "shadow-blue-200/50" };
+    else if (hour >= 18 && hour < 22) theme = { gradient: "from-indigo-600 via-purple-600 to-pink-500", icon: Sunset, label: "Buenas Noches", text: "text-indigo-100", shadow: "shadow-indigo-200/50" };
+    else if (hour >= 22 || hour < 5) theme = { gradient: "from-slate-900 via-slate-800 to-blue-950", icon: MoonStar, label: "Guardia Nocturna", text: "text-slate-400", shadow: "shadow-slate-800/50" };
+
+    return (
+        <div className={`relative w-full rounded-[2.5rem] bg-gradient-to-r ${theme.gradient} p-8 shadow-2xl ${theme.shadow} dark:shadow-none text-white overflow-hidden mb-8 transition-all duration-1000 ease-in-out`}>
+            <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+            <div className="absolute -right-20 -top-20 w-96 h-96 bg-white/10 rounded-full blur-[100px] animate-pulse"></div>
+            
+            <div className="relative z-10 flex flex-col lg:flex-row justify-between items-end gap-6">
+                <div className="flex-1 w-full">
+                    <div className="flex items-center gap-2 mb-3 opacity-90">
+                        <div className="p-1.5 bg-white/20 rounded-lg backdrop-blur-sm">
+                            <theme.icon size={16} className="text-white" />
+                        </div>
+                        <span className="text-xs font-bold uppercase tracking-widest opacity-80">Resumen Operativo</span>
+                    </div>
+                    
+                    <h1 className="text-3xl md:text-4xl font-black tracking-tight mb-6 drop-shadow-sm leading-tight">
+                        {greeting}
+                    </h1>
+
+                    {insights && (
+                        <div className="flex flex-wrap gap-3">
+                            <div className="flex items-center gap-3 bg-white/15 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
+                                <div className="bg-white/20 p-1.5 rounded-lg"><Clock size={16}/></div>
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold opacity-70">Próxima Cita</p>
+                                    <p className="text-sm font-bold">{insights.nextTime || "Libre"}</p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 bg-white/15 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md">
+                                <div className={`${insights.pending > 0 ? 'bg-amber-400/80 text-amber-900' : 'bg-white/20'} p-1.5 rounded-lg`}>
+                                    <AlertTriangle size={16}/>
+                                </div>
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold opacity-70">Atención</p>
+                                    <p className="text-sm font-bold">{insights.pending} Acciones</p>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3 bg-white/15 border border-white/10 px-4 py-2 rounded-xl backdrop-blur-md hidden sm:flex">
+                                <div className="bg-white/20 p-1.5 rounded-lg"><Activity size={16}/></div>
+                                <div>
+                                    <p className="text-[10px] uppercase font-bold opacity-70">Progreso Hoy</p>
+                                    <p className="text-sm font-bold">{insights.done}/{insights.total} Pacientes</p>
+                                </div>
+                            </div>
+                        </div>
+                    )}
+                </div>
+                
+                <div className="flex gap-4 shrink-0">
+                    <div className="flex items-center gap-6 bg-white/10 backdrop-blur-md p-4 rounded-2xl border border-white/20 shadow-inner">
+                        <div className="text-right">
+                            <p className="text-3xl font-bold leading-none">{weather.temp}°</p>
+                            <p className="text-[10px] opacity-80 uppercase font-bold mt-1">Clima</p>
+                        </div>
+                        <div className="h-10 w-px bg-white/20"></div>
+                        <div>
+                            <div className="flex items-center gap-2">
+                                <div className={`w-2.5 h-2.5 rounded-full ${systemStatus ? 'bg-emerald-400 shadow-[0_0_10px_#34d399] animate-pulse' : 'bg-red-500'}`}></div>
+                                <span className="font-bold text-sm tracking-tight">{systemStatus ? 'Online' : 'Offline'}</span>
+                            </div>
+                            <p className="text-[10px] opacity-80 mt-1 font-medium">{format(new Date(), "EEEE d", { locale: es })}</p>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    );
+};
+
+// --- COMPONENTE PRINCIPAL ---
+const Dashboard: React.FC = () => {
+  const navigate = useNavigate();
+  const [doctorProfile, setDoctorProfile] = useState<any>(null); 
+  const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
+  
+  // NUEVO: Estado para conteo de citas completadas hoy
+  const [completedTodayCount, setCompletedTodayCount] = useState(0);
+
+  const [pendingItems, setPendingItems] = useState<PendingItem[]>([]); 
+  const [weather, setWeather] = useState({ temp: '--', code: 0 });
+  const [locationName, setLocationName] = useState('Localizando...');
+  const [systemStatus, setSystemStatus] = useState(true); 
+  
+  const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
+  const [isAssistantOpen, setIsAssistantOpen] = useState(false);
+  const [isDocModalOpen, setIsDocModalOpen] = useState(false);
+  const [docType, setDocType] = useState<'justificante' | 'certificado' | 'receta'>('justificante');
+  const [toolsTab, setToolsTab] = useState<'notes' | 'calc'>('notes');
+  
+  const formattedDocName = useMemo(() => {
+    if (!doctorProfile?.full_name) return '';
+    const raw = doctorProfile.full_name.trim();
+    return /^(Dr\.|Dra\.)/i.test(raw) ? raw : `Dr. ${raw}`;
+  }, [doctorProfile]);
+
+  const dynamicGreeting = useMemo(() => getTimeOfDayGreeting(formattedDocName || ''), [formattedDocName]);
+
+  const fetchData = useCallback(async () => {
+      try {
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) { setSystemStatus(false); return; }
+          setSystemStatus(true);
+          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+          setDoctorProfile(profile);
+          
+          const todayStart = startOfDay(new Date()); 
+          const nextWeekEnd = endOfDay(addDays(new Date(), 7));
+          
+          // 1. Citas PENDIENTES (Futuras o de hoy)
+          const { data: aptsData } = await supabase.from('appointments').select(`id, title, start_time, status, patient:patients (id, name, history)`).eq('doctor_id', user.id).gte('start_time', todayStart.toISOString()).lte('start_time', nextWeekEnd.toISOString()).neq('status', 'cancelled').neq('status', 'completed').order('start_time', { ascending: true }).limit(10);
+          
+          if (aptsData) {
+              const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
+                  id: item.id, title: item.title, start_time: item.start_time, status: item.status, patient: item.patient, criticalAlert: null 
+              }));
+              setAppointments(formattedApts);
+          }
+
+          // 2. NUEVO: Conteo de citas COMPLETADAS HOY para métricas reales
+          const { count: completedCount } = await supabase
+              .from('appointments')
+              .select('*', { count: 'exact', head: true })
+              .eq('doctor_id', user.id)
+              .eq('status', 'completed')
+              .gte('start_time', todayStart.toISOString())
+              .lte('start_time', endOfDay(new Date()).toISOString());
+          
+          setCompletedTodayCount(completedCount || 0);
+
+          const radar: PendingItem[] = [];
+          const { data: openConsults } = await supabase.from('consultations').select('id, created_at, patient_name').eq('doctor_id', user.id).eq('status', 'in_progress').limit(3);
+          if (openConsults) { openConsults.forEach(c => radar.push({ id: c.id, type: 'note', title: 'Nota Incompleta', subtitle: `${c.patient_name || 'Sin nombre'} • ${format(parseISO(c.created_at), 'dd/MM')}`, date: c.created_at })); }
+          const { data: lostApts } = await supabase.from('appointments').select('id, title, start_time').eq('doctor_id', user.id).eq('status', 'scheduled').lt('start_time', new Date().toISOString()).limit(3);
+          if (lostApts) { lostApts.forEach(a => radar.push({ id: a.id, type: 'appt', title: 'Cita por Cerrar', subtitle: `${a.title} • ${format(parseISO(a.start_time), 'dd/MM HH:mm')}`, date: a.start_time })); }
+          setPendingItems(radar);
+      } catch (e) { setSystemStatus(false); console.error(e); }
+  }, []);
+
+  useEffect(() => {
+    fetchData();
+    if ("geolocation" in navigator) {
+        navigator.geolocation.getCurrentPosition(async (position) => {
+            try {
+                const { latitude, longitude } = position.coords;
+                const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`);
+                const data = await res.json();
+                setWeather({ temp: Math.round(data.current.temperature_2m).toString(), code: data.current.weather_code });
+                const geoRes = await fetch(`https://api.bigdatacloud.net/data/reverse-geocode-client?latitude=${latitude}&longitude=${longitude}&localityLanguage=es`);
+                const geoData = await geoRes.json();
+                if(geoData.city || geoData.locality) setLocationName(geoData.city || geoData.locality);
+            } catch (e) { setLocationName("México"); }
+        }, () => setLocationName("Ubicación n/a"));
+    }
+  }, [fetchData]);
+
+  const openDocModal = (type: 'justificante' | 'certificado' | 'receta') => { setDocType(type); setIsDocModalOpen(true); };
+  const nextPatient = useMemo(() => appointments.find(a => a.status === 'scheduled') || null, [appointments]);
+  const groupedAppointments = useMemo(() => appointments.reduce((acc, apt) => {
+    const day = isToday(parseISO(apt.start_time)) ? 'Hoy' : format(parseISO(apt.start_time), 'EEEE d', { locale: es });
+    if (!acc[day]) acc[day] = []; acc[day].push(apt); return acc;
+  }, {} as Record<string, DashboardAppointment[]>), [appointments]);
+
+  const handleStartConsultation = (apt: DashboardAppointment) => {
+      const patientData = apt.patient ? { id: apt.patient.id, name: apt.patient.name } : { id: `ghost_${apt.id}`, name: apt.title, isGhost: true };
+      navigate('/consultation', { state: { patientData, linkedAppointmentId: apt.id } });
+  };
+
+  const handleRadarClick = (item: PendingItem) => {
+      if (item.type === 'note') {
+          navigate('/consultation', { state: { consultationId: item.id, isResume: true } });
+      } else if (item.type === 'appt') {
+           const patientName = item.subtitle.split('•')[0].trim();
+           navigate('/consultation', { 
+               state: { 
+                   linkedAppointmentId: item.id,
+                   patientData: { id: 'radar_temp', name: patientName, isGhost: true } 
+               } 
+           });
+      }
+  };
+
+  // CÁLCULO REAL DE LA JORNADA
+  const appointmentsToday = appointments.filter(a => isToday(parseISO(a.start_time))).length;
+  const totalDailyLoad = completedTodayCount + appointmentsToday;
+
+  return (
+    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans w-full pb-32 md:pb-8 relative overflow-hidden">
+      
+      <div className="md:hidden px-5 py-4 flex justify-between items-center bg-white sticky top-0 z-30 shadow-sm">
+        <span className="font-bold text-lg text-indigo-700">MediScribe</span>
+        <div className="h-8 w-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
+      </div>
+
+      <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-[1600px] mx-auto w-full">
+         
+         <MorningBriefing 
+            greeting={dynamicGreeting.greeting} 
+            message={dynamicGreeting.message} 
+            weather={weather} 
+            systemStatus={systemStatus} 
+            onOpenAssistant={() => setIsAssistantOpen(true)}
+            
+            insights={{
+                nextTime: nextPatient ? format(parseISO(nextPatient.start_time), 'h:mm a') : null,
+                pending: pendingItems.length,
+                total: totalDailyLoad, // TOTAL REAL (Completados + Pendientes)
+                done: completedTodayCount // PROGRESO REAL
+            }}
+         />
+
+         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+             
+             <div className="xl:col-span-8 flex flex-col gap-8">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-auto md:h-64">
+                     <div className="bg-gradient-to-br from-white to-emerald-50/50 dark:from-slate-900 dark:to-slate-900 rounded-[2rem] p-1 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
+                        <div className={`absolute top-0 left-0 w-2 h-full ${nextPatient ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
+                        <div className="p-8 flex flex-col justify-between h-full relative z-10">
+                             <div className="flex justify-between items-start mb-4">
+                                <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${nextPatient ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{nextPatient ? 'En Espera' : 'Libre'}</span>
+                                {nextPatient && <span className="text-2xl font-bold text-slate-800">{format(parseISO(nextPatient.start_time), 'h:mm a')}</span>}
+                             </div>
+                             <div>
+                                <h2 className="text-3xl font-black text-slate-800 dark:text-white leading-tight mb-1">{nextPatient ? nextPatient.title : 'Agenda Despejada'}</h2>
+                                <p className="text-slate-500 text-sm">{nextPatient ? (nextPatient.patient ? 'Expediente Activo' : 'Primera Vez') : 'No hay pacientes en cola inmediata.'}</p>
+                             </div>
+                             {nextPatient && <button onClick={() => handleStartConsultation(nextPatient)} className="mt-6 w-full py-3 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"><PlayCircle size={18}/> INICIAR CONSULTA</button>}
+                        </div>
+                     </div>
+                     <StatusWidget 
+                        weather={weather} 
+                        totalApts={totalDailyLoad} // DATO REAL
+                        pendingApts={appointmentsToday} // DATO REAL
+                        location={locationName} 
+                     />
+                 </div>
+
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                     <div className="bg-gradient-to-br from-white to-indigo-50/50 dark:from-slate-900 dark:to-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm min-h-[300px]">
+                        <div className="flex justify-between items-center mb-6">
+                            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Calendar size={20} className="text-indigo-600"/> Agenda</h3>
+                            <button onClick={() => navigate('/calendar')} className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">Ver Todo</button>
+                        </div>
+                        {appointments.length === 0 ? (
+                            <div className="text-center py-10 text-slate-400 text-sm">Sin citas programadas hoy.</div>
+                        ) : (
+                            <div className="space-y-4">
+                                {Object.entries(groupedAppointments).slice(0, 1).map(([day, apts]) => (
+                                    apts.slice(0,3).map(apt => (
+                                        <div key={apt.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer group" onClick={() => handleStartConsultation(apt)}>
+                                            <div className="font-bold text-slate-500 text-xs w-10 text-right">{format(parseISO(apt.start_time), 'HH:mm')}</div>
+                                            <div className="w-1 h-8 bg-indigo-200 rounded-full group-hover:bg-indigo-500 transition-colors"></div>
+                                            <div className="flex-1"><p className="font-bold text-slate-800 dark:text-white text-sm truncate">{apt.title}</p></div>
+                                            <ChevronRight size={16} className="text-slate-300"/>
+                                        </div>
+                                    ))
+                                ))}
+                            </div>
+                        )}
+                     </div>
+                     <div className="flex flex-col gap-6 h-full">
+                         <div className="flex-1"><QuickDocs openModal={openDocModal} /></div>
+                         <div className="h-40"><ImpactMetrics /></div>
+                     </div>
+                 </div>
+             </div>
+
+             <div className="xl:col-span-4 flex flex-col gap-8">
+                 <ActionRadar items={pendingItems} onItemClick={handleRadarClick} />
+                 
+                 <div className="bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex-1 flex flex-col min-h-[400px]">
+                      <div className="flex p-2 gap-2 bg-slate-50/50 dark:bg-slate-800/50 border-b border-slate-100 dark:border-slate-700">
+                          <button onClick={() => setToolsTab('notes')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${toolsTab === 'notes' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400'}`}><PenLine size={14} className="inline mr-2"/> Notas</button>
+                          <button onClick={() => setToolsTab('calc')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${toolsTab === 'calc' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400'}`}><Calculator size={14} className="inline mr-2"/> Calc</button>
+                      </div>
+                      <div className="p-0 flex-1 relative bg-white dark:bg-slate-900">
+                          {toolsTab === 'notes' ? <div className="absolute inset-0 p-2"><QuickNotes /></div> : <div className="absolute inset-0 p-2 overflow-y-auto"><MedicalCalculators /></div>}
+                      </div>
+                 </div>
+                 <div className="grid grid-cols-2 gap-4">
+                     <button onClick={() => navigate('/patients')} className="p-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 border border-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-300"><UserPlus size={20}/> Nuevo Paciente</button>
+                     <button onClick={() => setIsUploadModalOpen(true)} className="p-4 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"><Upload size={20}/> Subir Archivos</button>
+                 </div>
+             </div>
+         </div>
+      </div>
+
+      {isUploadModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 backdrop-blur-sm p-4 animate-fade-in">
+          <div className="bg-white w-full max-w-md rounded-[2rem] p-6 shadow-2xl relative">
+             <button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full"><X size={16}/></button>
+             <h3 className="font-bold text-lg mb-4">Gestión Documental</h3>
+             <UploadMedico onUploadComplete={() => {}}/>
+             <div className="mt-4 pt-4 border-t"><DoctorFileFileGallery /></div>
+          </div>
+        </div>
+      )}
+
+      <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile} defaultType={docType} />
+      <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} />
+    </div>
+  );
+};
+        
+export default Dashboard;
