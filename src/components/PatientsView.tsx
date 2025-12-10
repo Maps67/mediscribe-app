@@ -2,19 +2,21 @@ import React, { useState, useEffect } from 'react';
 import { 
   Search, UserPlus, FileText, Trash2, Edit2, Eye, Calendar, 
   Share2, Download, FolderOpen, Paperclip, MoreVertical, X, 
-  FileCode, Phone, Pill, ChevronDown, ChevronUp, AlertTriangle, MessageCircle, Sparkles // Agregado Sparkles
+  FileCode, Phone, Pill, ChevronDown, ChevronUp, AlertTriangle, MessageCircle, Sparkles
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { Patient, DoctorProfile, PatientInsight } from '../types'; // Importamos PatientInsight
+import { Patient, DoctorProfile, PatientInsight } from '../types';
 import { toast } from 'sonner';
 import QuickRxModal from './QuickRxModal';
 import FormattedText from './FormattedText'; 
 import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
+// 👇 IMPORTAMOS EL NUEVO COMPONENTE DE HISTORIAL
+import ClinicalHistoryPDF from '../components/ClinicalHistoryPDF'; 
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { PatientWizard } from './PatientWizard';
 import { InsightsPanel } from './InsightsPanel'; 
-import { GeminiMedicalService } from '../services/GeminiMedicalService'; // Importamos el servicio para el 360
+import { GeminiMedicalService } from '../services/GeminiMedicalService'; 
 
 interface PatientData extends Partial<Patient> {
   id: string;
@@ -39,7 +41,6 @@ const PatientsView: React.FC = () => {
   const [patients, setPatients] = useState<PatientData[]>([]);
   const [searchTerm, setSearchTerm] = useState('');
     
-  // Estados de Modales
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isHistoryOpen, setIsHistoryOpen] = useState(false);
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
@@ -52,10 +53,8 @@ const PatientsView: React.FC = () => {
   const [patientHistory, setPatientHistory] = useState<ConsultationRecord[]>([]);
   const [loadingHistory, setLoadingHistory] = useState(false);
 
-  // Estado para expandir tarjeta en móvil (Acordeón)
   const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
 
-  // --- ESTADOS PARA INSIGHTS 360 (NUEVO EN ESTA VISTA) ---
   const [isInsightsOpen, setIsInsightsOpen] = useState(false);
   const [patientInsights, setPatientInsights] = useState<PatientInsight | null>(null);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
@@ -92,15 +91,13 @@ const PatientsView: React.FC = () => {
     }
   };
 
-  // --- FUNCIÓN PARA CARGAR INSIGHTS 360 DESDE LA TABLA ---
   const handleLoadInsights = async (patient: PatientData) => {
       setAnalyzingPatientName(patient.name);
       setIsInsightsOpen(true);
-      setPatientInsights(null); // Reset anterior
+      setPatientInsights(null); 
       setIsLoadingInsights(true);
 
       try {
-          // 1. Obtener historial de consultas
           const { data: history } = await supabase
             .from('consultations')
             .select('summary, created_at')
@@ -110,7 +107,6 @@ const PatientsView: React.FC = () => {
           
           const consultationsText = history?.map(h => `[Fecha: ${new Date(h.created_at).toLocaleDateString()}] ${h.summary}`) || [];
           
-          // 2. Llamar a la IA
           const analysis = await GeminiMedicalService.generatePatient360Analysis(
               patient.name, 
               patient.history || "No registrado", 
@@ -184,6 +180,62 @@ const PatientsView: React.FC = () => {
           ).toBlob();
           window.open(URL.createObjectURL(blob), '_blank');
       } catch (e) { toast.error("Error generando PDF"); }
+  };
+
+  // --- 🔥 NUEVA FUNCIÓN: DESCARGAR HISTORIAL COMPLETO ---
+  const handleDownloadFullHistory = async () => {
+      if (!viewingPatient || !doctorProfile || patientHistory.length === 0) {
+          return toast.error("No hay datos suficientes para generar el historial.");
+      }
+
+      const toastId = toast.loading("Generando expediente completo...");
+
+      try {
+          // Preparamos los datos del paciente para el PDF
+          let patientHistoryText = "No registrado";
+          try {
+             if (viewingPatient.history) {
+                 const h = JSON.parse(viewingPatient.history);
+                 patientHistoryText = h.background || h.legacyNote || "No registrado";
+             }
+          } catch(e) {}
+
+          const blob = await pdf(
+              <ClinicalHistoryPDF 
+                  doctorProfile={{
+                      full_name: doctorProfile.full_name,
+                      specialty: doctorProfile.specialty,
+                      license_number: doctorProfile.license_number,
+                      university: doctorProfile.university,
+                      address: doctorProfile.address,
+                      phone: doctorProfile.phone,
+                      logo_url: doctorProfile.logo_url
+                  }}
+                  patientData={{
+                      name: viewingPatient.name,
+                      age: viewingPatient.age?.toString(),
+                      gender: viewingPatient.gender,
+                      history: patientHistoryText
+                  }}
+                  consultations={patientHistory}
+                  generatedDate={new Date().toLocaleDateString()}
+              />
+          ).toBlob();
+
+          const url = URL.createObjectURL(blob);
+          const link = document.createElement('a');
+          link.href = url;
+          link.download = `Expediente_${viewingPatient.name.replace(/\s+/g, '_')}.pdf`;
+          document.body.appendChild(link);
+          link.click();
+          document.body.removeChild(link);
+          
+          toast.success("Expediente descargado correctamente", { id: toastId });
+
+      } catch (error) {
+          console.error("Error PDF Historial:", error);
+          toast.error("Error al generar el documento", { id: toastId });
+      }
   };
 
   const handleDelete = async (id: string) => {
@@ -312,13 +364,11 @@ const PatientsView: React.FC = () => {
                   </td>
                   <td className="p-4 relative text-center">
                     <div className="flex justify-center gap-2">
-                         {/* BOTÓN NUEVO: 360 */}
-                         <button onClick={() => handleLoadInsights(patient)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors" title="Balance 360°"><Sparkles size={18}/></button>
-                         
-                         <button onClick={() => handleViewHistory(patient)} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Expediente"><Eye size={18}/></button>
-                         <button onClick={() => setSelectedPatientForRx(patient)} className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Receta"><Pill size={18}/></button>
-                         <button onClick={() => openEditModal(patient)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Editar"><Edit2 size={18}/></button>
-                         <button onClick={() => handleDelete(patient.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar"><Trash2 size={18}/></button>
+                          <button onClick={() => handleLoadInsights(patient)} className="p-2 text-indigo-500 hover:bg-indigo-50 rounded-lg transition-colors" title="Balance 360°"><Sparkles size={18}/></button>
+                          <button onClick={() => handleViewHistory(patient)} className="p-2 text-purple-600 hover:bg-purple-50 rounded-lg transition-colors" title="Expediente"><Eye size={18}/></button>
+                          <button onClick={() => setSelectedPatientForRx(patient)} className="p-2 text-teal-600 hover:bg-teal-50 rounded-lg transition-colors" title="Receta"><Pill size={18}/></button>
+                          <button onClick={() => openEditModal(patient)} className="p-2 text-blue-500 hover:bg-blue-50 rounded-lg transition-colors" title="Editar"><Edit2 size={18}/></button>
+                          <button onClick={() => handleDelete(patient.id)} className="p-2 text-red-500 hover:bg-red-50 rounded-lg transition-colors" title="Eliminar"><Trash2 size={18}/></button>
                     </div>
                   </td>
                 </tr>
@@ -356,7 +406,6 @@ const PatientsView: React.FC = () => {
 
                     {isExpanded && (
                         <div className="px-4 animate-fade-in-down">
-                            {/* BOTÓN 360 MÓVIL */}
                             <button 
                                 onClick={(e) => { e.stopPropagation(); handleLoadInsights(patient); }}
                                 className="w-full mb-2 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
@@ -463,6 +512,11 @@ const PatientsView: React.FC = () => {
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
               <div><h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><FileText className="text-brand-teal"/> Expediente Clínico</h3><p className="text-sm text-slate-500 dark:text-slate-400">Paciente: <span className="font-bold">{viewingPatient.name}</span></p></div>
               <div className="flex items-center gap-2">
+                  {/* 🔥 BOTÓN DESCARGAR HISTORIAL COMPLETO */}
+                  <button onClick={handleDownloadFullHistory} className="hidden md:flex p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 font-bold text-xs items-center gap-2 transition-colors">
+                      <FileText size={16}/> Descargar Historial
+                  </button>
+
                   <button onClick={() => setIsGalleryOpen(!isGalleryOpen)} className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-bold border ${isGalleryOpen ? 'bg-teal-100 text-brand-teal border-teal-200' : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:text-brand-teal'}`} title="Archivos"><FolderOpen size={18}/><span>Archivos</span></button>
                   <div className="h-6 w-px bg-slate-300 dark:bg-slate-700 mx-1"></div>
                   <button onClick={() => setIsHistoryOpen(false)} className="p-2 bg-white dark:bg-slate-800 rounded-full text-slate-400 hover:text-red-500 shadow-sm transition-colors"><X size={24}/></button>
@@ -498,7 +552,6 @@ const PatientsView: React.FC = () => {
         </div>
       )}
 
-      {/* COMPONENTE INSIGHTS 360 */}
       <InsightsPanel 
         isOpen={isInsightsOpen} 
         onClose={() => setIsInsightsOpen(false)} 
