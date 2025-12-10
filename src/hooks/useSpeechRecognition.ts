@@ -7,10 +7,10 @@ interface IWindow extends Window {
 }
 
 // --- ALGORITMO ANTI-ECO OPTIMIZADO ---
-// Versión más rápida que solo revisa los últimos 50 caracteres para evitar loops largos
+// Compara el final del texto A con el inicio del texto B para eliminar solapamientos
 function getOverlapLength(a: string, b: string) {
   if (b.length === 0 || a.length === 0) return 0;
-  // Optimización: Solo mirar el final de A y el inicio de B (máx 50 chars)
+  // Optimización: Solo mirar los últimos 50 caracteres para rendimiento
   const maxCheck = Math.min(a.length, b.length, 50); 
   for (let len = maxCheck; len > 0; len--) {
     if (a.slice(-len) === b.slice(0, len)) return len;
@@ -22,8 +22,8 @@ export const useSpeechRecognition = () => {
   const [isListening, setIsListening] = useState(false);
   const [transcript, setTranscript] = useState('');
   
-  // Detección de Móvil (Para aplicar parches específicos)
-  const isMobile = useRef(/Android|iPhone|iPad|iPod/i.test(navigator.userAgent));
+  // Detección de Móvil Robusta (Android/iOS)
+  const isMobile = useRef(/Android|iPhone|iPad|iPod|Mobile/i.test(navigator.userAgent));
 
   // Detección de Soporte API
   const [isAPISupported] = useState(() => {
@@ -36,11 +36,11 @@ export const useSpeechRecognition = () => {
   const isUserInitiatedStop = useRef(false);
   const wakeLockRef = useRef<any>(null);
   
-  // Refs de alto rendimiento para evitar re-renderizados innecesarios en el bucle de audio
+  // Refs para mantener el estado del texto sin depender del ciclo de render de React
   const finalTranscriptRef = useRef('');
 
   // --- GESTIÓN DE ENERGÍA (WAKE LOCK) ---
-  // Evita que el celular se bloquee mientras el médico dicta
+  // Evita que la pantalla se apague mientras el médico dicta (Crítico en Móvil)
   const requestWakeLock = useCallback(async () => {
     if ('wakeLock' in navigator) {
       try { 
@@ -62,7 +62,7 @@ export const useSpeechRecognition = () => {
     }
   }, []);
 
-  // Re-aplicar Wake Lock si la app vuelve a primer plano
+  // Re-aplicar Wake Lock si la app vuelve a primer plano (tab switch)
   useEffect(() => {
     const handleVisibilityChange = async () => {
       if (wakeLockRef.current !== null && document.visibilityState === 'visible') {
@@ -77,7 +77,7 @@ export const useSpeechRecognition = () => {
   const startListening = useCallback(() => {
     if (!isAPISupported) return;
 
-    // Si ya hay una instancia, la matamos antes de crear otra
+    // Limpieza de instancia previa si existe
     if (recognitionRef.current) {
        try { recognitionRef.current.stop(); } catch(e) {}
     }
@@ -86,11 +86,13 @@ export const useSpeechRecognition = () => {
     const SpeechAPI = SpeechRecognition || webkitSpeechRecognition;
     const recognition = new SpeechAPI();
 
-    // CONFIGURACIÓN TURBO
-    // En Desktop usamos continuous=true. En móvil a veces falla, pero intentamos true.
-    recognition.continuous = true; 
-    recognition.interimResults = true;          // CRÍTICO: Ver texto mientras hablas
-    recognition.lang = 'es-MX';                 // FORZAR ESPAÑOL DE MÉXICO (Mejora acentos)
+    // CONFIGURACIÓN HÍBRIDA (LA CLAVE DEL FIX)
+    // Desktop: continuous = true (Mejor experiencia, fluido)
+    // Móvil: continuous = false (Evita el bug de duplicación de Android) + Reinicio Manual
+    recognition.continuous = !isMobile.current; 
+    
+    recognition.interimResults = true;          // Ver texto en tiempo real
+    recognition.lang = 'es-MX';                 // Forzar español latino
     recognition.maxAlternatives = 1;
 
     recognition.onstart = () => {
@@ -98,17 +100,22 @@ export const useSpeechRecognition = () => {
       isUserInitiatedStop.current = false;
       requestWakeLock();
       
-      // Feedback Háptico (Vibración) si es móvil
-      if (navigator.vibrate) navigator.vibrate(50);
+      // Feedback Háptico (Vibración) solo en móviles
+      if (isMobile.current && navigator.vibrate) {
+          navigator.vibrate(50);
+      }
     };
 
     recognition.onresult = (event: any) => {
       let interimChunk = '';
       let finalChunk = '';
 
-      // Iteramos solo sobre los resultados nuevos (optimización de memoria)
       for (let i = event.resultIndex; i < event.results.length; ++i) {
         const res = event.results[i];
+        
+        // HACK DE ANDROID: A veces envía confianza 0 en duplicados fantasmas
+        if (isMobile.current && res[0].confidence === 0) continue;
+
         if (res.isFinal) {
           finalChunk += res[0].transcript;
         } else {
@@ -116,63 +123,64 @@ export const useSpeechRecognition = () => {
         }
       }
 
-      // 1. PROCESAR FINAL (SOLO SI HAY CAMBIOS)
+      // Procesamiento de Texto Final
       if (finalChunk) {
         const cleanFinal = finalChunk.trim();
         const currentFinal = finalTranscriptRef.current.trim();
         
-        // Deduplicación optimizada (Anti-Eco)
+        // Algoritmo Anti-Eco: Verifica si lo nuevo ya está al final de lo viejo
         const overlap = getOverlapLength(currentFinal, cleanFinal);
         const newPart = cleanFinal.slice(overlap).trim();
         
         if (newPart) {
-            // Capitalización inteligente
+            // Capitalización inteligente (si no es continuación de palabra)
             const prefix = (currentFinal && !currentFinal.endsWith(' ')) ? ' ' : '';
             const formatted = newPart.charAt(0).toUpperCase() + newPart.slice(1);
             finalTranscriptRef.current = currentFinal + prefix + formatted;
         }
       }
 
-      // 2. ACTUALIZACIÓN DIRECTA (SIN requestAnimationFrame)
-      // Esto elimina ~16ms de latencia visual
+      // Actualización visual inmediata
       const displayText = (finalTranscriptRef.current + (interimChunk ? ' ' + interimChunk : '')).trim();
       setTranscript(displayText);
     };
 
     recognition.onerror = (event: any) => {
-      // Ignorar error 'no-speech' para evitar parpadeos en UI
+      // Ignoramos 'no-speech' para evitar parpadeos visuales
       if (event.error === 'no-speech') return; 
       
-      console.warn('Speech Recognition Error:', event.error);
+      console.warn('Speech Error:', event.error);
 
+      // Si el error es de permisos o bloqueo, paramos todo
       if (event.error === 'not-allowed' || event.error === 'service-not-allowed') {
         setIsListening(false);
-        isUserInitiatedStop.current = true; // Bloqueo real
+        isUserInitiatedStop.current = true;
         releaseWakeLock();
       }
     };
 
     recognition.onend = () => {
-      // Lógica de reinicio "Pegajoso" (Sticky Restart) - CRÍTICO PARA MÓVIL
+      // LÓGICA "STICKY RESTART" (CRÍTICA PARA MÓVIL)
+      // Si el usuario NO le dio a stop, significa que el navegador cortó (por silencio o bug).
+      // Lo reiniciamos inmediatamente para simular continuidad infinita.
       if (!isUserInitiatedStop.current) {
-          // El usuario NO le dio a stop, pero se apagó solo. LO PRENDEMOS DE NUEVO.
-          console.log('🔄 Reinicio automático del micrófono...');
-          
-          try { 
-              recognition.start(); 
-          } catch (e) {
-              // Si falla el reinicio inmediato, intentamos con un pequeño delay
-              setTimeout(() => {
-                  if (!isUserInitiatedStop.current) {
-                      try { recognition.start(); } catch(err) {}
+          // Pequeño delay para no saturar la pila de llamadas del navegador
+          setTimeout(() => {
+              if (!isUserInitiatedStop.current) {
+                  try { 
+                      recognition.start(); 
+                  } catch(e) {
+                      console.log('Reinicio rápido falló, reintentando...', e);
                   }
-              }, 100);
-          }
+              }
+          }, 50); // 50ms es imperceptible para el humano
       } else {
-        // Apagado real por usuario
+        // Apagado real y voluntario
         setIsListening(false);
         releaseWakeLock();
-        if (navigator.vibrate) navigator.vibrate([50, 50, 50]); // Vibración de apagado
+        if (isMobile.current && navigator.vibrate) {
+            navigator.vibrate([50, 50, 50]); // Doble vibración al apagar
+        }
       }
     };
 
@@ -187,7 +195,7 @@ export const useSpeechRecognition = () => {
         try { recognitionRef.current.stop(); } catch(e) {}
     }
     
-    // Al detener, "congelamos" el texto final en el estado para que no se borre
+    // Al detener, aseguramos que el texto final quede guardado
     setTranscript(finalTranscriptRef.current);
     setIsListening(false);
     releaseWakeLock();
@@ -198,13 +206,13 @@ export const useSpeechRecognition = () => {
     setTranscript('');
   }, []);
 
-  // Permite editar el texto manualmente y que la IA siga desde ahí
+  // Permite editar el texto manualmente desde el textarea y que la IA siga desde ahí
   const setTranscriptManual = useCallback((text: string) => {
       finalTranscriptRef.current = text;
       setTranscript(text);
   }, []);
 
-  // Limpieza al desmontar el componente
+  // Limpieza de recursos al desmontar el componente
   useEffect(() => {
     return () => {
         isUserInitiatedStop.current = true;
