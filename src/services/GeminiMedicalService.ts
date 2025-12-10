@@ -116,11 +116,23 @@ export const GeminiMedicalService = {
       const profile = getSpecialtyPromptConfig(specialty);
 
       // Implementación del Hybrid Retrieval + Chain of Thought en el Prompt
+      // CORRECCIÓN CRÍTICA: REGLAS DE DIARIZACIÓN PARA NO INVERTIR ROLES
       const prompt = `
         ROL: Actúas como "MediScribe AI", asistente de documentación clínica.
         PERFIL CLÍNICO: Tienes el conocimiento experto de un ${profile.role}.
         ENFOQUE DE ANÁLISIS: ${profile.focus}
         SESGO CLÍNICO: ${profile.bias}
+
+        🔥🔥 TAREA CRÍTICA: IDENTIFICACIÓN DE HABLANTES (DIARIZACIÓN) 🔥🔥
+        Debes transcribir y estructurar el diálogo identificando quién habla.
+        
+        REGLAS DE ORO PARA SEPARAR ROLES (NO INVERTIR):
+        1. EL MÉDICO: Es la autoridad clínica. Hace preguntas, examina, diagnostica y receta.
+           - Pistas: "Déjeme revisarla", "Le voy a recetar", "Vamos a revisar", "¿Cómo se ha sentido?".
+        2. EL PACIENTE: Es quien reporta síntomas y responde.
+           - Pistas: "Me siento bien", "Me duele aquí", "Me preocupa".
+        
+        ⚠️ REGLA DE INICIO: Si el audio comienza con un saludo (ej. "Buenas tardes Doña..."), ASUME QUE ES EL MÉDICO iniciando la consulta, a menos que el contexto sea explícitamente lo contrario.
 
         🔥🔥 ESTRATEGIA DE MEMORIA: HYBRID RETRIEVAL + CHAIN OF THOUGHT 🔥🔥
         Debes procesar dos fuentes y ejecutar una SIMULACIÓN MENTAL antes de escribir:
