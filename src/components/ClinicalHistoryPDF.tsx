@@ -1,8 +1,16 @@
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Image, Font } from '@react-pdf/renderer';
+import { 
+  Page, 
+  Text, 
+  View, 
+  Document, 
+  StyleSheet, 
+  Image, 
+  Font 
+} from '@react-pdf/renderer';
 
-// Registramos una fuente estándar para asegurar caracteres latinos (tildes/ñ)
-// Usamos Helvetica por defecto que es segura en PDFs
+// 1. REGISTRO DE FUENTES
+// Usamos fuentes estándar de Google Fonts (Helvetica/Roboto) para asegurar caracteres latinos
 Font.register({
   family: 'Helvetica',
   fonts: [
@@ -11,47 +19,61 @@ Font.register({
   ]
 });
 
-// --- ESTILOS PROFESIONALES (TIPO NOTARÍA/LEGAL) ---
+// 2. ESTILOS DETALLADOS (Diseño Profesional)
 const styles = StyleSheet.create({
   page: {
     padding: 40,
     fontFamily: 'Helvetica',
     fontSize: 10,
     lineHeight: 1.5,
-    color: '#334155' // Slate-700
+    color: '#334155', // Slate-700
+    backgroundColor: '#ffffff'
   },
+  // Encabezado del Doctor
   header: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 25,
     borderBottomWidth: 2,
-    borderBottomColor: '#0f766e', // Teal-700 (Tu marca)
-    paddingBottom: 10,
-    alignItems: 'center'
+    borderBottomColor: '#0f766e', // Brand Teal
+    paddingBottom: 15,
+    alignItems: 'center',
+    justifyContent: 'space-between'
   },
   headerLeft: {
     flexGrow: 1,
+    paddingRight: 10
   },
   logo: {
-    width: 60,
-    height: 60,
+    width: 70,
+    height: 70,
     borderRadius: 4,
-    marginLeft: 15
+    objectFit: 'contain'
   },
   drName: {
-    fontSize: 14,
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#0f766e',
-    textTransform: 'uppercase'
+    textTransform: 'uppercase',
+    marginBottom: 4
+  },
+  drSpecialty: {
+    fontSize: 10,
+    color: '#475569', // Slate-600
+    fontWeight: 'bold',
+    textTransform: 'uppercase',
+    marginBottom: 2
   },
   drInfo: {
-    fontSize: 8,
-    color: '#64748b'
+    fontSize: 9,
+    color: '#64748b' // Slate-500
   },
+  
+  // Sección del Paciente
   patientSection: {
-    backgroundColor: '#f1f5f9', // Slate-100
-    padding: 10,
-    borderRadius: 4,
-    marginBottom: 20,
+    backgroundColor: '#f8fafc', // Slate-50
+    padding: 15,
+    borderRadius: 6,
+    marginBottom: 25,
     borderLeftWidth: 4,
     borderLeftColor: '#0f766e'
   },
@@ -59,48 +81,101 @@ const styles = StyleSheet.create({
     fontSize: 12,
     fontWeight: 'bold',
     color: '#0f766e',
-    marginBottom: 4,
+    marginBottom: 10,
     textTransform: 'uppercase',
-    letterSpacing: 1
+    letterSpacing: 1,
+    borderBottomWidth: 1,
+    borderBottomColor: '#e2e8f0',
+    paddingBottom: 4
   },
   row: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    marginBottom: 4
+    marginBottom: 6
+  },
+  column: {
+    flexDirection: 'column',
+    width: '48%'
   },
   label: {
     fontSize: 8,
     fontWeight: 'bold',
-    color: '#94a3b8',
-    textTransform: 'uppercase'
+    color: '#94a3b8', // Slate-400
+    textTransform: 'uppercase',
+    marginBottom: 2
   },
   value: {
     fontSize: 10,
-    fontWeight: 'bold'
+    fontWeight: 'bold',
+    color: '#1e293b' // Slate-800
   },
+
+  // Sección de Antecedentes
+  historySection: {
+    marginBottom: 25,
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#cbd5e1'
+  },
+  historyLabel: {
+    fontSize: 9, 
+    fontWeight: 'bold', 
+    color: '#64748b', 
+    marginBottom: 3, 
+    textTransform:'uppercase' 
+  },
+  historyText: {
+    fontSize: 10, 
+    color: '#334155',
+    textAlign: 'justify' 
+  },
+
+  // Línea de Tiempo (Consultas)
   timelineItem: {
-    marginBottom: 15,
+    marginBottom: 20,
     paddingBottom: 15,
     borderBottomWidth: 1,
-    borderBottomColor: '#e2e8f0'
+    borderBottomColor: '#f1f5f9'
   },
   consultationHeader: {
     flexDirection: 'row',
     justifyContent: 'space-between',
-    backgroundColor: '#f8fafc',
-    padding: 5,
-    marginBottom: 5,
-    borderRadius: 2
+    backgroundColor: '#f1f5f9',
+    paddingVertical: 6,
+    paddingHorizontal: 10,
+    marginBottom: 8,
+    borderRadius: 4,
+    alignItems: 'center'
   },
   dateBadge: {
     fontSize: 9,
     fontWeight: 'bold',
-    color: '#0f766e'
+    color: '#0f766e',
+    textTransform: 'uppercase'
   },
-  consultationBody: {
+  folioBadge: {
+    fontSize: 8,
+    color: '#64748b',
+    fontFamily: 'Helvetica'
+  },
+  
+  // Cuerpo del Texto Formateado
+  sectionHeader: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#0f766e',
+    marginTop: 6,
+    marginBottom: 2,
+    textTransform: 'uppercase'
+  },
+  bodyText: {
     fontSize: 10,
-    textAlign: 'justify'
+    textAlign: 'justify',
+    marginBottom: 4,
+    lineHeight: 1.4
   },
+
+  // Pie de Página
   footer: {
     position: 'absolute',
     bottom: 30,
@@ -115,7 +190,7 @@ const styles = StyleSheet.create({
   }
 });
 
-// --- INTERFACES DE DATOS ---
+// 3. INTERFACES DE DATOS
 interface ConsultationRecord {
   id: string;
   created_at: string;
@@ -143,100 +218,169 @@ interface ClinicalHistoryPDFProps {
   generatedDate: string;
 }
 
-// --- COMPONENTE DOCUMENTO ---
+// 4. HELPER: TRADUCTOR DE LENGUAJE UNIVERSAL
+// Convierte S, O, A, P en títulos legibles para humanos
+const FormattedConsultationBody = ({ text }: { text: string }) => {
+  const cleanText = text || "";
+
+  // Si no detectamos formato SOAP, devolvemos texto plano
+  if (!cleanText.includes("S:") && !cleanText.includes("S: ")) {
+      return <Text style={styles.bodyText}>{cleanText}</Text>;
+  }
+
+  // Mapeo inteligente de secciones
+  let formatted = cleanText
+    .replace(/S:\s*/g, '||SÍNTOMAS Y MOTIVO:||')
+    .replace(/O:\s*/g, '||EXPLORACIÓN FÍSICA:||')
+    .replace(/A:\s*/g, '||DIAGNÓSTICO Y ANÁLISIS:||')
+    .replace(/P:\s*/g, '||PLAN MÉDICO:||')
+    .replace(/PLAN PACIENTE:\s*/g, '||INDICACIONES AL PACIENTE:||');
+
+  const parts = formatted.split('||').filter(p => p.trim().length > 0);
+
+  return (
+    <View>
+      {parts.map((part, index) => {
+        // Detectamos si es un título
+        const isHeader = 
+            part.includes("SÍNTOMAS Y MOTIVO") || 
+            part.includes("EXPLORACIÓN FÍSICA") || 
+            part.includes("DIAGNÓSTICO Y ANÁLISIS") || 
+            part.includes("PLAN MÉDICO") ||
+            part.includes("INDICACIONES AL PACIENTE");
+
+        if (isHeader) {
+            return <Text key={index} style={styles.sectionHeader}>{part.replace(':', '')}</Text>;
+        } else {
+            return <Text key={index} style={styles.bodyText}>{part.trim()}</Text>;
+        }
+      })}
+    </View>
+  );
+};
+
+// 5. COMPONENTE PRINCIPAL
 const ClinicalHistoryPDF: React.FC<ClinicalHistoryPDFProps> = ({ 
   doctorProfile, 
   patientData, 
-  consultations,
+  consultations, 
   generatedDate 
 }) => {
   return (
     <Document>
       <Page size="A4" style={styles.page}>
         
-        {/* 1. ENCABEZADO MÉDICO */}
+        {/* --- ENCABEZADO --- */}
         <View style={styles.header}>
           <View style={styles.headerLeft}>
             <Text style={styles.drName}>Dr. {doctorProfile.full_name}</Text>
-            <Text style={styles.drInfo}>{doctorProfile.specialty || "Medicina General"}</Text>
-            {doctorProfile.license_number && <Text style={styles.drInfo}>Céd. Prof: {doctorProfile.license_number} | {doctorProfile.university}</Text>}
-            <Text style={styles.drInfo}>{doctorProfile.address}</Text>
-            <Text style={styles.drInfo}>Tel: {doctorProfile.phone}</Text>
+            <Text style={styles.drSpecialty}>{doctorProfile.specialty || "Medicina General"}</Text>
+            
+            {doctorProfile.license_number && (
+              <Text style={styles.drInfo}>Céd. Prof: {doctorProfile.license_number} | {doctorProfile.university}</Text>
+            )}
+            
+            {doctorProfile.address && (
+              <Text style={styles.drInfo}>{doctorProfile.address}</Text>
+            )}
+            
+            {doctorProfile.phone && (
+              <Text style={styles.drInfo}>Tel: {doctorProfile.phone}</Text>
+            )}
           </View>
-          {/* Si tiene logo, lo mostramos. Si no, un cuadro gris elegante */}
+          
+          {/* Logo condicional (Manejo seguro) */}
           {doctorProfile.logo_url ? (
-             // Nota: En React-PDF las imágenes externas a veces requieren configuración de CORS.
-             // Si falla, se puede comentar esta línea temporalmente.
              <Image style={styles.logo} src={doctorProfile.logo_url} />
           ) : null}
         </View>
 
-        {/* 2. FICHA DEL PACIENTE */}
+        {/* --- FICHA DEL PACIENTE --- */}
         <View style={styles.patientSection}>
           <Text style={styles.sectionTitle}>Resumen de Historia Clínica</Text>
           
           <View style={styles.row}>
-            <View>
+            <View style={styles.column}>
               <Text style={styles.label}>PACIENTE</Text>
               <Text style={styles.value}>{patientData.name}</Text>
             </View>
-            <View>
+            <View style={styles.column}>
               <Text style={styles.label}>FECHA DE EMISIÓN</Text>
               <Text style={styles.value}>{generatedDate}</Text>
             </View>
           </View>
 
           <View style={styles.row}>
-             <View>
+             <View style={styles.column}>
                 <Text style={styles.label}>EDAD / GÉNERO</Text>
-                <Text style={styles.value}>{patientData.age || "N/A"} - {patientData.gender || "N/A"}</Text>
+                <Text style={styles.value}>
+                  {patientData.age || "N/A"} - {patientData.gender || "N/A"}
+                </Text>
              </View>
-             <View>
+             <View style={styles.column}>
                 <Text style={styles.label}>TOTAL CONSULTAS</Text>
                 <Text style={styles.value}>{consultations.length} Registros</Text>
              </View>
           </View>
         </View>
 
-        {/* 3. ANTECEDENTES RELEVANTES (SI EXISTEN) */}
+        {/* --- ANTECEDENTES (Si existen) --- */}
         {patientData.history && (
-            <View style={{ marginBottom: 15 }}>
-                <Text style={{ fontSize: 9, fontWeight: 'bold', color: '#64748b', marginBottom: 2 }}>ANTECEDENTES CLÍNICOS REGISTRADOS:</Text>
-                <Text style={{ fontSize: 9, color: '#334155' }}>{patientData.history}</Text>
+            <View style={styles.historySection}>
+                <Text style={styles.historyLabel}>ANTECEDENTES CLÍNICOS REGISTRADOS:</Text>
+                <Text style={styles.historyText}>{patientData.history}</Text>
             </View>
         )}
 
-        {/* 4. LÍNEA DE TIEMPO DE CONSULTAS */}
-        <Text style={[styles.sectionTitle, { marginTop: 10, borderBottomWidth: 1, borderBottomColor: '#cbd5e1' }]}>
+        {/* --- LÍNEA DE TIEMPO --- */}
+        <Text style={[styles.sectionTitle, { 
+            marginTop: 10, 
+            borderBottomWidth: 1, 
+            borderBottomColor: '#cbd5e1', 
+            paddingBottom: 5 
+        }]}>
             EVOLUCIÓN CRONOLÓGICA
         </Text>
 
         {consultations.length === 0 ? (
-            <Text style={{ marginTop: 20, textAlign: 'center', color: '#94a3b8' }}>
-                -- No hay registros de consulta en este expediente --
-            </Text>
+            <View style={{ marginTop: 20, alignItems: 'center' }}>
+                <Text style={{ color: '#94a3b8', fontSize: 10 }}>
+                    -- No hay registros de consulta en este expediente --
+                </Text>
+            </View>
         ) : (
             consultations.map((cons, index) => (
                 <View key={cons.id || index} style={styles.timelineItem} wrap={false}>
+                    {/* Encabezado de la Cita */}
                     <View style={styles.consultationHeader}>
                         <Text style={styles.dateBadge}>
-                            {new Date(cons.created_at).toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }).toUpperCase()}
+                            {new Date(cons.created_at).toLocaleDateString('es-MX', { 
+                                weekday: 'long', 
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                            }).toUpperCase()}
                         </Text>
-                        <Text style={{ fontSize: 8, color: '#64748b' }}>
+                        <Text style={styles.folioBadge}>
                             FOLIO: {cons.id.substring(0, 8).toUpperCase()}
                         </Text>
                     </View>
-                    <Text style={styles.consultationBody}>
-                        {cons.summary}
-                    </Text>
+                    
+                    {/* Cuerpo de la Cita (Traducido) */}
+                    <FormattedConsultationBody text={cons.summary} />
+                    
                 </View>
             ))
         )}
 
-        {/* 5. PIE DE PÁGINA */}
-        <Text style={styles.footer} render={({ pageNumber, totalPages }) => (
-          `Documento generado electrónicamente por MediScribe. Confidencialidad Médico-Paciente garantizada. - Pág. ${pageNumber} de ${totalPages}`
-        )} fixed />
+        {/* --- PIE DE PÁGINA --- */}
+        <Text 
+          style={styles.footer} 
+          render={({ pageNumber, totalPages }) => (
+            `Documento generado electrónicamente por MediScribe. Confidencialidad Médico-Paciente garantizada. - Pág. ${pageNumber} de ${totalPages}`
+          )} 
+          fixed 
+        />
 
       </Page>
     </Document>
