@@ -44,7 +44,13 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false): 
     try {
       const model = genAI.getGenerativeModel({ 
         model: modelName,
-        generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined
+        // 🔥 AJUSTE CRÍTICO: Temperatura baja para consistencia médica
+        generationConfig: {
+            temperature: 0.2, // Antes era variable, ahora es estricto (casi determinista)
+            topP: 0.8,
+            topK: 40,
+            responseMimeType: jsonMode ? "application/json" : "text/plain"
+        }
       });
       
       const result = await model.generateContent(prompt);
@@ -114,44 +120,49 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- A. NOTA CLÍNICA (V5.4 - PROTOCOLO OBSTETRA BLINDADO) ---
+  // --- A. NOTA CLÍNICA (V5.5 - ESTABILIDAD TOTAL) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const now = new Date();
       const profile = getSpecialtyPromptConfig(specialty);
 
-      // Prompt Reforzado v5.4
+      // Prompt Reforzado v5.5 (Anti-Alucinaciones)
       const prompt = `
-        ROL: Eres "MediScribe AI", Auditor de Seguridad Clínica en Tiempo Real.
+        ROL: Eres "MediScribe AI", un Auditor Médico Robótico. NO eres creativo. Eres LITERAL.
         ESPECIALIDAD: ${profile.role}.
         ENFOQUE: ${profile.focus}
         
+        INSTRUCCIONES DE ESTABILIDAD:
+        1. Tu análisis debe ser DETERMINISTA. Si procesas este mismo texto 10 veces, debes dar el mismo diagnóstico 10 veces.
+        2. NO inventes síntomas que no se mencionan explícitamente.
+        3. NO asumas medicamentos si no se escuchan claramente.
+
         🔥🔥 FASE 1: EXTRACCIÓN DE DATOS 🔥🔥
         1. Identifica al Médico y al Paciente (Diarización).
-        2. Extrae ANAMNESIS DE LA TRANSCRIPCIÓN: ¿Qué medicamentos o condiciones menciona el paciente?
-           - *Nota:* Si el paciente dice "tomé X ayer/anoche", asume que está ACTIVO en su sistema.
+        2. Extrae ANAMNESIS DE LA TRANSCRIPCIÓN.
 
-        💀💀 FASE 2: PROTOCOLO DE CONTEXTO CRÍTICO Y BLOQUEO FARMACOLÓGICO 💀💀
-        Tu deber es detectar dos tipos de riesgo: Urgencia Vital (Grim Reaper) y Daño Irreversible Fetal (OBSTETRA).
-
-        A. 🚨 REGLA DE EMBARAZO ACTIVO (TERATOGENICIDAD):
-        - Si la transcripción menciona "embarazo", "bebé", "feto" o "semanas de gestación", ESTE CONTEXTO ES MÁXIMA PRIORIDAD.
-        - ANÁLISIS DE RIESGO TERATOGÉNICO (MÁXIMO):
-          - SI se menciona **Warfarina** o **Enalapril** (IECA), u otro fármaco de Categoría X/D...
-          - ...Y la paciente está embarazada...
-          - > ESTO ES RIESGO MORTAL FETAL IRREVERSIBLE.
-        - 'risk_analysis.level' DEBE SER "Alto" (OBLIGATORIO) por encima del diagnóstico materno.
-
-        B. 🚨 REGLA DE INTERACCIÓN FARMACOLÓGICA (Grim Reaper):
-        - REGLA DE LAS 48 HORAS: Sildenafil/Tadalafil + Nitratos (Isosorbide/Nitroglicerina) = PELIGRO MORTAL.
+        💀💀 FASE 2: REGLAS DE RIESGO (MATEMÁTICAS, NO OPINIONES) 💀💀
+        Tu cálculo de riesgo ('risk_analysis.level') debe seguir ESTRICTAMENTE esta lógica:
         
-        SI HAY BLOQUEO ACTIVO (PUNTO A o B):
-        1. 🛑 El 'risk_analysis.level' es "Alto" y la 'reason' explica la contraindicación absoluta.
-        2. 🛑 BLOQUEO DE INSTRUCCIONES: En 'patientInstructions', TIENES PROHIBIDO escribir la orden del médico de tomar el medicamento peligroso.
-           - DEBES escribir: "⚠️ ALERTA DE SEGURIDAD MÁXIMA: El sistema ha bloqueado la administración de [Fármacos de Riesgo] por riesgo de muerte/teratogenicidad. NO ADMINISTRAR."
+        - NIVEL ALTO (🔴): 
+            1. Embarazo + Fármacos Teratogénicos (Warfarina, IECA, Retinoides).
+            2. Interacción Mortal (Sildenafil + Nitratos).
+            3. Signos Vitales de Choque (Hipotensión severa, Taquicardia extrema reportada).
+            4. Ideación suicida o riesgo de daño a terceros.
+        
+        - NIVEL MEDIO (🟡): 
+            1. Polifarmacia (más de 5 medicamentos).
+            2. Enfermedad crónica descontrolada (mencionada explícitamente).
+            3. Síntomas agudos persistentes sin signos de alarma vital.
 
-        🔥🔥 FASE 3: GENERACIÓN ESTRUCTURADA 🔥🔥
-        Asegura que el 'plan' en SOAP refleje la acción de seguridad si el bloqueo se activa.
+        - NIVEL BAJO (🟢): 
+            1. Control de rutina.
+            2. Padecimiento menor (resfriado, dermatitis leve).
+            3. Paciente sano.
+
+        SI NO CUMPLE CRITERIOS DE ALTO O MEDIO, ES BAJO POR DEFECTO. NO DUDES.
+
+        🔥🔥 FASE 3: GENERACIÓN ESTRUCTURADA (JSON) 🔥🔥
 
         DATOS DE ENTRADA:
         - Historial Previo: "${patientHistory || "Sin datos"}"
@@ -159,17 +170,17 @@ export const GeminiMedicalService = {
 
         GENERA JSON EXACTO (GeminiResponse):
         {
-          "clinicalNote": "Resumen narrativo...",
+          "clinicalNote": "Resumen narrativo profesional y objetivo.",
           "soapData": {
-            "subjective": "Incluye OBLIGATORIAMENTE el contexto de embarazo y los medicamentos mencionados...",
-            "objective": "Hallazgos...",
-            "analysis": "Diagnóstico...",
-            "plan": "Pasos a seguir (Suspender fármacos prohibidos si aplica)..."
+            "subjective": "Lo que el paciente refiere (SÍNTOMAS).",
+            "objective": "Lo que el médico observa o mide (SIGNOS).",
+            "analysis": "Diagnóstico y razonamiento clínico basado ÚNICAMENTE en la evidencia presentada.",
+            "plan": "Tratamiento y pasos a seguir."
           },
-          "patientInstructions": "Instrucciones SEGURAS (Filtradas por Protocolo de Bloqueo)...",
+          "patientInstructions": "Instrucciones claras para el paciente.",
           "risk_analysis": {
             "level": "Bajo" | "Medio" | "Alto",
-            "reason": "Si hay bloqueo, describe el peligro absoluto aquí."
+            "reason": "Cita la regla exacta de la Fase 2 que se activó."
           },
           "actionItems": {
              "urgent_referral": boolean,
@@ -206,8 +217,8 @@ export const GeminiMedicalService = {
 
           SALIDA JSON (PatientInsight):
           {
-            "evolution": "Resumen...",
-            "medication_audit": "Busca duplicidades o interacciones...",
+            "evolution": "Resumen conciso.",
+            "medication_audit": "Interacciones o duplicidades.",
             "risk_flags": ["Riesgo 1"],
             "pending_actions": ["Acción 1"]
           }
@@ -264,7 +275,7 @@ export const GeminiMedicalService = {
   // --- F. CHAT ---
   async chatWithContext(context: string, userMessage: string): Promise<string> {
     try {
-       const prompt = `CONTEXTO: ${context}. PREGUNTA: ${userMessage}. RESPUESTA CORTA:`;
+       const prompt = `CONTEXTO: ${context}. PREGUNTA: ${userMessage}. RESPUESTA CORTA Y DIRECTA:`;
        return await generateWithFailover(prompt, false);
     } catch (e) { return "Error conexión."; }
   },
