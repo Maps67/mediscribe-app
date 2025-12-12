@@ -6,7 +6,7 @@ console.log("🚀 V-ULTIMATE: PROMETHEUS ENGINE (Diagnostic Mode Active)");
 // ==========================================
 // 1. CONFIGURACIÓN BLINDADA
 // ==========================================
-const API_KEY = "AIzaSyDA5DpPfWKVozKkFGVewLZ_Gkqm5HXJkpA";
+const API_KEY = "AIzaSyBpfkcc9Q6eV7tx92miigETNiOIMYI9Y7Y";
 
 // LISTA DE MODELOS (Prioridad: Flash 1.5 -> Pro 1.5)
 // Se incluyen variantes canónicas para evitar errores de resolución de DNS/Región
