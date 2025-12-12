@@ -2,21 +2,25 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 // Importamos interfaces locales
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-ULTIMATE: MODO UNIVERSAL (Compatibility Mode)");
+console.log("🚀 V-ULTIMATE: RADAR PROTOCOL ONLINE (Failover + Auto-Discovery)");
 
 // ==========================================
-// 1. CONFIGURACIÓN
+// 1. CONFIGURACIÓN ROBUSTA
 // ==========================================
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 
 if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada.");
 
-// ⚠️ SOLUCIÓN AL ERROR 404: USAR ALIAS GENÉRICO
-// No usamos "gemini-1.5-flash" ni "gemini-1.0-pro".
-// Usamos "gemini-pro". Este alias Google lo redirige automáticamente al modelo activo disponible para tu cuenta.
-const MODELS_TO_TRY = ["gemini-pro"];
+// 📡 PROTOCOLO RADAR: LISTA DE COMBATE (RESTORED)
+// El sistema intentará conectar en orden. Si uno falla, salta al siguiente (Auto-descubrimiento).
+// CORRECCIÓN 404: Usamos solo los ALIAS ESTABLES que responden hoy.
+const MODELS_TO_TRY = [
+  "gemini-1.5-flash",       // 1. PRIORIDAD: El más rápido y estable actualmente.
+  "gemini-1.5-pro",         // 2. RESPALDO INTELIGENTE: Si Flash falla, entra Pro.
+  "gemini-pro"              // 3. LEGACY: El "viejo confiable" (alias genérico) como última defensa.
+];
 
-// SAFETY SETTINGS (Anti-Bloqueo Médico)
+// SAFETY SETTINGS (Blindaje Médico)
 const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -25,7 +29,7 @@ const SAFETY_SETTINGS = [
 ];
 
 // ==========================================
-// 2. UTILIDADES
+// 2. UTILIDADES DE INTELIGENCIA
 // ==========================================
 
 const cleanJSON = (text: string) => {
@@ -41,34 +45,41 @@ const cleanJSON = (text: string) => {
 };
 
 /**
- * MOTOR DE CONEXIÓN SIMPLE
+ * MOTOR DE CONEXIÓN CON PROTOCOLO RADAR (FAILOVER)
+ * Intenta múltiples modelos secuencialmente para garantizar respuesta.
  */
 async function generateWithFailover(prompt: string, jsonMode: boolean = false): Promise<string> {
   const genAI = new GoogleGenerativeAI(API_KEY);
-  
-  // Usamos el único modelo universal
-  const modelName = MODELS_TO_TRY[0];
+  let lastError: any = null;
 
-  try {
-    console.log(`📡 Conectando Modelo Universal: ${modelName}...`);
-    
-    const model = genAI.getGenerativeModel({ 
-      model: modelName,
-      safetySettings: SAFETY_SETTINGS,
-      generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined
-    });
-    
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+  // 🔄 BUCLE RADAR: Escanea modelos disponibles
+  for (const modelName of MODELS_TO_TRY) {
+    try {
+      console.log(`📡 Radar Activo: Intentando enlace con ${modelName}...`);
+      
+      const model = genAI.getGenerativeModel({ 
+        model: modelName,
+        safetySettings: SAFETY_SETTINGS,
+        generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined
+      });
+      
+      const result = await model.generateContent(prompt);
+      const text = result.response.text();
 
-    if (text && text.length > 5) return text;
-    throw new Error("Respuesta vacía del servidor.");
-
-  } catch (error: any) {
-    console.error("❌ ERROR DEFINITIVO:", error);
-    // Si esto falla con 404, es 100% la API Key.
-    throw new Error(`Error de IA (${error.status || 'Desconocido'}). Si es 404, tu API Key no tiene permisos para Generative Language.`);
+      if (text && text.length > 5) {
+        console.log(`✅ Enlace exitoso con ${modelName}`);
+        return text; 
+      }
+    } catch (error: any) {
+      console.warn(`⚠️ Fallo en ${modelName} (Error ${error.status || '?'}). Re-enrutando...`);
+      lastError = error;
+      continue; // Salta al siguiente modelo en la lista
+    }
   }
+  
+  // Si llegamos aquí, el Radar no encontró ruta.
+  console.error("❌ RADAR DOWN: Ningún modelo respondió.", lastError);
+  throw new Error("Error Crítico: El sistema de IA no pudo establecer conexión con ningún modelo (Protocolo Radar Agotado).");
 }
 
 /**
@@ -119,7 +130,7 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- A. NOTA CLÍNICA (V-ULTIMATE LOGIC) ---
+  // --- A. NOTA CLÍNICA (LÓGICA V-ULTIMATE COMPLETA) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const now = new Date();
@@ -131,23 +142,21 @@ export const GeminiMedicalService = {
 
         🔥🔥 TAREA: DIARIZACIÓN Y DOCUMENTACIÓN 🔥🔥
         1. Identifica Médico vs Paciente.
-           - Saludo inicial = Médico.
-           - Reporte de síntomas = Paciente.
-
-        🔥🔥 ESTRATEGIA: HYBRID RETRIEVAL 🔥🔥
+        
+        🔥🔥 ESTRATEGIA: HYBRID RETRIEVAL (RADAR CONTEXTUAL) 🔥🔥
         FUENTE A (Historial): "${patientHistory || "VACÍO"}"
         FUENTE B (Audio): "${transcript.replace(/"/g, "'").trim()}"
 
         🚨 REGLA ANAMNESIS ACTIVA:
-        Si el paciente menciona medicamentos/alergias en el AUDIO (Fuente B), agrégalos a 'subjective' aunque no estén en el historial.
+        Si el paciente menciona medicamentos/alergias en el AUDIO, agrégalos a 'subjective'.
 
         🛑 EVALUACIÓN DE RIESGO:
-        - URGENCIA VITAL (Infarto, Apendicitis) -> RIESGO ALTO.
+        - URGENCIA VITAL -> RIESGO ALTO.
         - INTERACCIÓN FARMACOLÓGICA GRAVE -> RIESGO ALTO.
 
         ---------- SAFETY OVERRIDE ----------
         Si hay riesgo ALTO o interacción:
-        - NO escribas la instrucción del medicamento peligroso en 'patientInstructions'.
+        - NO escribas la instrucción peligrosa.
         - SUSTITUYE por aviso de seguridad.
         -------------------------------------
 
@@ -157,7 +166,7 @@ export const GeminiMedicalService = {
         {
           "clinicalNote": "Narrativa técnica...",
           "soapData": {
-            "subjective": "S (incluye anamnesis verbal)...",
+            "subjective": "S...",
             "objective": "O...",
             "analysis": "A...",
             "plan": "P...",
