@@ -1,26 +1,23 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
-// Importamos interfaces locales
+// Importamos interfaces locales (Tipos completos para que no falle el build)
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-ULTIMATE: RADAR PROTOCOL ONLINE (Failover + Auto-Discovery)");
+console.log("🚀 V-ULTIMATE: PROMETHEUS ENGINE (Full Logic + Diagnostic Radar)");
 
 // ==========================================
-// 1. CONFIGURACIÓN ROBUSTA
+// 1. CONFIGURACIÓN Y DIAGNÓSTICO INICIAL
 // ==========================================
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 
-if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada.");
-
-// 📡 PROTOCOLO RADAR: LISTA DE COMBATE (RESTORED)
-// El sistema intentará conectar en orden. Si uno falla, salta al siguiente (Auto-descubrimiento).
-// CORRECCIÓN 404: Usamos solo los ALIAS ESTABLES que responden hoy.
+// 📡 PROTOCOLO RADAR: Lista de modelos estables
+// El sistema probará uno por uno hasta conectar.
 const MODELS_TO_TRY = [
-  "gemini-1.5-flash",       // 1. PRIORIDAD: El más rápido y estable actualmente.
-  "gemini-1.5-pro",         // 2. RESPALDO INTELIGENTE: Si Flash falla, entra Pro.
-  "gemini-pro"              // 3. LEGACY: El "viejo confiable" (alias genérico) como última defensa.
+  "gemini-1.5-flash",       // 1. Velocidad (Prioridad)
+  "gemini-1.5-pro",         // 2. Inteligencia (Respaldo)
+  "gemini-pro"              // 3. Compatibilidad (Último recurso)
 ];
 
-// SAFETY SETTINGS (Blindaje Médico)
+// SEGURIDAD OBLIGATORIA (Para que no bloquee términos médicos)
 const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -29,7 +26,7 @@ const SAFETY_SETTINGS = [
 ];
 
 // ==========================================
-// 2. UTILIDADES DE INTELIGENCIA
+// 2. UTILIDADES
 // ==========================================
 
 const cleanJSON = (text: string) => {
@@ -45,17 +42,25 @@ const cleanJSON = (text: string) => {
 };
 
 /**
- * MOTOR DE CONEXIÓN CON PROTOCOLO RADAR (FAILOVER)
- * Intenta múltiples modelos secuencialmente para garantizar respuesta.
+ * MOTOR DE CONEXIÓN CON DIAGNÓSTICO INTEGRADO
+ * Aquí está la solución que pediste: Alertas visuales si falla.
  */
 async function generateWithFailover(prompt: string, jsonMode: boolean = false): Promise<string> {
+  
+  // 🔍 DIAGNÓSTICO PASO 1: Verificar Llave
+  if (!API_KEY) {
+      const msg = "❌ ERROR FATAL: No se detecta la API Key.\nSOLUCIÓN: Revisa tu archivo .env y reinicia la terminal con 'npm run dev'.";
+      alert(msg); // <--- ALERTA VISUAL
+      throw new Error(msg);
+  }
+
   const genAI = new GoogleGenerativeAI(API_KEY);
   let lastError: any = null;
 
-  // 🔄 BUCLE RADAR: Escanea modelos disponibles
+  // 🔄 Bucle de intentos (Radar)
   for (const modelName of MODELS_TO_TRY) {
     try {
-      console.log(`📡 Radar Activo: Intentando enlace con ${modelName}...`);
+      console.log(`📡 Intentando conectar con ${modelName}...`);
       
       const model = genAI.getGenerativeModel({ 
         model: modelName,
@@ -66,24 +71,31 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false): 
       const result = await model.generateContent(prompt);
       const text = result.response.text();
 
-      if (text && text.length > 5) {
-        console.log(`✅ Enlace exitoso con ${modelName}`);
-        return text; 
-      }
+      if (text && text.length > 5) return text; // ¡Éxito!
     } catch (error: any) {
-      console.warn(`⚠️ Fallo en ${modelName} (Error ${error.status || '?'}). Re-enrutando...`);
+      console.warn(`⚠️ Fallo en ${modelName}. Probando siguiente...`);
       lastError = error;
-      continue; // Salta al siguiente modelo en la lista
+      continue; 
     }
   }
+
+  // 🔍 DIAGNÓSTICO PASO 2: SI TODO FALLA, INTERPRETAR EL ERROR
+  console.error("🔥 ERROR FINAL DE IA:", lastError);
   
-  // Si llegamos aquí, el Radar no encontró ruta.
-  console.error("❌ RADAR DOWN: Ningún modelo respondió.", lastError);
-  throw new Error("Error Crítico: El sistema de IA no pudo establecer conexión con ningún modelo (Protocolo Radar Agotado).");
+  let mensaje = "Error desconocido de IA";
+  const errStr = lastError?.toString() || "";
+  
+  if (errStr.includes("403")) mensaje = "ERROR 403: TU API KEY NO TIENE PERMISOS.\nEntra a Google Cloud Console y habilita 'Generative Language API'.";
+  else if (errStr.includes("404")) mensaje = "ERROR 404: MODELO NO ENCONTRADO.\nTu cuenta no tiene acceso a los modelos solicitados o la API cambió.";
+  else if (errStr.includes("429")) mensaje = "ERROR 429: CUOTA EXCEDIDA.\nHas superado el límite gratuito de Google. Espera un minuto.";
+  else if (errStr.includes("fetch failed")) mensaje = "ERROR DE CONEXIÓN: No tienes internet o un Firewall bloquea a Google.";
+
+  alert(`🛑 DIAGNÓSTICO FALLIDO:\n\n${mensaje}\n\nDetalle técnico: ${errStr}`); // <--- ALERTA VISUAL FINAL
+  throw lastError || new Error(mensaje);
 }
 
 /**
- * PERFILES CLÍNICOS (V-ULTIMATE Logic)
+ * PERFILES CLÍNICOS (Lógica V-Ultimate)
  */
 const getSpecialtyPromptConfig = (specialty: string) => {
   const configs: Record<string, any> = {
@@ -126,43 +138,43 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 };
 
 // ==========================================
-// 3. SERVICIO PRINCIPAL
+// 3. SERVICIO PRINCIPAL (COMPLETO - SIN RECORTES)
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- A. NOTA CLÍNICA (LÓGICA V-ULTIMATE COMPLETA) ---
+  // --- A. NOTA CLÍNICA (LÓGICA COMPLETA V-ULTIMATE) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const now = new Date();
       const profile = getSpecialtyPromptConfig(specialty);
 
       const prompt = `
-        ROL: Actúas como "MediScribe AI".
+        ROL: Actúas como "MediScribe AI", Auditor de Seguridad Clínica.
         PERFIL: ${profile.role}. ENFOQUE: ${profile.focus}. SESGO: ${profile.bias}
 
-        🔥🔥 TAREA: DIARIZACIÓN Y DOCUMENTACIÓN 🔥🔥
+        🔥🔥 TAREA CRÍTICA: IDENTIFICACIÓN DE HABLANTES (DIARIZACIÓN) 🔥🔥
         1. Identifica Médico vs Paciente.
         
-        🔥🔥 ESTRATEGIA: HYBRID RETRIEVAL (RADAR CONTEXTUAL) 🔥🔥
+        🔥🔥 ESTRATEGIA: HYBRID RETRIEVAL (MEMORIA) 🔥🔥
         FUENTE A (Historial): "${patientHistory || "VACÍO"}"
-        FUENTE B (Audio): "${transcript.replace(/"/g, "'").trim()}"
+        FUENTE B (Audio Actual): "${transcript.replace(/"/g, "'").trim()}"
 
         🚨 REGLA ANAMNESIS ACTIVA:
-        Si el paciente menciona medicamentos/alergias en el AUDIO, agrégalos a 'subjective'.
+        Si el paciente menciona medicamentos/alergias en el AUDIO, agrégalos a 'subjective' OBLIGATORIAMENTE.
 
-        🛑 EVALUACIÓN DE RIESGO:
+        🛑 EVALUACIÓN DE RIESGO (JERARQUÍA):
         - URGENCIA VITAL -> RIESGO ALTO.
-        - INTERACCIÓN FARMACOLÓGICA GRAVE -> RIESGO ALTO.
+        - INTERACCIÓN FARMACOLÓGICA GRAVE (Ej. Nitratos + Sildenafil) -> RIESGO ALTO.
 
-        ---------- SAFETY OVERRIDE ----------
+        ---------- SAFETY OVERRIDE (BLINDAJE) ----------
         Si hay riesgo ALTO o interacción:
-        - NO escribas la instrucción peligrosa.
-        - SUSTITUYE por aviso de seguridad.
-        -------------------------------------
+        - NO escribas la instrucción peligrosa en 'patientInstructions'.
+        - SUSTITUYE por: "⚠️ AVISO DE SEGURIDAD: Se ha detectado una contraindicación técnica. Consulte a su médico."
+        ------------------------------------------------
 
         DATOS: Fecha ${now.toLocaleDateString()}.
 
-        GENERA JSON (GeminiResponse):
+        GENERA JSON EXACTO (GeminiResponse):
         {
           "clinicalNote": "Narrativa técnica...",
           "soapData": {
@@ -172,7 +184,7 @@ export const GeminiMedicalService = {
             "plan": "P...",
             "suggestions": ["..."]
           },
-          "patientInstructions": "Instrucciones seguras...",
+          "patientInstructions": "Instrucciones seguras (Aplica Safety Override)...",
           "risk_analysis": {
             "level": "Bajo" | "Medio" | "Alto",
             "reason": "..."
@@ -188,62 +200,81 @@ export const GeminiMedicalService = {
         }
       `;
 
+      // Llamamos al motor con failover (que tiene las alertas integradas)
       const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText)) as GeminiResponse;
 
     } catch (error) {
-      console.error("❌ Error Nota Clínica:", error);
-      throw error;
+      console.error("❌ Error Nota Clínica (Capturado en Servicio):", error);
+      throw error; // El error ya mostró la alerta visual en generateWithFailover
     }
   },
 
-  // --- B. BALANCE 360 ---
-  async generatePatient360Analysis(p: string, h: string, c: string[]): Promise<PatientInsight> {
+  // --- B. BALANCE 360 (COMPLETO) ---
+  async generatePatient360Analysis(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
     try {
-      const ctx = c.length > 0 ? c.join("\n\n") : "Sin historial.";
-      const prompt = `ACTÚA COMO: Auditor Médico. PACIENTE: ${p}. HISTORIAL: ${h}. CONSULTAS: ${ctx}. SALIDA JSON (PatientInsight): { "evolution": "...", "medication_audit": "...", "risk_flags": [], "pending_actions": [] }`;
+      const contextText = consultations.length > 0 ? consultations.join("\n\n") : "Sin historial.";
+      const prompt = `
+          ACTÚA COMO: Auditor Médico. 
+          PACIENTE: ${patientName}. 
+          HISTORIAL: ${historySummary}. 
+          CONSULTAS RECIENTES: ${contextText}. 
+          
+          SALIDA JSON (PatientInsight): 
+          { 
+            "evolution": "Resumen de evolución...", 
+            "medication_audit": "Análisis de duplicidad/interacción...", 
+            "risk_flags": ["Riesgo 1"], 
+            "pending_actions": ["Pendiente 1"] 
+          }
+      `;
       const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText));
-    } catch (e) { return { evolution: "N/A", medication_audit: "", risk_flags: [], pending_actions: [] }; }
+    } catch (e) { return { evolution: "No disponible", medication_audit: "", risk_flags: [], pending_actions: [] }; }
   },
 
-  // --- C. EXTRACCIÓN MEDS ---
-  async extractMedications(t: string): Promise<MedicationItem[]> {
-    if (!t) return [];
+  // --- C. EXTRACCIÓN MEDS (COMPLETO) ---
+  async extractMedications(text: string): Promise<MedicationItem[]> {
+    if (!text) return [];
     try {
-      const prompt = `ACTÚA COMO: Farmacéutico. Extrae meds de: "${t}". SALIDA JSON ARRAY (MedicationItem[]).`;
+      const prompt = `
+        ACTÚA COMO: Farmacéutico. Extrae medicamentos de: "${text}". 
+        SALIDA JSON ARRAY (MedicationItem[]):
+        [{ "drug": "...", "details": "...", "frequency": "...", "duration": "...", "notes": "..." }]
+      `;
       const rawText = await generateWithFailover(prompt, true);
-      return JSON.parse(cleanJSON(rawText));
+      const res = JSON.parse(cleanJSON(rawText));
+      return Array.isArray(res) ? res : [];
     } catch (e) { return []; }
   },
 
-  // --- D. AUDITORÍA ---
-  async generateClinicalNoteAudit(n: string): Promise<any> {
+  // --- D. AUDITORÍA (COMPLETO) ---
+  async generateClinicalNoteAudit(noteContent: string): Promise<any> {
     try {
-      const prompt = `ACTÚA COMO: Auditor. Evalúa nota: "${n}". SALIDA JSON { riskLevel, score, analysis, recommendations }.`;
+      const prompt = `ACTÚA COMO: Auditor. Evalúa nota: "${noteContent}". SALIDA JSON { riskLevel, score, analysis, recommendations }.`;
       const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText));
     } catch (e) { return { riskLevel: "Medio", score: 0, analysis: "N/A", recommendations: [] }; }
   },
 
-  // --- E. WHATSAPP ---
-  async generateFollowUpPlan(p: string, n: string, i: string): Promise<FollowUpMessage[]> {
+  // --- E. WHATSAPP (COMPLETO) ---
+  async generateFollowUpPlan(patientName: string, clinicalNote: string, instructions: string): Promise<FollowUpMessage[]> {
     try {
-      const prompt = `ACTÚA COMO: Asistente. 3 mensajes WhatsApp para ${p}. Nota: "${n}". JSON ARRAY.`;
+      const prompt = `ACTÚA COMO: Asistente. 3 mensajes WhatsApp para ${patientName}. Contexto: "${clinicalNote}". JSON ARRAY.`;
       const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText));
     } catch (e) { return []; }
   },
 
-  // --- F. CHAT ---
-  async chatWithContext(c: string, u: string): Promise<string> {
+  // --- F. CHAT (COMPLETO) ---
+  async chatWithContext(context: string, userMessage: string): Promise<string> {
     try {
-       const prompt = `CONTEXTO: ${c}. PREGUNTA: ${u}. RESPUESTA:`;
+       const prompt = `CONTEXTO: ${context}. PREGUNTA: ${userMessage}. RESPUESTA:`;
        return await generateWithFailover(prompt, false);
     } catch (e) { return "Error conexión."; }
   },
 
-  // --- HELPERS ---
+  // --- HELPERS (COMPLETO) ---
   async generatePatientInsights(p: string, h: string, c: string[]): Promise<any> { return this.generatePatient360Analysis(p, h, c); },
   async generateQuickRxJSON(t: string, p: string): Promise<MedicationItem[]> { return this.extractMedications(t); },
   async generatePrescriptionOnly(t: string): Promise<string> { return "Use extractMedications."; }
