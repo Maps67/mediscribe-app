@@ -1,31 +1,31 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
-// Importamos interfaces locales
+// Importamos interfaces locales para evitar errores de compilación
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-ULTIMATE: PROMETHEUS ENGINE (Logic V-Ultimate + Stable Infrastructure)");
+console.log("🚀 V-ULTIMATE: PROMETHEUS ENGINE (Full Logic + Infrastructure Patch)");
 
 // ==========================================
-// 1. CONFIGURACIÓN ROBUSTA & BLINDAJE
+// 1. CONFIGURACIÓN ROBUSTA
 // ==========================================
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 
-if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada.");
+if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada. Revisa tu archivo .env");
 
-// 🛑 CORRECCIÓN CRÍTICA: LISTA DE MODELOS ESTABLES
-// Eliminamos los experimentales (-002, -exp) que causan el 404.
+// 🛑 CORRECCIÓN DE INFRAESTRUCTURA (CRÍTICO)
+// Usamos nombres canónicos para evitar el error 404 en la API nueva.
 const MODELS_TO_TRY = [
-  "gemini-1.5-flash",        // 1. Estándar Global (Rápido y Estable)
-  "gemini-1.5-pro",          // 2. Respaldo de Inteligencia
-  "gemini-pro"               // 3. Legacy (v1.0): El tanque de guerra que nunca falla.
+  "gemini-1.5-flash",       // 1. Estándar (Antes fallaba por usar -002)
+  "gemini-1.5-pro",         // 2. Inteligencia Alta
+  "gemini-1.0-pro"          // 3. Legacy Blindado (El salvavidas)
 ];
 
-// 🛑 CORRECCIÓN CRÍTICA: SAFETY SETTINGS
-// Obligatorio para que Google no bloquee términos médicos (sangre, corte, muerte) como "Violencia".
+// 🛑 SEGURIDAD OBLIGATORIA
+// Necesario para que la IA no censure términos médicos.
 const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }, // Permitir anatomía
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }, // Permitir procedimientos
+  { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }, 
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH }, 
 ];
 
 // ==========================================
@@ -55,26 +55,24 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false): 
 
   for (const modelName of MODELS_TO_TRY) {
     try {
-      // Configuración del modelo con SAFETY SETTINGS inyectados
       const model = genAI.getGenerativeModel({ 
         model: modelName,
-        safetySettings: SAFETY_SETTINGS, // <--- CRÍTICO: Sin esto, las notas de trauma fallan.
+        safetySettings: SAFETY_SETTINGS, // <--- INYECCIÓN DE SEGURIDAD
         generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined
       });
       
-      console.log(`📡 Conectando Cerebro: ${modelName}...`);
+      console.log(`📡 Conectando Cerebro V-Ultimate: ${modelName}...`);
       const result = await model.generateContent(prompt);
       const text = result.response.text();
 
-      if (text && text.length > 5) return text; // Éxito confirmado
+      if (text && text.length > 5) return text; 
     } catch (error: any) {
-      console.warn(`⚠️ Modelo ${modelName} inestable. Iniciando protocolo de respaldo...`);
+      console.warn(`⚠️ Modelo ${modelName} inestable. Rotando al siguiente...`);
       lastError = error;
       continue; 
     }
   }
-  console.error("❌ FALLO TOTAL: Revise API Key o Cuota de Google Cloud.", lastError);
-  throw lastError || new Error("Error de Conexión con IA.");
+  throw lastError || new Error("Fallo sistémico de IA. Verifica tu API Key o conexión.");
 }
 
 /**
@@ -111,6 +109,11 @@ const getSpecialtyPromptConfig = (specialty: string) => {
       role: "Médico de Familia",
       focus: "Visión integral, semiología general y referencia oportuna.",
       bias: "Enfoque holístico y preventivo."
+    },
+    "Urgencias Médicas": {
+        role: "Urgenciólogo Senior",
+        focus: "ABCDE, estabilización. CRÍTICO: Detectar errores fatales antes de tratar.",
+        bias: "Primero NO hacer daño (Primum non nocere). Verifica contraindicaciones antes de recetar."
     }
   };
 
@@ -126,13 +129,13 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- A. NOTA CLÍNICA (Lógica V-ULTIMATE Preservada) ---
+  // --- A. NOTA CLÍNICA (LÓGICA V-ULTIMATE COMPLETA) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const now = new Date();
       const profile = getSpecialtyPromptConfig(specialty);
 
-      // PROMPT MAESTRO V-ULTIMATE (Hybrid Retrieval + Chain of Thought)
+      // Prompt V-ULTIMATE Original (Sin recortes)
       const prompt = `
         ROL: Actúas como "MediScribe AI", asistente de documentación clínica.
         PERFIL CLÍNICO: Tienes el conocimiento experto de un ${profile.role}.
@@ -148,7 +151,7 @@ export const GeminiMedicalService = {
         2. EL PACIENTE: Es quien reporta síntomas y responde.
            - Pistas: "Me siento bien", "Me duele aquí", "Me preocupa".
         
-        ⚠️ REGLA DE INICIO: Si el audio comienza con un saludo (ej. "Buenas tardes Doña..."), ASUME QUE ES EL MÉDICO iniciando la consulta.
+        ⚠️ REGLA DE INICIO: Si el audio comienza con un saludo (ej. "Buenas tardes Doña..."), ASUME QUE ES EL MÉDICO iniciando la consulta, a menos que el contexto sea explícitamente lo contrario.
 
         🔥🔥 ESTRATEGIA DE MEMORIA: HYBRID RETRIEVAL + CHAIN OF THOUGHT 🔥🔥
         Debes procesar dos fuentes y ejecutar una SIMULACIÓN MENTAL antes de escribir:
@@ -165,15 +168,16 @@ export const GeminiMedicalService = {
         1. Identifica la patología base en FUENTE A (Ej: Cardiopatía Congénita).
         2. Identifica la intervención en FUENTE B (Ej: Nitroglicerina).
         3. SIMULA EL EFECTO: ¿Qué le hace la intervención a la fisiología base?
-           - *Ejemplo Crítico:* Si tiene Tetralogía de Fallot y recibe vasodilatadores, aumenta el shunt -> RIESGO MORTAL.
-        4. Si el resultado es DAÑO GRAVE, tu deber es marcar 'risk_analysis' como ALTO y ADVERTIR.
+           - *Ejemplo Crítico:* Si tiene Tetralogía de Fallot y recibe vasodilatadores (Nitro), cae la resistencia sistémica -> Aumenta el shunt derecha-izquierda -> MUERTE.
+        4. Si el resultado es DAÑO GRAVE, tu deber es marcar 'risk_analysis' como ALTO y ADVERTIR, aunque el médico lo haya ordenado.
 
         ---------- PROTOCOLO DE SEGURIDAD (SAFETY OVERRIDE) ----------
         CRÍTICO PARA EL CAMPO "patientInstructions":
+        Tu prioridad absoluta es la seguridad. Antes de escribir las instrucciones para el paciente:
         1. Revisa tu propio análisis de "risk_analysis".
-        2. SI el médico dio una instrucción verbal que contradice una ALERTA DE RIESGO ALTO:
-           - NO escribas esa instrucción peligrosa.
-           - SUSTITÚYELA por: "⚠️ AVISO DE SEGURIDAD: Se ha detectado una contraindicación técnica. NO inicie este tratamiento sin reconfirmar con su médico."
+        2. SI el médico dio una instrucción verbal que contradice una ALERTA DE RIESGO ALTO (ej: mandó un medicamento al que el paciente es alérgico o prohibido por interacción):
+           - NO escribas esa instrucción peligrosa en "patientInstructions".
+           - SUSTITÚYELA por: "⚠️ AVISO DE SEGURIDAD: Se ha detectado una contraindicación técnica con esta indicación (Ver Alerta de Riesgo). Por favor, NO inicie este tratamiento específico hasta confirmar nuevamente con su médico."
         3. Si no hay riesgo mortal, transcribe la instrucción del médico fielmente.
         --------------------------------------------------------------
 
@@ -206,7 +210,7 @@ export const GeminiMedicalService = {
           "actionItems": {
              "next_appointment": "Fecha o null",
              "urgent_referral": boolean,
-             "lab_tests_required": ["..."]
+             "lab_tests_required": ["Lista de laboratorios o gabinete solicitados"]
           },
           "conversation_log": [
              { "speaker": "Médico", "text": "..." },
@@ -224,7 +228,7 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- B. BALANCE 360 (Análisis Integral) ---
+  // --- B. BALANCE 360 (Lógica Completa) ---
   async generatePatient360Analysis(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
     try {
       const contextText = consultations.length > 0 
@@ -237,6 +241,12 @@ export const GeminiMedicalService = {
           
           HISTORIAL MÉDICO: ${historySummary || "No registrado"}
           CONSULTAS RECIENTES: ${contextText}
+
+          OBJETIVOS DE ANÁLISIS:
+          1. EVOLUCIÓN: ¿El paciente mejora, empeora o está estancado?
+          2. AUDITORÍA RX: ¿Qué fármacos se usan? ¿Hay duplicidad o interacciones?
+          3. RIESGOS: Identifica banderas rojas latentes.
+          4. PENDIENTES: Estudios o acciones que quedaron abiertas.
 
           SALIDA JSON (PatientInsight):
           {
@@ -254,7 +264,7 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- C. EXTRACCIÓN DE MEDICAMENTOS (Farmacéutico IA) ---
+  // --- C. EXTRACCIÓN DE MEDICAMENTOS (Lógica Completa) ---
   async extractMedications(text: string): Promise<MedicationItem[]> {
     if (!text) return [];
     try {
@@ -280,7 +290,7 @@ export const GeminiMedicalService = {
     } catch (e) { return []; }
   },
 
-  // --- D. AUDITORÍA DE CALIDAD ---
+  // --- D. AUDITORÍA DE CALIDAD (Lógica Completa) ---
   async generateClinicalNoteAudit(noteContent: string): Promise<any> {
     try {
       const prompt = `
@@ -292,8 +302,8 @@ export const GeminiMedicalService = {
         {
           "riskLevel": "Bajo" | "Medio" | "Alto",
           "score": 85,
-          "analysis": "Breve análisis...",
-          "recommendations": ["Recomendación 1"]
+          "analysis": "Breve análisis de fortalezas y debilidades de la documentación.",
+          "recommendations": ["Recomendación accionable 1", "Recomendación 2"]
         }
       `;
       const rawText = await generateWithFailover(prompt, true);
@@ -303,13 +313,20 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- E. PLAN DE SEGUIMIENTO (WhatsApp) ---
+  // --- E. PLAN DE SEGUIMIENTO (Lógica Completa) ---
   async generateFollowUpPlan(patientName: string, clinicalNote: string, instructions: string): Promise<FollowUpMessage[]> {
     try {
       const prompt = `
         ACTÚA COMO: Asistente Médico Empático.
         TAREA: Redactar 3 mensajes cortos de seguimiento para WhatsApp para el paciente ${patientName}.
         CONTEXTO: Nota: "${clinicalNote}". Instrucciones: "${instructions}".
+        
+        REGLAS:
+        - Tono cercano pero profesional.
+        - Mensaje 1 (Día 1): Preguntar cómo se siente con el inicio del tratamiento.
+        - Mensaje 2 (Día 3): Verificar evolución de síntomas.
+        - Mensaje 3 (Día 7): Recordatorio de cita o cierre.
+
         SALIDA JSON ARRAY:
         [{ "day": 1, "message": "..." }, { "day": 3, "message": "..." }, { "day": 7, "message": "..." }]
       `;
