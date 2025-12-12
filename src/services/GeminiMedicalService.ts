@@ -1,19 +1,23 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-ULTIMATE: PROMETHEUS ENGINE (Pure Gemini 1.5 Architecture)");
+console.log("🚀 V-ULTIMATE: PROMETHEUS ENGINE (Pure Gemini 1.5 Architecture - Stabilized)");
 
 // ==========================================
 // 1. CONFIGURACIÓN BLINDADA
 // ==========================================
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 
-// ⚠️ CORRECCIÓN FINAL: LIMPIEZA DE MODELOS
-// Hemos eliminado "gemini-pro" y "gemini-1.0-pro" porque su API Key ya no los soporta (Error 404).
-// Solo usamos la familia 1.5 que es nativa y estable.
+// ⚠️ LISTA DE MODELOS BLINDADA (FAILOVER ESTRICTO)
+// Se han agregado las versiones canónicas (-001, -latest) para evitar el error 404
+// si el alias corto no resuelve en la región del servidor.
 const MODELS_TO_TRY = [
-  "gemini-1.5-flash",       // VELOCIDAD: El estándar actual (Prioridad 1).
-  "gemini-1.5-pro",         // INTELIGENCIA: El respaldo potente (Prioridad 2).
+  "gemini-1.5-flash",          // Opción 1: Alias estándar (Más rápido)
+  "gemini-1.5-flash-latest",   // Opción 2: Alias explícito latest
+  "gemini-1.5-flash-001",      // Opción 3: Versión congelada (Más estable)
+  "gemini-1.5-pro",            // Opción 4: Respaldo inteligente
+  "gemini-1.5-pro-latest",     // Opción 5: Respaldo inteligente explícito
+  "gemini-1.5-pro-001"         // Opción 6: Respaldo inteligente congelado
 ];
 
 // SAFETY SETTINGS (OBLIGATORIO)
@@ -41,7 +45,7 @@ const cleanJSON = (text: string) => {
 };
 
 /**
- * MOTOR DE CONEXIÓN (SOLO 1.5)
+ * MOTOR DE CONEXIÓN (SOLO 1.5 CON REINTENTOS)
  */
 async function generateWithFailover(prompt: string, jsonMode: boolean = false): Promise<string> {
   // 1. Verificación de Llave
@@ -53,7 +57,7 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false): 
   const genAI = new GoogleGenerativeAI(API_KEY);
   let lastError: any = null;
 
-  // 2. Bucle de Intentos (Solo 1.5 Flash y Pro)
+  // 2. Bucle de Intentos (Itera sobre Flash y Pro y sus variantes)
   for (const modelName of MODELS_TO_TRY) {
     try {
       console.log(`📡 Conectando con ${modelName}...`);
@@ -67,23 +71,27 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false): 
       const result = await model.generateContent(prompt);
       const text = result.response.text();
 
-      if (text && text.length > 5) return text; 
+      if (text && text.length > 5) {
+        console.log(`✅ Éxito con modelo: ${modelName}`);
+        return text; 
+      }
     } catch (error: any) {
-      console.warn(`⚠️ Fallo en ${modelName}. Intentando siguiente...`);
+      console.warn(`⚠️ Fallo en ${modelName}. Intentando siguiente...`, error.message);
       lastError = error;
       continue; 
     }
   }
 
   // 3. Diagnóstico de Error Final
-  console.error("🔥 ERROR FINAL:", lastError);
+  console.error("🔥 ERROR FINAL (Todos los modelos fallaron):", lastError);
   const errStr = lastError?.toString() || "";
   let mensaje = "Error de conexión con Google.";
 
-  if (errStr.includes("404")) mensaje = "ERROR 404: MODELO NO ENCONTRADO.\n(El código ya fue corregido a 1.5, si ves esto, reinicia el servidor).";
-  if (errStr.includes("403")) mensaje = "ERROR 403: HABILITA LA API.\nVe a Google Cloud Console > APIs > Habilitar 'Generative Language API'.";
+  if (errStr.includes("404")) mensaje = "ERROR 404: MODELOS NO DISPONIBLES.\nVerifica que tu API Key tenga acceso a 'Generative Language API' y que no esté restringida.";
+  if (errStr.includes("403")) mensaje = "ERROR 403: API KEY INVÁLIDA O SIN PERMISOS.\nVe a Google Cloud Console > APIs > Habilitar 'Generative Language API'.";
+  if (errStr.includes("503")) mensaje = "ERROR 503: SERVIDOR SOBRECARGADO.\nIntenta de nuevo en unos segundos.";
   
-  alert(`🛑 FALLO DE CONEXIÓN:\n${mensaje}\n\nDetalle: ${errStr}`);
+  alert(`🛑 FALLO DE CONEXIÓN CRÍTICO:\n${mensaje}\n\nDetalle técnico: ${errStr}`);
   throw lastError;
 }
 
