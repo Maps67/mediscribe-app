@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 // ✅ IMPORTACIÓN CRÍTICA: Usamos los tipos globales para evitar conflictos
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-FINAL: PROMETHEUS ENGINE (Medical CoT + Safety Guardrails)");
+console.log("🚀 V-FINAL: PROMETHEUS ENGINE (Medical CoT + Safety Guardrails + Stable Failover)");
 
 // ==========================================
 // 1. CONFIGURACIÓN DE ALTO NIVEL
@@ -14,11 +14,12 @@ if (!API_KEY) {
 }
 
 // ARQUITECTURA DE FAILOVER (SISTEMA DE RESPALDO)
-// Si el modelo principal falla o alucina, el sistema intenta con el siguiente.
+// CORRECCIÓN CRÍTICA: Ajuste de modelos para evitar error 404 en API v1beta/v1.
+// Estrategia: Flash 1.5 (Principal) -> Pro 1.5 (Potencia) -> Pro 1.0 (Compatibilidad Legacy)
 const MODELS_TO_TRY = [
-  "gemini-1.5-flash-002",    // 1. El más rápido y lógico actualmente (Gold Standard)
-  "gemini-1.5-pro",          // 2. Mayor profundidad de razonamiento (Respaldo pesado)
-  "gemini-1.5-flash"         // 3. Versión legacy (Último recurso)
+  "gemini-1.5-flash",       // 1. Estándar actual (Equilibrio Velocidad/Costo)
+  "gemini-1.5-pro",         // 2. Respaldo de Alta Inteligencia (Si Flash falla)
+  "gemini-pro"              // 3. LEGACY (v1.0): Último recurso. Garantiza respuesta si la familia 1.5 tiene error de región/cuenta.
 ];
 
 // CONFIGURACIÓN DE SEGURIDAD (GUARDRAILS)
@@ -83,17 +84,21 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false, t
         }
       });
       
+      console.log(`📡 Intentando conectar con núcleo: ${modelName}...`);
       const result = await model.generateContent(prompt);
       const text = result.response.text();
 
       if (text && text.length > 10) return text; // Validación básica de éxito
     } catch (error: any) {
-      console.warn(`⚠️ Modelo ${modelName} inestable. Iniciando protocolo de respaldo...`);
+      console.warn(`⚠️ Modelo ${modelName} inestable o no disponible (404/503). Iniciando protocolo de respaldo...`, error.message);
       lastError = error;
       continue; // Intenta el siguiente modelo
     }
   }
-  throw lastError || new Error("Fallo sistémico de IA. Verifique conexión a Google Cloud.");
+  
+  // Si llegamos aquí, fallaron los 3 modelos.
+  console.error("❌ FALLO SISTÉMICO DE IA: Ningún modelo respondió.", lastError);
+  throw lastError || new Error("Fallo sistémico de IA. Verifique conexión a Google Cloud y API Key.");
 }
 
 /**
@@ -327,13 +332,13 @@ export const GeminiMedicalService = {
   async chatWithContext(context: string, userMessage: string): Promise<string> {
     try {
        const prompt = `
-         ERES: Un colega médico experto consultando en interconsulta.
-         CONTEXTO CLÍNICO DEL CASO:
-         ${context}
+          ERES: Un colega médico experto consultando en interconsulta.
+          CONTEXTO CLÍNICO DEL CASO:
+          ${context}
 
-         PREGUNTA DEL MÉDICO TRATANTE: "${userMessage}"
+          PREGUNTA DEL MÉDICO TRATANTE: "${userMessage}"
 
-         INSTRUCCIÓN: Responde de forma directa, técnica y basada en evidencia. Sé breve.
+          INSTRUCCIÓN: Responde de forma directa, técnica y basada en evidencia. Sé breve.
        `;
        return await generateWithFailover(prompt, false, 0.4);
     } catch (e) { return "Lo siento, perdí la conexión con el servidor médico. Intenta de nuevo."; }
