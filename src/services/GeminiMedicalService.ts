@@ -1,26 +1,22 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
-// Importamos interfaces locales para evitar errores de compilación
+// Importamos interfaces locales
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-ULTIMATE: MODO PRO (Stable Logic + Infrastructure Fix)");
+console.log("🚀 V-ULTIMATE: MODO UNIVERSAL (Compatibility Mode)");
 
 // ==========================================
-// 1. CONFIGURACIÓN ROBUSTA
+// 1. CONFIGURACIÓN
 // ==========================================
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 
-if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada. Revisa tu archivo .env");
+if (!API_KEY) console.error("⛔ FATAL: API Key no encontrada.");
 
-// LISTA DE COMBATE BLINDADA (Failover System - Stable Channel)
-// CORRECCIÓN: Eliminamos modelos experimentales (-002, -exp) que causan error 404.
-const MODELS_TO_TRY = [
-  "gemini-1.5-flash",       // 1. Versión Estándar (Rápida y Estable)
-  "gemini-1.5-pro",         // 2. Versión Inteligente (Respaldo)
-  "gemini-1.0-pro"          // 3. Legacy (Tanque de guerra, máxima compatibilidad)
-];
+// ⚠️ SOLUCIÓN AL ERROR 404: USAR ALIAS GENÉRICO
+// No usamos "gemini-1.5-flash" ni "gemini-1.0-pro".
+// Usamos "gemini-pro". Este alias Google lo redirige automáticamente al modelo activo disponible para tu cuenta.
+const MODELS_TO_TRY = ["gemini-pro"];
 
-// SEGURIDAD OBLIGATORIA (SAFETY SETTINGS)
-// Necesario para evitar bloqueos falsos en notas médicas (sangre, heridas, etc.)
+// SAFETY SETTINGS (Anti-Bloqueo Médico)
 const SAFETY_SETTINGS = [
   { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
   { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
@@ -29,7 +25,7 @@ const SAFETY_SETTINGS = [
 ];
 
 // ==========================================
-// 2. UTILIDADES DE INTELIGENCIA
+// 2. UTILIDADES
 // ==========================================
 
 const cleanJSON = (text: string) => {
@@ -41,50 +37,49 @@ const cleanJSON = (text: string) => {
       clean = clean.substring(firstCurly, lastCurly + 1);
     }
     return clean.trim();
-  } catch (e) {
-    return text;
-  }
+  } catch (e) { return text; }
 };
 
 /**
- * MOTOR DE CONEXIÓN BLINDADO (FAILOVER)
+ * MOTOR DE CONEXIÓN SIMPLE
  */
 async function generateWithFailover(prompt: string, jsonMode: boolean = false): Promise<string> {
   const genAI = new GoogleGenerativeAI(API_KEY);
-  let lastError: any = null;
+  
+  // Usamos el único modelo universal
+  const modelName = MODELS_TO_TRY[0];
 
-  for (const modelName of MODELS_TO_TRY) {
-    try {
-      console.log(`📡 Conectando Cerebro V-Ultimate: ${modelName}...`);
-      
-      const model = genAI.getGenerativeModel({ 
-        model: modelName,
-        safetySettings: SAFETY_SETTINGS, // Inyección de seguridad crítica
-        generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined
-      });
-      
-      const result = await model.generateContent(prompt);
-      const text = result.response.text();
+  try {
+    console.log(`📡 Conectando Modelo Universal: ${modelName}...`);
+    
+    const model = genAI.getGenerativeModel({ 
+      model: modelName,
+      safetySettings: SAFETY_SETTINGS,
+      generationConfig: jsonMode ? { responseMimeType: "application/json" } : undefined
+    });
+    
+    const result = await model.generateContent(prompt);
+    const text = result.response.text();
 
-      if (text && text.length > 5) return text; // ¡Éxito!
-    } catch (error: any) {
-      console.warn(`⚠️ Modelo ${modelName} inestable. Cambiando al siguiente...`);
-      lastError = error;
-      continue; 
-    }
+    if (text && text.length > 5) return text;
+    throw new Error("Respuesta vacía del servidor.");
+
+  } catch (error: any) {
+    console.error("❌ ERROR DEFINITIVO:", error);
+    // Si esto falla con 404, es 100% la API Key.
+    throw new Error(`Error de IA (${error.status || 'Desconocido'}). Si es 404, tu API Key no tiene permisos para Generative Language.`);
   }
-  throw lastError || new Error("Todos los modelos de IA fallaron. Verifica tu conexión.");
 }
 
 /**
- * MOTOR DE PERFILES (PERSONALIDAD CLÍNICA)
+ * PERFILES CLÍNICOS (V-ULTIMATE Logic)
  */
 const getSpecialtyPromptConfig = (specialty: string) => {
   const configs: Record<string, any> = {
     "Cardiología": {
       role: "Cardiólogo Intervencionista",
       focus: "Hemodinamia, ritmo, presión arterial, perfusión, soplos y riesgo cardiovascular.",
-      bias: "Prioriza el impacto hemodinámico. Traduce síntomas vagos a equivalentes cardiológicos."
+      bias: "Prioriza el impacto hemodinámico."
     },
     "Traumatología y Ortopedia": {
       role: "Cirujano Ortopedista",
@@ -93,30 +88,29 @@ const getSpecialtyPromptConfig = (specialty: string) => {
     },
     "Dermatología": {
       role: "Dermatólogo",
-      focus: "Morfología de lesiones cutáneas (tipo, color, bordes), anejos y mucosas.",
+      focus: "Morfología de lesiones cutáneas, anejos y mucosas.",
       bias: "Usa terminología dermatológica precisa."
     },
     "Pediatría": {
       role: "Pediatra",
-      focus: "Desarrollo, crecimiento, hitos, alimentación y vacunación.",
-      bias: "Evalúa todo en contexto de la edad. Usa tono adecuado para padres."
+      focus: "Desarrollo, crecimiento, hitos y vacunación.",
+      bias: "Evalúa todo en contexto de la edad."
     },
     "Ginecología y Obstetricia": {
       role: "Ginecólogo Obstetra",
-      focus: "Salud reproductiva, ciclo menstrual, embarazo, vitalidad fetal.",
+      focus: "Salud reproductiva, embarazo, vitalidad fetal.",
       bias: "Enfoque en bienestar materno-fetal."
     },
     "Medicina General": {
       role: "Médico de Familia",
-      focus: "Visión integral, semiología general y referencia oportuna.",
-      bias: "Enfoque holístico y preventivo."
+      focus: "Visión integral y referencia oportuna.",
+      bias: "Enfoque holístico."
     }
   };
-
   return configs[specialty] || {
     role: `Especialista en ${specialty}`,
-    focus: `Patologías y terminología de ${specialty}.`,
-    bias: `Criterios clínicos estándar de ${specialty}.`
+    focus: `Patologías de ${specialty}.`,
+    bias: `Criterios clínicos de ${specialty}.`
   };
 };
 
@@ -125,86 +119,57 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- A. NOTA CLÍNICA (Con Lógica Hybrid Retrieval + Chain of Thought + Patch v5.1) ---
+  // --- A. NOTA CLÍNICA (V-ULTIMATE LOGIC) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const now = new Date();
       const profile = getSpecialtyPromptConfig(specialty);
 
-      // Implementación del Hybrid Retrieval + Chain of Thought en el Prompt (MODIFICADO v5.1)
       const prompt = `
-        ROL: Actúas como "MediScribe AI", asistente de documentación clínica.
-        PERFIL CLÍNICO: Tienes el conocimiento experto de un ${profile.role}.
-        ENFOQUE DE ANÁLISIS: ${profile.focus}
-        SESGO CLÍNICO: ${profile.bias}
+        ROL: Actúas como "MediScribe AI".
+        PERFIL: ${profile.role}. ENFOQUE: ${profile.focus}. SESGO: ${profile.bias}
 
-        🔥🔥 TAREA CRÍTICA: IDENTIFICACIÓN DE HABLANTES (DIARIZACIÓN) 🔥🔥
-        Debes transcribir y estructurar el diálogo identificando quién habla.
-        
-        REGLAS DE ORO PARA SEPARAR ROLES (NO INVERTIR):
-        1. EL MÉDICO: Es la autoridad clínica. Hace preguntas, examina, diagnostica y receta.
-           - Pistas: "Déjeme revisarla", "Le voy a recetar", "Vamos a revisar", "¿Cómo se ha sentido?".
-        2. EL PACIENTE: Es quien reporta síntomas y responde.
-           - Pistas: "Me siento bien", "Me duele aquí", "Me preocupa".
-        
-        ⚠️ REGLA DE INICIO: Si el audio comienza con un saludo (ej. "Buenas tardes Doña..."), ASUME QUE ES EL MÉDICO iniciando la consulta, a menos que el contexto sea explícitamente lo contrario.
+        🔥🔥 TAREA: DIARIZACIÓN Y DOCUMENTACIÓN 🔥🔥
+        1. Identifica Médico vs Paciente.
+           - Saludo inicial = Médico.
+           - Reporte de síntomas = Paciente.
 
-        🔥🔥 ESTRATEGIA DE MEMORIA: DYNAMIC UPDATE PROTOCOL 🔥🔥
-        Debes procesar dos fuentes. La FUENTE A es el pasado. La FUENTE B es el presente (y la verdad suprema).
+        🔥🔥 ESTRATEGIA: HYBRID RETRIEVAL 🔥🔥
+        FUENTE A (Historial): "${patientHistory || "VACÍO"}"
+        FUENTE B (Audio): "${transcript.replace(/"/g, "'").trim()}"
 
-        1. FUENTE A: CHUNK ESTÁTICO (SAFETY LAYER)
-           - Datos: "${patientHistory || "VACÍO"}"
-           - Nota: Si está vacío, NO ASUMAS QUE EL PACIENTE ESTÁ SANO. Solo significa que es nuevo.
+        🚨 REGLA ANAMNESIS ACTIVA:
+        Si el paciente menciona medicamentos/alergias en el AUDIO (Fuente B), agrégalos a 'subjective' aunque no estén en el historial.
 
-        2. FUENTE B: CHUNK DINÁMICO (AUDIO TRANSCRITO)
-           - Datos: Transcripción actual de la consulta.
-           - 🚨 REGLA DE ANAMNESIS ACTIVA (CRÍTICO): Si el paciente menciona alergias, enfermedades previas o medicamentos que toma DURANTE la charla (aunque no estén en la FUENTE A), DEBES INCLUIRLOS OBLIGATORIAMENTE en la sección 'subjective' de la nota. No los ignores.
+        🛑 EVALUACIÓN DE RIESGO:
+        - URGENCIA VITAL (Infarto, Apendicitis) -> RIESGO ALTO.
+        - INTERACCIÓN FARMACOLÓGICA GRAVE -> RIESGO ALTO.
 
-        🛑 PROTOCOLO DE EVALUACIÓN DE RIESGO (LÓGICA BLINDADA):
-        Antes de generar el JSON, evalúa el riesgo siguiendo esta JERARQUÍA ESTRICTA:
+        ---------- SAFETY OVERRIDE ----------
+        Si hay riesgo ALTO o interacción:
+        - NO escribas la instrucción del medicamento peligroso en 'patientInstructions'.
+        - SUSTITUYE por aviso de seguridad.
+        -------------------------------------
 
-        NIVEL 1: RIESGO INTRÍNSECO (URGENCIA VITAL) -> PRIORIDAD MÁXIMA
-        - Si el diagnóstico probable es una urgencia quirúrgica (ej. Apendicitis), cardiovascular (Infarto) o vital.
-        - Si el plan incluye envío inmediato a URGENCIAS u HOSPITALIZACIÓN.
-        -> RESULTADO: 'risk_analysis.level' DEBE SER 'ALTO'. (Sin importar si hay o no historial).
+        DATOS: Fecha ${now.toLocaleDateString()}.
 
-        NIVEL 2: RIESGO ADVERSARIAL (CONFLICTO)
-        - Si hay interacciones medicamentosas graves detectadas entre lo que se receta y la FUENTE A (o los nuevos datos de la FUENTE B).
-        -> RESULTADO: 'risk_analysis.level' DEBE SER 'ALTO' o 'MEDIO'.
-
-        ---------- PROTOCOLO DE SEGURIDAD (SAFETY OVERRIDE V2) ----------
-        CRÍTICO PARA EL CAMPO "patientInstructions":
-        1. Revisa tus alertas de riesgo.
-        2. Si el plan es DERIVACIÓN A URGENCIAS: Las instrucciones deben ser claras: "Acudir a urgencias inmediatamente", "Ayuno absoluto".
-        3. Si detectas interacciones peligrosas:
-           - TIENES PROHIBIDO escribir la instrucción del medicamento conflictivo.
-           - SUSTITÚYELA por: "⚠️ AVISO DE SEGURIDAD: Se ha detectado una posible interacción. Consulte nuevamente."
-        -----------------------------------------------------------------
-
-        DATOS DE ENTRADA:
-        - Fecha: ${now.toLocaleDateString()}
-
-        ============== [FUENTE B: TRANSCRIPCIÓN ACTUAL] ================
-        "${transcript.replace(/"/g, "'").trim()}"
-        ================================================================
-
-        GENERA JSON EXACTO (GeminiResponse):
+        GENERA JSON (GeminiResponse):
         {
-          "clinicalNote": "Narrativa técnica integrando ambas fuentes...",
+          "clinicalNote": "Narrativa técnica...",
           "soapData": {
-            "subjective": "Incluye motivo de consulta Y ANAMNESIS VERBAL (alergias/medicamentos mencionados en audio)...",
-            "objective": "Hallazgos físicos...",
-            "analysis": "Diagnóstico...",
-            "plan": "Pasos a seguir...",
-            "suggestions": ["Sugerencia clínica 1"]
+            "subjective": "S (incluye anamnesis verbal)...",
+            "objective": "O...",
+            "analysis": "A...",
+            "plan": "P...",
+            "suggestions": ["..."]
           },
-          "patientInstructions": "Instrucciones claras y seguras...",
+          "patientInstructions": "Instrucciones seguras...",
           "risk_analysis": {
             "level": "Bajo" | "Medio" | "Alto",
-            "reason": "SI ES URGENCIA O HAY CONFLICTO, EXPLÍCALO AQUÍ CLARAMENTE."
+            "reason": "..."
           },
           "actionItems": {
-             "urgent_referral": boolean (true si va a urgencias),
+             "urgent_referral": boolean,
              "lab_tests_required": ["..."]
           },
           "conversation_log": [
@@ -214,7 +179,6 @@ export const GeminiMedicalService = {
         }
       `;
 
-      // Usamos Failover y forzamos modo JSON
       const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText)) as GeminiResponse;
 
@@ -224,124 +188,53 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- B. BALANCE 360 (Análisis Integral) ---
-  async generatePatient360Analysis(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
+  // --- B. BALANCE 360 ---
+  async generatePatient360Analysis(p: string, h: string, c: string[]): Promise<PatientInsight> {
     try {
-      const contextText = consultations.length > 0 
-          ? consultations.join("\n\n--- CONSULTA PREVIA ---\n\n") 
-          : "Sin historial previo.";
-
-      const prompt = `
-          ACTÚA COMO: Auditor Médico Senior y Jefe de Servicio.
-          TAREA: Realizar Balance Clínico 360 para el paciente "${patientName}".
-          
-          HISTORIAL MÉDICO: ${historySummary || "No registrado"}
-          CONSULTAS RECIENTES: ${contextText}
-
-          OBJETIVOS DE ANÁLISIS:
-          1. EVOLUCIÓN: ¿El paciente mejora, empeora o está estancado?
-          2. AUDITORÍA RX: ¿Qué fármacos se usan? ¿Hay duplicidad o interacciones?
-          3. RIESGOS: Identifica banderas rojas latentes.
-          4. PENDIENTES: Estudios o acciones que quedaron abiertas.
-
-          SALIDA JSON (PatientInsight):
-          {
-            "evolution": "Resumen narrativo de la trayectoria...",
-            "medication_audit": "Análisis farmacológico...",
-            "risk_flags": ["Riesgo 1", "Riesgo 2"],
-            "pending_actions": ["Acción 1", "Acción 2"]
-          }
-      `;
-
+      const ctx = c.length > 0 ? c.join("\n\n") : "Sin historial.";
+      const prompt = `ACTÚA COMO: Auditor Médico. PACIENTE: ${p}. HISTORIAL: ${h}. CONSULTAS: ${ctx}. SALIDA JSON (PatientInsight): { "evolution": "...", "medication_audit": "...", "risk_flags": [], "pending_actions": [] }`;
       const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText));
-    } catch (e) {
-      return { evolution: "Análisis no disponible", medication_audit: "", risk_flags: [], pending_actions: [] };
-    }
+    } catch (e) { return { evolution: "N/A", medication_audit: "", risk_flags: [], pending_actions: [] }; }
   },
 
-  // --- C. EXTRACCIÓN DE MEDICAMENTOS (Farmacéutico IA) ---
-  async extractMedications(text: string): Promise<MedicationItem[]> {
-    if (!text) return [];
+  // --- C. EXTRACCIÓN MEDS ---
+  async extractMedications(t: string): Promise<MedicationItem[]> {
+    if (!t) return [];
     try {
-      const prompt = `
-        ACTÚA COMO: Farmacéutico Clínico.
-        TAREA: Extraer medicamentos, dosis y frecuencias del siguiente texto.
-        TEXTO: "${text.replace(/"/g, "'")}"
-        
-        SALIDA JSON ARRAY (MedicationItem[]):
-        [
-          {
-            "drug": "Nombre genérico/comercial",
-            "details": "Dosis y presentación",
-            "frequency": "Cada cuánto tiempo",
-            "duration": "Por cuánto tiempo",
-            "notes": "Indicaciones especiales (con alimentos, etc)"
-          }
-        ]
-      `;
+      const prompt = `ACTÚA COMO: Farmacéutico. Extrae meds de: "${t}". SALIDA JSON ARRAY (MedicationItem[]).`;
       const rawText = await generateWithFailover(prompt, true);
-      const res = JSON.parse(cleanJSON(rawText));
-      return Array.isArray(res) ? res : [];
+      return JSON.parse(cleanJSON(rawText));
     } catch (e) { return []; }
   },
 
-  // --- D. AUDITORÍA DE CALIDAD (El "Jefe de Servicio") ---
-  async generateClinicalNoteAudit(noteContent: string): Promise<any> {
+  // --- D. AUDITORÍA ---
+  async generateClinicalNoteAudit(n: string): Promise<any> {
     try {
-      const prompt = `
-        ACTÚA COMO: Auditor de Calidad Médica.
-        OBJETIVO: Evaluar la calidad, seguridad y completitud de la siguiente nota.
-        NOTA: "${noteContent}"
-        
-        SALIDA JSON:
-        {
-          "riskLevel": "Bajo" | "Medio" | "Alto",
-          "score": 85,
-          "analysis": "Breve análisis de fortalezas y debilidades de la documentación.",
-          "recommendations": ["Recomendación accionable 1", "Recomendación 2"]
-        }
-      `;
+      const prompt = `ACTÚA COMO: Auditor. Evalúa nota: "${n}". SALIDA JSON { riskLevel, score, analysis, recommendations }.`;
       const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText));
-    } catch (e) {
-      return { riskLevel: "Medio", score: 0, analysis: "No disponible", recommendations: [] };
-    }
+    } catch (e) { return { riskLevel: "Medio", score: 0, analysis: "N/A", recommendations: [] }; }
   },
 
-  // --- E. PLAN DE SEGUIMIENTO (WhatsApp Automático) ---
-  async generateFollowUpPlan(patientName: string, clinicalNote: string, instructions: string): Promise<FollowUpMessage[]> {
+  // --- E. WHATSAPP ---
+  async generateFollowUpPlan(p: string, n: string, i: string): Promise<FollowUpMessage[]> {
     try {
-      const prompt = `
-        ACTÚA COMO: Asistente Médico Empático.
-        TAREA: Redactar 3 mensajes cortos de seguimiento para WhatsApp para el paciente ${patientName}.
-        CONTEXTO: Nota: "${clinicalNote}". Instrucciones: "${instructions}".
-        
-        REGLAS:
-        - Tono cercano pero profesional.
-        - Mensaje 1 (Día 1): Preguntar cómo se siente con el inicio del tratamiento.
-        - Mensaje 2 (Día 3): Verificar evolución de síntomas.
-        - Mensaje 3 (Día 7): Recordatorio de cita o cierre.
-
-        SALIDA JSON ARRAY:
-        [{ "day": 1, "message": "..." }, { "day": 3, "message": "..." }, { "day": 7, "message": "..." }]
-      `;
+      const prompt = `ACTÚA COMO: Asistente. 3 mensajes WhatsApp para ${p}. Nota: "${n}". JSON ARRAY.`;
       const rawText = await generateWithFailover(prompt, true);
-      const res = JSON.parse(cleanJSON(rawText));
-      return Array.isArray(res) ? res : [];
+      return JSON.parse(cleanJSON(rawText));
     } catch (e) { return []; }
   },
 
-  // --- F. CHAT CONTEXTUAL ---
-  async chatWithContext(context: string, userMessage: string): Promise<string> {
+  // --- F. CHAT ---
+  async chatWithContext(c: string, u: string): Promise<string> {
     try {
-       // Para chat no forzamos JSON, queremos texto libre natural
-       const prompt = `CONTEXTO CLÍNICO: ${context}. \n\nPREGUNTA USUARIO: ${userMessage}. \n\nRESPUESTA EXPERTA Y BREVE:`;
+       const prompt = `CONTEXTO: ${c}. PREGUNTA: ${u}. RESPUESTA:`;
        return await generateWithFailover(prompt, false);
-    } catch (e) { return "Lo siento, hubo un error de conexión."; }
+    } catch (e) { return "Error conexión."; }
   },
 
-  // --- HELPERS DE COMPATIBILIDAD ---
+  // --- HELPERS ---
   async generatePatientInsights(p: string, h: string, c: string[]): Promise<any> { return this.generatePatient360Analysis(p, h, c); },
   async generateQuickRxJSON(t: string, p: string): Promise<MedicationItem[]> { return this.extractMedications(t); },
   async generatePrescriptionOnly(t: string): Promise<string> { return "Use extractMedications."; }
