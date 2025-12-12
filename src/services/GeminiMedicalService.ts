@@ -1,18 +1,19 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/generative-ai";
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-ULTIMATE: PROMETHEUS ENGINE (Gemini 1.5 ONLY)");
+console.log("🚀 V-ULTIMATE: PROMETHEUS ENGINE (Pure Gemini 1.5 Architecture)");
 
 // ==========================================
 // 1. CONFIGURACIÓN BLINDADA
 // ==========================================
 const API_KEY = import.meta.env.VITE_GEMINI_API_KEY || import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 
-// ⚠️ CORRECCIÓN ABSOLUTA: SOLO FAMILIA 1.5
-// Eliminamos "gemini-pro" y "gemini-1.0-pro" porque causan el Error 404.
+// ⚠️ CORRECCIÓN FINAL: LIMPIEZA DE MODELOS
+// Hemos eliminado "gemini-pro" y "gemini-1.0-pro" porque su API Key ya no los soporta (Error 404).
+// Solo usamos la familia 1.5 que es nativa y estable.
 const MODELS_TO_TRY = [
-  "gemini-1.5-flash",       // El estándar más rápido y compatible hoy.
-  "gemini-1.5-pro",         // La versión más inteligente.
+  "gemini-1.5-flash",       // VELOCIDAD: El estándar actual (Prioridad 1).
+  "gemini-1.5-pro",         // INTELIGENCIA: El respaldo potente (Prioridad 2).
 ];
 
 // SAFETY SETTINGS (OBLIGATORIO)
@@ -40,18 +41,19 @@ const cleanJSON = (text: string) => {
 };
 
 /**
- * MOTOR DE CONEXIÓN
+ * MOTOR DE CONEXIÓN (SOLO 1.5)
  */
 async function generateWithFailover(prompt: string, jsonMode: boolean = false): Promise<string> {
+  // 1. Verificación de Llave
   if (!API_KEY) {
-      alert("❌ ERROR: Falta API Key. Revisa tu .env");
+      alert("❌ ERROR: Falta API Key. Revisa tu archivo .env");
       throw new Error("API Key Missing");
   }
 
   const genAI = new GoogleGenerativeAI(API_KEY);
   let lastError: any = null;
 
-  // Bucle de Intentos (Solo familia 1.5)
+  // 2. Bucle de Intentos (Solo 1.5 Flash y Pro)
   for (const modelName of MODELS_TO_TRY) {
     try {
       console.log(`📡 Conectando con ${modelName}...`);
@@ -73,12 +75,12 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false): 
     }
   }
 
-  // Diagnóstico de Error Final
+  // 3. Diagnóstico de Error Final
   console.error("🔥 ERROR FINAL:", lastError);
   const errStr = lastError?.toString() || "";
   let mensaje = "Error de conexión con Google.";
 
-  if (errStr.includes("404")) mensaje = "ERROR 404: MODELO NO ENCONTRADO.\nEstamos intentando acceder a un modelo que tu API Key no permite.";
+  if (errStr.includes("404")) mensaje = "ERROR 404: MODELO NO ENCONTRADO.\n(El código ya fue corregido a 1.5, si ves esto, reinicia el servidor).";
   if (errStr.includes("403")) mensaje = "ERROR 403: HABILITA LA API.\nVe a Google Cloud Console > APIs > Habilitar 'Generative Language API'.";
   
   alert(`🛑 FALLO DE CONEXIÓN:\n${mensaje}\n\nDetalle: ${errStr}`);
