@@ -13,7 +13,7 @@ import DigitalCard from './components/DigitalCard';
 import PatientsView from './components/PatientsView';
 import SettingsView from './components/SettingsView';
 import AuthView from './components/AuthView';
-import Dashboard from './pages/Dashboard';
+import Dashboard from './pages/DashboardPage';
 import ReportsView from './pages/ReportsView';
 import AgendaView from './pages/AgendaView';
 import PrivacyPolicy from './pages/PrivacyPolicy';

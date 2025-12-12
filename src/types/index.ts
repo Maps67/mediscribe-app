@@ -1,5 +1,3 @@
-// src/types/index.ts
-
 export interface Patient {
   id: string;
   name: string;
@@ -7,10 +5,10 @@ export interface Patient {
   gender?: string;
   phone?: string;
   email?: string;
-  history?: string; // JSON string con antecedentes
+  history?: string;
   created_at?: string;
   doctor_id?: string;
-  isGhost?: boolean; // Para pacientes temporales
+  isGhost?: boolean;
   appointmentId?: string;
 }
 
@@ -40,10 +38,10 @@ export interface SoapData {
 
 export interface GeminiResponse {
   clinicalNote: string;
-  soapData?: SoapData; // Usamos soapData consistentemente
+  soapData?: SoapData;
   patientInstructions?: string;
   risk_analysis?: {
-    level: string; // "Bajo" | "Medio" | "Alto"
+    level: string;
     reason: string;
   };
   conversation_log?: {
