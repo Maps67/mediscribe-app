@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 // ✅ IMPORTACIÓN CRÍTICA: Asegúrate de que estos tipos existan en tu archivo src/types/index.ts
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-FINAL: PROMETHEUS ENGINE (Full Suite - Gemini 2.5 Flash)");
+console.log("🚀 V-FINAL: PROMETHEUS ENGINE (Full Suite - Gemini 2.5 Flash + Legal Guardrails)");
 
 // ==========================================
 // 1. CONFIGURACIÓN DE ALTO NIVEL
@@ -92,9 +92,9 @@ async function generateContentDirect(prompt: string, jsonMode: boolean = false, 
  */
 const getSpecialtyConfig = (specialty: string) => {
   const defaults = {
-    role: `Médico Especialista en ${specialty}`,
-    focus: "Diagnóstico diferencial, plan de manejo integral y seguridad del paciente.",
-    bias: "Prioriza descartar patologías graves."
+    role: `Escriba Clínico Experto y Auditor de Calidad Médica para ${specialty}`,
+    focus: "Generar documentación clínica técnica, legalmente blindada y basada estrictamente en evidencia.",
+    bias: "Lenguaje probabilístico y objetividad radical."
   };
   return defaults;
 };
@@ -111,31 +111,58 @@ export const GeminiMedicalService = {
     try {
       const profile = getSpecialtyConfig(specialty);
 
+      // PROMPT SISTÉMICO AVANZADO CON PROTOCOLO DE SEGURIDAD
       const prompt = `
-        ACTÚA COMO: ${profile.role}.
-        CONTEXTO: ${profile.focus}
-        SESGO: ${profile.bias}
+        ROL: ${profile.role}.
+        OBJETIVO: ${profile.focus}
 
-        --- DATOS DEL PACIENTE ---
-        HISTORIAL: ${patientHistory || "No disponible"}
-        TRANSCRIPCIÓN: "${transcript.replace(/"/g, "'").trim()}"
+        🧠 PROTOCOLO DE PENSAMIENTO (CHAIN OF THOUGHT):
+        Antes de generar el JSON, analiza paso a paso:
+        1. Identifica hablantes (Médico vs. Paciente).
+        2. Cruza la "Transcripción" con el "Historial Estático" (RAG) para detectar riesgos.
+        3. Filtra: ¿Qué dijo el médico explícitamente vs. qué estás deduciendo tú?
 
-        --- TAREA ---
-        Genera un JSON estricto con la nota clínica SOAP completa.
+        ⚠️ CONSTITUCIÓN LEGAL DE SEGURIDAD (NO ROMPER):
 
-        FORMATO JSON REQUERIDO:
+        1. PRINCIPIO DE NO-DIAGNÓSTICO ABSOLUTO:
+           - La IA NO es un médico licenciado.
+           - PROHIBIDO usar afirmaciones absolutas como "El paciente tiene [Enfermedad]".
+           - OBLIGATORIO usar lenguaje probabilístico: "Cuadro clínico compatible con...", "Sintomatología sugestiva de...", "Se sugiere descartar...", "Impresión diagnóstica: Probable...".
+
+        2. PRINCIPIO DE "GROUNDING" (OBJETIVIDAD RADICAL):
+           - Basa la nota EXCLUSIVAMENTE en la transcripción proporcionada.
+           - Si el médico NO mencionó un medicamento, dosis o estudio, NO LO ESCRIBAS en el plan, aunque las guías clínicas lo recomienden. Inventar tratamientos es una falta legal grave.
+
+        3. CANALIZACIÓN DE INTELIGENCIA:
+           - Tu inteligencia clínica es bienvenida, pero debe ir en su lugar correcto.
+           - CAMPO "plan": Solo lo que el médico verbalizó (Hechos).
+           - CAMPO "risk_analysis": Aquí pon tu análisis experto de riesgos.
+
+        ---------- PROTOCOLO DE SEGURIDAD (SAFETY OVERRIDE) ----------
+        CRÍTICO PARA EL CAMPO "patientInstructions":
+        1. Revisa tus alertas de riesgo (Alto/Medio).
+        2. Si el médico dio una instrucción verbal que contradice una ALERTA DE RIESGO (ej: recetó algo prohibido o peligroso):
+           - TIENES PROHIBIDO escribir esa instrucción tal cual.
+           - SUSTITÚYELA por: "⚠️ AVISO DE SEGURIDAD: Se ha detectado una posible contraindicación técnica. Por precaución, verificar nuevamente con el médico."
+        -----------------------------------------------------------------
+
+        DATOS DE ENTRADA:
+        - HISTORIAL (RAG): "${patientHistory || "No disponible"}"
+        - TRANSCRIPCIÓN: "${transcript.replace(/"/g, "'").trim()}"
+
+        GENERA UN JSON VÁLIDO CON ESTA ESTRUCTURA EXACTA:
         {
-          "clinicalNote": "Nota narrativa completa (aprox 200 palabras).",
+          "clinicalNote": "Narrativa técnica de la consulta (estilo reporte médico), aplicando el principio de NO-DIAGNÓSTICO.",
           "soapData": {
-            "subjective": "Padecimiento actual y antecedentes.",
-            "objective": "Signos vitales y exploración física.",
-            "analysis": "Diagnóstico y justificación médica.",
-            "plan": "Tratamiento farmacológico y estudios."
+            "subjective": "Narrativa del paciente...",
+            "objective": "Hallazgos físicos y vitales mencionados...",
+            "analysis": "Análisis clínico usando lenguaje probabilístico (Ej: 'Cuadro sugestivo de...').",
+            "plan": "Lista de acciones/recetas VERBALIZADAS por el médico. Si no hubo órdenes, dejar vacío o poner 'Pendiente'. NO INVENTAR."
           },
-          "patientInstructions": "Indicaciones para el paciente (lenguaje claro).",
+          "patientInstructions": "Instrucciones claras para el paciente (Aplicando Safety Override si es necesario).",
           "risk_analysis": {
             "level": "Bajo" | "Medio" | "Alto",
-            "reason": "Justificación del riesgo."
+            "reason": "Explicación técnica del riesgo detectado (RAG vs Audio)."
           },
           "actionItems": {
              "next_appointment": "Fecha sugerida o null",
