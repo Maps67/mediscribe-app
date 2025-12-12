@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 // ✅ IMPORTACIÓN CRÍTICA: Usamos los tipos globales
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-FINAL: PROMETHEUS ENGINE (Direct Connection Stable)");
+console.log("🚀 V-FINAL: PROMETHEUS ENGINE (Technical ID -001)");
 
 // ==========================================
 // 1. CONFIGURACIÓN DE ALTO NIVEL
@@ -13,8 +13,9 @@ if (!API_KEY) {
   console.error("⛔ FATAL: API Key no encontrada. El cerebro de la IA está desconectado.");
 }
 
-// 🔥 CONFIGURACIÓN DEL MODELO: Usamos DIRECTAMENTE el que funcionó en tu prueba
-const MODEL_NAME = "gemini-1.5-flash";
+// 🔥 CORRECCIÓN TÉCNICA: Usamos la versión "001" (Freeze Version)
+// Esta versión NUNCA cambia y es la más compatible con cuentas nuevas.
+const MODEL_NAME = "gemini-1.5-flash-001";
 
 // CONFIGURACIÓN DE SEGURIDAD
 const SAFETY_SETTINGS = [
@@ -36,7 +37,6 @@ const cleanJSON = (text: string): string => {
     const firstBracket = clean.indexOf('[');
     const lastBracket = clean.lastIndexOf(']');
 
-    // Detecta si es Objeto o Array y corta lo que sobre
     if (firstCurly !== -1 && lastCurly !== -1 && (firstCurly < firstBracket || firstBracket === -1)) {
       clean = clean.substring(firstCurly, lastCurly + 1);
     } else if (firstBracket !== -1 && lastBracket !== -1) {
@@ -50,7 +50,7 @@ const cleanJSON = (text: string): string => {
 };
 
 /**
- * MOTOR DE GENERACIÓN DIRECTO (SIN FAILOVER PARA EVITAR ERRORES 404 DE MODELOS VIEJOS)
+ * MOTOR DE GENERACIÓN DIRECTO (CONECTADO AL MODELO -001)
  */
 async function generateContentDirect(prompt: string, jsonMode: boolean = false, tempOverride?: number): Promise<string> {
   if (!API_KEY) throw new Error("Falta la API Key en Netlify.");
@@ -59,6 +59,7 @@ async function generateContentDirect(prompt: string, jsonMode: boolean = false, 
     const genAI = new GoogleGenerativeAI(API_KEY);
     console.log(`📡 Conectando con ${MODEL_NAME}...`);
     
+    // Configuración específica para evitar errores de versión
     const model = genAI.getGenerativeModel({ 
       model: MODEL_NAME,
       safetySettings: SAFETY_SETTINGS,
@@ -78,7 +79,6 @@ async function generateContentDirect(prompt: string, jsonMode: boolean = false, 
 
   } catch (error: any) {
     console.error(`❌ Error en Gemini (${MODEL_NAME}):`, error);
-    // Mensaje de error amigable para el usuario
     throw new Error(`Error de IA: ${error.message || 'No se pudo conectar con el servicio.'}`);
   }
 }
