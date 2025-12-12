@@ -1,3 +1,5 @@
+// src/types/index.ts
+
 export interface Patient {
   id: string;
   name: string;
