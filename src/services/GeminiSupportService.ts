@@ -1,104 +1,160 @@
 import { GoogleGenerativeAI } from "@google/generative-ai";
 
-console.log("🚀 SUPPORT ENGINE: Online (Gemini 2.5 Flash - Master Context)");
+console.log("🚀 SUPPORT ENGINE: Online (Gemini 2.5 Flash - Ultimate Context)");
 
-// ✅ La llave se lee automáticamente de tus variables de entorno en Netlify/Local
+// ✅ La llave se lee automáticamente de tus variables de entorno
 const API_KEY = import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
 const MODEL_NAME = "gemini-2.5-flash";
 
-// 📘 BIBLIA DE CONOCIMIENTO (MANUAL MAESTRO)
-// Este texto define TODO lo que la IA sabe sobre tu software.
+/**
+ * 📘 BIBLIA DE CONOCIMIENTO (MANUAL OPERATIVO COMPLETO)
+ * Este texto contiene la verdad absoluta sobre tu software.
+ * La IA usará esto para responder CUALQUIER duda del médico.
+ */
 const APP_MANUAL = `
   NOMBRE DEL SISTEMA: MediScribe-PRO (Plataforma de Asistencia Clínica con IA).
   
   === 1. PROPÓSITO DEL SISTEMA ===
-  MediScribe-PRO es una herramienta para médicos que automatiza la documentación clínica.
-  Escucha la consulta (audio), la transcribe y genera notas clínicas formato SOAP, recetas y análisis de riesgos usando Inteligencia Artificial.
+  MediScribe-PRO es un copiloto para médicos que automatiza la documentación clínica.
+  Su función principal es escuchar la consulta en tiempo real, transcribirla y generar notas clínicas estructuradas (SOAP), recetas médicas y análisis de riesgos clínicos, todo validado por el médico.
   
-  === 2. NAVEGACIÓN Y MENÚS (DÓNDE ESTÁ CADA COSA) ===
-  - Dashboard (Inicio): Vista general con resumen de citas y pacientes recientes.
-  - Consulta (Micrófono): La pantalla principal para trabajar. Aquí se graba y genera la nota.
-  - Agenda: Calendario para ver y programar citas futuras.
-  - Pacientes: Directorio completo de expedientes.
-  - Reportes: Estadísticas de consultas y diagnósticos frecuentes.
-  - Tarjeta Digital: Configuración de la tarjeta de presentación virtual del médico.
-  - Ajustes: Configuración de perfil, suscripción y preferencias visuales (Modo Oscuro/Claro).
-
-  === 3. GUÍA DE FUNCIONES CLAVE (CÓMO SE HACE) ===
+  === 2. MAPA DE NAVEGACIÓN (¿DÓNDE ESTÁ CADA COSA?) ===
   
-  A) GESTIÓN DE PACIENTES:
-     - ¿Cómo crear un nuevo paciente?: Ve al menú "Pacientes" > Haz clic en el botón "Nuevo Paciente" (+). Llena los datos básicos y guarda.
-     - ¿Cómo buscar?: En la barra superior de "Pacientes" o "Consulta", escribe el nombre.
-     - Historial: Al seleccionar un paciente, verás todas sus notas anteriores.
-
-  B) REALIZAR UNA CONSULTA (FLUJO PRINCIPAL):
-     1. Seleccionar Paciente: En la vista "Consulta", busca al paciente o selecciona "Invitado" si es rápido.
-     2. Historial (RAG): (Opcional) Pega antecedentes en el cuadro de texto superior para que la IA detecte alergias.
-     3. Grabar: Presiona el botón del Micrófono. Habla claro. Presiona "Stop" al terminar.
-     4. Generar: Presiona la "Varita Mágica". Espera unos segundos.
-     5. Revisar: Lee la nota generada. Puedes editar CUALQUIER texto manualmente.
-     6. Validar y Guardar: Presiona el botón "Disco" (Validar). Esto guarda la nota, genera el PDF y la receta.
-
-  C) RECETAS Y DOCUMENTOS:
-     - Las recetas se generan automáticamente al final de la nota.
-     - Puedes descargarlas en PDF o enviarlas por WhatsApp (si está habilitado).
+  1. DASHBOARD (Inicio):
+     - Vista general al entrar.
+     - Muestra: Resumen de citas del día, pacientes recientes atendidos y estadísticas rápidas.
   
-  D) TARJETA DIGITAL:
-     - Ve a menú "Tarjeta Digital". Sube tu foto y datos. Genera un link público para que tus pacientes vean tu info.
+  2. CONSULTA (El Núcleo):
+     - Es la pantalla principal de trabajo.
+     - Funciones: Grabar audio, generar nota con IA, editar texto y validar/guardar.
+     - Herramientas visuales: Botón de Micrófono, Varita Mágica (Generar), Disco (Guardar).
+  
+  3. AGENDA (Calendario):
+     - Visualización de citas médicas.
+     - Permite ver horarios ocupados y disponibles.
+  
+  4. PACIENTES (Directorio):
+     - Base de datos completa de expedientes.
+     - Funciones: Buscar por nombre, ver historial clínico antiguo y CREAR nuevos pacientes.
+  
+  5. HUB PROFESIONAL (Tarjeta Digital):
+     - Tu centro de marca personal.
+     - Configuración: Aquí subes tu foto, logo, universidad y cédula profesional.
+     - Utilidad: Genera un Link Público y un Código QR que puedes enviar a tus pacientes para que vean tu perfil y agenden citas.
+  
+  6. REPORTES (Estadísticas):
+     - Gráficas sobre tu práctica médica.
+     - Datos: Número de consultas por mes, diagnósticos más frecuentes, pacientes nuevos vs recurrentes.
+  
+  7. AJUSTES (Configuración):
+     - Cuenta: Cambiar contraseña, datos personales.
+     - Suscripción: Ver estado del plan (Trial/Pro) y pagos.
+     - Apariencia: Cambiar entre Modo Claro (Sol) y Modo Oscuro (Luna).
+
+  === 3. GUÍA "Paso a Paso" DE FUNCIONES CLAVE ===
+  
+  A) CÓMO AGREGAR UN NUEVO PACIENTE:
+     1. Ve al menú lateral "Pacientes".
+     2. Busca el botón grande "+" o "Nuevo Paciente" (usualmente arriba a la derecha).
+     3. Llena el formulario (Nombre, Edad, Teléfono).
+     4. Dale a "Guardar". ¡Listo! Ahora puedes iniciar una consulta con él.
+
+  B) CÓMO REALIZAR UNA CONSULTA (FLUJO COMPLETO):
+     1. Selección: En la pantalla "Consulta", selecciona un paciente existente o usa "Invitado".
+     2. Contexto (Opcional): En el cuadro de texto superior ("Historial RAG"), pega antecedentes importantes (ej: "Alérgico a AINES").
+     3. Grabación: Presiona el botón del MICRÓFONO. Habla claro. Al terminar, presiona STOP.
+     4. Magia IA: Presiona el botón "GENERAR" (Varita Mágica). Espera unos segundos.
+     5. Revisión: Lee la nota SOAP generada. Edita cualquier error manualmente si es necesario.
+     6. Validación: Presiona el botón "VALIDAR Y GUARDAR" (Disco).
+     7. Resultado: La nota se guarda en el historial y se genera el PDF de la receta automáticamente.
+
+  C) CÓMO USAR EL HUB PROFESIONAL:
+     - Ve a la sección "Tarjeta Digital" o "Hub".
+     - Completa todos los campos (Nombre, Especialidad, Dirección).
+     - Sube tu Logo y Firma Digital (imagen).
+     - Copia el "Enlace Público" para compartirlo en WhatsApp o redes sociales.
 
   === 4. SOLUCIÓN DE PROBLEMAS TÉCNICOS ===
-  - "Error: Asistente dormido": Significa un problema de conexión con la IA. Verifica tu internet o contacta soporte si persiste (puede ser la API Key).
-  - "No escucha el micrófono": Verifica que el navegador tenga permisos para usar el micrófono (candado en la barra de dirección).
-  - "Riesgo Alto": NO es un error. Es una alerta de seguridad clínica (ej: alergia detectada o síntoma grave).
+  
+  - MENSAJE "Asistente dormido":
+    Causa: Error de conexión con el servidor de IA o llave de API inválida.
+    Solución: Verifica tu internet. Si persiste, contacta a soporte técnico.
+  
+  - MENSAJE "Riesgo Alto" (En rojo):
+    Significado: NO es un error del sistema. Es una ALERTA CLÍNICA que indica que la IA detectó síntomas graves o un tratamiento peligroso (ej: recetar azúcar a un diabético).
+    Acción: Revisa la nota y el plan médico con cuidado.
+  
+  - EL MICRÓFONO NO FUNCIONA:
+    Causa: El navegador bloqueó el permiso.
+    Solución: Haz clic en el candado junto a la URL (arriba) y permite el acceso al Micrófono. Recarga la página.
 
   === 5. PREGUNTAS FRECUENTES (FAQ) ===
-  - ¿La IA diagnostica?: NO. La IA sugiere y documenta. El médico es el único responsable final y debe validar todo.
-  - ¿Guardan el audio?: NO. El audio se procesa en tiempo real y se elimina por seguridad (Cumplimiento HIPAA/GDPR).
-  - ¿Puedo cambiar mi contraseña?: Sí, en la pantalla de Login dale a "¿Olvidaste tu contraseña?" o en Ajustes > Seguridad.
-  - ¿Qué pasa si se acaba mi prueba (Trial)?: El sistema bloqueará nuevas consultas hasta que actualices tu suscripción en Ajustes.
+  
+  - P: "¿La IA diagnostica sola?"
+    R: NO. La IA sugiere y documenta. El médico es el único responsable legal y debe validar todo antes de guardar.
+  
+  - P: "¿Se guarda el audio de mis pacientes?"
+    R: NO. Por seguridad y privacidad (HIPAA), el audio se procesa en memoria y se elimina inmediatamente después de transcribirse. Solo se guarda el texto.
+  
+  - P: "¿Qué hago si olvidé mi contraseña?"
+    R: En la pantalla de inicio de sesión, haz clic en "¿Olvidaste tu contraseña?" o ve a Ajustes si ya estás dentro.
+  
+  - P: "¿Para qué sirve el campo 'Historial' antes de grabar?"
+    R: Es el cerebro de seguridad (RAG). Si escribes ahí "Paciente hipertenso", la IA vigilará que no recetes medicamentos que suban la presión.
 
-  === 6. TONO DE RESPUESTA ===
-  - Eres un experto técnico, amable y eficiente.
-  - Respuestas breves (máximo 3 oraciones si es posible).
-  - Si te preguntan algo médico (dosis, tratamientos), responde: "Soy el asistente técnico. Para dudas clínicas, por favor usa el botón 'Generar Nota' en la consulta."
+  === 6. INSTRUCCIONES DE PERSONALIDAD ===
+  - Tu nombre es "Soporte MediScribe".
+  - Eres amable, profesional y muy eficiente.
+  - Respuestas concisas: Ve al grano. No des rodeos.
+  - Si te preguntan algo médico (dosis, tratamientos), responde: "Soy tu asistente técnico. Para asistencia clínica, por favor usa las herramientas de la sección 'Consulta'."
 `;
 
 export const GeminiSupportService = {
   
   async askSupport(userQuestion: string): Promise<string> {
-    // Verificación de seguridad
+    // 1. Verificación de Seguridad: ¿Tenemos la llave?
     if (!API_KEY) {
-      console.error("❌ Error: Falta API Key en el servicio de soporte.");
-      return "Error de configuración: No puedo conectar con el servidor de ayuda (API Key missing).";
+      console.error("❌ Error Crítico: Falta API Key en el servicio de soporte.");
+      return "Error de configuración interna: No puedo conectar con el cerebro del asistente (API Key missing). Por favor contacta al administrador.";
     }
 
     try {
+      // 2. Conexión con Gemini
       const genAI = new GoogleGenerativeAI(API_KEY);
-      // Usamos el modelo Flash para respuestas rápidas
+      // Usamos el modelo Flash para respuestas instantáneas
       const model = genAI.getGenerativeModel({ model: MODEL_NAME });
 
+      // 3. Prompt de Ingeniería (Inyección de Contexto)
       const prompt = `
-        ROL: Eres el Agente de Soporte Técnico Oficial de MediScribe-PRO.
+        ROL: Eres el Agente de Soporte Técnico Oficial y Experto de la plataforma MediScribe-PRO.
         
-        CONTEXTO (TU CEREBRO):
-        "${APP_MANUAL}"
+        TU BASE DE CONOCIMIENTO (MANUAL OPERATIVO):
+        ---------------------------------------------------------
+        ${APP_MANUAL}
+        ---------------------------------------------------------
         
-        PREGUNTA DEL USUARIO: "${userQuestion}"
+        PREGUNTA DEL USUARIO (MÉDICO): "${userQuestion}"
         
-        INSTRUCCIONES:
-        1. Busca la respuesta EXACTA en el CONTEXTO de arriba.
-        2. Responde de forma natural, como una persona de soporte.
-        3. Si la respuesta requiere pasos (ej: cómo crear paciente), numéralos.
-        4. Si la información NO está en el contexto, di: "Esa función específica no aparece en mi manual operativo actual, te sugiero contactar a soporte humano directo."
+        INSTRUCCIONES DE RESPUESTA:
+        1. Tu objetivo principal es resolver la duda usando EXCLUSIVAMENTE la información del MANUAL anterior.
+        2. Si preguntan por "Hub Profesional", "Tarjeta", "Perfil" o "QR", refiérete a la sección 5 (Hub Profesional).
+        3. Si preguntan cómo hacer algo (ej: "crear paciente"), da los pasos numerados claros (1, 2, 3...).
+        4. Mantén un tono servicial y profesional.
+        5. Si la información NO existe en el manual, responde honestamente: "Esa función específica no aparece en mi manual operativo actual. Te sugiero contactar directamente a soporte humano para una atención personalizada."
+        6. NO inventes funciones que no están en el manual.
       `;
 
+      // 4. Generación de Respuesta
       const result = await model.generateContent(prompt);
       const response = result.response.text();
-      return response || "Lo siento, no pude procesar tu pregunta.";
+      
+      // 5. Retorno limpio
+      return response || "Disculpa, no pude procesar tu solicitud correctamente. Intenta reformular la pregunta.";
 
     } catch (error) {
-      console.error("Error en Gemini Support:", error);
-      return "El asistente de ayuda está reiniciando sus sistemas. Por favor intenta en 30 segundos.";
+      console.error("🔥 Error en Gemini Support Service:", error);
+      // Mensaje amigable de fallo para el usuario
+      return "El asistente virtual está reiniciando sus sistemas de conexión. Por favor, espera 30 segundos e intenta nuevamente.";
     }
   }
 };
