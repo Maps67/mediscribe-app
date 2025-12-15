@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 // Asegúrate de que la ruta a tus tipos sea correcta
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-STABLE: PROTOCOLO DE ESTABILIZACIÓN + RESTAURACIÓN SOAP (Temp 0 + Full Schema)");
+console.log("🚀 V-STABLE FIXED: JSON SCHEMA ALIGNED (soapData + clinical_suggestions)");
 
 // ==========================================
 // 1. CONFIGURACIÓN ROBUSTA & MOTOR DE IA
@@ -14,11 +14,10 @@ if (!API_KEY) {
 }
 
 // 🛡️ LISTA DE COMBATE (High IQ Only)
-// Se eliminó la versión "8b" porque carece de razonamiento complejo para seguridad médica.
 const MODELS_TO_TRY = [
   "gemini-2.0-flash-exp",    // 1. Velocidad + Razonamiento superior
   "gemini-1.5-flash-002",    // 2. Estable y probado
-  "gemini-1.5-pro-002"       // 3. Respaldo pesado (Más lento pero infalible)
+  "gemini-1.5-pro-002"       // 3. Respaldo pesado
 ];
 
 // CONFIGURACIÓN DE SEGURIDAD
@@ -150,7 +149,7 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- A. NOTA CLÍNICA (V5.6 - RESTAURACIÓN SOAP COMPLETO + ESTABILIDAD) ---
+  // --- A. NOTA CLÍNICA (V5.6 FIXED - SCHEMA CORREGIDO: soapData + clinical_suggestions) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const profile = getSpecialtyPromptConfig(specialty);
@@ -193,16 +192,19 @@ export const GeminiMedicalService = {
         - Historial Previo: "${patientHistory || "Sin datos"}"
         - Transcripción Actual: "${transcript.replace(/"/g, "'").trim()}"
 
-        GENERA JSON EXACTO (GeminiResponse):
+        ⚠️ GENERA EL SIGUIENTE JSON EXACTO (RESPETA LOS NOMBRES DE LAS CLAVES):
         {
           "clinicalNote": "Resumen narrativo completo del caso.",
-          "soap": {
+          "soapData": {
             "subjective": "Incluye OBLIGATORIAMENTE el contexto de embarazo, medicamentos mencionados y síntomas reportados por el paciente.",
             "objective": "Hallazgos físicos y signos vitales reportados por el médico (ej. Glucosa 450, Aliento frutal).",
-            "assessment": "Diagnóstico y razonamiento clínico (ej. Cetoacidosis Diabética).",
-            "plan": "Pasos a seguir DETALLADOS. Si hubo bloqueo ético, pon aquí el tratamiento CORRECTO (no el negligente).",
-            "suggestions": ["Sugerencia 1"]
+            "analysis": "Diagnóstico y razonamiento clínico (ej. Cetoacidosis Diabética).",
+            "plan": "Pasos a seguir DETALLADOS. Si hubo bloqueo ético, pon aquí el tratamiento CORRECTO (no el negligente)."
           },
+          "clinical_suggestions": [
+            "Sugerencia clínica 1",
+            "Sugerencia clínica 2"
+          ],
           "patientInstructions": "Instrucciones SEGURAS y claras para el paciente (Filtradas por Protocolo de Bloqueo)...",
           "risk_analysis": {
             "level": "Bajo" | "Medio" | "Alto",
