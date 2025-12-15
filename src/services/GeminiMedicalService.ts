@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 // Asegúrate de que la ruta a tus tipos sea correcta
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-STABLE: PROTOCOLO DE ESTABILIZACIÓN (Temp 0 + Schema Fix + High IQ Models)");
+console.log("🚀 V-STABLE: PROTOCOLO DE ESTABILIZACIÓN + RESTAURACIÓN SOAP (Temp 0 + Full Schema)");
 
 // ==========================================
 // 1. CONFIGURACIÓN ROBUSTA & MOTOR DE IA
@@ -54,7 +54,7 @@ const cleanJSON = (text: string) => {
 
 /**
  * MOTOR DE CONEXIÓN BLINDADO (FAILOVER + DETERMINISMO)
- * Ahora fuerza temperature: 0 para evitar alucinaciones en diagnósticos de riesgo.
+ * Fuerza temperature: 0 para evitar alucinaciones en diagnósticos de riesgo.
  */
 async function generateWithFailover(prompt: string, jsonMode: boolean = false): Promise<string> {
   if (!API_KEY) throw new Error("API Key faltante.");
@@ -80,7 +80,6 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false): 
       const text = response.text();
 
       if (text && text.length > 0) {
-        // console.log(`✅ Conexión exitosa con: ${modelName}`); // Descomentar para debug
         return text; 
       }
     } catch (error: any) {
@@ -131,6 +130,11 @@ const getSpecialtyPromptConfig = (specialty: string) => {
         role: "Urgenciólogo Senior",
         focus: "ABCDE, estabilización. CRÍTICO: Detectar errores fatales antes de tratar.",
         bias: "Primero NO hacer daño (Primum non nocere). Verifica contraindicaciones antes de recetar."
+    },
+    "Endocrinología": {
+        role: "Endocrinólogo Experto",
+        focus: "Metabolismo, control glucémico, tiroides, ejes hormonales.",
+        bias: "Prioriza el control metabólico estricto y detección de crisis (CAD, Estado Hiperosmolar)."
     }
   };
 
@@ -146,7 +150,7 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- A. NOTA CLÍNICA (V5.5 - STABLE SCHEMA & DETERMINISTIC) ---
+  // --- A. NOTA CLÍNICA (V5.6 - RESTAURACIÓN SOAP COMPLETO + ESTABILIDAD) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
       const profile = getSpecialtyPromptConfig(specialty);
@@ -160,51 +164,53 @@ export const GeminiMedicalService = {
         1. Identifica al Médico y al Paciente (Diarización).
         2. Extrae ANAMNESIS DE LA TRANSCRIPCIÓN: ¿Qué medicamentos o condiciones menciona el paciente?
            - *Nota:* Si el paciente dice "tomé X ayer/anoche", asume que está ACTIVO en su sistema.
+           - *Nota:* Si el paciente tiene historial (ej. Diabetes Tipo 1), úsalo como contexto base.
 
-        💀💀 FASE 2: PROTOCOLO DE CONTEXTO CRÍTICO Y BLOQUEO FARMACOLÓGICO (GRIM REAPER) 💀💀
-        Tu deber es detectar dos tipos de riesgo: Urgencia Vital (Grim Reaper) y Daño Irreversible Fetal (OBSTETRA).
+        💀💀 FASE 2: PROTOCOLO DE CONTEXTO CRÍTICO Y BLOQUEO DE SEGURIDAD 💀💀
+        Tu deber es detectar riesgos vitales y bloquear órdenes negligentes o peligrosas.
 
         A. 🚨 REGLA DE EMBARAZO ACTIVO (TERATOGENICIDAD):
-        - Si la transcripción menciona "embarazo", "bebé", "feto" o "semanas de gestación", ESTE CONTEXTO ES MÁXIMA PRIORIDAD.
-        - ANÁLISIS DE RIESGO TERATOGÉNICO (MÁXIMO):
-          - SI se menciona **Warfarina** o **Enalapril** (IECA), u otro fármaco de Categoría X/D...
-          - ...Y la paciente está embarazada...
-          - > ESTO ES RIESGO MORTAL FETAL IRREVERSIBLE.
-        - 'risk_analysis.level' DEBE SER "Alto" (OBLIGATORIO) por encima del diagnóstico materno.
+        - SI se menciona **Warfarina** o **Enalapril** (IECA) en paciente embarazada -> RIESGO ALTO. BLOQUEAR.
 
         B. 🚨 REGLA DE INTERACCIÓN FARMACOLÓGICA (Grim Reaper):
-        - REGLA DE LAS 48 HORAS: Sildenafil/Tadalafil + Nitratos (Isosorbide/Nitroglicerina) = PELIGRO MORTAL.
+        - Sildenafil/Tadalafil + Nitratos (Isosorbide/Nitroglicerina) -> RIESGO ALTO. BLOQUEAR.
         
-        SI HAY BLOQUEO ACTIVO (PUNTO A o B):
-        1. 🛑 El 'risk_analysis.level' es "Alto" y la 'reason' explica la contraindicación absoluta.
-        2. 🛑 BLOQUEO DE INSTRUCCIONES: En 'patientInstructions', TIENES PROHIBIDO escribir la orden del médico de tomar el medicamento peligroso.
-           - DEBES escribir: "⚠️ ALERTA DE SEGURIDAD MÁXIMA: El sistema ha bloqueado la administración de [Fármacos de Riesgo] por riesgo de muerte/teratogenicidad. NO ADMINISTRAR."
+        C. 🚨 REGLA DE URGENCIA METABÓLICA/VITAL (Negligencia):
+        - SI detectas Cetoacidosis (CAD), Infarto, ACV u otra urgencia vital...
+        - ...Y el médico ordena "esperar", "no hacer nada" o minimiza el cuadro...
+        - > ESTO ES NEGLIGENCIA MÉDICA.
+        - 'risk_analysis.level' DEBE SER "Alto".
+        - BLOQUEO ÉTICO: En 'patientInstructions' y 'plan', IGNORA la orden negligente. Escribe el protocolo médico correcto y urgente (ej. "Iniciar hidratación e insulina IV inmediatamente").
 
-        🔥🔥 FASE 3: GENERACIÓN ESTRUCTURADA 🔥🔥
-        Asegura que el 'plan' en SOAP refleje la acción de seguridad si el bloqueo se activa.
+        SI HAY BLOQUEO ACTIVO (A, B o C):
+        1. 'risk_analysis.level' = "Alto".
+        2. BLOQUEO DE INSTRUCCIONES: En 'patientInstructions', escribe: "⚠️ ALERTA DE SEGURIDAD MÁXIMA: [Razón del bloqueo]. [Acción Correcta Inmediata]."
+
+        🔥🔥 FASE 3: GENERACIÓN ESTRUCTURADA SOAP 🔥🔥
+        Genera la nota clínica completa y detallada.
 
         DATOS DE ENTRADA:
         - Historial Previo: "${patientHistory || "Sin datos"}"
         - Transcripción Actual: "${transcript.replace(/"/g, "'").trim()}"
 
-        GENERA JSON EXACTO (Compatibilidad estricta con GeminiResponse Interface):
+        GENERA JSON EXACTO (GeminiResponse):
         {
-          "clinicalNote": "Resumen narrativo completo.",
+          "clinicalNote": "Resumen narrativo completo del caso.",
           "soap": {
-            "subjective": "Incluye OBLIGATORIAMENTE el contexto de embarazo y los medicamentos mencionados.",
-            "objective": "Hallazgos y signos vitales.",
-            "assessment": "Diagnóstico y razonamiento clínico.",
-            "plan": "Pasos a seguir (Suspender fármacos prohibidos si aplica)...",
+            "subjective": "Incluye OBLIGATORIAMENTE el contexto de embarazo, medicamentos mencionados y síntomas reportados por el paciente.",
+            "objective": "Hallazgos físicos y signos vitales reportados por el médico (ej. Glucosa 450, Aliento frutal).",
+            "assessment": "Diagnóstico y razonamiento clínico (ej. Cetoacidosis Diabética).",
+            "plan": "Pasos a seguir DETALLADOS. Si hubo bloqueo ético, pon aquí el tratamiento CORRECTO (no el negligente).",
             "suggestions": ["Sugerencia 1"]
           },
-          "patientInstructions": "Instrucciones SEGURAS (Filtradas por Protocolo de Bloqueo)...",
+          "patientInstructions": "Instrucciones SEGURAS y claras para el paciente (Filtradas por Protocolo de Bloqueo)...",
           "risk_analysis": {
             "level": "Bajo" | "Medio" | "Alto",
-            "reason": "Si hay bloqueo, describe el peligro absoluto aquí."
+            "reason": "Razón clara del nivel de riesgo seleccionado."
           },
           "actionItems": {
              "urgent_referral": boolean,
-             "lab_tests_required": ["Lista de estudios"]
+             "lab_tests_required": ["Lista de estudios necesarios"]
           },
           "conversation_log": [
              { "speaker": "Médico", "text": "..." },
