@@ -64,8 +64,12 @@ const ConsultationView: React.FC = () => {
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null); 
   
-  // --- CONTEXTO MÉDICO ACTIVO ---
-  const [activeMedicalContext, setActiveMedicalContext] = useState<{ history: string, allergies: string } | null>(null);
+  // --- CONTEXTO MÉDICO ACTIVO (Híbrido: Fijo + Dinámico) ---
+  const [activeMedicalContext, setActiveMedicalContext] = useState<{ 
+      history: string; 
+      allergies: string; 
+      lastConsultation?: { date: string; summary: string; } 
+  } | null>(null);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -227,62 +231,76 @@ const ConsultationView: React.FC = () => {
   }, [setTranscript, location.state]); 
 
   // --- FUNCIÓN DE LIMPIEZA DE JSON ---
-  // Esta función elimina el código basura {"background":...} y extrae solo texto real
   const cleanHistoryString = (input: string | null | undefined): string => {
       if (!input) return "";
       const trimmed = input.trim();
-      
-      // Si parece un objeto JSON (empieza con { o [)
       if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
           try {
               const parsed = JSON.parse(trimmed);
-              // Si tiene formato antiguo con 'legacyNote', usamos eso
               if (parsed.legacyNote && typeof parsed.legacyNote === 'string' && parsed.legacyNote.trim() !== "") {
                   return parsed.legacyNote;
               }
-              // Si es un objeto vacío o solo estructura, devolvemos vacío para no ensuciar
               return ""; 
           } catch (e) {
-              // Si falla el parseo, devolvemos el texto original por seguridad
               return input;
           }
       }
-      return input; // Si es texto normal, lo devolvemos tal cual
+      return input; 
   };
 
-  // --- EFECTO: Carga de Contexto Médico (Con Limpieza Automática) ---
+  // --- EFECTO: Carga de Contexto Médico (Perfil + Última Consulta) ---
   useEffect(() => {
     const fetchMedicalContext = async () => {
         setActiveMedicalContext(null);
         if (selectedPatient && !(selectedPatient as any).isTemporary) {
             try {
-                const { data, error } = await supabase
+                // 1. OBTENER DATOS FIJOS (PERFIL)
+                const { data: patientData, error: patientError } = await supabase
                     .from('patients')
                     .select('pathological_history, allergies, history') 
                     .eq('id', selectedPatient.id)
                     .single();
 
-                if (!error && data) {
-                    // Aplicamos la limpieza a los datos crudos
-                    const rawHistory = data.pathological_history || data.history;
-                    const cleanHistory = cleanHistoryString(rawHistory);
-                    
-                    const rawAllergies = data.allergies;
-                    // Las alergias a veces también vienen en JSON, las limpiamos igual
-                    const cleanAllergies = cleanHistoryString(rawAllergies);
+                // 2. OBTENER ÚLTIMA CONSULTA (DINÁMICO)
+                const { data: lastCons, error: consError } = await supabase
+                    .from('consultations')
+                    .select('summary, created_at')
+                    .eq('patient_id', selectedPatient.id)
+                    .order('created_at', { ascending: false })
+                    .limit(1)
+                    .single();
 
-                    // Solo mostramos la tarjeta si quedó texto real después de limpiar
-                    const hasRealData = 
-                        (cleanHistory && cleanHistory.length > 2) ||
-                        (cleanAllergies && cleanAllergies.length > 2);
+                // PROCESAR DATOS
+                let cleanHistory = "";
+                let cleanAllergies = "";
+                let lastConsultationData = undefined;
 
-                    if (hasRealData) {
-                         setActiveMedicalContext({
-                            history: cleanHistory || "No registrados",
-                            allergies: cleanAllergies || "No registradas"
-                         });
-                    }
+                if (!patientError && patientData) {
+                    const rawHistory = patientData.pathological_history || patientData.history;
+                    cleanHistory = cleanHistoryString(rawHistory);
+                    const rawAllergies = patientData.allergies;
+                    cleanAllergies = cleanHistoryString(rawAllergies);
                 }
+
+                if (!consError && lastCons && lastCons.summary) {
+                    lastConsultationData = {
+                        date: lastCons.created_at,
+                        summary: lastCons.summary
+                    };
+                }
+
+                // LÓGICA DE VISIBILIDAD: Mostrar si hay perfil O si hay consulta previa
+                const hasStaticData = (cleanHistory && cleanHistory.length > 2) || (cleanAllergies && cleanAllergies.length > 2);
+                const hasDynamicData = !!lastConsultationData;
+
+                if (hasStaticData || hasDynamicData) {
+                     setActiveMedicalContext({
+                        history: cleanHistory || "No registrados",
+                        allergies: cleanAllergies || "No registradas",
+                        lastConsultation: lastConsultationData
+                     });
+                }
+
             } catch (e) {
                 console.log("Error leyendo contexto médico:", e);
             }
@@ -468,9 +486,16 @@ const ConsultationView: React.FC = () => {
       if (activeMedicalContext) {
           activeContextString = `
             >>> DATOS CRÍTICOS DEL PACIENTE (APP):
-            - Antecedentes Patológicos / Historial: ${activeMedicalContext.history}
+            - Antecedentes Patológicos: ${activeMedicalContext.history}
             - Alergias Conocidas: ${activeMedicalContext.allergies}
           `;
+          
+          if (activeMedicalContext.lastConsultation) {
+              activeContextString += `
+              - RESUMEN ÚLTIMA CONSULTA (${new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}): 
+              ${activeMedicalContext.lastConsultation.summary}
+              `;
+          }
       }
 
       if (selectedPatient && !(selectedPatient as any).isTemporary) {
@@ -746,7 +771,7 @@ const ConsultationView: React.FC = () => {
             )}
         </div>
         
-        {/* === TARJETA DE CONTEXTO MÉDICO ACTIVO (Con Limpieza JSON) === */}
+        {/* === TARJETA DE CONTEXTO MÉDICO ACTIVO (Perfil + Última Consulta) === */}
         {activeMedicalContext && !generatedNote && (
             <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800 text-xs shadow-sm animate-fade-in-up">
                 <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-bold border-b border-amber-200 dark:border-amber-800 pb-1">
@@ -762,6 +787,17 @@ const ConsultationView: React.FC = () => {
                         <div>
                              <span className="font-semibold block text-[10px] uppercase text-amber-600">Alergias:</span>
                              {activeMedicalContext.allergies}
+                        </div>
+                    )}
+                    {/* SECCIÓN ÚLTIMA CONSULTA */}
+                    {activeMedicalContext.lastConsultation && (
+                        <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800/50">
+                             <span className="font-semibold block text-[10px] uppercase text-amber-600 mb-1">
+                                Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
+                             </span>
+                             <p className="line-clamp-3 italic opacity-90 pl-1 border-l-2 border-amber-300 dark:border-amber-700">
+                                {activeMedicalContext.lastConsultation.summary}
+                             </p>
                         </div>
                     )}
                 </div>
