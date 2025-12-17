@@ -2,7 +2,7 @@
 import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "https://esm.sh/@google/generative-ai@0.24.0";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-console.log("🚀 SUPABASE EDGE: MEDICINE AI V-ULTIMATE (Safety + Forensic Protocols)");
+console.log("🚀 SUPABASE EDGE: MEDICINE AI V-ULTIMATE (Safety + Forensic Protocols + Critical Pathology)");
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
@@ -45,7 +45,7 @@ serve(async (req) => {
     };
     const profile = getSpecialtyConfig(specialty || "Medicina General");
 
-    // 4. PROMPT MAESTRO (CON TODAS LAS REGLAS + DIARIZACIÓN REFORZADA)
+    // 4. PROMPT MAESTRO (CON REGLA F: BOMBA DE TIEMPO)
     const prompt = `
       ROL: Eres "MediScribe AI", Auditor de Seguridad Clínica, Psiquiátrica y Forense en Tiempo Real.
       ESPECIALIDAD: ${profile.role}.
@@ -78,16 +78,22 @@ serve(async (req) => {
       - > ESTO ES PREPARACIÓN PARA EL SUICIDIO. BLOQUEO TOTAL.
       - TEXTO OBLIGATORIO: "⚠️ ALERTA PSICOLÓGICA MÁXIMA: RIESGO SUICIDA INMINENTE. NO ENTREGAR RECETA."
 
-      E. 🚨 REGLA DE PROTECCIÓN AL MENOR (FORENSE) [NUEVA]:
+      E. 🚨 REGLA DE PROTECCIÓN AL MENOR (FORENSE):
       - SI hay discrepancia entre mecanismo de lesión (ej. "caída suave de la cama") y daño grave (ej. "fractura espiroidea", "quemaduras de cigarro", "hematomas en varios estadios").
       - > ESTO ES SOSPECHA DE MALTRATO INFANTIL.
       - 'risk_analysis.level' DEBE SER "Alto".
       - BLOQUEO: PROHIBIDO dar de alta sin observación.
       - TEXTO OBLIGATORIO: "⚠️ ALERTA MEDICO-LEGAL: Sospecha de Síndrome de Kempe (Maltrato Infantil). Discrepancia clínica. Activar protocolo de Trabajo Social/Fiscalía."
 
-      SI HAY BLOQUEO ACTIVO (A, B, C, D o E):
+      F. 🚨 REGLA DE GRAVEDAD INTRÍNSECA (PATHOLOGY OVERRIDE):
+      - SI el diagnóstico probable es una condición POTENCIALMENTE MORTAL a corto plazo (ej. Feocromocitoma, Infarto, ACV, Sepsis, Ectópico).
+      - AUNQUE el médico esté actuando correctamente...
+      - > EL 'risk_analysis.level' DEBE SER "Alto".
+      - RAZÓN: "La condición clínica sospechada representa un peligro vital inminente, independientemente de la gestión médica correcta. Requiere monitorización estricta."
+
+      SI HAY BLOQUEO ACTIVO (A, B, C, D o E) O DIAGNÓSTICO CRÍTICO (F):
       1. 'risk_analysis.level' = "Alto".
-      2. 'patientInstructions' = "⚠️ ALERTA DE SEGURIDAD: [Razón del bloqueo]. [Acción Correcta Inmediata]."
+      2. 'patientInstructions' = "⚠️ ALERTA CLÍNICA: [Razón del Riesgo]. [Instrucciones de Seguridad Vital]."
 
       🔥🔥 FASE 3: GENERACIÓN ESTRUCTURADA SOAP 🔥🔥
       
