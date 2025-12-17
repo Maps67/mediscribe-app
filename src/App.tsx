@@ -22,9 +22,9 @@ import SplashScreen from './components/SplashScreen';
 import MobileTabBar from './components/MobileTabBar';
 import TermsOfService from './pages/TermsOfService';
 import { TrialMonitor } from './components/TrialMonitor';
-// PÁGINA NUEVA
+// PÁGINA DE RECUPERACIÓN
 import UpdatePassword from './pages/UpdatePassword';
-// WIDGET DE SOPORTE FLOTANTE
+// WIDGET DE SOPORTE
 import { SupportChatWidget } from './components/SupportChatWidget';
 
 interface MainLayoutProps {
@@ -42,7 +42,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
     const checkPremiumStatus = async () => {
       if (!session?.user?.id) return;
       try {
-        const { data, error } = await supabase
+        const { data } = await supabase
           .from('profiles')
           .select('is_premium')
           .eq('id', session.user.id)
@@ -62,7 +62,7 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative">
       
-      {/* MONITOR DE PRUEBA INTELIGENTE: Solo se muestra si NO es premium */}
+      {/* MONITOR DE PRUEBA: Se muestra arriba si NO es premium */}
       {!isPremium && <TrialMonitor />}
       
       <div className="flex flex-1 overflow-hidden relative">
@@ -107,7 +107,7 @@ const App: React.FC = () => {
   const [isClosing, setIsClosing] = useState(false);
   const [closingName, setClosingName] = useState('');
 
-  // DETECCIÓN SÍNCRONA
+  // DETECCIÓN SÍNCRONA DE RUTA
   const isUpdatePasswordRoute = window.location.pathname === '/update-password';
 
   useEffect(() => {
@@ -167,10 +167,9 @@ const App: React.FC = () => {
       );
   }
 
-  // --- LÓGICA DE RENDERIZADO MAESTRA ---
+  // --- LÓGICA DE RENDERIZADO ---
   
-  // 1. RUTA DE RECUPERACIÓN (Prioridad Absoluta)
-  // Renderiza la página UpdatePassword que usa AuthView con tu diseño bonito.
+  // 1. RUTA DE RECUPERACIÓN (Prioridad)
   if (isUpdatePasswordRoute) {
       return (
         <ThemeProvider>
@@ -180,7 +179,7 @@ const App: React.FC = () => {
       );
   }
 
-  // 2. NO LOGUEADO -> PANTALLA DE ACCESO (Tu AuthView con diseño)
+  // 2. NO LOGUEADO -> PANTALLA DE ACCESO
   if (!session) {
     return (
       <ThemeProvider>
@@ -191,7 +190,7 @@ const App: React.FC = () => {
     );
   }
 
-  // 3. LOGUEADO Y RUTA NORMAL -> APP
+  // 3. LOGUEADO -> APP
   return (
     <ThemeProvider>
       <BrowserRouter>

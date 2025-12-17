@@ -5,7 +5,7 @@ import {
   MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
   Stethoscope, Trash2, WifiOff, Save, Share2, Download, Printer,
   Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature, Keyboard,
-  Quote, AlertTriangle, ChevronDown, ChevronUp, Sparkles, PenLine, UserPlus, ShieldCheck
+  Quote, AlertTriangle, ChevronDown, ChevronUp, Sparkles, PenLine, UserPlus, ShieldCheck, AlertCircle
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
@@ -65,6 +65,9 @@ const ConsultationView: React.FC = () => {
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null); 
   
+  // --- NUEVO ESTADO: Contexto Médico Activo ---
+  const [activeMedicalContext, setActiveMedicalContext] = useState<{ history: string, allergies: string } | null>(null);
+
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
@@ -224,6 +227,36 @@ const ConsultationView: React.FC = () => {
     loadInitialData();
     return () => { mounted = false; };
   }, [setTranscript, location.state]); 
+
+  // --- EFECTO: Carga de Contexto Médico (APP + Alergias) ---
+  useEffect(() => {
+    const fetchMedicalContext = async () => {
+        setActiveMedicalContext(null); // Reset al cambiar paciente
+        if (selectedPatient && !(selectedPatient as any).isTemporary) {
+            try {
+                // Buscamos si existen las columnas (soportando estructura antigua)
+                const { data, error } = await supabase
+                    .from('patients')
+                    .select('pathological_history, allergies') // Intentamos leer
+                    .eq('id', selectedPatient.id)
+                    .single();
+
+                if (!error && data) {
+                    // Solo seteamos si hay datos relevantes
+                    if (data.pathological_history || data.allergies) {
+                         setActiveMedicalContext({
+                            history: data.pathological_history || "No registrados",
+                            allergies: data.allergies || "No registradas"
+                         });
+                    }
+                }
+            } catch (e) {
+                console.log("Aviso: Columnas APP no disponibles aún o error de lectura", e);
+            }
+        }
+    };
+    fetchMedicalContext();
+  }, [selectedPatient]);
 
   useEffect(() => {
     if (selectedPatient) {
@@ -403,6 +436,16 @@ const ConsultationView: React.FC = () => {
     try {
       let fullMedicalContext = "";
       
+      // INYECCIÓN DE APP Y ALERGIAS
+      let activeContextString = "";
+      if (activeMedicalContext) {
+          activeContextString = `
+            >>> DATOS CRÍTICOS DEL PACIENTE (APP):
+            - Antecedentes Patológicos: ${activeMedicalContext.history}
+            - Alergias Conocidas: ${activeMedicalContext.allergies}
+          `;
+      }
+
       if (selectedPatient && !(selectedPatient as any).isTemporary) {
           // Si el paciente es real, traemos su contexto histórico para el RAG Híbrido
           const { data: historyData } = await supabase
@@ -412,7 +455,7 @@ const ConsultationView: React.FC = () => {
               .order('created_at', { ascending: false })
               .limit(3); 
 
-          const staticHistory = selectedPatient.history || "Sin antecedentes patológicos registrados.";
+          const staticHistory = selectedPatient.history || "Sin antecedentes patológicos generales.";
           
           const episodicHistory = historyData && historyData.length > 0
               ? historyData.map(h => `[FECHA: ${new Date(h.created_at).toLocaleDateString()}] RESUMEN: ${h.summary.substring(0, 300)}...`).join("\n\n")
@@ -421,11 +464,15 @@ const ConsultationView: React.FC = () => {
           // Construcción del Contexto para la IA
           fullMedicalContext = `
             === [FUENTE A: HISTORIAL CLÍNICO CRÍTICO (VERDAD ABSOLUTA)] ===
+            ${activeContextString}
             ${staticHistory}
             
             === [FUENTE B: EVOLUCIÓN RECIENTE (CONTEXTO)] ===
             ${episodicHistory}
           `;
+      } else {
+          // Paciente temporal o nuevo, solo pasamos lo que tengamos
+          fullMedicalContext = activeContextString;
       }
 
       // Llamada al Servicio V7
@@ -682,6 +729,27 @@ const ConsultationView: React.FC = () => {
                 </div>
             )}
         </div>
+        
+        {/* === TARJETA DE CONTEXTO MÉDICO ACTIVO === */}
+        {activeMedicalContext && !generatedNote && (
+            <div className="bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800 text-xs shadow-sm animate-fade-in-up">
+                <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-bold border-b border-amber-200 dark:border-amber-800 pb-1">
+                    <AlertCircle size={14} />
+                    <span>Antecedentes Activos</span>
+                </div>
+                <div className="space-y-2 text-slate-700 dark:text-slate-300">
+                    <div>
+                        <span className="font-semibold block text-[10px] uppercase text-amber-600">Patológicos:</span>
+                        {activeMedicalContext.history}
+                    </div>
+                    <div>
+                         <span className="font-semibold block text-[10px] uppercase text-amber-600">Alergias:</span>
+                         {activeMedicalContext.allergies}
+                    </div>
+                </div>
+            </div>
+        )}
+
         <div onClick={()=>setConsentGiven(!consentGiven)} className="flex items-center gap-2 p-3 rounded-lg border cursor-pointer select-none dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"><div className={`w-5 h-5 rounded border flex items-center justify-center ${consentGiven?'bg-green-500 border-green-500 text-white':'bg-white dark:bg-slate-700'}`}>{consentGiven&&<Check size={14}/>}</div><label className="text-xs dark:text-white cursor-pointer">Consentimiento otorgado.</label></div>
         
         <div className={`flex-1 border-2 border-dashed rounded-2xl flex flex-col items-center justify-center p-4 relative transition-colors min-h-[300px] ${!isOnline ? 'border-amber-300 bg-amber-50 dark:bg-amber-900/10' : (isListening?'border-red-400 bg-red-50 dark:bg-red-900/10':'border-slate-200 dark:border-slate-700')}`}>
