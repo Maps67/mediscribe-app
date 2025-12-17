@@ -34,10 +34,37 @@ interface MainLayoutProps {
 
 const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isPremium, setIsPremium] = useState(false);
+
+  // --- LÓGICA PREMIUM: Verificamos si el médico pagó para ocultar el monitor ---
+  useEffect(() => {
+    let mounted = true;
+    const checkPremiumStatus = async () => {
+      if (!session?.user?.id) return;
+      try {
+        const { data, error } = await supabase
+          .from('profiles')
+          .select('is_premium')
+          .eq('id', session.user.id)
+          .single();
+
+        if (mounted && data && data.is_premium) {
+          setIsPremium(true);
+        }
+      } catch (e) {
+        console.error("Error verificando premium:", e);
+      }
+    };
+    checkPremiumStatus();
+    return () => { mounted = false; };
+  }, [session]);
   
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative">
-      <TrialMonitor />
+      
+      {/* MONITOR DE PRUEBA INTELIGENTE: Solo se muestra si NO es premium */}
+      {!isPremium && <TrialMonitor />}
+      
       <div className="flex flex-1 overflow-hidden relative">
           <div className="hidden md:flex z-20 h-full">
             <Sidebar isOpen={true} onClose={() => {}} onLogout={onLogout} />
