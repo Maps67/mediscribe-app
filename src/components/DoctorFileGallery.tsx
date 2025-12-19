@@ -44,7 +44,7 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
       const { data, error } = await supabase.storage
         .from(BUCKET_NAME)
         .list(patientId, {
-          limit: 20,
+          limit: 50,
           offset: 0,
           sortBy: { column: 'created_at', order: 'desc' },
         });
@@ -62,26 +62,34 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
     fetchFiles();
   }, [patientId]);
 
-  // CAMBIO CLAVE: Recibimos el objeto completo 'file', no solo el nombre
+  // --- LÓGICA DE DETECCIÓN DE IMAGEN BLINDADA ---
+  const isImageFile = (file: FileObject) => {
+    // 1. Chequeo por extensión (Lo más fiable visualmente)
+    const extension = file.name.split('.').pop()?.toLowerCase();
+    const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic'];
+    if (extension && imageExtensions.includes(extension)) return true;
+
+    // 2. Chequeo por metadatos (Respaldo técnico)
+    if (file.metadata?.mimetype?.startsWith('image/')) return true;
+
+    return false;
+  };
+
   const handleViewFile = async (file: FileObject) => {
     if (!patientId) return;
     
-    // 1. Verificación robusta basada en METADATA (Base de datos), no en el nombre
-    // Esto asegura que si es 'image/jpeg' o 'image/png', SIEMPRE se trate como imagen.
-    const isImage = file.metadata?.mimetype?.startsWith('image/');
-
-    // Generar URL firmada
+    // Generamos la URL temporal
     const { data } = await supabase.storage
       .from(BUCKET_NAME)
       .createSignedUrl(`${patientId}/${file.name}`, 3600);
     
     if (data?.signedUrl) {
-      if (isImage) {
-        // Detenemos cualquier descarga y abrimos el Modal
+      if (isImageFile(file)) {
+        // ES IMAGEN -> Abrimos Modal
         setSelectedImage(data.signedUrl);
         setSelectedFileName(file.name);
       } else {
-        // Solo si NO es imagen, dejamos que el navegador decida (PDFs, etc)
+        // NO ES IMAGEN -> Descarga / Nueva Pestaña
         window.open(data.signedUrl, '_blank');
       }
     }
@@ -119,14 +127,12 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
           ) : (
             <ul className="space-y-1">
               {files.map((file) => {
-                // Pre-calculamos si es imagen para mostrar el icono correcto
-                const isImg = file.metadata?.mimetype?.startsWith('image/');
+                const isImg = isImageFile(file);
                 
                 return (
                   <li 
                     key={file.id} 
                     className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-md group transition-colors cursor-pointer"
-                    // AQUÍ ESTÁ EL CAMBIO: Pasamos el objeto 'file' completo
                     onClick={() => handleViewFile(file)}
                   >
                     <div className="flex items-center gap-3 overflow-hidden">

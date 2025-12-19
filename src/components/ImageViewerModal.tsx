@@ -1,5 +1,5 @@
 import React from 'react';
-import { X, Download, ZoomIn } from 'lucide-react';
+import { X, Download } from 'lucide-react';
 
 interface ImageViewerModalProps {
   isOpen: boolean;
@@ -12,44 +12,46 @@ export const ImageViewerModal: React.FC<ImageViewerModalProps> = ({ isOpen, onCl
   if (!isOpen || !imageUrl) return null;
 
   return (
-    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/90 backdrop-blur-sm animate-in fade-in duration-200">
+    <div className="fixed inset-0 z-[60] flex items-center justify-center bg-black/95 backdrop-blur-sm animate-in fade-in duration-200">
       
-      {/* Botón Cerrar (Superior Derecha) */}
+      {/* Botón Cerrar (Esquina Superior Derecha - Grande para fácil acceso) */}
       <button 
         onClick={onClose}
-        className="absolute top-4 right-4 p-2 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-50"
+        className="absolute top-4 right-4 p-3 bg-white/10 hover:bg-white/20 rounded-full text-white transition-colors z-50 shadow-lg"
       >
-        <X size={24} />
+        <X size={28} />
       </button>
 
       {/* Contenedor de la Imagen */}
-      <div className="relative max-w-[90vw] max-h-[85vh] flex flex-col items-center">
+      <div className="relative w-full h-full flex flex-col items-center justify-center p-4">
         <img 
           src={imageUrl} 
           alt={fileName} 
-          className="max-w-full max-h-[80vh] object-contain rounded-lg shadow-2xl border border-white/10"
+          className="max-w-full max-h-[85vh] object-contain rounded shadow-2xl"
+          onClick={(e) => e.stopPropagation()} 
         />
         
-        {/* Barra de Título y Acciones (Abajo) */}
-        <div className="mt-4 flex items-center gap-4 bg-black/50 px-6 py-2 rounded-full border border-white/10 backdrop-blur-md">
-          <span className="text-white text-sm font-medium opacity-90 truncate max-w-[200px]">
+        {/* Barra Inferior con Nombre y Descarga opcional */}
+        <div className="mt-4 flex items-center gap-6 bg-gray-900/80 px-6 py-3 rounded-full border border-white/10 backdrop-blur-md text-white">
+          <span className="text-sm font-medium opacity-90 truncate max-w-[200px] md:max-w-md">
             {fileName}
           </span>
-          <div className="h-4 w-[1px] bg-white/20"></div>
+          <div className="h-5 w-[1px] bg-white/30"></div>
           <a 
             href={imageUrl} 
             download={fileName}
             target="_blank"
             rel="noopener noreferrer"
             className="flex items-center gap-2 text-xs font-bold text-brand-teal hover:text-teal-400 transition-colors uppercase tracking-wider"
+            onClick={(e) => e.stopPropagation()}
           >
-            <Download size={14} />
-            Descargar Original
+            <Download size={16} />
+            Descargar
           </a>
         </div>
       </div>
 
-      {/* Clic fuera para cerrar */}
+      {/* Clic en el fondo para cerrar */}
       <div className="absolute inset-0 -z-10" onClick={onClose}></div>
     </div>
   );
