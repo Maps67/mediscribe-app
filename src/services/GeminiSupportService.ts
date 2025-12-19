@@ -4,7 +4,9 @@ console.log("🚀 SUPPORT ENGINE: Online (Gemini 1.5 Flash - Ultimate Context v5
 
 // ✅ La llave se lee automáticamente de tus variables de entorno
 const API_KEY = import.meta.env.VITE_GOOGLE_GENAI_API_KEY || "";
-// CORRECCIÓN CRÍTICA: Usamos el modelo estable y rápido. "2.5" no existe aún.
+
+// CORRECCIÓN CRÍTICA: Usamos el modelo estable y rápido para el CHAT.
+// Esto separa el tráfico del Chat (Flash) de la Consulta Médica (Pro/Exp).
 const MODEL_NAME = "gemini-1.5-flash"; 
 
 /**
@@ -64,10 +66,10 @@ const APP_MANUAL = `
       1. Selección: En la pantalla "Consulta", selecciona un paciente existente o usa "Invitado".
       2. Contexto (Automático): El sistema carga automáticamente alergias y antecedentes si existen.
       3. GRABACIÓN INTELIGENTE (Botones):
-         - Presiona 🎤 "Grabar" para iniciar.
-         - Si necesitas interrumpir, presiona ⏸️ "Pausar" (El botón se pone AMARILLO). El texto se guarda en memoria.
-         - Cuando vuelvas, presiona ▶️ "Reanudar" (El botón se pone ROJO).
-         - Al finalizar la consulta, presiona ✅ "Terminar".
+          - Presiona 🎤 "Grabar" para iniciar.
+          - Si necesitas interrumpir, presiona ⏸️ "Pausar" (El botón se pone AMARILLO). El texto se guarda en memoria.
+          - Cuando vuelvas, presiona ▶️ "Reanudar" (El botón se pone ROJO).
+          - Al finalizar la consulta, presiona ✅ "Terminar".
       4. Magia IA: Presiona el botón "GENERAR" (Teal). Espera unos segundos.
       5. Revisión de Seguridad: Si aparece una tarjeta ROJA de Riesgo, lee la "Evidencia" (cita textual) antes de continuar.
       6. Validación: Presiona el botón "VALIDAR Y GUARDAR" (Disco).
@@ -131,7 +133,7 @@ export const GeminiSupportService = {
     }
 
     try {
-      // 2. Conexión con Gemini
+      // 2. Conexión con Gemini (Motor Estable)
       const genAI = new GoogleGenerativeAI(API_KEY);
       // Usamos el modelo Flash para respuestas instantáneas
       const model = genAI.getGenerativeModel({ model: MODEL_NAME });
@@ -166,8 +168,11 @@ export const GeminiSupportService = {
 
     } catch (error) {
       console.error("🔥 Error en Gemini Support Service:", error);
-      // Mensaje amigable de fallo para el usuario
-      return "El asistente virtual está reiniciando sus sistemas de conexión. Por favor, espera 30 segundos e intenta nuevamente.";
+      
+      // --- CORRECCIÓN APLICADA: MENSAJE SILENCIOSO ---
+      // Ya no enviamos el mensaje de "30 segundos" para no alarmar al usuario.
+      // Retornamos un mensaje suave para que intente de nuevo sin bloquearse.
+      return "Lo siento, tuve una breve interrupción de conexión. ¿Podrías preguntarme de nuevo?";
     }
   }
 };
