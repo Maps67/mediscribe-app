@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { FileText, Image as ImageIcon, ExternalLink, RefreshCw, Eye, FolderOpen } from 'lucide-react';
+import React, { useEffect, useState } from 'react';
+import { FileText, Image as ImageIcon, RefreshCw, Eye, FolderOpen } from 'lucide-react';
 import { createClient } from '@supabase/supabase-js';
 import { ImageViewerModal } from './ImageViewerModal';
 
@@ -25,6 +25,8 @@ interface DoctorFileGalleryProps {
 export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId }) => {
   const [files, setFiles] = useState<FileObject[]>([]);
   const [loading, setLoading] = useState(false);
+  
+  // ESTADOS DEL VISOR
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState('');
 
@@ -58,16 +60,22 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
 
   const handleViewFile = async (fileName: string) => {
     if (!patientId) return;
+    
+    // Generar URL firmada
     const { data } = await supabase.storage
       .from(BUCKET_NAME)
       .createSignedUrl(`${patientId}/${fileName}`, 3600);
     
     if (data?.signedUrl) {
+      // LOGICA DE SEMÁFORO: ¿Es imagen o documento?
       const isImage = fileName.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
+      
       if (isImage) {
+        // SI ES IMAGEN: Abrir Modal
         setSelectedImage(data.signedUrl);
         setSelectedFileName(fileName);
       } else {
+        // SI NO ES IMAGEN: Abrir pestaña nueva (PDF, DOC, etc)
         window.open(data.signedUrl, '_blank');
       }
     }
@@ -133,6 +141,7 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
         </div>
       </div>
 
+      {/* AQUÍ SE RENDERIZA EL MODAL QUE CREAMOS EN EL PASO 1 */}
       <ImageViewerModal 
         isOpen={!!selectedImage}
         onClose={() => setSelectedImage(null)}
@@ -142,4 +151,3 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
     </>
   );
 };
-// FIN DEL ARCHIVO LIMPIO
