@@ -27,7 +27,7 @@ export const useSpeechRecognition = () => {
   const [isPaused, setIsPaused] = useState(false);
   const [transcript, setTranscript] = useState('');
   
-  // NUEVO: Estado para saber si el usuario está hablando activamente o si hay silencio (procesando)
+  // Estado para saber si el usuario está hablando activamente o si hay silencio (procesando)
   // Esto permite mostrar el indicador "Analizando..." en la UI inmediatamente.
   const [isDetectingSpeech, setIsDetectingSpeech] = useState(false);
   
@@ -119,11 +119,10 @@ export const useSpeechRecognition = () => {
       // Reiniciamos el timer de silencio cada vez que llega una palabra nueva
       if (silenceTimer.current) clearTimeout(silenceTimer.current);
       
-      // OPTIMIZACIÓN DE VELOCIDAD: 800ms de silencio se considera "Fin de frase"
-      // Esto le dice a la UI que ya puede mostrar "Analizando..."
+      // OPTIMIZACIÓN: 1500ms de silencio se considera cambio de idea/turno
       silenceTimer.current = setTimeout(() => {
         setIsDetectingSpeech(false);
-      }, 800);
+      }, 1500);
 
       let interimChunk = '';
       let finalChunk = '';
@@ -140,25 +139,41 @@ export const useSpeechRecognition = () => {
         }
       }
 
-      // --- PROCESAMIENTO ANTI-ECO ---
+      // --- "EL FORMATEADOR GRAMATICAL" (Lógica v5.3) ---
       if (finalChunk) {
         const cleanFinal = finalChunk.trim();
         const currentFinal = finalTranscriptRef.current.trim();
         
+        // 1. Algoritmo Anti-Eco
         const overlap = getOverlapLength(currentFinal, cleanFinal);
-        const newPart = cleanFinal.slice(overlap).trim();
+        let newPart = cleanFinal.slice(overlap).trim();
         
         if (newPart) {
-            const prefix = (currentFinal && !currentFinal.endsWith(' ')) ? ' ' : '';
-            let formattedPart = newPart;
-            if (currentFinal.length === 0 || currentFinal.endsWith('.') || currentFinal.endsWith('?')) {
-                 formattedPart = newPart.charAt(0).toUpperCase() + newPart.slice(1);
+            // 2. Auto-Capitalización: Forzamos mayúscula al inicio de cada bloque nuevo
+            newPart = newPart.charAt(0).toUpperCase() + newPart.slice(1);
+
+            // 3. Auto-Puntuación y Salto de Línea Inteligente
+            // Esto separa visualmente las ideas para que la IA detecte el cambio de hablante
+            let separator = ' ';
+            
+            if (currentFinal.length > 0) {
+                const lastChar = currentFinal.slice(-1);
+                
+                // Si la frase anterior NO termina en puntuación fuerte, agregamos punto y salto
+                if (!['.', '?', '!', ':', '\n'].includes(lastChar)) {
+                    separator = '.\n'; 
+                } else {
+                    // Si ya tenía puntuación, solo agregamos el salto de línea para separar
+                    separator = '\n'; 
+                }
             }
 
-            finalTranscriptRef.current = currentFinal + prefix + formattedPart;
+            // 4. Construcción del texto estructurado
+            finalTranscriptRef.current = currentFinal + separator + newPart;
         }
       }
 
+      // Actualizamos la UI combinando lo confirmado (estructurado) + lo temporal (flotando)
       const displayText = (finalTranscriptRef.current + (interimChunk ? ' ' + interimChunk : '')).trim();
       setTranscript(displayText);
     };
@@ -258,7 +273,7 @@ export const useSpeechRecognition = () => {
   return { 
     isListening,
     isPaused,
-    isDetectingSpeech, // <--- NUEVA EXPORTACIÓN PARA LA UI
+    isDetectingSpeech,
     transcript, 
     startListening, 
     pauseListening, 
