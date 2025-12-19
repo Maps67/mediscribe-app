@@ -15,7 +15,11 @@ interface FileObject {
   updated_at: string;
   created_at: string;
   last_accessed_at: string;
-  metadata: Record<string, any>;
+  metadata: {
+    mimetype?: string;
+    size?: number;
+    [key: string]: any;
+  };
 }
 
 interface DoctorFileGalleryProps {
@@ -58,24 +62,26 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
     fetchFiles();
   }, [patientId]);
 
-  const handleViewFile = async (fileName: string) => {
+  // CAMBIO CLAVE: Recibimos el objeto completo 'file', no solo el nombre
+  const handleViewFile = async (file: FileObject) => {
     if (!patientId) return;
     
+    // 1. Verificación robusta basada en METADATA (Base de datos), no en el nombre
+    // Esto asegura que si es 'image/jpeg' o 'image/png', SIEMPRE se trate como imagen.
+    const isImage = file.metadata?.mimetype?.startsWith('image/');
+
     // Generar URL firmada
     const { data } = await supabase.storage
       .from(BUCKET_NAME)
-      .createSignedUrl(`${patientId}/${fileName}`, 3600);
+      .createSignedUrl(`${patientId}/${file.name}`, 3600);
     
     if (data?.signedUrl) {
-      // LOGICA DE SEMÁFORO: ¿Es imagen o documento?
-      const isImage = fileName.match(/\.(jpg|jpeg|png|gif|webp|bmp|svg)$/i);
-      
       if (isImage) {
-        // SI ES IMAGEN: Abrir Modal
+        // Detenemos cualquier descarga y abrimos el Modal
         setSelectedImage(data.signedUrl);
-        setSelectedFileName(fileName);
+        setSelectedFileName(file.name);
       } else {
-        // SI NO ES IMAGEN: Abrir pestaña nueva (PDF, DOC, etc)
+        // Solo si NO es imagen, dejamos que el navegador decida (PDFs, etc)
         window.open(data.signedUrl, '_blank');
       }
     }
@@ -112,36 +118,41 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
             </div>
           ) : (
             <ul className="space-y-1">
-              {files.map((file) => (
-                <li 
-                  key={file.id} 
-                  className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-md group transition-colors cursor-pointer"
-                  onClick={() => handleViewFile(file.name)}
-                >
-                  <div className="flex items-center gap-3 overflow-hidden">
-                    <div className="w-8 h-8 rounded bg-blue-50 dark:bg-blue-900/20 text-blue-500 flex items-center justify-center shrink-0">
-                      {file.metadata?.mimetype?.includes('image') ? <ImageIcon size={14} /> : <FileText size={14} />}
+              {files.map((file) => {
+                // Pre-calculamos si es imagen para mostrar el icono correcto
+                const isImg = file.metadata?.mimetype?.startsWith('image/');
+                
+                return (
+                  <li 
+                    key={file.id} 
+                    className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-md group transition-colors cursor-pointer"
+                    // AQUÍ ESTÁ EL CAMBIO: Pasamos el objeto 'file' completo
+                    onClick={() => handleViewFile(file)}
+                  >
+                    <div className="flex items-center gap-3 overflow-hidden">
+                      <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${isImg ? 'bg-purple-50 text-purple-500 dark:bg-purple-900/20' : 'bg-blue-50 text-blue-500 dark:bg-blue-900/20'}`}>
+                        {isImg ? <ImageIcon size={14} /> : <FileText size={14} />}
+                      </div>
+                      <div className="flex flex-col min-w-0">
+                        <span className="text-xs font-medium text-gray-700 dark:text-slate-300 truncate block max-w-[140px]">
+                          {file.name.split('_').slice(1).join('_')}
+                        </span>
+                        <span className="text-[10px] text-gray-400">
+                          {file.metadata?.size ? (file.metadata.size / 1024).toFixed(0) : '0'} KB • {new Date(file.created_at).toLocaleDateString()}
+                        </span>
+                      </div>
                     </div>
-                    <div className="flex flex-col min-w-0">
-                      <span className="text-xs font-medium text-gray-700 dark:text-slate-300 truncate block max-w-[140px]">
-                        {file.name.split('_').slice(1).join('_')}
-                      </span>
-                      <span className="text-[10px] text-gray-400">
-                        {(file.metadata?.size / 1024).toFixed(0)} KB • {new Date(file.created_at).toLocaleDateString()}
-                      </span>
-                    </div>
-                  </div>
-                  <button className="text-gray-300 hover:text-brand-teal opacity-0 group-hover:opacity-100 transition-opacity">
-                    <Eye size={16} />
-                  </button>
-                </li>
-              ))}
+                    <button className="text-gray-300 hover:text-brand-teal opacity-0 group-hover:opacity-100 transition-opacity" title={isImg ? "Ver imagen" : "Abrir documento"}>
+                      <Eye size={16} />
+                    </button>
+                  </li>
+                );
+              })}
             </ul>
           )}
         </div>
       </div>
 
-      {/* AQUÍ SE RENDERIZA EL MODAL QUE CREAMOS EN EL PASO 1 */}
       <ImageViewerModal 
         isOpen={!!selectedImage}
         onClose={() => setSelectedImage(null)}
