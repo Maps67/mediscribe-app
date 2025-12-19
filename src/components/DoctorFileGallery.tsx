@@ -156,3 +156,4 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
     </>
   );
 };
+// Actualizacion forzada visor v1
