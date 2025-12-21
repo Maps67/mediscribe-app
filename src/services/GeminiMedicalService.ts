@@ -187,32 +187,52 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- B. BALANCE 360 (Mantiene motor local por ahora) ---
+  // --- B. BALANCE 360 (IA MEJORADA v5.5) ---
   async generatePatient360Analysis(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
     try {
       const contextText = consultations.length > 0 
-          ? consultations.join("\n\n--- CONSULTA PREVIA ---\n\n") 
-          : "Sin historial previo.";
+          ? consultations.join("\n\n--- CONSULTA PREVIA (CRONOLÓGICO) ---\n\n") 
+          : "Sin historial previo en plataforma (Primera Vez).";
 
+      // 🧠 PROMPT MEJORADO: Agresivo, Comparativo y Analítico
       const prompt = `
-          ACTÚA COMO: Auditor Médico Senior.
-          PACIENTE: "${patientName}".
-          HISTORIAL: ${historySummary || "No registrado"}
-          CONSULTAS: ${contextText}
+          ACTÚA COMO: Auditor Médico Clínico y Farmacólogo Experto.
+          OBJETIVO: Generar un "Balance 360" comparativo para detectar evolución y riesgos.
 
-          SALIDA JSON (PatientInsight):
+          PACIENTE: "${patientName}"
+          ANTECEDENTES BASE: ${historySummary || "No registrado"}
+
+          HISTORIAL DE CONSULTAS (Analiza tendencias):
+          ${contextText}
+
+          INSTRUCCIONES ESTRICTAS DE ANÁLISIS:
+          1. EVOLUCIÓN: Compara la consulta más antigua con la más reciente. ¿El paciente está MEJOR, PEOR o IGUAL? Cita valores específicos (ej. "TA bajó de 150 a 120", "Dolor persiste 8/10").
+          2. FARMACIA: Detecta cambios de medicación. ¿Qué se suspendió? ¿Qué se agregó? Alerta sobre adherencia o interacciones.
+          3. BANDERAS ROJAS: Busca "asesinos silenciosos": síntomas ignorados, estudios no realizados, o interacciones medicamentosas graves.
+          4. PENDIENTES: Lista estudios de laboratorio o imagen solicitados previamente que no se mencionan como "revisados" hoy.
+
+          FORMATO DE SALIDA JSON (PatientInsight):
           {
-            "evolution": "Resumen narrativo de la evolución.",
-            "medication_audit": "Busca duplicidades o interacciones...",
-            "risk_flags": ["Riesgo 1"],
-            "pending_actions": ["Acción 1"]
+            "evolution": "Texto narrativo comparativo. Usa emojis (📈, 📉, 🟢, 🔴) para denotar mejoría o deterioro. Sé explícito.",
+            "medication_audit": "Análisis de cambios en recetas. Usa ✅ para vigente, ⏹️ para suspendido.",
+            "risk_flags": ["🚩 Alerta Clínica 1", "⚠️ Alerta Farmacológica 2"],
+            "pending_actions": ["◻️ Pendiente 1", "◻️ Pendiente 2"]
           }
+
+          REGLA DE ORO: Si falta información explícita, INFIERE la tendencia clínica basada en el contexto. NO respondas "Sin datos" a menos que el historial esté totalmente vacío.
       `;
 
+      // jsonMode = true para forzar estructura
       const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText));
     } catch (e) {
-      return { evolution: "No disponible", medication_audit: "", risk_flags: [], pending_actions: [] };
+      console.warn("Error generando insights 360:", e);
+      return { 
+        evolution: "No hay suficientes datos para generar tendencia evolutiva.", 
+        medication_audit: "Sin auditoría disponible.", 
+        risk_flags: [], 
+        pending_actions: [] 
+      };
     }
   },
 
