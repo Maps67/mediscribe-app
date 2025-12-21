@@ -22,6 +22,7 @@ import QuickRxModal from './QuickRxModal';
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { UploadMedico } from './UploadMedico';
 import { InsightsPanel } from './InsightsPanel';
+import { RiskBadge } from './RiskBadge';
 
 type TabType = 'record' | 'patient' | 'chat';
 
@@ -986,37 +987,14 @@ const ConsultationView: React.FC = () => {
 
                                 </div>
 
+                                {/* === INYECCIÓN SEGURA: SEMÁFORO DE RIESGO === */}
                                 {generatedNote.risk_analysis && (
-                                    <div 
-                                      onClick={() => setIsRiskExpanded(!isRiskExpanded)}
-                                      className={`mt-2 w-full rounded-xl border cursor-pointer transition-all duration-300 overflow-hidden ${
-                                          generatedNote.risk_analysis.level === 'Alto' ? 'bg-red-50 border-red-200' :
-                                          generatedNote.risk_analysis.level === 'Medio' ? 'bg-amber-50 border-amber-200' :
-                                          'bg-green-50 border-green-200'
-                                      }`}
-                                    >
-                                        <div className={`p-3 flex justify-between items-center ${
-                                            generatedNote.risk_analysis.level === 'Alto' ? 'text-red-700' :
-                                            generatedNote.risk_analysis.level === 'Medio' ? 'text-amber-700' :
-                                            'text-green-700'
-                                        }`}>
-                                            <div className="flex items-center gap-2 font-bold text-sm">
-                                                <AlertTriangle size={16}/>
-                                                <span>Riesgo {generatedNote.risk_analysis.level}</span>
-                                                {!isRiskExpanded && <span className="opacity-70 font-normal text-xs ml-2">(Toca para ver detalles)</span>}
-                                            </div>
-                                            {isRiskExpanded ? <ChevronUp size={16}/> : <ChevronDown size={16}/>}
-                                        </div>
-
-                                        <div className={`px-4 pb-4 text-sm leading-relaxed transition-all duration-300 ${
-                                            generatedNote.risk_analysis.level === 'Alto' ? 'text-red-800' :
-                                            generatedNote.risk_analysis.level === 'Medio' ? 'text-amber-800' :
-                                            'text-green-800'
-                                        } ${isRiskExpanded ? 'block animate-fade-in' : 'hidden'}`}>
-                                            <hr className={`mb-2 opacity-20 border-current`}/>
-                                            {generatedNote.risk_analysis.reason}
-                                        </div>
-                                    </div>
+                                  <div className="mt-2">
+                                    <RiskBadge 
+                                      level={generatedNote.risk_analysis.level} 
+                                      reason={generatedNote.risk_analysis.reason} 
+                                    />
+                                  </div>
                                 )}
 
                                 <div className="text-xs font-bold text-slate-800 dark:text-slate-200 self-end">
