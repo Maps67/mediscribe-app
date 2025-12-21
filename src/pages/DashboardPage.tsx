@@ -433,18 +433,18 @@ const Dashboard: React.FC = () => {
       <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-[1600px] mx-auto w-full">
          
          <MorningBriefing 
-            greeting={dynamicGreeting.greeting} 
-            message={dynamicGreeting.message} 
-            weather={weather} 
-            systemStatus={systemStatus} 
-            onOpenAssistant={() => setIsAssistantOpen(true)}
-            
-            insights={{
-                nextTime: nextPatient ? format(parseISO(nextPatient.start_time), 'h:mm a') : null,
-                pending: pendingItems.length,
-                total: totalDailyLoad, // TOTAL REAL (Completados + Pendientes)
-                done: completedTodayCount // PROGRESO REAL
-            }}
+           greeting={dynamicGreeting.greeting} 
+           message={dynamicGreeting.message} 
+           weather={weather} 
+           systemStatus={systemStatus} 
+           onOpenAssistant={() => setIsAssistantOpen(true)}
+           
+           insights={{
+               nextTime: nextPatient ? format(parseISO(nextPatient.start_time), 'h:mm a') : null,
+               pending: pendingItems.length,
+               total: totalDailyLoad, // TOTAL REAL (Completados + Pendientes)
+               done: completedTodayCount // PROGRESO REAL
+           }}
          />
 
          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
@@ -466,10 +466,10 @@ const Dashboard: React.FC = () => {
                         </div>
                      </div>
                      <StatusWidget 
-                        weather={weather} 
-                        totalApts={totalDailyLoad} // DATO REAL
-                        pendingApts={appointmentsToday} // DATO REAL
-                        location={locationName} 
+                       weather={weather} 
+                       totalApts={totalDailyLoad} // DATO REAL
+                       pendingApts={appointmentsToday} // DATO REAL
+                       location={locationName} 
                      />
                  </div>
 
@@ -512,7 +512,7 @@ const Dashboard: React.FC = () => {
                           <button onClick={() => setToolsTab('calc')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${toolsTab === 'calc' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400'}`}><Calculator size={14} className="inline mr-2"/> Calc</button>
                       </div>
                       <div className="p-0 flex-1 relative bg-white dark:bg-slate-900">
-                          {toolsTab === 'notes' ? <div className="absolute inset-0 p-2"><QuickNotes /></div> : <div className="absolute inset-0 p-2 overflow-y-auto"><MedicalCalculators /></div>}
+                          {toolsTab === 'notes' ? <div className="absolute inset-0 p-2"><QuickNotes userId={doctorProfile?.id} /></div> : <div className="absolute inset-0 p-2 overflow-y-auto"><MedicalCalculators /></div>}
                       </div>
                  </div>
                  <div className="grid grid-cols-2 gap-4">
@@ -529,7 +529,6 @@ const Dashboard: React.FC = () => {
              <button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full"><X size={16}/></button>
              <h3 className="font-bold text-lg mb-4">Gestión Documental</h3>
              <UploadMedico onUploadComplete={() => {}}/>
-             {/* COMPONENTE CORREGIDO AQUÍ */}
              <div className="mt-4 pt-4 border-t"><DoctorFileGallery /></div>
           </div>
         </div>

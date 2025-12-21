@@ -1,31 +1,47 @@
 import React, { useState, useEffect } from 'react';
 import { PenLine, Trash2, Save, MessageCircle } from 'lucide-react';
 
-export const QuickNotes = () => {
+interface QuickNotesProps {
+  userId?: string;
+}
+
+export const QuickNotes: React.FC<QuickNotesProps> = ({ userId }) => {
   const [note, setNote] = useState('');
   const [saved, setSaved] = useState(false);
 
-  // Cargar nota al iniciar
+  // Generamos una clave única por usuario para aislar los datos (Solución de Fuga de Datos)
+  const storageKey = userId ? `mediscribe_scratchpad_${userId}` : null;
+
+  // Cargar nota al iniciar o cuando cambia el usuario
   useEffect(() => {
-    const savedNote = localStorage.getItem('mediscribe_scratchpad');
-    if (savedNote) setNote(savedNote);
-  }, []);
+    if (storageKey) {
+      const savedNote = localStorage.getItem(storageKey);
+      setNote(savedNote || '');
+    } else {
+      setNote(''); // Limpiar si no hay usuario
+    }
+  }, [storageKey]);
 
   // Auto-guardado al escribir
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setNote(text);
-    localStorage.setItem('mediscribe_scratchpad', text);
     
-    // Feedback visual sutil
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+    if (storageKey) {
+      localStorage.setItem(storageKey, text);
+      
+      // Feedback visual sutil
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
   };
 
   const clearNotes = () => {
     if (confirm('¿Borrar tus notas rápidas?')) {
       setNote('');
-      localStorage.removeItem('mediscribe_scratchpad');
+      if (storageKey) {
+        localStorage.removeItem(storageKey);
+      }
     }
   };
 
@@ -51,7 +67,8 @@ export const QuickNotes = () => {
             {/* BOTÓN WHATSAPP */}
             <button 
                 onClick={shareViaWhatsApp} 
-                className="text-slate-400 hover:text-green-500 hover:bg-green-50 p-1.5 rounded-lg transition-all"
+                disabled={!userId || !note}
+                className="text-slate-400 hover:text-green-500 hover:bg-green-50 p-1.5 rounded-lg transition-all disabled:opacity-50"
                 title="Enviar por WhatsApp"
             >
                 <MessageCircle size={16} />
@@ -59,7 +76,8 @@ export const QuickNotes = () => {
 
             <button 
                 onClick={clearNotes} 
-                className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all"
+                disabled={!userId || !note}
+                className="text-slate-400 hover:text-red-500 hover:bg-red-50 p-1.5 rounded-lg transition-all disabled:opacity-50"
                 title="Borrar notas"
             >
                 <Trash2 size={16} />
@@ -71,8 +89,9 @@ export const QuickNotes = () => {
         <textarea 
             value={note}
             onChange={handleChange}
-            placeholder="Escribe recordatorios, dosis o indicaciones y envíalas por WhatsApp..."
-            className="w-full h-full resize-none text-sm text-slate-700 leading-relaxed outline-none bg-transparent placeholder:text-slate-300 custom-scrollbar"
+            placeholder={userId ? "Escribe recordatorios, dosis o indicaciones y envíalas por WhatsApp..." : "Cargando perfil de usuario..."}
+            disabled={!userId}
+            className="w-full h-full resize-none text-sm text-slate-700 leading-relaxed outline-none bg-transparent placeholder:text-slate-300 custom-scrollbar disabled:opacity-50 disabled:cursor-not-allowed"
             spellCheck={false}
         />
         {/* Líneas de cuaderno decorativas */}
