@@ -1,20 +1,25 @@
 import React, { useState, useEffect } from 'react';
 import { 
   User, Calendar, Phone, MapPin, Activity, AlertTriangle, 
-  Save, X, ShieldAlert, HeartPulse, Droplet, FileBadge, Shield,
-  Mail, Hash, Contact
+  Save, X, Shield, HeartPulse, Droplet, FileBadge, 
+  Mail, Hash, Contact, Briefcase, ChevronRight
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// --- TIPOS DE DATOS (MANTENIDOS) ---
+// --- DEFINICIÓN DE CLASES REUTILIZABLES (FIX VISUAL) ---
+const INPUT_CLASS = "w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-brand-teal/20 focus:border-brand-teal focus:bg-white transition-all placeholder:text-slate-400 outline-none";
+const INPUT_ERROR_CLASS = "border-red-500 focus:ring-red-200 bg-red-50/10";
+const LABEL_CLASS = "block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1";
+
+// --- TIPOS DE DATOS ---
 export interface WizardData {
   // Identificación
   name: string;
   dob: string;
   age: string;
   gender: string;
-  curp: string;         // Obligatorio NOM-004
-  bloodType: string;    // Crítico
+  curp: string;
+  bloodType: string;
   maritalStatus: string;
   
   // Contacto
@@ -22,24 +27,25 @@ export interface WizardData {
   email: string;
   address: string;
   occupation: string;
-  emergencyContact: string; 
+  emergencyContact: string;
   
   // Clínico Crítico
-  allergies: string; 
+  allergies: string;
   nonCriticalAllergies: string;
-  background: string; 
-  notes: string; 
   
-  // Estructura interna para compatibilidad (JSON en DB)
-  pathological?: any;
-  nonPathological?: any;
-  family?: any;
-  obgyn?: any;
-  insurance?: string;
-  rfc?: string;
-  invoice?: boolean;
-  patientType?: string;
-  referral?: string;
+  // Antecedentes (Strings para Textareas)
+  pathological: string;
+  nonPathological: string;
+  family: string;
+  obgyn: string;
+  
+  // Administrativo
+  notes: string;
+  insurance: string;
+  rfc: string;
+  invoice: boolean;
+  patientType: string;
+  referral: string;
 }
 
 interface PatientWizardProps {
@@ -53,20 +59,31 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
   const [errors, setErrors] = useState<{ [key: string]: boolean }>({});
   const [activeTab, setActiveTab] = useState<'general' | 'background' | 'admin'>('general');
 
+  // Inicialización Segura (Strings vacíos en lugar de Objetos para evitar [object Object])
   const [formData, setFormData] = useState<WizardData>({
     name: '', dob: '', age: '', gender: 'Masculino', 
     curp: '', bloodType: '', 
     maritalStatus: 'Soltero/a',
     phone: '', email: '', address: '', occupation: '', emergencyContact: '',
-    allergies: '', nonCriticalAllergies: '', background: '', notes: '',
-    pathological: {}, nonPathological: {}, family: {}, obgyn: {},
+    allergies: '', nonCriticalAllergies: '', 
+    pathological: '', nonPathological: '', family: '', obgyn: '',
+    notes: '',
     insurance: '', rfc: '', invoice: false, patientType: 'Nuevo', referral: ''
   });
 
   // Carga de datos iniciales
   useEffect(() => {
     if (initialData) {
-      setFormData(prev => ({ ...prev, ...initialData }));
+      // Nos aseguramos de mezclar los datos entrantes con el estado base
+      setFormData(prev => ({
+        ...prev,
+        ...initialData,
+        // Conversión de seguridad por si la DB devuelve objetos en lugar de strings
+        pathological: typeof initialData.pathological === 'string' ? initialData.pathological : JSON.stringify(initialData.pathological || ''),
+        nonPathological: typeof initialData.nonPathological === 'string' ? initialData.nonPathological : JSON.stringify(initialData.nonPathological || ''),
+        family: typeof initialData.family === 'string' ? initialData.family : JSON.stringify(initialData.family || ''),
+        obgyn: typeof initialData.obgyn === 'string' ? initialData.obgyn : JSON.stringify(initialData.obgyn || '')
+      }));
     }
   }, [initialData]);
 
@@ -90,9 +107,12 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
 
   const validateAndSave = async () => {
     const newErrors: { [key: string]: boolean } = {};
+    
+    // Validaciones NOM-004 Básicas
     if (!formData.name.trim()) newErrors.name = true;
     if (!formData.gender) newErrors.gender = true;
-
+    
+    // Validación visual
     if (Object.keys(newErrors).length > 0) {
       setErrors(newErrors);
       toast.error("Complete los campos obligatorios marcados en rojo.");
@@ -119,13 +139,13 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
     <div className="flex flex-col h-full bg-white dark:bg-slate-950 font-sans">
       
       {/* HEADER ELEGANTE */}
-      <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-8 py-5 flex justify-between items-center shadow-sm z-20">
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-6 py-4 flex justify-between items-center shadow-sm z-20 flex-shrink-0">
         <div>
           <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
             <div className="p-2 bg-brand-teal/10 rounded-lg text-brand-teal">
                 <User size={20} />
             </div>
-            {initialData ? 'Expediente Clínico' : 'Alta de Paciente'}
+            {initialData ? 'Editar Expediente' : 'Alta de Paciente'}
           </h2>
           <p className="text-xs text-slate-400 mt-1 ml-12 font-medium tracking-wide">
             Cumplimiento NOM-004-SSA3-2012
@@ -136,13 +156,13 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
         </button>
       </div>
 
-      {/* TABS DE NAVEGACIÓN MODERNOS */}
-      <div className="flex border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-8 sticky top-0 z-10">
+      {/* TABS DE NAVEGACIÓN STICKY */}
+      <div className="flex border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 md:px-8 sticky top-0 z-10 flex-shrink-0 overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.id}
             onClick={() => setActiveTab(tab.id as any)}
-            className={`flex items-center gap-2 px-6 py-4 text-sm font-bold border-b-2 transition-all ${
+            className={`flex items-center gap-2 px-4 md:px-6 py-4 text-sm font-bold border-b-2 transition-all whitespace-nowrap ${
               activeTab === tab.id 
                 ? 'border-brand-teal text-brand-teal' 
                 : 'border-transparent text-slate-400 hover:text-slate-600 hover:bg-slate-50 dark:hover:bg-slate-800'
@@ -153,11 +173,11 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
         ))}
       </div>
 
-      {/* BODY (BENTO GRID LAYOUT) */}
-      <div className="flex-1 overflow-y-auto p-6 md:p-8 bg-slate-50/50 dark:bg-slate-950 custom-scrollbar">
-        <div className="max-w-5xl mx-auto space-y-6">
+      {/* BODY (SCROLLABLE AREA) */}
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 dark:bg-slate-950 custom-scrollbar">
+        <div className="max-w-5xl mx-auto space-y-6 pb-20">
 
-          {/* --- PESTAÑA 1: GENERALES (REDISEÑADA) --- */}
+          {/* --- PESTAÑA 1: GENERALES --- */}
           {activeTab === 'general' && (
             <div className="grid grid-cols-12 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 
@@ -170,10 +190,10 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                     <div className="grid grid-cols-1 md:grid-cols-12 gap-6">
                         {/* Nombre */}
                         <div className="md:col-span-8">
-                            <label className="label-modern">Nombre Completo <span className="text-red-500">*</span></label>
+                            <label className={LABEL_CLASS}>Nombre Completo <span className="text-red-500">*</span></label>
                             <div className="relative group">
                                 <input 
-                                    className={`input-modern pl-10 text-lg font-semibold ${errors.name ? 'border-red-500 ring-red-100' : ''}`}
+                                    className={`${INPUT_CLASS} pl-10 text-lg font-semibold ${errors.name ? INPUT_ERROR_CLASS : ''}`}
                                     value={formData.name} 
                                     onChange={(e) => handleChange('name', e.target.value)} 
                                     placeholder="Apellidos y Nombres" 
@@ -185,8 +205,8 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
 
                         {/* Género */}
                         <div className="md:col-span-4">
-                            <label className="label-modern">Género <span className="text-red-500">*</span></label>
-                            <select className="input-modern" value={formData.gender} onChange={(e) => handleChange('gender', e.target.value)}>
+                            <label className={LABEL_CLASS}>Género <span className="text-red-500">*</span></label>
+                            <select className={INPUT_CLASS} value={formData.gender} onChange={(e) => handleChange('gender', e.target.value)}>
                                 <option value="Masculino">Masculino</option>
                                 <option value="Femenino">Femenino</option>
                             </select>
@@ -194,27 +214,33 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
 
                         {/* Fecha Nacimiento */}
                         <div className="md:col-span-4">
-                            <label className="label-modern">Fecha Nacimiento</label>
+                            <label className={LABEL_CLASS}>Fecha Nacimiento</label>
                             <div className="relative">
-                                <input type="date" className="input-modern pl-10" value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} />
-                                <Calendar size={18} className="absolute left-3 top-3 text-slate-400"/>
+                                <input type="date" className={`${INPUT_CLASS} pl-10`} value={formData.dob} onChange={(e) => handleChange('dob', e.target.value)} />
+                                <Calendar size={18} className="absolute left-3 top-3.5 text-slate-400"/>
                             </div>
                         </div>
 
                         {/* Edad (Auto) */}
                         <div className="md:col-span-2">
-                            <label className="label-modern">Edad</label>
-                            <div className="input-modern bg-slate-100 dark:bg-slate-800 text-center font-bold text-slate-600">
+                            <label className={LABEL_CLASS}>Edad</label>
+                            <div className={`${INPUT_CLASS} bg-slate-100 dark:bg-slate-800 text-center font-bold text-slate-600`}>
                                 {formData.age || '--'}
                             </div>
                         </div>
 
                         {/* CURP */}
                         <div className="md:col-span-6">
-                            <label className="label-modern">CURP (18 Caracteres)</label>
+                            <label className={LABEL_CLASS}>CURP (18 Caracteres)</label>
                             <div className="relative">
-                                <input className="input-modern pl-10 uppercase tracking-wide font-mono text-sm" value={formData.curp} onChange={(e) => handleChange('curp', e.target.value)} maxLength={18} placeholder="XXXX999999XXXXXX99"/>
-                                <Hash size={16} className="absolute left-3 top-3 text-slate-400"/>
+                                <input 
+                                  className={`${INPUT_CLASS} pl-10 uppercase tracking-wide font-mono text-sm`} 
+                                  value={formData.curp} 
+                                  onChange={(e) => handleChange('curp', e.target.value)} 
+                                  maxLength={18} 
+                                  placeholder="XXXX999999XXXXXX99"
+                                />
+                                <Hash size={16} className="absolute left-3 top-3.5 text-slate-400"/>
                             </div>
                         </div>
                     </div>
@@ -227,22 +253,22 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                     </h4>
                     <div className="space-y-5">
                         <div>
-                            <label className="label-modern">Teléfono Móvil</label>
+                            <label className={LABEL_CLASS}>Teléfono Móvil</label>
                             <div className="relative">
-                                <input className="input-modern pl-10" value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="(000) 000-0000" type="tel" />
-                                <Phone size={16} className="absolute left-3 top-3 text-slate-400"/>
+                                <input className={`${INPUT_CLASS} pl-10`} value={formData.phone} onChange={(e) => handleChange('phone', e.target.value)} placeholder="(000) 000-0000" type="tel" />
+                                <Phone size={16} className="absolute left-3 top-3.5 text-slate-400"/>
                             </div>
                         </div>
                         <div>
-                            <label className="label-modern">Correo Electrónico</label>
+                            <label className={LABEL_CLASS}>Correo Electrónico</label>
                             <div className="relative">
-                                <input className="input-modern pl-10" value={formData.email} onChange={(e) => handleChange('email', e.target.value)} placeholder="paciente@email.com" type="email" />
-                                <Mail size={16} className="absolute left-3 top-3 text-slate-400"/>
+                                <input className={`${INPUT_CLASS} pl-10`} value={formData.email} onChange={(e) => handleChange('email', e.target.value)} placeholder="paciente@email.com" type="email" />
+                                <Mail size={16} className="absolute left-3 top-3.5 text-slate-400"/>
                             </div>
                         </div>
                         <div>
-                            <label className="label-modern">Estado Civil</label>
-                            <select className="input-modern" value={formData.maritalStatus} onChange={(e) => handleChange('maritalStatus', e.target.value)}>
+                            <label className={LABEL_CLASS}>Estado Civil</label>
+                            <select className={INPUT_CLASS} value={formData.maritalStatus} onChange={(e) => handleChange('maritalStatus', e.target.value)}>
                                 <option>Soltero/a</option><option>Casado/a</option><option>Divorciado/a</option><option>Viudo/a</option><option>Unión Libre</option>
                             </select>
                         </div>
@@ -252,21 +278,24 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                 {/* TARJETA 3: UBICACIÓN (Derecha) */}
                 <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800 shadow-sm h-full">
                     <h4 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
-                        <MapPin size={14}/> Domicilio (INE)
+                        <MapPin size={14}/> Domicilio & Ocupación
                     </h4>
                     <div className="space-y-5 h-full">
                         <div className="h-full">
-                            <label className="label-modern">Dirección Completa</label>
+                            <label className={LABEL_CLASS}>Dirección Completa (Calle, No., Col, CP)</label>
                             <textarea 
-                                className="input-modern h-32 resize-none leading-relaxed" 
+                                className={`${INPUT_CLASS} h-32 resize-none leading-relaxed`} 
                                 value={formData.address} 
                                 onChange={(e) => handleChange('address', e.target.value)} 
-                                placeholder="Calle, Número Exterior, Interior, Colonia, C.P., Municipio, Estado."
+                                placeholder="Dirección completa según INE..."
                             />
                         </div>
                         <div>
-                            <label className="label-modern">Ocupación</label>
-                            <input className="input-modern" value={formData.occupation} onChange={(e) => handleChange('occupation', e.target.value)} placeholder="Ej. Arquitecto, Estudiante..." />
+                            <label className={LABEL_CLASS}>Ocupación</label>
+                            <div className="relative">
+                                <input className={`${INPUT_CLASS} pl-10`} value={formData.occupation} onChange={(e) => handleChange('occupation', e.target.value)} placeholder="Ej. Arquitecto, Estudiante..." />
+                                <Briefcase size={16} className="absolute left-3 top-3.5 text-slate-400"/>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -274,31 +303,31 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
             </div>
           )}
 
-          {/* --- PESTAÑA 2: ANTECEDENTES (BENTO) --- */}
+          {/* --- PESTAÑA 2: ANTECEDENTES --- */}
           {activeTab === 'background' && (
             <div className="grid grid-cols-12 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 
                 {/* ALERTA: ALERGIAS (Destacado Rojo) */}
                 <div className="col-span-12 bg-red-50 dark:bg-red-900/10 p-6 rounded-2xl border border-red-200 dark:border-red-900/30">
                     <div className="flex justify-between items-start mb-4">
-                        <label className="label-modern text-red-700 dark:text-red-400 flex items-center gap-2">
+                        <label className={`${LABEL_CLASS} text-red-700 dark:text-red-400 flex items-center gap-2`}>
                             <AlertTriangle size={16}/> Alergias Críticas
                         </label>
                         <span className="text-[10px] font-bold bg-red-100 text-red-600 px-2 py-1 rounded uppercase">Obligatorio</span>
                     </div>
                     <textarea 
-                        className={`input-modern border-red-200 focus:border-red-500 focus:ring-red-200 bg-white ${errors.allergies ? 'border-red-500' : ''}`}
+                        className={`${INPUT_CLASS} border-red-200 focus:border-red-500 focus:ring-red-200 bg-white ${errors.allergies ? INPUT_ERROR_CLASS : ''}`}
                         value={formData.allergies}
                         onChange={(e) => handleChange('allergies', e.target.value)}
                         placeholder="¡IMPORTANTE! Escriba 'NEGADAS' si no tiene alergias conocidas."
-                        rows={2}
+                        rows={3}
                     />
                 </div>
 
                 {/* GRUPO SANGUÍNEO (Tarjeta Pequeña) */}
                 <div className="col-span-12 md:col-span-4 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="label-modern flex items-center gap-2 mb-4"><Droplet size={14} className="text-red-500"/> Tipo de Sangre</label>
-                    <div className="grid grid-cols-3 gap-2">
+                    <label className={`${LABEL_CLASS} flex items-center gap-2 mb-4`}><Droplet size={14} className="text-red-500"/> Tipo de Sangre</label>
+                    <div className="grid grid-cols-4 gap-2">
                         {['O', 'A', 'B', 'AB'].map(type => (
                             <button 
                                 key={type} 
@@ -307,29 +336,29 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                             >{type}</button>
                         ))}
                     </div>
-                    <div className="grid grid-cols-2 gap-2 mt-2">
-                         <button onClick={() => handleChange('bloodType', formData.bloodType.replace('-', '+').replace('++','+'))} className={`py-1 text-xs font-bold rounded ${formData.bloodType.includes('+') ? 'bg-red-100 text-red-700' : 'bg-slate-50 text-slate-400'}`}>RH +</button>
-                         <button onClick={() => handleChange('bloodType', formData.bloodType.replace('+', '-').replace('--','-'))} className={`py-1 text-xs font-bold rounded ${formData.bloodType.includes('-') ? 'bg-red-100 text-red-700' : 'bg-slate-50 text-slate-400'}`}>RH -</button>
+                    <div className="grid grid-cols-2 gap-2 mt-3">
+                         <button onClick={() => handleChange('bloodType', formData.bloodType.replace('-', '+').replace('++','+'))} className={`py-1.5 text-xs font-bold rounded border ${formData.bloodType.includes('+') ? 'bg-red-50 border-red-200 text-red-700' : 'bg-slate-50 border-transparent text-slate-400'}`}>RH +</button>
+                         <button onClick={() => handleChange('bloodType', formData.bloodType.replace('+', '-').replace('--','-'))} className={`py-1.5 text-xs font-bold rounded border ${formData.bloodType.includes('-') ? 'bg-red-50 border-red-200 text-red-700' : 'bg-slate-50 border-transparent text-slate-400'}`}>RH -</button>
                     </div>
                 </div>
 
                 {/* APP (Patológicos) */}
                 <div className="col-span-12 md:col-span-8 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="label-modern mb-2 block">Antecedentes Personales Patológicos (APP)</label>
+                    <label className={`${LABEL_CLASS} mb-2 block`}>Antecedentes Personales Patológicos (APP)</label>
                     <textarea 
-                        className="input-modern h-32 resize-none bg-slate-50 border-transparent focus:bg-white" 
-                        value={formData.background} 
-                        onChange={(e) => handleChange('background', e.target.value)} 
-                        placeholder="Cirugías, Crónicos (Diabetes, HTA), Hospitalizaciones..." 
+                        className={`${INPUT_CLASS} h-32 resize-none bg-slate-50 border-transparent focus:bg-white`} 
+                        value={formData.pathological} 
+                        onChange={(e) => handleChange('pathological', e.target.value)} 
+                        placeholder="Cirugías previas, Enfermedades Crónicas (Diabetes, Hipertensión), Hospitalizaciones..." 
                     />
                 </div>
 
                 {/* AHF (Heredofamiliares) */}
                 <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="label-modern mb-2 block">Heredofamiliares (AHF)</label>
+                    <label className={`${LABEL_CLASS} mb-2 block`}>Heredofamiliares (AHF)</label>
                     <textarea 
-                        className="input-modern h-24 resize-none" 
-                        value={typeof formData.family === 'string' ? formData.family : JSON.stringify(formData.family)} 
+                        className={`${INPUT_CLASS} h-24 resize-none`} 
+                        value={formData.family} 
                         onChange={(e) => handleChange('family', e.target.value)} 
                         placeholder="Padres/Abuelos con Cáncer, Diabetes, Cardiopatías..." 
                     />
@@ -337,10 +366,10 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
 
                 {/* APNP (No Patológicos) */}
                 <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="label-modern mb-2 block">No Patológicos (APNP)</label>
+                    <label className={`${LABEL_CLASS} mb-2 block`}>No Patológicos (APNP)</label>
                     <textarea 
-                        className="input-modern h-24 resize-none" 
-                        value={typeof formData.nonPathological === 'string' ? formData.nonPathological : JSON.stringify(formData.nonPathological)} 
+                        className={`${INPUT_CLASS} h-24 resize-none`} 
+                        value={formData.nonPathological} 
                         onChange={(e) => handleChange('nonPathological', e.target.value)} 
                         placeholder="Tabaquismo, Alcoholismo, Deportes, Alimentación..." 
                     />
@@ -349,7 +378,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
             </div>
           )}
 
-          {/* --- PESTAÑA 3: ADMINISTRATIVO (BENTO) --- */}
+          {/* --- PESTAÑA 3: ADMINISTRATIVO --- */}
           {activeTab === 'admin' && (
             <div className="grid grid-cols-12 gap-6 animate-in fade-in slide-in-from-bottom-4 duration-500">
                 
@@ -360,35 +389,35 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                     </h4>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                         <div>
-                            <label className="label-modern">Aseguradora</label>
-                            <input className="input-modern bg-white" value={formData.insurance} onChange={(e) => handleChange('insurance', e.target.value)} placeholder="Nombre de la compañía / Poliza" />
+                            <label className={LABEL_CLASS}>Aseguradora</label>
+                            <input className={`${INPUT_CLASS} bg-white`} value={formData.insurance} onChange={(e) => handleChange('insurance', e.target.value)} placeholder="Nombre de la compañía / Poliza" />
                         </div>
                         <div>
-                            <label className="label-modern">RFC</label>
-                            <input className="input-modern bg-white uppercase font-mono" value={formData.rfc} onChange={(e) => handleChange('rfc', e.target.value)} placeholder="RFC con Homoclave" />
+                            <label className={LABEL_CLASS}>RFC</label>
+                            <input className={`${INPUT_CLASS} bg-white uppercase font-mono`} value={formData.rfc} onChange={(e) => handleChange('rfc', e.target.value)} placeholder="RFC con Homoclave" />
                         </div>
                     </div>
                 </div>
 
                 {/* MARKETING */}
                 <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="label-modern">Origen del Paciente</label>
+                    <label className={LABEL_CLASS}>Origen del Paciente</label>
                     <div className="grid grid-cols-2 gap-4 mb-4">
-                        <select className="input-modern col-span-2" value={formData.patientType} onChange={(e) => handleChange('patientType', e.target.value)}>
+                        <select className={`${INPUT_CLASS} col-span-2`} value={formData.patientType} onChange={(e) => handleChange('patientType', e.target.value)}>
                             <option>Nuevo</option><option>Subsecuente</option><option>Referido</option><option>VIP</option>
                         </select>
                     </div>
-                    <label className="label-modern">Referido Por</label>
+                    <label className={LABEL_CLASS}>Referido Por</label>
                     <div className="relative">
-                        <input className="input-modern pl-10" value={formData.referral} onChange={(e) => handleChange('referral', e.target.value)} placeholder="Nombre del doctor o medio" />
-                        <Contact size={16} className="absolute left-3 top-3 text-slate-400"/>
+                        <input className={`${INPUT_CLASS} pl-10`} value={formData.referral} onChange={(e) => handleChange('referral', e.target.value)} placeholder="Nombre del doctor o medio" />
+                        <Contact size={16} className="absolute left-3 top-3.5 text-slate-400"/>
                     </div>
                 </div>
 
                 {/* NOTAS PRIVADAS */}
                 <div className="col-span-12 md:col-span-6 bg-white dark:bg-slate-900 p-6 rounded-2xl border border-slate-200 dark:border-slate-800">
-                    <label className="label-modern flex items-center gap-2 mb-2"><HeartPulse size={14} className="text-brand-teal"/> Notas Administrativas (Internas)</label>
-                    <textarea className="input-modern h-32 resize-none bg-yellow-50/50 border-yellow-100 focus:bg-white" value={formData.notes} onChange={(e) => handleChange('notes', e.target.value)} placeholder="Preferencias de pago, personalidad, observaciones..." />
+                    <label className={`${LABEL_CLASS} flex items-center gap-2 mb-2`}><HeartPulse size={14} className="text-brand-teal"/> Notas Administrativas (Internas)</label>
+                    <textarea className={`${INPUT_CLASS} h-32 resize-none bg-yellow-50/50 border-yellow-100 focus:bg-white`} value={formData.notes} onChange={(e) => handleChange('notes', e.target.value)} placeholder="Preferencias de pago, personalidad, observaciones..." />
                 </div>
 
             </div>
@@ -398,7 +427,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
       </div>
 
       {/* FOOTER PREMIUM */}
-      <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end gap-4 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+      <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end gap-4 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex-shrink-0">
         <button 
             onClick={onClose} 
             className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
@@ -415,16 +444,6 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
             Guardar Expediente
         </button>
       </div>
-
-      {/* ESTILOS INTERNOS MEJORADOS */}
-      <style>{`
-        .label-modern { 
-            @apply block text-[11px] font-bold text-slate-500 dark:text-slate-400 uppercase tracking-widest mb-1.5 ml-1; 
-        }
-        .input-modern { 
-            @apply w-full px-4 py-3 bg-slate-50 dark:bg-slate-950 border border-slate-200 dark:border-slate-800 rounded-xl text-slate-700 dark:text-white text-sm font-semibold focus:ring-2 focus:ring-brand-teal/20 focus:border-brand-teal focus:bg-white transition-all placeholder:text-slate-300 outline-none; 
-        }
-      `}</style>
     </div>
   );
 };
