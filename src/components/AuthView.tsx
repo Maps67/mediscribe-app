@@ -23,7 +23,7 @@ import { toast } from 'sonner';
 // LISTA MAESTRA DE ESPECIALIDADES
 const SPECIALTIES = [
   "Medicina General", "Cardiología", "Cirugía General", "Cirugía de Columna", "Cirugía de Mano", 
-  "Cirugía Oncológica", "Cirugía Pediátrica", "Cirugía Plástica y Reconstructiva", "Dermatología", 
+  "Cirugía Oncológica",  "Cirugía Pediátrica", "Cirugía Plástica y Reconstructiva", "Dermatología", 
   "Endocrinología", "Gastroenterología", "Geriatría", "Ginecología y Obstetricia", "Medicina del Deporte", 
   "Medicina Interna", "Nefrología", "Neumología", "Neurocirugía", "Neurología", "Oftalmología", 
   "Otorrinolaringología", "Pediatría", "Psiquiatría", "Reumatología", "Traumatología y Ortopedia", 
@@ -88,8 +88,8 @@ const AuthView: React.FC<AuthProps> = ({
         // 1. Validaciones
         const cedulaLimpia = formData.cedula.trim();
         if (!/^\d+$/.test(cedulaLimpia) || cedulaLimpia.length < 7 || cedulaLimpia.length > 8) {
-             toast.error("Cédula inválida. Debe tener 7 u 8 dígitos numéricos.");
-             setLoading(false); return;
+              toast.error("Cédula inválida. Debe tener 7 u 8 dígitos numéricos.");
+              setLoading(false); return;
         }
 
         const passError = validatePasswordStrength(formData.password);
@@ -331,7 +331,14 @@ const AuthView: React.FC<AuthProps> = ({
                          {isRegistering && <p className="text-[10px] text-slate-400 mt-1 pl-1 flex items-center gap-1"><AlertTriangle size={10}/> Requiere: 8+ car, 1 Mayus, 1 Num, 1 Símbolo.</p>}
                      </div>
                  </div>
-                 {isRegistering && (<div className="flex items-start gap-3 bg-blue-50 p-3 rounded-lg border border-blue-100"><input type="checkbox" required className="mt-1 w-4 h-4 text-brand-teal rounded cursor-pointer" checked={formData.termsAccepted} onChange={e => setFormData({...formData, termsAccepted: e.target.checked})}/><label className="text-xs text-slate-600">Acepto la verificación de mi <strong>Cédula Profesional</strong>. Datos falsos suspenden la cuenta.</label></div>)}
+                 {isRegistering && (
+                    <div className="flex items-start gap-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
+                        <input type="checkbox" required className="mt-1 w-4 h-4 text-brand-teal rounded cursor-pointer" checked={formData.termsAccepted} onChange={e => setFormData({...formData, termsAccepted: e.target.checked})}/>
+                        <label className="text-xs text-slate-600">
+                            Acepto los <a href="https://pixelartestudio.art/terminos/" target="_blank" rel="noopener noreferrer" className="text-brand-teal hover:underline font-bold">Términos y Condiciones</a>, así como la verificación de mi <strong>Cédula Profesional</strong>. Datos falsos suspenden la cuenta.
+                        </label>
+                    </div>
+                 )}
                  <button type="submit" disabled={loading} className="w-full flex justify-center items-center gap-2 py-3 px-4 border border-transparent rounded-xl shadow-lg text-sm font-bold text-white bg-brand-teal hover:bg-teal-600 transition-all disabled:opacity-50">{loading ? <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div> : <>{isRegistering ? 'Registrarse' : 'Iniciar Sesión'} <ArrowRight size={20} /></>}</button>
                </form>
                <div className="text-center"><button type="button" onClick={() => setIsRegistering(!isRegistering)} className="text-sm font-medium text-brand-teal hover:text-teal-700">{isRegistering ? '¿Ya tienes cuenta? Inicia sesión' : '¿Eres nuevo? Crea tu cuenta'}</button></div>
