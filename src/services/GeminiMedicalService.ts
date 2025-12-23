@@ -16,10 +16,9 @@ if (!API_KEY) {
 // 🛡️ LISTA DE COMBATE (High IQ Only)
 // Prioridad: Gemini 3 Flash por su razonamiento superior y velocidad.
 const MODELS_TO_TRY = [
-  "gemini-3-flash-preview",  // 1. NUEVO: Velocidad extrema + Razonamiento v3
-  "gemini-2.0-flash-exp",    // 2. Respaldo sólido
-  "gemini-1.5-flash-002",    // 3. Estable Legacy
-  "gemini-1.5-pro-002"       // 4. Respaldo pesado
+  "gemini-2.0-flash-exp",     // 1. LÍDER ACTUAL: Velocidad extrema + Razonamiento v2
+  "gemini-1.5-flash-002",     // 2. Respaldo sólido (Versión estable más reciente)
+  "gemini-1.5-pro-002"        // 3. Respaldo pesado (Mayor ventana de contexto si falla Flash)
 ];
 
 // CONFIGURACIÓN DE SEGURIDAD
