@@ -6,12 +6,12 @@ import {
   Stethoscope, Trash2, WifiOff, Save, Share2, Download, Printer,
   Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature, Keyboard,
   Quote, AlertTriangle, ChevronDown, ChevronUp, Sparkles, PenLine, UserPlus, ShieldCheck, AlertCircle,
-  Pause, Play, Signal
+  Pause, Play, Pill, Plus
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
-import { ChatMessage, GeminiResponse, Patient, DoctorProfile, PatientInsight } from '../types';
+import { ChatMessage, GeminiResponse, Patient, DoctorProfile, PatientInsight, MedicationItem } from '../types';
 import { supabase } from '../lib/supabase';
 import FormattedText from './FormattedText';
 import { toast } from 'sonner';
@@ -25,6 +25,11 @@ import { InsightsPanel } from './InsightsPanel';
 import { RiskBadge } from './RiskBadge';
 
 type TabType = 'record' | 'patient' | 'chat';
+
+// Extensión local de tipo para soportar la nueva estructura de medicamentos que viene de la IA v5.6
+interface EnhancedGeminiResponse extends GeminiResponse {
+    prescriptions?: MedicationItem[];
+}
 
 const SPECIALTIES = [
   "Medicina General", 
@@ -62,10 +67,10 @@ const ConsultationView: React.FC = () => {
   const { 
       isListening, 
       isPaused,
-      isDetectingSpeech, // <--- NUEVA SEÑAL VISUAL
+      isDetectingSpeech, 
       transcript, 
       startListening, 
-      pauseListening,
+      pauseListening, 
       stopListening, 
       resetTranscript, 
       setTranscript, 
@@ -89,14 +94,22 @@ const ConsultationView: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const [generatedNote, setGeneratedNote] = useState<GeminiResponse | null>(null);
+  
+  // Usamos el tipo extendido para soportar el array de prescriptions
+  const [generatedNote, setGeneratedNote] = useState<EnhancedGeminiResponse | null>(null);
+  
   const [consentGiven, setConsentGiven] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('record');
   
   const [selectedSpecialty, setSelectedSpecialty] = useState('Medicina General');
   
+  // --- ESTADOS SEPARADOS PARA EL PLAN (NUEVO v5.6) ---
+  // editableInstructions: Solo texto narrativo (Dieta, Cuidados)
+  // editablePrescriptions: Array estructurado de medicamentos
   const [editableInstructions, setEditableInstructions] = useState('');
+  const [editablePrescriptions, setEditablePrescriptions] = useState<MedicationItem[]>([]);
   const [isEditingInstructions, setIsEditingInstructions] = useState(false);
+  
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [nextApptDate, setNextApptDate] = useState('');
   const [isQuickRxModalOpen, setIsQuickRxModalOpen] = useState(false); 
@@ -243,7 +256,7 @@ const ConsultationView: React.FC = () => {
     };
     loadInitialData();
     return () => { mounted = false; };
-  }, [setTranscript, location.state]); 
+  }, [location.state, setTranscript]); 
 
   // --- FUNCIÓN DE LIMPIEZA DE JSON ---
   const cleanHistoryString = (input: string | null | undefined): string => {
@@ -513,7 +526,7 @@ const ConsultationView: React.FC = () => {
     abortControllerRef.current = new AbortController();
     
     setIsProcessing(true);
-    const loadingToast = toast.loading("Analizando caso clínico (Prometheus V7)...");
+    const loadingToast = toast.loading("Generando Receta Estructurada y Nota...");
 
     try {
       let fullMedicalContext = "";
@@ -557,23 +570,27 @@ const ConsultationView: React.FC = () => {
           fullMedicalContext = activeContextString;
       }
 
+      // Usamos el tipo Enhanced para soportar el array de prescriptions
       const response = await GeminiMedicalService.generateClinicalNote(
           transcript, 
           selectedSpecialty, 
           fullMedicalContext 
-      );
+      ) as EnhancedGeminiResponse;
       
       if (!response || (!response.soapData && !response.clinicalNote)) {
           throw new Error("La IA generó una respuesta vacía o inválida.");
       }
 
       setGeneratedNote(response);
+      
+      // *** AQUÍ ESTÁ LA MAGIA DE V5.6: SEPARACIÓN DE DATOS ***
       setEditableInstructions(response.patientInstructions || '');
+      setEditablePrescriptions(response.prescriptions || []);
       
       if (response.risk_analysis?.level === 'Alto') {
           setIsRiskExpanded(true);
           toast.dismiss(loadingToast);
-          toast.error("⚠️ ALERTA: Riesgos clínicos importantes.");
+          toast.error("⚠️ ALERTA: Riesgo Alto detectado.");
       } else if (response.risk_analysis?.level === 'Medio') {
           setIsRiskExpanded(false);
           toast.dismiss(loadingToast);
@@ -581,24 +598,135 @@ const ConsultationView: React.FC = () => {
       } else {
           setIsRiskExpanded(false);
           toast.dismiss(loadingToast);
-          toast.success("Nota generada exitosamente.");
+          toast.success("Nota y Receta generadas.");
       }
       
       setActiveTab('record');
       
       const chatWelcome = fullMedicalContext 
-          ? `He analizado la transcripción cruzándola con el historial de ${selectedPatient?.name}. ¿Desea ajustar algo?` 
-          : `Nota de primera vez generada. ¿Dudas?`;
+          ? `He analizado la transcripción y separado los medicamentos de las instrucciones narrativas. Por favor revise la pestaña 'Plan Paciente'.` 
+          : `Nota de primera vez generada con receta estructurada. ¿Dudas?`;
           
       setChatMessages([{ role: 'model', text: chatWelcome }]);
 
-    } catch (e) { 
+    } catch (e: any) { 
         console.error("❌ Error Critical en handleGenerate:", e);
         toast.dismiss(loadingToast);
         if(e instanceof Error && e.name !== 'AbortError') toast.error(`Error IA: ${e.message}`); 
     } finally { 
         setIsProcessing(false); 
     }
+  };
+
+  // --- MANEJO DE MEDICAMENTOS (CRUD LOCAL) ---
+  const handleRemoveMedication = (index: number) => {
+      const newMeds = [...editablePrescriptions];
+      newMeds.splice(index, 1);
+      setEditablePrescriptions(newMeds);
+  };
+
+  const handleAddMedication = () => {
+      setEditablePrescriptions([...editablePrescriptions, { drug: "Nuevo Medicamento", dose: "", frequency: "", duration: "", notes: "" }]);
+  };
+
+  const handleUpdateMedication = (index: number, field: keyof MedicationItem, value: string) => {
+      const newMeds = [...editablePrescriptions];
+      newMeds[index] = { ...newMeds[index], [field]: value };
+      setEditablePrescriptions(newMeds);
+  };
+
+  // --- FUNCIÓN AUXILIAR DE EDAD ---
+  const calculateAge = (birthdate?: string): string => {
+      if (!birthdate) return "No registrada";
+      try {
+          const dob = new Date(birthdate);
+          const diff_ms = Date.now() - dob.getTime();
+          const age_dt = new Date(diff_ms);
+          return Math.abs(age_dt.getUTCFullYear() - 1970).toString() + " años";
+      } catch (e) {
+          return "No registrada";
+      }
+  };
+
+  // --- GENERACIÓN DE PDF BLINDADO Y FORMATEADO ---
+  const generatePDFBlob = async () => {
+      if (!selectedPatient || !doctorProfile) return null;
+
+      // 1. Corrección NOM-004: Cálculo de Edad
+      const patientAny = selectedPatient as any;
+      const dob = patientAny.birthdate || patientAny.dob || patientAny.fecha_nacimiento;
+      const ageDisplay = calculateAge(dob);
+
+      // 2. CONSTRUCCIÓN INTELIGENTE DEL TEXTO (Fusión Estructurada)
+      
+      // A. Medicamentos (Formato Lista Limpia)
+      let medString = "";
+      if (editablePrescriptions.length > 0) {
+          medString = editablePrescriptions.map((med, i) => 
+              `${i + 1}. ${med.drug} ${med.dose}\n   Tomar: ${med.frequency} durante ${med.duration}.${med.notes ? ` Nota: ${med.notes}` : ''}`
+          ).join("\n\n");
+      }
+
+      // B. Ensamblaje Final
+      let finalContent = "";
+      
+      // Inyección de Advertencia de Seguridad (Protocolo Radar)
+      if (generatedNote?.risk_analysis?.level === 'Alto') {
+          finalContent += `*** ADVERTENCIA DE SEGURIDAD CLÍNICA - RIESGO ALTO ***\nMOTIVO DETECTADO: ${generatedNote.risk_analysis.reason ? generatedNote.risk_analysis.reason.toUpperCase() : 'CONDICIÓN CRÍTICA DETECTADA'}\n\nPOR FAVOR VERIFIQUE LAS CONTRAINDICACIONES Y ALERTAS ANTES DE SEGUIR ESTE PLAN.\n----------------------------------------------------------------------------------\n\n`;
+      }
+
+      if (medString) {
+          finalContent += `=== RECETA MÉDICA ===\n\n${medString}\n\n`;
+      }
+
+      if (editableInstructions) {
+          finalContent += `=== INDICACIONES Y CUIDADOS ===\n\n${editableInstructions}`;
+      }
+
+      try {
+        return await pdf(
+            <PrescriptionPDF 
+                doctorName={doctorProfile.full_name} 
+                specialty={doctorProfile.specialty} 
+                license={doctorProfile.license_number} 
+                university={doctorProfile.university || "Universidad Nacional"} 
+                phone={doctorProfile.phone || ""}
+                address={doctorProfile.address || ""}
+                logoUrl={doctorProfile.logo_url} 
+                signatureUrl={doctorProfile.signature_url} 
+                patientName={selectedPatient.name}
+                patientAge={ageDisplay} 
+                date={new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
+                content={finalContent} 
+            />
+        ).toBlob();
+      } catch (error) {
+          console.error("Error generando PDF:", error);
+          toast.error("Error al generar el PDF. Revise la consola.");
+          return null;
+      }
+  };
+
+  const handlePrint = async () => { 
+      const loadingToast = toast.loading("Generando receta...");
+      const blob = await generatePDFBlob(); 
+      toast.dismiss(loadingToast);
+      if(blob) {
+          window.open(URL.createObjectURL(blob), '_blank');
+      }
+  };
+  
+  const handleShareWhatsApp = async () => { 
+    if (!editableInstructions || !selectedPatient) return toast.error("No hay instrucciones.");
+    const drName = doctorProfile?.full_name || 'su médico';
+    const message = `*Hola ${selectedPatient.name}, soy el Dr. ${drName}.*\n\n${editableInstructions}\n\n*Saludos.*`;
+    const whatsappUrl = selectedPatient.phone && selectedPatient.phone.length >= 10 ? `https://wa.me/${selectedPatient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;
+    window.open(whatsappUrl, '_blank');
+  };
+
+  const handleQuickRx = () => {
+    if (!selectedPatient) { toast.error("Seleccione paciente."); return; }
+    setIsQuickRxModalOpen(true);
   };
 
   const handleSaveConsultation = async () => {
@@ -662,6 +790,7 @@ const ConsultationView: React.FC = () => {
         if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`); 
         setGeneratedNote(null); 
         setEditableInstructions(''); 
+        setEditablePrescriptions([]); // Limpiamos también la receta
         setSelectedPatient(null); 
         setConsentGiven(false); 
         setIsRiskExpanded(false);
@@ -701,89 +830,6 @@ const ConsultationView: React.FC = () => {
           });
           toast.success("Cita creada"); setIsAppointmentModalOpen(false);
       } catch { toast.error("Error agendando"); }
-  };
-
-  // --- FUNCIÓN AUXILIAR DE EDAD ---
-  const calculateAge = (birthdate?: string): string => {
-      if (!birthdate) return "No registrada";
-      try {
-          const dob = new Date(birthdate);
-          const diff_ms = Date.now() - dob.getTime();
-          const age_dt = new Date(diff_ms);
-          return Math.abs(age_dt.getUTCFullYear() - 1970).toString() + " años";
-      } catch (e) {
-          return "No registrada";
-      }
-  };
-
-  const generatePDFBlob = async () => {
-      if (!selectedPatient || !doctorProfile) return null;
-
-      // 1. Corrección NOM-004: Cálculo de Edad
-      // Intentamos extraer la fecha de nacimiento del objeto del paciente (aunque el tipo sea parcial)
-      const patientAny = selectedPatient as any;
-      const dob = patientAny.birthdate || patientAny.dob || patientAny.fecha_nacimiento;
-      const ageDisplay = calculateAge(dob);
-
-      // 2. Protocolo Radar de Seguridad: Inyección Forzosa de Advertencias
-      let finalContent = editableInstructions;
-
-      if (generatedNote?.risk_analysis?.level === 'Alto') {
-          const warningBox = `
-*** ADVERTENCIA DE SEGURIDAD CLÍNICA - RIESGO ALTO ***
-MOTIVO DETECTADO: ${generatedNote.risk_analysis.reason ? generatedNote.risk_analysis.reason.toUpperCase() : 'CONDICIÓN CRÍTICA DETECTADA'}
-
-POR FAVOR VERIFIQUE LAS CONTRAINDICACIONES Y ALERTAS ANTES DE SEGUIR ESTE PLAN.
-----------------------------------------------------------------------------------
-`;
-          // Prependemos la advertencia al contenido para que aparezca SIEMPRE en el PDF
-          finalContent = warningBox + "\n" + finalContent;
-      }
-
-      try {
-        return await pdf(
-            <PrescriptionPDF 
-                doctorName={doctorProfile.full_name} 
-                specialty={doctorProfile.specialty} 
-                license={doctorProfile.license_number} 
-                university={doctorProfile.university || "Universidad Nacional"} 
-                phone={doctorProfile.phone || ""}
-                address={doctorProfile.address || ""}
-                logoUrl={doctorProfile.logo_url} 
-                signatureUrl={doctorProfile.signature_url} 
-                patientName={selectedPatient.name}
-                patientAge={ageDisplay} 
-                date={new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
-                content={finalContent} 
-            />
-        ).toBlob();
-      } catch (error) {
-          console.error("Error generando PDF:", error);
-          toast.error("Error al generar el PDF. Revise la consola.");
-          return null;
-      }
-  };
-
-  const handlePrint = async () => { 
-      const loadingToast = toast.loading("Generando receta...");
-      const blob = await generatePDFBlob(); 
-      toast.dismiss(loadingToast);
-      if(blob) {
-          window.open(URL.createObjectURL(blob), '_blank');
-      }
-  };
-  
-  const handleShareWhatsApp = async () => { 
-    if (!editableInstructions || !selectedPatient) return toast.error("No hay instrucciones.");
-    const drName = doctorProfile?.full_name || 'su médico';
-    const message = `*Hola ${selectedPatient.name}, soy el Dr. ${drName}.*\n\n${editableInstructions}\n\n*Saludos.*`;
-    const whatsappUrl = selectedPatient.phone && selectedPatient.phone.length >= 10 ? `https://wa.me/${selectedPatient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}` : `https://wa.me/?text=${encodeURIComponent(message)}`;
-    window.open(whatsappUrl, '_blank');
-  };
-
-  const handleQuickRx = () => {
-    if (!selectedPatient) { toast.error("Seleccione paciente."); return; }
-    setIsQuickRxModalOpen(true);
   };
 
   return (
@@ -988,6 +1034,7 @@ POR FAVOR VERIFIQUE LAS CONTRAINDICACIONES Y ALERTAS ANTES DE SEGUIR ESTE PLAN.
                  </div>
              ) : (
                  <div className="min-h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative pb-8">
+                      {/* === PESTAÑA 1: EXPEDIENTE CLÍNICO (SOAP) === */}
                       {activeTab==='record' && generatedNote.soapData && (
                         <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-full h-fit pb-32 animate-fade-in-up relative">
                             <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex flex-col gap-2">
@@ -1092,19 +1139,70 @@ POR FAVOR VERIFIQUE LAS CONTRAINDICACIONES Y ALERTAS ANTES DE SEGUIR ESTE PLAN.
                           </div>
                       )}
 
+                      {/* === PESTAÑA 2: PLAN PACIENTE (DIVIDIDO) === */}
                       {activeTab==='patient' && (
-                          <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 animate-fade-in-up">
-                              <div className="flex justify-between items-center mb-4 border-b dark:border-slate-800 pb-2">
-                                  <h3 className="font-bold text-lg dark:text-white flex items-center gap-2"><FileText className="text-brand-teal"/> Instrucciones</h3>
+                          <div className="flex flex-col h-full gap-4 animate-fade-in-up">
+                              <div className="flex justify-between items-center mb-2">
+                                  <h3 className="font-bold text-xl dark:text-white">Plan de Tratamiento</h3>
                                   <div className="flex gap-2">
-                                      <button onClick={handleShareWhatsApp} className="p-2 bg-green-50 text-green-600 rounded-lg hover:bg-green-100 dark:bg-green-900/20 dark:text-green-400"><Share2 size={18}/></button>
-                                      <button onClick={handlePrint} className="p-2 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 dark:bg-blue-900/20 dark:text-blue-400"><Download size={18}/></button>
-                                      <button onClick={()=>setIsEditingInstructions(!isEditingInstructions)} className={`p-2 rounded-lg transition-colors ${isEditingInstructions ? 'bg-brand-teal text-white' : 'bg-slate-50 text-slate-600 hover:bg-slate-100 dark:bg-slate-800 dark:text-slate-300'}`}>{isEditingInstructions?<Check size={18}/>:<Edit2 size={18}/>}</button>
+                                      <button onClick={handleShareWhatsApp} className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"><Share2 size={18}/></button>
+                                      <button onClick={handlePrint} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"><Download size={18}/></button>
                                   </div>
                               </div>
-                              <div className="flex-1 overflow-y-auto custom-scrollbar p-1">
-                                  {isEditingInstructions ? <textarea className="w-full h-full border dark:border-slate-700 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 dark:text-white resize-none outline-none focus:ring-2 focus:ring-brand-teal font-medium" value={editableInstructions} onChange={e=>setEditableInstructions(e.target.value)}/> : <div className="prose dark:prose-invert max-w-none"><FormattedText content={editableInstructions}/></div>}
+
+                              {/* SECCIÓN A: RECETA MÉDICA (ESTRUCTURADA) */}
+                              <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                                  <div className="flex justify-between items-center mb-4">
+                                      <h3 className="font-bold text-lg flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                                          <Pill size={20}/> Receta Médica
+                                      </h3>
+                                      <button onClick={handleAddMedication} className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full flex items-center gap-1 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                          <Plus size={12}/> Agregar Fármaco
+                                      </button>
+                                  </div>
+                                  
+                                  {editablePrescriptions.length === 0 ? (
+                                      <p className="text-sm text-slate-400 italic text-center py-4">No se detectaron medicamentos en la transcripción.</p>
+                                  ) : (
+                                      <div className="space-y-3">
+                                          {editablePrescriptions.map((med, idx) => (
+                                              <div key={idx} className="flex gap-2 items-start p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700 group">
+                                                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                      <input className="font-bold bg-transparent outline-none text-slate-800 dark:text-white border-b border-transparent focus:border-indigo-300 transition-colors" value={med.drug} onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} placeholder="Nombre del medicamento" />
+                                                      <input className="text-sm bg-transparent outline-none text-slate-600 dark:text-slate-300 border-b border-transparent focus:border-indigo-300 transition-colors" value={med.dose} onChange={e=>handleUpdateMedication(idx,'dose',e.target.value)} placeholder="Dosis" />
+                                                      <div className="col-span-2 flex gap-2 text-xs">
+                                                          <input className="flex-1 bg-transparent outline-none text-slate-500 border-b border-transparent focus:border-indigo-300 transition-colors" value={med.frequency} onChange={e=>handleUpdateMedication(idx,'frequency',e.target.value)} placeholder="Frecuencia" />
+                                                          <input className="flex-1 bg-transparent outline-none text-slate-500 border-b border-transparent focus:border-indigo-300 transition-colors" value={med.duration} onChange={e=>handleUpdateMedication(idx,'duration',e.target.value)} placeholder="Duración" />
+                                                      </div>
+                                                  </div>
+                                                  <button onClick={()=>handleRemoveMedication(idx)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
+                                              </div>
+                                          ))}
+                                      </div>
+                                  )}
                               </div>
+
+                              {/* SECCIÓN B: INDICACIONES (NARRATIVA) */}
+                              <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex-1 flex flex-col">
+                                  <div className="flex justify-between items-center mb-4">
+                                      <h3 className="font-bold text-lg flex items-center gap-2 text-teal-600 dark:text-teal-400">
+                                          <FileText size={20}/> Indicaciones y Cuidados
+                                      </h3>
+                                      <button onClick={()=>setIsEditingInstructions(!isEditingInstructions)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-500 hover:text-teal-600 transition-colors">
+                                          <Edit2 size={18}/>
+                                      </button>
+                                  </div>
+                                  <div className="flex-1 overflow-y-auto custom-scrollbar min-h-[200px]">
+                                      {isEditingInstructions ? (
+                                          <textarea className="w-full h-full border dark:border-slate-700 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 dark:text-slate-200 resize-none outline-none focus:ring-2 focus:ring-teal-500" value={editableInstructions} onChange={e=>setEditableInstructions(e.target.value)}/>
+                                      ) : (
+                                          <div className="prose dark:prose-invert max-w-none text-sm text-slate-700 dark:text-slate-300">
+                                              <FormattedText content={editableInstructions}/>
+                                          </div>
+                                      )}
+                                  </div>
+                              </div>
+
                           </div>
                       )}
 

@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 import { supabase } from '../lib/supabase'; 
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-HYBRID DEPLOY: Secure Note (Direct Client) + Safety Audit Layer");
+console.log("🚀 V-HYBRID DEPLOY: Secure Note + Structured Rx (v5.6)");
 
 // ==========================================
 // 1. CONFIGURACIÓN ROBUSTA & MOTOR DE IA
@@ -14,9 +14,9 @@ if (!API_KEY) {
 }
 
 // 🛡️ LISTA DE COMBATE (High IQ Only)
-// ACTUALIZACIÓN DEC 2025: Gemini 3 Flash lidera la prioridad.
+// Prioridad: Gemini 3 Flash por su razonamiento superior y velocidad.
 const MODELS_TO_TRY = [
-  "gemini-3-flash-preview",  // 1. NUEVO: Velocidad extrema + Razonamiento v3 (Release Dec 17, 2025)
+  "gemini-3-flash-preview",  // 1. NUEVO: Velocidad extrema + Razonamiento v3
   "gemini-2.0-flash-exp",    // 2. Respaldo sólido
   "gemini-1.5-flash-002",    // 3. Estable Legacy
   "gemini-1.5-pro-002"       // 4. Respaldo pesado
@@ -162,11 +162,11 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- A. NOTA CLÍNICA (CLIENT-SIDE + SAFETY AUDIT) ---
-  // Ahora incluye el Protocolo de Auditoría para evitar negligencias
+  // --- A. NOTA CLÍNICA (CLIENT-SIDE + SAFETY AUDIT + STRUCTURED RX) ---
+  // Ahora incluye generación de array de prescripciones separado
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      console.log("⚡ Generando Nota Clínica Blindada (Gemini 3 + Safety Audit)...");
+      console.log("⚡ Generando Nota Clínica con Receta Estructurada (v5.6)...");
 
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
@@ -175,7 +175,7 @@ export const GeminiMedicalService = {
         ENFOQUE: ${specialtyConfig.focus}
         SESGO CLÍNICO: ${specialtyConfig.bias}
 
-        TAREA: Analizar transcripción y generar Nota Clínica + Auditoría de Seguridad.
+        TAREA: Analizar transcripción y generar Nota Clínica + Auditoría de Seguridad + RECETA ESTRUCTURADA.
 
         TRANSCRIPCIÓN CRUDA (INPUT):
         "${transcript}"
@@ -191,7 +191,7 @@ export const GeminiMedicalService = {
         1. MARCAR "risk_analysis.level" COMO "Alto".
         2. EXPLICAR LA ADVERTENCIA en "risk_analysis.reason" con mayúsculas iniciales.
         3. EN LAS INSTRUCCIONES AL PACIENTE, incluir una nota de cautela diplomática pero firme si la vida corre peligro.
-        4. NO seas cómplice. Si el médico dice "tómate el veneno", tú NO debes poner "Tomar veneno" en el plan sin una advertencia gigante.
+        4. NO seas cómplice. Si el médico dice "tómate el veneno", tú NO debes poner "Tomar veneno" en la receta sin una advertencia gigante.
 
         INSTRUCCIONES DE GENERACIÓN CRÍTICAS:
         
@@ -205,10 +205,16 @@ export const GeminiMedicalService = {
            - Redacta una nota médica formal y completa.
            - Si hubo un error médico en el audio, corrígelo en la nota o señala la contraindicación en el Análisis.
 
-        3. patientInstructions:
-           - Instrucciones claras y seguras. Si el médico dio una instrucción peligrosa, corrígela diplomáticamente por la seguridad del paciente.
+        3. prescriptions (RECETA ESTRUCTURADA - NUEVO):
+           - Extrae CADA medicamento recetado en un objeto JSON separado.
+           - NO pongas la lista de medicamentos en "patientInstructions", ponla AQUÍ.
+           - Campos: drug (nombre), dose (dosis), frequency (frecuencia), duration (duración), notes (indicaciones especificas como 'con alimentos').
 
-        4. risk_analysis:
+        4. patientInstructions:
+           - Instrucciones generales, dieta, alarmas y cuidados. 
+           - NO repitas la lista de medicamentos aquí, solo instrucciones narrativas.
+
+        5. risk_analysis:
            - Banderas rojas obligatorias si hay contraindicaciones absolutas.
 
         SALIDA ESPERADA (JSON Schema Strict):
@@ -220,6 +226,9 @@ export const GeminiMedicalService = {
              "analysis": "...", 
              "plan": "..." 
           },
+          "prescriptions": [
+             { "drug": "string", "dose": "string", "frequency": "string", "duration": "string", "notes": "string" }
+          ],
           "patientInstructions": "...",
           "risk_analysis": { 
              "level": "Bajo" | "Medio" | "Alto", 
@@ -241,7 +250,7 @@ export const GeminiMedicalService = {
       const rawText = await generateWithFailover(prompt, true);
       const parsedData = JSON.parse(cleanJSON(rawText));
 
-      console.log("✅ Nota blindada generada con éxito.");
+      console.log("✅ Nota estructurada generada con éxito.");
       return parsedData as GeminiResponse;
 
     } catch (error: any) {
