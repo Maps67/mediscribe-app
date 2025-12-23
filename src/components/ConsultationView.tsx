@@ -1,12 +1,47 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom'; 
 import { 
-  Mic, Square, RefreshCw, FileText, Search, X, 
-  MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
-  Stethoscope, Trash2, WifiOff, Save, Share2, Download, Printer,
-  Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature, Keyboard,
-  Quote, AlertTriangle, ChevronDown, ChevronUp, Sparkles, PenLine, UserPlus, ShieldCheck, AlertCircle,
-  Pause, Play, Pill, Plus
+  Mic, 
+  Square, 
+  RefreshCw, 
+  FileText, 
+  Search, 
+  X, 
+  MessageSquare, 
+  User, 
+  Send, 
+  Edit2, 
+  Check, 
+  ArrowLeft, 
+  Stethoscope, 
+  Trash2, 
+  WifiOff, 
+  Save, 
+  Share2, 
+  Download, 
+  Printer,
+  Paperclip, 
+  Calendar, 
+  Clock, 
+  UserCircle, 
+  Activity, 
+  ClipboardList, 
+  Brain, 
+  FileSignature, 
+  Keyboard,
+  Quote, 
+  AlertTriangle, 
+  ChevronDown, 
+  ChevronUp, 
+  Sparkles, 
+  PenLine, 
+  UserPlus, 
+  ShieldCheck, 
+  AlertCircle,
+  Pause, 
+  Play, 
+  Pill, 
+  Plus
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
@@ -67,7 +102,7 @@ const ConsultationView: React.FC = () => {
   const { 
       isListening, 
       isPaused, 
-      isDetectingSpeech, 
+      isDetectingSpeech, // <--- NUEVA SEÑAL VISUAL
       transcript, 
       startListening, 
       pauseListening, 
@@ -136,14 +171,23 @@ const ConsultationView: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
-    const handleOnline = () => { setIsOnline(true); toast.success("Conexión restablecida"); };
-    const handleOffline = () => { setIsOnline(false); toast.warning("Sin conexión. Modo Offline activo."); };
+    const handleOnline = () => { 
+        setIsOnline(true); 
+        toast.success("Conexión restablecida"); 
+    };
+    const handleOffline = () => { 
+        setIsOnline(false); 
+        toast.warning("Sin conexión. Modo Offline activo."); 
+    };
     window.addEventListener('online', handleOnline);
     window.addEventListener('offline', handleOffline);
     
     startTimeRef.current = Date.now();
 
-    return () => { window.removeEventListener('online', handleOnline); window.removeEventListener('offline', handleOffline); };
+    return () => { 
+        window.removeEventListener('online', handleOnline); 
+        window.removeEventListener('offline', handleOffline); 
+    };
   }, []);
 
   useEffect(() => {
@@ -364,7 +408,9 @@ const ConsultationView: React.FC = () => {
     }
   }, [transcript, isListening, currentUserId]);
 
-  useEffect(() => { chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); }, [chatMessages, activeTab]);
+  useEffect(() => { 
+      chatEndRef.current?.scrollIntoView({ behavior: 'smooth' }); 
+  }, [chatMessages, activeTab]);
 
   const filteredPatients = useMemo(() => {
     if (!searchTerm) return [];
@@ -657,9 +703,9 @@ const ConsultationView: React.FC = () => {
       const dob = patientAny.birthdate || patientAny.dob || patientAny.fecha_nacimiento;
       const ageDisplay = calculateAge(dob);
 
-      // 2. PREPARACIÓN DE DATOS PARA PDF (MODO ESTRUCTURADO)
-      // En lugar de concatenar texto plano, pasamos los objetos crudos al componente PDF
-      // para que él decida cómo renderizarlos con negritas y estilos.
+      // 2. CONEXIÓN DE PROPS ESTRUCTURADOS (EL FIX)
+      // Pasamos los objetos crudos (Array, String, Object) directamente al componente PDF
+      // para que él renderice la tabla y los estilos correctamente.
       
       try {
         return await pdf(
@@ -676,11 +722,12 @@ const ConsultationView: React.FC = () => {
                 patientAge={ageDisplay} 
                 date={new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
                 
-                // --- NUEVOS PROPS ESTRUCTURADOS ---
-                prescriptions={editablePrescriptions}
+                // --- AQUI ESTÁ LA CONEXIÓN CLAVE PARA QUE SE VEA EL PDF ---
+                prescriptions={editablePrescriptions} 
                 instructions={editableInstructions}
                 riskAnalysis={generatedNote?.risk_analysis}
-                // ----------------------------------
+                // ----------------------------------------------------------
+                content="" // Fallback vacío
             />
         ).toBlob();
       } catch (error) {
@@ -735,9 +782,14 @@ const ConsultationView: React.FC = () => {
             toast.success("Paciente registrado automáticamente.");
         }
 
+        // Construimos un resumen de texto plano para la base de datos que incluya los medicamentos
+        const medsSummary = editablePrescriptions.length > 0 
+            ? "\n\nMEDICAMENTOS:\n" + editablePrescriptions.map(m => `- ${m.drug} ${m.dose} (${m.frequency})`).join('\n')
+            : "";
+
         const summaryToSave = generatedNote.soapData 
-            ? `FECHA: ${new Date().toLocaleDateString()}\nS: ${generatedNote.soapData.subjective}\nO: ${generatedNote.soapData.objective}\nA: ${generatedNote.soapData.analysis}\nP: ${generatedNote.soapData.plan}\n\nPLAN PACIENTE:\n${editableInstructions}`
-            : (generatedNote.clinicalNote + "\n\nPLAN PACIENTE:\n" + editableInstructions);
+            ? `FECHA: ${new Date().toLocaleDateString()}\nS: ${generatedNote.soapData.subjective}\nO: ${generatedNote.soapData.objective}\nA: ${generatedNote.soapData.analysis}\nP: ${generatedNote.soapData.plan}\n\nPLAN PACIENTE:${medsSummary}\n\nINSTRUCCIONES:\n${editableInstructions}`
+            : (generatedNote.clinicalNote + `\n\nPLAN PACIENTE:${medsSummary}\n\nINSTRUCCIONES:\n` + editableInstructions);
 
         if (linkedAppointmentId) {
               await supabase.from('appointments')
@@ -773,7 +825,7 @@ const ConsultationView: React.FC = () => {
         if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`); 
         setGeneratedNote(null); 
         setEditableInstructions(''); 
-        setEditablePrescriptions([]); // Limpiamos también la receta
+        setEditablePrescriptions([]); 
         setSelectedPatient(null); 
         setConsentGiven(false); 
         setIsRiskExpanded(false);
