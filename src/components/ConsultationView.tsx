@@ -537,7 +537,7 @@ const ConsultationView: React.FC = () => {
     abortControllerRef.current = new AbortController();
     
     setIsProcessing(true);
-    const loadingToast = toast.loading("Generando Receta Estructurada y Nota...");
+    const loadingToast = toast.loading("⚡ Motor Prometheus V10: Analizando audio...");
 
     try {
       let fullMedicalContext = "";
@@ -692,9 +692,6 @@ const ConsultationView: React.FC = () => {
                 instructions={editableInstructions}
                 riskAnalysis={generatedNote?.risk_analysis}
                 // ----------------------------------
-                
-                // Puedes cambiar el texto entre comillas por lo que desees.
-                documentTitle="MOTOR PROMETHEUS V10"
                 
                 // FIX V5.6: Lógica condicional estricta.
                 // Si hay recetas estructuradas, pasamos undefined a 'content' para activar la Tabla.
