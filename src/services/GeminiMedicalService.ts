@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 import { supabase } from '../lib/supabase'; 
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-HYBRID DEPLOY: Secure Note (Direct Client) + Local Utils");
+console.log("🚀 V-HYBRID DEPLOY: Secure Note (Direct Client) + Safety Audit Layer");
 
 // ==========================================
 // 1. CONFIGURACIÓN ROBUSTA & MOTOR DE IA
@@ -142,6 +142,11 @@ const getSpecialtyPromptConfig = (specialty: string) => {
         role: "Endocrinólogo Experto",
         focus: "Metabolismo, control glucémico, tiroides, ejes hormonales.",
         bias: "Prioriza el control metabólico estricto y detección de crisis (CAD, Estado Hiperosmolar)."
+    },
+    "Cirugía Plástica y Reconstructiva": {
+        role: "Cirujano Plástico Certificado y Auditor de Seguridad",
+        focus: "Técnica quirúrgica, tiempos de recuperación, cicatrización y PREVENCIÓN DE TROMBOEMBOLISMO.",
+        bias: "Extremadamente cauteloso con la seguridad del paciente (Score de Caprini)."
     }
   };
 
@@ -157,11 +162,11 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- A. NOTA CLÍNICA (CLIENT-SIDE INTELLIGENT FIX) ---
-  // Se ha movido la lógica al cliente para controlar la densidad de la transcripción
+  // --- A. NOTA CLÍNICA (CLIENT-SIDE + SAFETY AUDIT) ---
+  // Ahora incluye el Protocolo de Auditoría para evitar negligencias
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      console.log("⚡ Generando Nota Clínica Detallada (Modo Alta Densidad - Gemini 3)...");
+      console.log("⚡ Generando Nota Clínica Blindada (Gemini 3 + Safety Audit)...");
 
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
@@ -170,7 +175,7 @@ export const GeminiMedicalService = {
         ENFOQUE: ${specialtyConfig.focus}
         SESGO CLÍNICO: ${specialtyConfig.bias}
 
-        TAREA: Analizar la siguiente transcripción de consulta médica y estructurar una Nota Clínica Profesional (SOAP) + Transcripción Limpia + Instrucciones.
+        TAREA: Analizar transcripción y generar Nota Clínica + Auditoría de Seguridad.
 
         TRANSCRIPCIÓN CRUDA (INPUT):
         "${transcript}"
@@ -178,27 +183,33 @@ export const GeminiMedicalService = {
         HISTORIA CLÍNICA PREVIA (CONTEXTO):
         "${patientHistory || 'No disponible'}"
 
+        ===================================================
+        🚨 PROTOCOLO DE AUDITORÍA DE SEGURIDAD (CRÍTICO) 🚨
+        ===================================================
+        Debes actuar como un "Ángel Guardián Clínico".
+        Si detectas una NEGLIGENCIA o ERROR en el plan del médico (ej. recetar penicilina a alérgico, mantener estrógenos antes de cirugía mayor, ignorar infarto, cirugía prolongada con factores de riesgo trombótico), TU OBLIGACIÓN ES:
+        1. MARCAR "risk_analysis.level" COMO "Alto".
+        2. EXPLICAR LA ADVERTENCIA en "risk_analysis.reason" con mayúsculas iniciales.
+        3. EN LAS INSTRUCCIONES AL PACIENTE, incluir una nota de cautela diplomática pero firme si la vida corre peligro.
+        4. NO seas cómplice. Si el médico dice "tómate el veneno", tú NO debes poner "Tomar veneno" en el plan sin una advertencia gigante.
+
         INSTRUCCIONES DE GENERACIÓN CRÍTICAS:
         
         1. conversation_log (TRANSCRIPCIÓN INTELIGENTE):
-           - OBJETIVO: Generar un guion legible que preserve el 100% del contenido clínico y el flujo de la conversación.
-           - DENSIDAD: MANTÉN LA LONGITUD DE LA CONVERSACIÓN. No resumas 10 minutos en 3 líneas.
-           - LIMPIEZA: Elimina SOLO muletillas ("este...", "mmm", "o sea"), tartamudeos y repeticiones sin valor.
-           - INTEGRIDAD: Respeta cada síntoma mencionado, cada pregunta del médico y cada preocupación del paciente.
+           - OBJETIVO: Generar un guion legible que preserve el 100% del contenido clínico.
+           - DENSIDAD: MANTÉN LA LONGITUD DE LA CONVERSACIÓN. No resumas excesivamente.
+           - LIMPIEZA: Elimina muletillas pero mantén el contexto narrativo completo.
            - FORMATO: Array de objetos { speaker: 'Médico' | 'Paciente' | 'Desconocido', text: "..." }.
 
         2. clinicalNote (NOTA SOAP):
-           - Redacta una nota médica formal, técnica y completa.
-           - Subjetivo: Motivo de consulta, síntomas (semilogía completa).
-           - Objetivo: Hallazgos físicos y signos vitales mencionados.
-           - Análisis: Razonamiento diagnóstico.
-           - Plan: Tratamiento, estudios y seguimiento.
+           - Redacta una nota médica formal y completa.
+           - Si hubo un error médico en el audio, corrígelo en la nota o señala la contraindicación en el Análisis.
 
         3. patientInstructions:
-           - Instrucciones claras, empáticas y directas para el paciente (Nivel lectura: 6to grado).
+           - Instrucciones claras y seguras. Si el médico dio una instrucción peligrosa, corrígela diplomáticamente por la seguridad del paciente.
 
         4. risk_analysis:
-           - Detecta banderas rojas o riesgos latentes. Nivel: Bajo, Medio, Alto.
+           - Banderas rojas obligatorias si hay contraindicaciones absolutas.
 
         SALIDA ESPERADA (JSON Schema Strict):
         {
@@ -230,7 +241,7 @@ export const GeminiMedicalService = {
       const rawText = await generateWithFailover(prompt, true);
       const parsedData = JSON.parse(cleanJSON(rawText));
 
-      console.log("✅ Nota generada con éxito.");
+      console.log("✅ Nota blindada generada con éxito.");
       return parsedData as GeminiResponse;
 
     } catch (error: any) {
@@ -240,7 +251,7 @@ export const GeminiMedicalService = {
           clinicalNote: "Error al generar la nota. Por favor intente de nuevo.",
           patientInstructions: "Consulte a su médico.",
           conversation_log: [],
-          risk_analysis: { level: "Bajo", reason: "Error de generación" }
+          risk_analysis: { level: "Alto", reason: "Fallo del sistema de IA. Verifique manualmente." }
       };
     }
   },
