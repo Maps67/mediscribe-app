@@ -2,7 +2,7 @@ import { GoogleGenerativeAI, HarmCategory, HarmBlockThreshold } from "@google/ge
 import { supabase } from '../lib/supabase'; 
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-HYBRID DEPLOY: Secure Note + Structured Rx (v5.6)");
+console.log("🚀 V-HYBRID DEPLOY: Secure Note + Structured Rx (v5.7)");
 
 // ==========================================
 // 1. CONFIGURACIÓN ROBUSTA & MOTOR DE IA
@@ -14,19 +14,21 @@ if (!API_KEY) {
 }
 
 // 🛡️ LISTA DE COMBATE (High IQ Only)
-// Prioridad: Gemini 3 Flash por su razonamiento superior y velocidad.
+// Prioridad: Restaurada a petición del usuario + Fallbacks robustos.
 const MODELS_TO_TRY = [
-  "gemini-2.0-flash-exp",     // 1. LÍDER ACTUAL: Velocidad extrema + Razonamiento v2
-  "gemini-1.5-flash-002",     // 2. Respaldo sólido (Versión estable más reciente)
-  "gemini-1.5-pro-002"        // 3. Respaldo pesado (Mayor ventana de contexto si falla Flash)
+  "gemini-3-flash-preview",   // 1. PRIORIDAD USUARIO: Experimental v3
+  "gemini-2.0-flash-exp",     // 2. LÍDER TÉCNICO: Velocidad extrema + Razonamiento v2
+  "gemini-1.5-flash",         // 3. ESTÁNDAR: Balance costo/velocidad
+  "gemini-1.5-pro"            // 4. RESPALDO PESADO: Mayor ventana de contexto
 ];
 
-// CONFIGURACIÓN DE SEGURIDAD
+// CONFIGURACIÓN DE SEGURIDAD (Permisiva para contexto médico)
+// Ajustado a BLOCK_ONLY_HIGH para evitar falsos positivos en psiquiatría/farmacología.
 const SAFETY_SETTINGS = [
-  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
-  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_HARASSMENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
+  { category: HarmCategory.HARM_CATEGORY_HATE_SPEECH, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
   { category: HarmCategory.HARM_CATEGORY_SEXUALLY_EXPLICIT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
-  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_MEDIUM_AND_ABOVE },
+  { category: HarmCategory.HARM_CATEGORY_DANGEROUS_CONTENT, threshold: HarmBlockThreshold.BLOCK_ONLY_HIGH },
 ];
 
 // ==========================================
@@ -88,7 +90,7 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false, u
         return text; 
       }
     } catch (error: any) {
-      console.warn(`⚠️ Modelo local ${modelName} falló. Intentando siguiente...`);
+      console.warn(`⚠️ Modelo local ${modelName} falló o no existe. Intentando siguiente...`);
       lastError = error;
     }
   }
@@ -165,7 +167,7 @@ export const GeminiMedicalService = {
   // Ahora incluye generación de array de prescripciones separado
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      console.log("⚡ Generando Nota Clínica con Receta Estructurada (v5.6)...");
+      console.log("⚡ Generando Nota Clínica con Receta Estructurada (v5.7)...");
 
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
