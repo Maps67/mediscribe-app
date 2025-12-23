@@ -66,7 +66,7 @@ const ConsultationView: React.FC = () => {
   // --- HOOK OPTIMIZADO V5.1 ---
   const { 
       isListening, 
-      isPaused,
+      isPaused, 
       isDetectingSpeech, 
       transcript, 
       startListening, 
@@ -657,32 +657,10 @@ const ConsultationView: React.FC = () => {
       const dob = patientAny.birthdate || patientAny.dob || patientAny.fecha_nacimiento;
       const ageDisplay = calculateAge(dob);
 
-      // 2. CONSTRUCCIÓN INTELIGENTE DEL TEXTO (Fusión Estructurada)
+      // 2. PREPARACIÓN DE DATOS PARA PDF (MODO ESTRUCTURADO)
+      // En lugar de concatenar texto plano, pasamos los objetos crudos al componente PDF
+      // para que él decida cómo renderizarlos con negritas y estilos.
       
-      // A. Medicamentos (Formato Lista Limpia)
-      let medString = "";
-      if (editablePrescriptions.length > 0) {
-          medString = editablePrescriptions.map((med, i) => 
-              `${i + 1}. ${med.drug} ${med.dose}\n   Tomar: ${med.frequency} durante ${med.duration}.${med.notes ? ` Nota: ${med.notes}` : ''}`
-          ).join("\n\n");
-      }
-
-      // B. Ensamblaje Final
-      let finalContent = "";
-      
-      // Inyección de Advertencia de Seguridad (Protocolo Radar)
-      if (generatedNote?.risk_analysis?.level === 'Alto') {
-          finalContent += `*** ADVERTENCIA DE SEGURIDAD CLÍNICA - RIESGO ALTO ***\nMOTIVO DETECTADO: ${generatedNote.risk_analysis.reason ? generatedNote.risk_analysis.reason.toUpperCase() : 'CONDICIÓN CRÍTICA DETECTADA'}\n\nPOR FAVOR VERIFIQUE LAS CONTRAINDICACIONES Y ALERTAS ANTES DE SEGUIR ESTE PLAN.\n----------------------------------------------------------------------------------\n\n`;
-      }
-
-      if (medString) {
-          finalContent += `=== RECETA MÉDICA ===\n\n${medString}\n\n`;
-      }
-
-      if (editableInstructions) {
-          finalContent += `=== INDICACIONES Y CUIDADOS ===\n\n${editableInstructions}`;
-      }
-
       try {
         return await pdf(
             <PrescriptionPDF 
@@ -697,7 +675,12 @@ const ConsultationView: React.FC = () => {
                 patientName={selectedPatient.name}
                 patientAge={ageDisplay} 
                 date={new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
-                content={finalContent} 
+                
+                // --- NUEVOS PROPS ESTRUCTURADOS ---
+                prescriptions={editablePrescriptions}
+                instructions={editableInstructions}
+                riskAnalysis={generatedNote?.risk_analysis}
+                // ----------------------------------
             />
         ).toBlob();
       } catch (error) {
@@ -1217,7 +1200,7 @@ const ConsultationView: React.FC = () => {
                                   ))}
                                   <div ref={chatEndRef}/>
                               </div>
-                              <form onSubmit={handleChatSend} className="flex gap-2 relative"><input className="flex-1 border dark:border-slate-700 p-4 pr-12 rounded-xl bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal shadow-sm" value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Pregunta..."/><button disabled={isChatting||!chatInput.trim()} className="absolute right-3 top-1/2 -translate-y-1/2 bg-brand-teal text-white p-2 rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-all hover:scale-105 active:scale-95">{isChatting?<RefreshCw className="animate-spin" size={18}/>:<Send size={18}/>}</button></form>
+                              <form onSubmit={handleChatSend} className="flex gap-2 relative"><input className="flex-1 border dark:border-slate-700 p-4 pr-12 rounded-xl bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal shadow-sm" value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Pregunta al asistente..."/><button disabled={isChatting||!chatInput.trim()} className="absolute right-3 top-1/2 -translate-y-1/2 bg-brand-teal text-white p-2 rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-all hover:scale-105 active:scale-95">{isChatting?<RefreshCw className="animate-spin" size={18}/>:<Send size={18}/>}</button></form>
                           </div>
                       )}
                  </div>
