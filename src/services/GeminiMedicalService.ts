@@ -9,6 +9,7 @@ console.log("🚀 V-STABLE DEPLOY: Deterministic Rx Action Protocol (v6.0) [CONS
 
 const cleanJSON = (text: string) => {
   try {
+    if (typeof text !== 'string') return text;
     let clean = text.replace(/```json/g, '').replace(/```/g, '');
     const firstCurly = clean.indexOf('{');
     const lastCurly = clean.lastIndexOf('}');
@@ -35,7 +36,6 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false, u
 
   try {
     // 1. INVOCACIÓN A EDGE FUNCTION (Túnel Seguro)
-    // Enviamos el prompt ya construido y las banderas de configuración
     const { data, error } = await supabase.functions.invoke('generate-clinical-note', {
       body: {
         prompt: prompt,
@@ -51,13 +51,13 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false, u
     }
 
     // 3. VALIDACIÓN DE RESPUESTA
-    // Esperamos que la Edge Function devuelva un objeto { text: "contenido..." }
     if (!data || !data.text) {
       console.warn('⚠️ Respuesta vacía o formato incorrecto del servidor seguro.');
       throw new Error('La Edge Function no devolvió texto válido.');
     }
 
-    return data.text;
+    // Aseguramos que devolvemos un string para evitar errores de .replace posterior
+    return String(data.text);
 
   } catch (err: any) {
     console.error("❌ Error Crítico en GeminiMedicalService (Server Side):", err);
@@ -67,7 +67,6 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false, u
 
 /**
  * MOTOR DE PERFILES (PERSONALIDAD CLÍNICA)
- * Mantenido para referencia de tipos y ajuste de tono.
  */
 const getSpecialtyPromptConfig = (specialty: string) => {
   const configs: Record<string, any> = {
@@ -225,7 +224,6 @@ export const GeminiMedicalService = {
         }
       `;
 
-      // Usamos el motor SEGURO (Server-Side) con jsonMode = true
       const rawText = await generateWithFailover(prompt, true);
       const parsedData = JSON.parse(cleanJSON(rawText));
 
@@ -235,7 +233,6 @@ export const GeminiMedicalService = {
     } catch (error: any) {
       console.error("❌ Error/Bloqueo IA generando Nota Clínica:", error);
 
-      // --- ESTRATEGIA DE RECUPERACIÓN (ANTI-CRASH) ---
       return {
           clinicalNote: `⚠️ NOTA DE SEGURIDAD DEL SISTEMA:\n\nLa transcripción contiene temas sensibles (Riesgo de Suicidio / Farmacología Compleja / Interacciones Graves) que activaron los filtros de seguridad máxima de la IA.\n\nPor favor, redacte la nota manualmente basándose en la transcripción.\n\nTranscipción recuperada:\n${transcript}`,
           soapData: {
@@ -266,7 +263,6 @@ export const GeminiMedicalService = {
           ? consultations.join("\n\n--- CONSULTA PREVIA (CRONOLÓGICO) ---\n\n") 
           : "Sin historial previo en plataforma (Primera Vez).";
 
-      // 🧠 PROMPT MEJORADO: Agresivo, Comparativo y Analítico
       const prompt = `
           ACTÚA COMO: Auditor Médico Clínico y Farmacólogo Experto.
           OBJETIVO: Generar un "Balance 360" comparativo para detectar evolución y riesgos.
@@ -278,23 +274,20 @@ export const GeminiMedicalService = {
           ${contextText}
 
           INSTRUCCIONES ESTRICTAS DE ANÁLISIS:
-          1. EVOLUCIÓN: Compara la consulta más antigua con la más reciente. ¿El paciente está MEJOR, PEOR o IGUAL? Cita valores específicos (ej. "TA bajó de 150 a 120", "Dolor persiste 8/10").
-          2. FARMACIA: Detecta cambios de medicación. ¿Qué se suspendió? ¿Qué se agregó? Alerta sobre adherencia o interacciones.
-          3. BANDERAS ROJAS: Busca "asesinos silenciosos": síntomas ignorados, estudios no realizados, o interacciones medicamentosas graves.
-          4. PENDIENTES: Lista estudios de laboratorio o imagen solicitados previamente que no se mencionan como "revisados" hoy.
+          1. EVOLUCIÓN: Compara la consulta más antigua con la más reciente. ¿El paciente está MEJOR, PEOR o IGUAL?
+          2. FARMACIA: Detecta cambios de medicación.
+          3. BANDERAS ROJAS: Busca síntomas de alarma o interacciones graves.
+          4. PENDIENTES: Lista estudios solicitados previamente.
 
           FORMATO DE SALIDA JSON (PatientInsight):
           {
-            "evolution": "Texto narrativo comparativo. Usa emojis (📈, 📉, 🟢, 🔴) para denotar mejoría o deterioro. Sé explícito.",
-            "medication_audit": "Análisis de cambios en recetas. Usa ✅ para vigente, ⏹️ para suspendido.",
-            "risk_flags": ["🚩 Alerta Clínica 1", "⚠️ Alerta Farmacológica 2"],
-            "pending_actions": ["◻️ Pendiente 1", "◻️ Pendiente 2"]
+            "evolution": "Texto narrativo comparativo. Usa emojis (📈, 📉, 🟢, 🔴).",
+            "medication_audit": "Análisis de cambios en recetas.",
+            "risk_flags": ["🚩 Alerta Clínica 1"],
+            "pending_actions": ["◻️ Pendiente 1"]
           }
-
-          REGLA DE ORO: Si falta información explícita, INFIERE la tendencia clínica basada en el contexto. NO respondas "Sin datos" a menos que el historial esté totalmente vacío.
       `;
 
-      // jsonMode = true para forzar estructura
       const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText));
     } catch (e) {
@@ -308,7 +301,7 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- C. EXTRACCIÓN MEDICAMENTOS (Mantiene motor local por ahora) ---
+  // --- C. EXTRACCIÓN MEDICAMENTOS ---
   async extractMedications(text: string): Promise<MedicationItem[]> {
     if (!text) return [];
     try {
@@ -323,7 +316,7 @@ export const GeminiMedicalService = {
     } catch (e) { return []; }
   },
 
-  // --- D. AUDITORÍA CALIDAD (Mantiene motor local por ahora) ---
+  // --- D. AUDITORÍA CALIDAD ---
   async generateClinicalNoteAudit(noteContent: string): Promise<any> {
     try {
       const prompt = `
@@ -335,7 +328,7 @@ export const GeminiMedicalService = {
     } catch (e) { return { riskLevel: "Medio", score: 0, analysis: "", recommendations: [] }; }
   },
 
-  // --- E. WHATSAPP (Mantiene motor local por ahora) ---
+  // --- E. WHATSAPP ---
   async generateFollowUpPlan(patientName: string, clinicalNote: string, instructions: string): Promise<FollowUpMessage[]> {
     try {
       const prompt = `
@@ -349,25 +342,38 @@ export const GeminiMedicalService = {
     } catch (e) { return []; }
   },
 
-  // --- F. CHAT AVANZADO CON INTERNET (MEJORA v5.5) ---
+  // --- F. CHAT AVANZADO CON INTERNET (REFORZADO ANTI-CRASH) ---
   async chatWithContext(context: string, userMessage: string): Promise<string> {
     try {
-       // Prompt mejorado para permitir respuestas largas y uso de internet
-       const prompt = `
-          ERES UN ASISTENTE MÉDICO EXPERTO CON ACCESO A INTERNET.
-          CONTEXTO CLÍNICO: ${context}
-          PREGUNTA DEL MÉDICO: "${userMessage}"
-          
-          INSTRUCCIONES:
-          1. Si la pregunta requiere datos externos (dosis, guías, papers), USA TU HERRAMIENTA DE BÚSQUEDA.
-          2. NO seas breve artificialmente. Explica con detalle si es necesario.
-          3. Cita tus fuentes si buscas en la web.
-          4. Responde profesionalmente.
-       `;
-       
-       // Activamos useTools = true para este método
-       return await generateWithFailover(prompt, false, true);
-    } catch (e) { return "Error de conexión con el asistente."; }
+        console.log("🧠 Iniciando razonamiento clínico complejo...");
+        
+        const prompt = `
+           ERES UN ASISTENTE MÉDICO EXPERTO CON ACCESO A INTERNET Y RAZONAMIENTO PROFUNDO.
+           CONTEXTO CLÍNICO ACTUAL: ${context}
+           
+           SOLICITUD DEL MÉDICO: "${userMessage}"
+           
+           INSTRUCCIONES DE RESPUESTA:
+           1. Responde siempre en español profesional.
+           2. Usa **negritas** para términos médicos y fármacos.
+           3. Si la respuesta es larga, usa listas con viñetas.
+           4. Si citas guías clínicas o dosis, menciona la fuente.
+           5. Responde con TEXTO NATURAL (Markdown), NO envíes objetos JSON.
+        `;
+        
+        const response = await generateWithFailover(prompt, false, true);
+        
+        // Blindaje final: Si por algún motivo la respuesta es vacía o no es string, manejamos el error
+        if (!response || typeof response !== 'string') {
+          throw new Error("Respuesta de IA no válida");
+        }
+
+        return response;
+
+    } catch (e) { 
+      console.error("Error en chatWithContext:", e);
+      return "Lo siento, tuve un problema al procesar esta consulta compleja. Por favor, intenta simplificar la pregunta o revisa la conexión."; 
+    }
   },
 
   // --- HELPERS ---
