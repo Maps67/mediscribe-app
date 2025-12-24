@@ -24,3 +24,4 @@ jobs:
 
       - name: Deploy Gemini Proxy Function
         run: supabase functions deploy generate-clinical-note --project-ref $PROJECT_ID
+        # CONFIRMACION DE SEGURIDAD 2025
