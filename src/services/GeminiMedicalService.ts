@@ -361,7 +361,7 @@ export const GeminiMedicalService = {
            5. Responde con TEXTO NATURAL (Markdown), NO envíes objetos JSON.
         `;
         
-        const response = await generateWithFailover(prompt, false, true);
+        const response = await generateWithFailover(prompt, false, true); // useTools = true
         
         // Blindaje final: Si por algún motivo la respuesta es vacía o no es string, manejamos el error
         if (!response || typeof response !== 'string') {
