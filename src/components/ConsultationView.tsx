@@ -1,5 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { useLocation } from 'react-router-dom'; 
+import { useLocation } from 'react-router-dom';
 import { 
   Mic, Square, RefreshCw, FileText, Search, X, 
   MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
@@ -9,7 +9,7 @@ import {
   Pause, Play, Pill, Plus
 } from 'lucide-react';
 
-import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
+import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { ChatMessage, GeminiResponse, Patient, DoctorProfile, PatientInsight, MedicationItem } from '../types';
 import { supabase } from '../lib/supabase';
@@ -32,33 +32,33 @@ interface EnhancedGeminiResponse extends GeminiResponse {
 }
 
 const SPECIALTIES = [
-  "Medicina General", 
-  "Cardiología", 
-  "Cirugía General", 
-  "Cirugía de Columna", 
-  "Cirugía de Mano", 
-  "Cirugía Oncológica", 
-  "Cirugía Pediátrica", 
-  "Cirugía Plástica y Reconstructiva", 
-  "Dermatología", 
-  "Endocrinología", 
-  "Gastroenterología", 
-  "Geriatría", 
-  "Ginecología y Obstetricia", 
-  "Medicina del Deporte", 
-  "Medicina Interna", 
-  "Nefrología", 
-  "Neumología", 
-  "Neurocirugía", 
-  "Neurología", 
-  "Oftalmología", 
-  "Otorrinolaringología", 
-  "Pediatría", 
-  "Psiquiatría", 
-  "Reumatología", 
-  "Traumatología y Ortopedia", 
-  "Traumatología: Artroscopia", 
-  "Urología", 
+  "Medicina General",
+  "Cardiología",
+  "Cirugía General",
+  "Cirugía de Columna",
+  "Cirugía de Mano",
+  "Cirugía Oncológica",
+  "Cirugía Pediátrica",
+  "Cirugía Plástica y Reconstructiva",
+  "Dermatología",
+  "Endocrinología",
+  "Gastroenterología",
+  "Geriatría",
+  "Ginecología y Obstetricia",
+  "Medicina del Deporte",
+  "Medicina Interna",
+  "Nefrología",
+  "Neumología",
+  "Neurocirugía",
+  "Neurología",
+  "Oftalmología",
+  "Otorrinolaringología",
+  "Pediatría",
+  "Psiquiatría",
+  "Reumatología",
+  "Traumatología y Ortopedia",
+  "Traumatología: Artroscopia",
+  "Urología",
   "Urgencias Médicas"
 ];
 
@@ -836,8 +836,14 @@ const ConsultationView: React.FC = () => {
               readableContext = `NOTA CLÍNICA: ${generatedNote.clinicalNote}`;
           }
 
-          // Inyectamos contexto limpio + instrucciones
-          const ctx = `${readableContext}\n\nINSTRUCCIONES VIGENTES: ${editableInstructions}`;
+          // Inyectamos contexto limpio + instrucciones + PRIMING DE PERSONALIDAD
+          const ctx = `
+          [SISTEMA: Eres un asistente médico experto. Tu tono es profesional pero colaborativo. USA MARKDOWN (negritas, listas) para estructurar tu respuesta.]
+          
+          ${readableContext}
+
+          INSTRUCCIONES AL PACIENTE VIGENTES: ${editableInstructions}
+          `;
           
           const reply = await GeminiMedicalService.chatWithContext(ctx, msg);
           setChatMessages(p => [...p, { role: 'model', text: reply }]);
