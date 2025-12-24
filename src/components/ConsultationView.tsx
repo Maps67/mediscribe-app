@@ -814,15 +814,40 @@ const ConsultationView: React.FC = () => {
       e?.preventDefault();
       if (!chatInput.trim() || !generatedNote) return;
       if (!isOnline) return toast.error("Requiere internet");
-      const msg = chatInput; setChatInput('');
+      
+      const msg = chatInput; 
+      setChatInput('');
       setChatMessages(p => [...p, { role: 'user', text: msg }]);
       setIsChatting(true);
+      
       try {
-          const soapContext = generatedNote.soapData ? JSON.stringify(generatedNote.soapData) : generatedNote.clinicalNote;
-          const ctx = `NOTA ESTRUCTURADA: ${soapContext}\nPLAN PACIENTE: ${editableInstructions}`;
+          // --- FIX: CONTEXTO LEGIBLE PARA QUE LA IA NO RESPONDA JSON ---
+          let readableContext = "";
+          
+          if (generatedNote.soapData) {
+              readableContext = `
+              RESUMEN CLÍNICO:
+              - Subjetivo: ${generatedNote.soapData.subjective}
+              - Objetivo: ${generatedNote.soapData.objective}
+              - Análisis: ${generatedNote.soapData.analysis}
+              - Plan: ${generatedNote.soapData.plan}
+              `;
+          } else {
+              readableContext = `NOTA CLÍNICA: ${generatedNote.clinicalNote}`;
+          }
+
+          // Inyectamos contexto limpio + instrucciones
+          const ctx = `${readableContext}\n\nINSTRUCCIONES VIGENTES: ${editableInstructions}`;
+          
           const reply = await GeminiMedicalService.chatWithContext(ctx, msg);
           setChatMessages(p => [...p, { role: 'model', text: reply }]);
-      } catch { toast.error("Error chat"); } finally { setIsChatting(false); }
+
+      } catch (error) { 
+          console.error("Chat Error:", error);
+          toast.error("Error conectando con el asistente"); 
+      } finally { 
+          setIsChatting(false); 
+      }
   };
 
   const handleConfirmAppointment = async () => {
