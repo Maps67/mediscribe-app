@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-console.log("🚀 SUPABASE EDGE: HTTP PURE MODE (FIXED) - READY");
+console.log("🚀 SUPABASE EDGE: MEDICINE AI - FINAL RECOVERY");
 
 // TU LISTA EXACTA
 const MODELS_TO_TRY = [
