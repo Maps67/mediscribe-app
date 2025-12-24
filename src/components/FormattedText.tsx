@@ -9,27 +9,29 @@ import {
 } from 'lucide-react';
 
 interface FormattedTextProps {
-  content: string | null | undefined; // Aceptamos null/undefined para seguridad
+  content: string | null | undefined;
   className?: string;
 }
 
 const FormattedText: React.FC<FormattedTextProps> = ({ content, className = '' }) => {
   // 🛡️ BLINDAJE ANTI-CRASH
-  // Si content es null, undefined, o NO es un string, no renderizamos nada o un mensaje seguro.
+  // Si content es null, undefined, o NO es un string, evitamos que la app colapse.
   if (!content || typeof content !== 'string') {
     return null; 
   }
 
+  // 🧹 LIMPIEZA SEGURA: Aseguramos que trabajamos con un string válido
+  const safeContent = content.trim();
+
   // 1. PARSER INTELIGENTE: Detecta si el texto tiene estructura SOAP
-  // Busca patrones como "S.", "O.", "Subjetivo:", etc. al inicio de líneas o párrafos.
   const parseSOAP = (text: string) => {
-    // Normalizamos saltos de línea
+    // Normalizamos saltos de línea para evitar fallos en Regex
     const normalizedText = text.replace(/\r\n/g, '\n');
     
     // Regex para encontrar las secciones (S, O, A, P o versiones completas)
     const sections: { type: string; content: string }[] = [];
     
-    // Patrones de inicio de sección (mejorados para mayor tolerancia)
+    // Patrones de inicio de sección mejorados para mayor tolerancia
     const patterns = {
       S: /(?:^|\n)(?:S\.|Subjetivo:?)([\s\S]*?)(?=(?:\n(?:O\.|Objetivo:?))|$)/i,
       O: /(?:^|\n)(?:O\.|Objetivo:?)([\s\S]*?)(?=(?:\n(?:A\.|Análisis:|Avalúo:?))|$)/i,
@@ -56,9 +58,9 @@ const FormattedText: React.FC<FormattedTextProps> = ({ content, className = '' }
     return null; // No es SOAP, retornar null para renderizado estándar
   };
 
-  const soapSections = parseSOAP(content);
+  const soapSections = parseSOAP(safeContent);
 
-  // 2. RENDERIZADO DE FORMATO SOAP (Diseño Profesional)
+  // 2. RENDERIZADO DE FORMATO SOAP (Diseño Profesional por Bloques)
   if (soapSections) {
     const getSectionStyle = (type: string) => {
       switch (type) {
@@ -106,9 +108,8 @@ const FormattedText: React.FC<FormattedTextProps> = ({ content, className = '' }
                 {style.label}
               </div>
               
-              {/* Contenido */}
+              {/* Contenido con resaltado de negritas */}
               <div className="p-4 text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap">
-                {/* Resaltado inteligente de palabras clave dentro del texto (Simulación de Markdown simple) */}
                 {section.content.split(/(\*\*.*?\*\*)/g).map((part, i) => 
                   part.startsWith('**') && part.endsWith('**') ? (
                     <strong key={i} className="text-slate-900 dark:text-white font-bold">
@@ -126,15 +127,17 @@ const FormattedText: React.FC<FormattedTextProps> = ({ content, className = '' }
     );
   }
 
-  // 3. RENDERIZADO ESTÁNDAR (Fallback si no es SOAP o es chat libre)
-  // Mantiene el formato markdown básico (**negritas** y listas) sin librerías pesadas que puedan fallar
+  // 3. RENDERIZADO ESTÁNDAR (Fallback para Asistente y Chat Libre)
+  // Implementación segura de Markdown básico para negritas y listas
   return (
     <div className={`text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-wrap ${className}`}>
-      {content.split('\n').map((line, i) => (
+      {safeContent.split('\n').map((line, i) => (
         <div key={i} className={`${line.trim().startsWith('-') || line.trim().startsWith('*') ? 'pl-4 my-1' : 'mb-2'}`}>
            {line.split(/(\*\*.*?\*\*)/g).map((part, j) => 
              part.startsWith('**') && part.endsWith('**') ? (
-               <strong key={j} className="text-slate-900 dark:text-white font-bold">{part.slice(2, -2)}</strong>
+               <strong key={j} className="text-slate-900 dark:text-white font-bold">
+                 {part.slice(2, -2)}
+               </strong>
              ) : (
                part
              )
