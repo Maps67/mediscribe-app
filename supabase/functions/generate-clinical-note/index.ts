@@ -7,7 +7,7 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-console.log("🚀 SUPABASE EDGE: MEDICINE AI - FINAL RECOVERY");
+console.log("🚀 SUPABASE EDGE: MEDICINE AI - FINAL RECOVERY [WITH TOOLS]");
 
 // TU LISTA EXACTA
 const MODELS_TO_TRY = [
@@ -30,9 +30,13 @@ serve(async (req) => {
       throw new Error("CRITICAL: API Key no encontrada en Secrets.");
     }
 
-    // 2. Parsear y VALIDAR entrada (Aquí estaba el error del .replace)
+    // 2. Parsear y VALIDAR entrada
     const reqBody = await req.json();
     let prompt = reqBody.prompt;
+    
+    // Extracción de parámetros de control
+    const useTools = reqBody.useTools || false;
+    const jsonMode = reqBody.jsonMode !== false; // Default a true si no se especifica
 
     // Si no hay prompt directo, buscamos transcript
     if (!prompt) {
@@ -51,7 +55,7 @@ serve(async (req) => {
     let successfulResponse = null;
     let lastError = "";
 
-    console.log("🧠 Iniciando secuencia...");
+    console.log(`🧠 Iniciando secuencia... [Tools: ${useTools ? 'ON' : 'OFF'}]`);
 
     for (const modelName of MODELS_TO_TRY) {
       try {
@@ -59,13 +63,24 @@ serve(async (req) => {
         
         const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${API_KEY}`;
         
+        // Construcción Dinámica del Payload
+        const payload: any = {
+          contents: [{ parts: [{ text: prompt }] }],
+          generationConfig: { 
+            // Si usamos tools (Chat) o jsonMode es false, usamos text/plain. Si no, forzamos JSON.
+            response_mime_type: (useTools || !jsonMode) ? "text/plain" : "application/json" 
+          }
+        };
+
+        // Inyección de Google Search si se solicita
+        if (useTools) {
+          payload.tools = [{ google_search: {} }];
+        }
+        
         const response = await fetch(url, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            contents: [{ parts: [{ text: prompt }] }],
-            generationConfig: { response_mime_type: "application/json" }
-          })
+          body: JSON.stringify(payload)
         });
 
         if (!response.ok) {
@@ -92,9 +107,15 @@ serve(async (req) => {
 
     // 4. Limpieza y Retorno
     let clean = successfulResponse.replace(/```json/g, '').replace(/```/g, '');
-    const firstCurly = clean.indexOf('{');
-    const lastCurly = clean.lastIndexOf('}');
-    if (firstCurly !== -1 && lastCurly !== -1) clean = clean.substring(firstCurly, lastCurly + 1);
+    
+    // Solo aplicamos recorte estricto de JSON si NO estamos en modo Tools/Chat
+    if (!useTools && jsonMode) {
+        const firstCurly = clean.indexOf('{');
+        const lastCurly = clean.lastIndexOf('}');
+        if (firstCurly !== -1 && lastCurly !== -1) {
+            clean = clean.substring(firstCurly, lastCurly + 1);
+        }
+    }
 
     return new Response(JSON.stringify({ text: clean }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
