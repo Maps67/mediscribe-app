@@ -810,6 +810,34 @@ const ConsultationView: React.FC = () => {
     }
   };
 
+  /**
+   * --- FUNCIÓN DE LIMPIEZA AGRESIVA ---
+   * Si la IA responde con JSON (ej: {"response": "..."}), lo extraemos.
+   * Si responde con Markdown de código, lo quitamos.
+   */
+  const cleanChatResponse = (text: string): string => {
+      if (!text) return "";
+      
+      let cleaned = text.trim();
+
+      // 1. Quitar bloques de código Markdown (```json ... ```)
+      cleaned = cleaned.replace(/^```[a-z]*\n?/i, '').replace(/```$/, '').trim();
+
+      // 2. Intentar parsear como JSON si parece uno
+      if (cleaned.startsWith('{') && cleaned.endsWith('}')) {
+          try {
+              const json = JSON.parse(cleaned);
+              // Buscamos cualquier campo que parezca el mensaje
+              return json.response || json.message || json.mensaje || json.text || json.doctor_consultant_response || Object.values(json)[0] || cleaned;
+          } catch (e) {
+              // Si falla el parseo, devolvemos el texto tal cual (quizás no era JSON válido)
+              return cleaned;
+          }
+      }
+
+      return cleaned;
+  };
+
   const handleChatSend = async (e?: React.FormEvent) => {
       e?.preventDefault();
       if (!chatInput.trim() || !generatedNote) return;
@@ -821,7 +849,7 @@ const ConsultationView: React.FC = () => {
       setIsChatting(true);
       
       try {
-          // --- FIX: CONSTRUCCIÓN DE CONTEXTO LIMPIO (SIN JSON) ---
+          // --- CONTEXTO CLÍNICO LIMPIO ---
           let contextData = "";
           if (generatedNote.soapData) {
              contextData = `
@@ -835,7 +863,7 @@ const ConsultationView: React.FC = () => {
              contextData = generatedNote.clinicalNote || "Sin datos";
           }
 
-          // --- FIX: INSTRUCCIONES DE DISEÑO PARA LA IA ---
+          // --- INSTRUCCIONES DE FORMATO ESTRICTAS ---
           const ctx = `
           ACTÚA COMO: Un consultor médico experto senior.
           CONTEXTO CLÍNICO: ${contextData}
@@ -846,11 +874,12 @@ const ConsultationView: React.FC = () => {
           REGLAS DE FORMATO OBLIGATORIAS:
           1. Usa **negritas** para resaltar hallazgos clave, nombres de medicamentos o alertas.
           2. Usa listas (guiones -) si das varios pasos o recomendaciones.
-          3. Usa párrafos cortos.
-          4. NUNCA respondas con JSON o código. Solo texto con formato Markdown.
+          3. Usa párrafos cortos y directos.
+          4. IMPORTANTE: Responde SOLAMENTE con el texto de la respuesta. NO uses formato JSON, XML ni bloques de código.
           
-          Ejemplo de cómo debes responder:
+          Ejemplo de respuesta deseada:
           "Recomiendo ajustar la dosis de **Metformina**.
+          
           Consideraciones:
           - Vigilar función renal.
           - Riesgo de acidosis láctica."
@@ -858,10 +887,10 @@ const ConsultationView: React.FC = () => {
           
           const reply = await GeminiMedicalService.chatWithContext(ctx, msg);
           
-          // --- FIX: LIMPIEZA DE SEGURIDAD ---
-          const cleanReply = reply.replace(/```json/g, '').replace(/```/g, '').trim();
+          // --- LIMPIEZA FINAL DE SEGURIDAD ---
+          const finalCleanText = cleanChatResponse(reply);
 
-          setChatMessages(p => [...p, { role: 'model', text: cleanReply }]);
+          setChatMessages(p => [...p, { role: 'model', text: finalCleanText }]);
 
       } catch (error) { 
           console.error("Chat Error:", error);
