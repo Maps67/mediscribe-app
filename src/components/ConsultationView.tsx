@@ -127,6 +127,9 @@ const ConsultationView: React.FC = () => {
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   
   const [linkedAppointmentId, setLinkedAppointmentId] = useState<string | null>(null);
+  
+  // Nuevo estado para controlar qué sección del SOAP se está editando
+  const [editingSection, setEditingSection] = useState<string | null>(null);
 
   const startTimeRef = useRef<number>(Date.now());
 
@@ -1189,22 +1192,74 @@ const ConsultationView: React.FC = () => {
                             <div className="space-y-8">
                                 <div className="group relative">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Subjetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    <textarea className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-blue-200 rounded p-1 transition-all" value={generatedNote.soapData.subjective} onChange={(e) => handleSoapChange('subjective', e.target.value)} ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}/>
+                                    {editingSection === 'subjective' ? (
+                                        <textarea 
+                                            autoFocus
+                                            onBlur={() => setEditingSection(null)}
+                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-blue-200 rounded p-1 transition-all" 
+                                            value={generatedNote.soapData.subjective} 
+                                            onChange={(e) => handleSoapChange('subjective', e.target.value)} 
+                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                        />
+                                    ) : (
+                                        <div onClick={() => setEditingSection('subjective')} className="cursor-text min-h-[40px] p-1">
+                                            <FormattedText content={generatedNote.soapData.subjective} />
+                                        </div>
+                                    )}
                                 </div>
                                 <hr className="border-slate-100 dark:border-slate-800" />
                                 <div className="group relative">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ClipboardList size={14} className="text-green-500"/> Objetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    <textarea className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-green-200 rounded p-1 transition-all" value={generatedNote.soapData.objective} onChange={(e) => handleSoapChange('objective', e.target.value)} ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}/>
+                                    {editingSection === 'objective' ? (
+                                        <textarea 
+                                            autoFocus
+                                            onBlur={() => setEditingSection(null)}
+                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-green-200 rounded p-1 transition-all" 
+                                            value={generatedNote.soapData.objective} 
+                                            onChange={(e) => handleSoapChange('objective', e.target.value)} 
+                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                        />
+                                    ) : (
+                                        <div onClick={() => setEditingSection('objective')} className="cursor-text min-h-[40px] p-1">
+                                            <FormattedText content={generatedNote.soapData.objective} />
+                                        </div>
+                                    )}
                                 </div>
                                 <hr className="border-slate-100 dark:border-slate-800" />
                                 <div className="group relative">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    <textarea className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-amber-200 rounded p-1 transition-all" value={generatedNote.soapData.analysis} onChange={(e) => handleSoapChange('analysis', e.target.value)} ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}/>
+                                    {editingSection === 'analysis' ? (
+                                        <textarea 
+                                            autoFocus
+                                            onBlur={() => setEditingSection(null)}
+                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-amber-200 rounded p-1 transition-all" 
+                                            value={generatedNote.soapData.analysis} 
+                                            onChange={(e) => handleSoapChange('analysis', e.target.value)} 
+                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                        />
+                                    ) : (
+                                        <div onClick={() => setEditingSection('analysis')} className="cursor-text min-h-[40px] p-1">
+                                            <FormattedText content={generatedNote.soapData.analysis} />
+                                        </div>
+                                    )}
                                 </div>
                                 <hr className="border-slate-100 dark:border-slate-800" />
                                 <div className="group relative">
                                     <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><FileSignature size={14} className="text-purple-500"/> Plan Médico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    <textarea className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-purple-200 rounded p-1 transition-all" value={generatedNote.soapData.plan} onChange={(e) => handleSoapChange('plan', e.target.value)} ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}/>
+                                    {editingSection === 'plan' ? (
+                                        <textarea 
+                                            autoFocus
+                                            onBlur={() => setEditingSection(null)}
+                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-purple-200 rounded p-1 transition-all" 
+                                            value={generatedNote.soapData.plan} 
+                                            onChange={(e) => handleSoapChange('plan', e.target.value)} 
+                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                        />
+                                    ) : (
+                                        <div onClick={() => setEditingSection('plan')} className="cursor-text min-h-[40px] p-1">
+                                            <FormattedText content={generatedNote.soapData.plan} />
+                                        </div>
+                                    )}
                                 </div>
                             </div>
                         </div>
@@ -1291,7 +1346,7 @@ const ConsultationView: React.FC = () => {
                                   {/* AQUÍ ESTÁ EL CAMBIO: Usamos FormattedText en lugar de texto plano */}
                                   {chatMessages.map((m,i)=>(
                                       <div key={i} className={`p-3 mb-3 rounded-2xl max-w-[85%] text-sm shadow-sm ${m.role==='user'?'bg-brand-teal text-white self-end ml-auto rounded-tr-none':'bg-slate-100 dark:bg-slate-800 dark:text-slate-200 self-start mr-auto rounded-tl-none'}`}>
-                                              <FormattedText content={m.text} />
+                                                  <FormattedText content={m.text} />
                                       </div>
                                   ))}
                                   <div ref={chatEndRef}/>
