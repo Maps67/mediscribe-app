@@ -1098,7 +1098,6 @@ const ConsultationView: React.FC = () => {
                 </button>
             </div>
             
-            <button onClick={()=>{if(selectedPatient && doctorProfile) setIsQuickRxModalOpen(true)}} disabled={!selectedPatient} className="w-full mt-2 py-2 text-brand-teal font-bold border border-brand-teal/30 rounded-xl hover:bg-teal-50 dark:hover:bg-teal-900/20 disabled:opacity-50 transition-colors text-xs flex items-center justify-center gap-2 z-20"><FileText size={14}/> Receta Rápida</button>
         </div>
       </div>
       
