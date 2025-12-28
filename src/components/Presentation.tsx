@@ -13,13 +13,13 @@ const Slide = ({ children, className = "", id }: { children: React.ReactNode; cl
     <div className="absolute top-0 right-0 w-[300px] h-[300px] bg-sky-500/10 rounded-bl-full -z-0 pointer-events-none blur-3xl" />
     <div className="absolute bottom-0 left-0 w-[250px] h-[250px] bg-teal-500/10 rounded-tr-full -z-0 pointer-events-none blur-3xl" />
     
-    {/* Header Constante con LOGO REAL */}
+    {/* Header Constante con LOGO REAL (AUMENTADO A h-20) */}
     <div className="absolute top-10 left-10 md:left-16 flex items-center gap-3 z-10">
       {/* Busca el archivo logo.png en tu carpeta public/img/ */}
       <img 
         src="/img/logo.png" 
         alt="VitalScribe Logo" 
-        className="h-10 w-auto object-contain"
+        className="h-20 w-auto object-contain"
         onError={(e) => {
           // Fallback por si no has subido el logo aún: oculta la imagen y muestra texto
           e.currentTarget.style.display = 'none';
