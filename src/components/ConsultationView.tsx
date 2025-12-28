@@ -960,7 +960,8 @@ const ConsultationView: React.FC = () => {
   };
 
   // --- LÓGICA DE VISUAL CUE PARA "GENERAR" ---
-  const isReadyToGenerate = isOnline && !isListening && !isPaused && !isProcessing && (transcript || segments.length > 0);
+  // CORRECCIÓN: La animación se detiene inmediatamente si generatedNote existe.
+  const isReadyToGenerate = isOnline && !isListening && !isPaused && !isProcessing && (transcript || segments.length > 0) && !generatedNote;
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-slate-100 dark:bg-slate-950 relative">
