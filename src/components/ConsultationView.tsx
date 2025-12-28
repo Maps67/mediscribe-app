@@ -963,6 +963,7 @@ const ConsultationView: React.FC = () => {
   };
 
   // --- LÓGICA DE VISUAL CUE PARA "GENERAR" ---
+  // CORRECCIÓN: La animación se detiene inmediatamente si generatedNote existe.
   const isReadyToGenerate = isOnline && !isListening && !isPaused && !isProcessing && (transcript || segments.length > 0) && !generatedNote;
 
   return (
@@ -1113,7 +1114,8 @@ const ConsultationView: React.FC = () => {
         </div>
 
         {/* === ZONA DE ENTRADA HÍBRIDA (TEXTO / VOZ) === */}
-        <div className="flex flex-col gap-2 mt-2 h-[50%] shrink-0 border-t dark:border-slate-800 pt-2 pb-2">
+        {/* CORRECCIÓN: Altura fija segura en móvil (260px), 50% en desktop (md:) */}
+        <div className="flex flex-col gap-2 mt-2 h-[260px] md:h-[50%] shrink-0 border-t dark:border-slate-800 pt-2 pb-2">
             
             {/* SWITCH DE HABLANTE */}
             <div className="flex justify-between items-center px-1">
