@@ -166,7 +166,7 @@ const Presentation = () => {
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {[
             { icon: Pill, title: "Recetas Estructuradas", text: "Separa medicamentos de instrucciones. Calcula dosis pediátricas y frecuencias automáticamente." },
-            { icon: ShieldAlert, title: "Auditoría de Seguridad", text: "Detección en tiempo real de interacciones medicamentosas y alergias cruzadas (PLM/Vidal)." },
+            { icon: ShieldAlert, title: "Auditoría de Seguridad", text: "Detección de interacciones medicamentosas y alergias mediante Inteligencia Farmacológica (LLM)." },
             { icon: TrendingUp, title: "Análisis de Tendencias", text: "Visualiza la evolución de signos vitales (ej. presión arterial) y adherencia al tratamiento." },
             { icon: Bot, title: "Asistente Experto (RAG)", text: "Responde dudas clínicas complejas citando Guías de Práctica Clínica y normas oficiales." }
           ].map((feature, idx) => (
@@ -201,7 +201,7 @@ const Presentation = () => {
                 { feat: "IA Generativa", vs: "RAG + ZDR + Calculadoras", n: "Autocompletado", e: "Básica", h: "Dictado Simple" },
                 { feat: "Privacidad", vs: "Zero Data Retention", n: "Encriptación Std", e: "Encriptación Std", h: "HIPAA Compliance" },
                 { feat: "Resiliencia", vs: "Total (Sin Internet)", n: "Baja (Depende de Red)", e: "Media", h: "Nula" },
-                { feat: "Seguridad Farmacológica", vs: "Validación Real (PLM)", n: "Medispan", e: "Básica", h: "N/A" },
+                { feat: "Seguridad Farmacológica", vs: "Análisis Contextual IA", n: "Medispan", e: "Básica", h: "N/A" },
               ].map((row, idx) => (
                 <tr key={idx} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                   <td className="p-4 font-bold">{row.feat}</td>
@@ -225,7 +225,7 @@ const Presentation = () => {
             <ul className="space-y-6">
               {[
                 { icon: Cloud, title: "Edge Computing (Supabase)", text: "Funciones distribuidas globalmente para mínima latencia." },
-                { icon: Server, title: "Google Vertex AI", text: "Ventana de contexto masiva (Gemini 1.5 Pro) con BAA empresarial." },
+                { icon: Server, title: "Google Vertex AI", text: "Motor de razonamiento clínico (Gemini 1.5 Pro) con BAA empresarial." },
                 { icon: Database, title: "Local-First", text: "Bases de datos locales (WatermelonDB) con sincronización Delta." }
               ].map((item, idx) => (
                 <li key={idx} className="flex gap-4">
@@ -254,7 +254,7 @@ const Presentation = () => {
         <SlideTitle>Blindaje Regulatorio Mexicano</SlideTitle>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-8">
           <Tile icon={Scale} title="NOM-004-SSA3" text="Cumplimiento estricto de la estructura del Expediente Clínico: trazabilidad, fecha, hora y firma electrónica." />
-          <Tile icon={Network} title="NOM-024-SSA3" text="Interoperabilidad garantizada mediante estándares HL7 y catálogos CIE-10/CIE-9-MC, lista para certificación DGIS." />
+          <Tile icon={Network} title="NOM-024-SSA3" text="Interoperabilidad garantizada mediante estándares HL7 y codificación CIE-10 automática (IA), lista para certificación DGIS." />
           <Tile icon={Lock} title="LFPDPPP" text="Protección de datos sensibles con consentimiento expreso digital y aviso de privacidad sobre nube soberana." />
         </div>
       </Slide>
