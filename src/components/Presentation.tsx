@@ -3,7 +3,7 @@ import {
   WifiOff, Shield, Mic, Brain, FileCheck, 
   Pill, ShieldAlert, TrendingUp, Bot, Scale, Network, Lock,
   Check, FileText, Server, Cloud, Database, Clock, 
-  AlertTriangle, HeartPulse, DollarSign
+  AlertTriangle, HeartPulse, DollarSign, Sparkles
 } from 'lucide-react';
 
 // --- SUB-COMPONENTES REUTILIZABLES ---
@@ -16,11 +16,13 @@ const Slide = ({ children, className = "", id }: { children: React.ReactNode; cl
     
     {/* Header Constante con LOGO REAL (UBICADO A LA DERECHA) */}
     <div className="absolute top-10 right-10 md:right-16 flex items-center gap-3 z-10">
+      {/* Busca el archivo logo.png en tu carpeta public/img/ */}
       <img 
         src="/img/logo.png" 
         alt="VitalScribe Logo" 
         className="h-20 w-auto object-contain"
         onError={(e) => {
+          // Fallback por si no has subido el logo aún: oculta la imagen y muestra texto
           e.currentTarget.style.display = 'none';
           e.currentTarget.nextElementSibling?.classList.remove('hidden');
         }}
@@ -80,6 +82,7 @@ const Presentation = () => {
         <SlideTitle>La Crisis de Eficiencia y Burnout</SlideTitle>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-12 items-center">
           <div className="rounded-3xl overflow-hidden shadow-lg h-[400px] bg-slate-200">
+            {/* REFERENCIA A IMAGEN LOCAL .PNG */}
             <img 
               src="/img/doctor-stress.png" 
               alt="Doctor bajo estrés" 
@@ -136,6 +139,7 @@ const Presentation = () => {
             </div>
          </div>
          <div className="h-full w-full relative order-1 md:order-2 min-h-[400px] bg-slate-800">
+            {/* REFERENCIA A IMAGEN LOCAL .PNG */}
             <img 
               src="/img/interface.png" 
               alt="Interfaz IA" 
