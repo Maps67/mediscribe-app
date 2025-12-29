@@ -110,6 +110,9 @@ const ConsultationView: React.FC = () => {
   const [editablePrescriptions, setEditablePrescriptions] = useState<MedicationItem[]>([]);
   const [isEditingInstructions, setIsEditingInstructions] = useState(false);
   
+  // --- NUEVO ESTADO: DATOS DE SEGUROS ---
+  const [insuranceData, setInsuranceData] = useState<{provider: string, policyNumber: string, accidentDate: string} | null>(null);
+
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
   const [nextApptDate, setNextApptDate] = useState('');
   const [isQuickRxModalOpen, setIsQuickRxModalOpen] = useState(false); 
@@ -824,13 +827,20 @@ const ConsultationView: React.FC = () => {
 
         const durationSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
 
+        // --- PREPARACIÓN DEL PAYLOAD CON DATOS DE SEGUROS ---
+        // Combinamos la respuesta de la IA con los datos capturados manualmente en el panel de seguros
+        const finalAiData = {
+            ...generatedNote,
+            insurance_data: insuranceData // Aquí se inyectan los datos de Póliza/Fecha
+        };
+
         const payload = {
             doctor_id: user.id, 
             patient_id: finalPatientId, 
             transcript: fullTranscriptToSave || 'N/A', 
             summary: summaryToSave,
             status: 'completed',
-            ai_analysis_data: generatedNote, 
+            ai_analysis_data: finalAiData, // Guardamos el objeto enriquecido
             legal_status: 'validated',
             real_duration_seconds: durationSeconds 
         };
@@ -847,6 +857,7 @@ const ConsultationView: React.FC = () => {
         setGeneratedNote(null); 
         setEditableInstructions(''); 
         setEditablePrescriptions([]); 
+        setInsuranceData(null); // Limpiar datos de seguros
         setSelectedPatient(null); 
         setConsentGiven(false); 
         setIsRiskExpanded(false);
@@ -1483,6 +1494,9 @@ const ConsultationView: React.FC = () => {
                                   diagnosis={generatedNote.soapData?.analysis || generatedNote.clinicalNote || "Diagnóstico pendiente"}
                                   clinicalSummary={`S: ${generatedNote.soapData?.subjective || ''}\nO: ${generatedNote.soapData?.objective || ''}`}
                                   icd10={generatedNote.soapData?.analysis?.match(/\(([A-Z][0-9][0-9](\.[0-9])?)\)/)?.[1] || ''}
+                                  
+                                  // CONEXIÓN CLAVE: El padre recibe los datos del hijo
+                                  onInsuranceDataChange={setInsuranceData}
                               />
                           </div>
                       )}
