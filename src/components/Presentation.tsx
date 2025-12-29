@@ -188,7 +188,7 @@ const Presentation = () => {
           <table className="w-full text-left border-collapse">
             <thead>
               <tr className="bg-sky-700 text-white">
-                <th className="p-5 font-bold">Característica</th>
+                <th className="p-5 font-bold">Ventaja Estratégica</th>
                 <th className="p-5 font-bold bg-sky-600">VitalScribe AI</th>
                 <th className="p-5 font-bold">Nimbo</th>
                 <th className="p-5 font-bold">Eleonor</th>
@@ -197,11 +197,11 @@ const Presentation = () => {
             </thead>
             <tbody className="bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-200">
               {[
-                { feat: "Arquitectura", vs: "Offline-First (Local DB)", n: "Cloud-Native (AWS)", e: "Cloud/Mobile Híbrido", h: "Cloud-Only" },
-                { feat: "IA Generativa", vs: "RAG + ZDR + Calculadoras", n: "Autocompletado", e: "Básica", h: "Dictado Simple" },
-                { feat: "Privacidad", vs: "Zero Data Retention", n: "Encriptación Std", e: "Encriptación Std", h: "HIPAA Compliance" },
-                { feat: "Resiliencia", vs: "Total (Sin Internet)", n: "Baja (Depende de Red)", e: "Media", h: "Nula" },
-                { feat: "Seguridad Farmacológica", vs: "Análisis Contextual IA", n: "Medispan", e: "Básica", h: "N/A" },
+                { feat: "Modelo de IA", vs: "Ilimitada (Sin Costos Ocultos)", n: "Solo en Planes Pro", e: "Básica", h: "Pago por Nota (Taxímetro)" },
+                { feat: "Tecnología de Captura", vs: "Escucha Ambiental", n: "Dictado Simple", e: "Dictado Simple", h: "Dictado Simple" },
+                { feat: "Infraestructura", vs: "Offline-First (Rural Ready)", n: "Cloud-Only", e: "Cloud/Mobile", h: "Cloud-Only" },
+                { feat: "Blindaje Legal (NOM-004)", vs: "Automatización Estructural", n: "Responsabilidad Usuario", e: "Plantillas Manuales", h: "Manual" },
+                { feat: "Seguridad Farmacológica", vs: "Análisis Contextual IA", n: "Medispan (Extra)", e: "Básica", h: "N/A" },
               ].map((row, idx) => (
                 <tr key={idx} className="border-b border-slate-100 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-700/50">
                   <td className="p-4 font-bold">{row.feat}</td>
