@@ -1,29 +1,20 @@
-import { PDFDocument } from 'pdf-lib';
-import { MedicalReportData, InsuranceProvider } from '../types/insurance';
+import { InsuranceProvider, MedicalReportData } from '../types/insurance';
 
 /**
- * SERVICIO DE LLENADO DE PDFs (MÉTODO ACROFORMS - DEFINITIVO)
- * -----------------------------------------------------------
- * Este servicio busca campos nombrados dentro del PDF y los rellena.
- * Requisito: Los PDFs en /public/forms/ deben haber sido editados previamente
- * para incluir campos de texto con los nombres específicos (IDs).
+ * SERVICIO DE GESTIÓN DE PDFs (MODO DESCARGA DIRECTA)
+ * ---------------------------------------------------
+ * Estrategia Simplificada:
+ * En lugar de intentar escribir sobre el PDF (lo cual causa desalineación),
+ * este servicio simplemente busca el archivo oficial en el servidor
+ * y se lo entrega al médico para que él lo llene manualmente.
  */
 
 export const InsurancePDFService = {
 
-  async loadPDFTemplate(filename: string): Promise<ArrayBuffer> {
-    try {
-      const url = `/forms/${filename}`;
-      const response = await fetch(url);
-      if (!response.ok) throw new Error(`No se pudo cargar el formato PDF: ${url}`);
-      return await response.arrayBuffer();
-    } catch (error) {
-      console.error("Error cargando template PDF:", error);
-      throw error;
-    }
-  },
-
-  async generateReport(provider: InsuranceProvider, data: MedicalReportData): Promise<Uint8Array> {
+  /**
+   * Generador Maestro: Simplemente carga y devuelve el archivo limpio.
+   */
+  async generateReport(provider: InsuranceProvider, _data: MedicalReportData): Promise<Uint8Array> {
     
     // 1. Seleccionar archivo según proveedor
     let filename = '';
@@ -34,78 +25,22 @@ export const InsurancePDFService = {
       default: throw new Error(`Proveedor no soportado: ${provider}`);
     }
 
-    // 2. Cargar y procesar
-    const formBytes = await this.loadPDFTemplate(filename);
-    const pdfDoc = await PDFDocument.load(formBytes);
-    const form = pdfDoc.getForm();
-
     try {
-      // --- MAPEO DE CAMPOS UNIVERSALES ---
-      // Intentamos llenar los campos estándar. Si un PDF no tiene alguno, 
-      // el catch capturará el error silenciosamente y seguirá.
-
-      // A. Datos del Paciente
-      this.safeFill(form, 'paciente_nombre', data.patientName);
-      this.safeFill(form, 'paciente_edad', data.age.toString());
+      // 2. Buscar el archivo en la carpeta pública
+      const url = `/forms/${filename}`;
+      const response = await fetch(url);
       
-      // Sexo (Lógica de Checkbox o Texto)
-      if (data.gender === 'M') {
-          this.safeCheck(form, 'check_masculino'); 
-          // Fallback por si es campo de texto
-          this.safeFill(form, 'sexo', 'Masculino'); 
-      } else {
-          this.safeCheck(form, 'check_femenino');
-          this.safeFill(form, 'sexo', 'Femenino');
+      if (!response.ok) {
+        throw new Error(`No se encontró el formato: ${filename}. Asegúrate de que esté en la carpeta public/forms/`);
       }
 
-      // B. Datos Clínicos
-      this.safeFill(form, 'diagnostico', `${data.diagnosis} (CIE-10: ${data.icd10})`);
-      this.safeFill(form, 'cie10', data.icd10);
-      this.safeFill(form, 'fecha_inicio', data.symptomsStartDate);
-      
-      // Resumen Clínico (Padecimiento Actual)
-      this.safeFill(form, 'resumen_clinico', data.clinicalSummary);
+      // 3. Devolver el archivo tal cual (sin editar)
+      const arrayBuffer = await response.arrayBuffer();
+      return new Uint8Array(arrayBuffer);
 
-      // C. Fechas
-      const today = new Date().toLocaleDateString('es-MX');
-      this.safeFill(form, 'fecha_actual', today);
-
-    } catch (e) {
-      console.warn("Advertencia durante el llenado de campos:", e);
-    }
-
-    // 3. Aplanar formulario (opcional: convierte los campos en texto fijo no editable)
-    // form.flatten(); 
-
-    return await pdfDoc.save();
-  },
-
-  /**
-   * Helper para llenar texto sin romper la app si el campo no existe en el PDF
-   */
-  safeFill(form: any, fieldName: string, value: string) {
-    try {
-      const field = form.getTextField(fieldName);
-      if (field) {
-        field.setText(value);
-      }
-    } catch (e) {
-      // El campo no existe en este PDF específico, lo ignoramos.
-      // console.log(`Campo opcional no encontrado: ${fieldName}`);
-    }
-  },
-
-  /**
-   * Helper para marcar casillas (Checkboxes)
-   */
-  safeCheck(form: any, checkboxName: string) {
-    try {
-      const field = form.getCheckBox(checkboxName);
-      if (field) {
-        field.check();
-      }
-    } catch (e) {
-      // Checkbox no encontrado
+    } catch (error) {
+      console.error("Error al descargar el template:", error);
+      throw error;
     }
   }
 };

@@ -5,7 +5,7 @@ import {
 } from 'lucide-react';
 import { InsuranceProvider, MedicalReportData } from '../../types/insurance';
 import { InsurancePDFService } from '../../services/InsurancePDFService';
-import TabulatorCalculator from './TabulatorCalculator'; // <--- IMPORTACIÓN NUEVA
+import TabulatorCalculator from './TabulatorCalculator';
 
 interface InsurancePanelProps {
   patientName: string;
@@ -56,7 +56,7 @@ const InsurancePanel: React.FC<InsurancePanelProps> = ({
       link.download = `Informe_${provider}_${patientName.replace(/\s+/g, '_')}.pdf`;
       link.click();
 
-      alert("✅ Informe generado correctamente. Por favor verifica los datos antes de firmar.");
+      alert("✅ Formato descargado correctamente.");
 
     } catch (error) {
       console.error(error);
@@ -157,17 +157,17 @@ const InsurancePanel: React.FC<InsurancePanelProps> = ({
               className="w-full py-4 bg-sky-600 hover:bg-sky-700 text-white rounded-xl font-bold flex items-center justify-center gap-3 shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
             >
               {loading ? (
-                <span>Procesando PDF...</span>
+                <span>Descargando formato...</span>
               ) : (
                 <>
                   <Download size={20} />
-                  Descargar Informe {provider} Pre-llenado
+                  Descargar Informe {provider} Para-llenado
                 </>
               )}
             </button>
             
             <p className="text-[10px] text-center text-slate-400">
-              * El formato PDF debe existir en la carpeta /public/forms/ del proyecto.
+              * Se descargará el formato oficial editable para que usted lo complete.
             </p>
           </div>
         ) : (
