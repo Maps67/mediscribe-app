@@ -1,22 +1,24 @@
-import { PDFDocument, StandardFonts } from 'pdf-lib';
+import { PDFDocument, StandardFonts, rgb } from 'pdf-lib';
 import { MedicalReportData, InsuranceProvider } from '../types/insurance';
 
 /**
  * SERVICIO DE MAPEO Y LLENADO DE PDFs PARA ASEGURADORAS
  * -----------------------------------------------------
- * Este servicio se encarga de:
- * 1. Cargar los templates PDF (GNP, AXA, etc.) desde la carpeta /public/forms/
- * 2. Mapear los datos de la nota clínica (MedicalReportData) a las coordenadas (x, y) específicas de cada formato.
- * 3. Generar un blob PDF descargable para el médico.
+ * Este servicio carga los templates PDF planos desde /public/forms/
+ * y "dibuja" el texto encima usando coordenadas (X, Y).
+ * * NOTA: El origen (0,0) en PDFs suele ser la esquina INFERIOR izquierda.
+ * Por eso, valores altos de Y (ej. 700) están arriba, y bajos (ej. 100) están abajo.
  */
 
 export const InsurancePDFService = {
 
   /**
-   * Carga un archivo PDF desde la carpeta pública o URL
+   * Carga un archivo PDF desde la carpeta pública
    */
-  async loadPDFTemplate(url: string): Promise<ArrayBuffer> {
+  async loadPDFTemplate(filename: string): Promise<ArrayBuffer> {
     try {
+      // Ajustamos la ruta para que busque en la raíz del servidor público
+      const url = `/forms/${filename}`;
       const response = await fetch(url);
       if (!response.ok) throw new Error(`No se pudo cargar el formato PDF: ${url}`);
       return await response.arrayBuffer();
@@ -43,108 +45,134 @@ export const InsurancePDFService = {
   },
 
   /**
-   * Lógica específica para Informe Médico GNP (Coordenadas Hardcodeadas)
-   * NOTA: Estas coordenadas (x, y) se deben calibrar con el PDF real de GNP.
+   * MAPEO: GNP (Informe Médico Inicial)
+   * Archivo: gnp_informe_medico.pdf
    */
   async fillGNPForm(data: MedicalReportData): Promise<Uint8Array> {
-    // 1. Cargar Template
-    const formBytes = await this.loadPDFTemplate('/forms/gnp_informe_medico.pdf');
-    
-    // 2. Cargar documento en memoria
+    const formBytes = await this.loadPDFTemplate('gnp_informe_medico.pdf');
     const pdfDoc = await PDFDocument.load(formBytes);
-    const form = pdfDoc.getForm(); // Si el PDF tiene campos AcroForm
     const pages = pdfDoc.getPages();
-    const firstPage = pages[0]; // Asumimos página 1 para datos generales
-    
-    // 3. Preparar Fuente
+    const page1 = pages[0]; // GNP Pide datos en Página 1
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const boldFont = await pdfDoc.embedFont(StandardFonts.HelveticaBold);
+    const fontSize = 9;
+    const color = rgb(0, 0, 0); // Negro
 
-    // --- ESTRATEGIA A: SI EL PDF TIENE CAMPOS (ACROFIELDS) ---
-    // Esta es la forma elegante. Si el PDF oficial de GNP es un formulario real.
-    try {
-        // Ejemplo de llenado por nombre de campo (requiere inspeccionar el PDF)
-        const nameField = form.getTextField('nombre_paciente');
-        if (nameField) nameField.setText(data.patientName);
+    // --- COORDENADAS APROXIMADAS GNP ---
+    
+    // 1. Nombre del Paciente (Apellido P, Apellido M, Nombres)
+    // El formato GNP separa apellidos. Haremos un split simple.
+    const nameParts = data.patientName.split(" ");
+    const lastNameP = nameParts[0] || "";
+    const lastNameM = nameParts[1] || "";
+    const names = nameParts.slice(2).join(" ") || nameParts.slice(1).join(" "); // Fallback
 
-        const diagnosisField = form.getTextField('diagnostico_principal');
-        if (diagnosisField) diagnosisField.setText(`${data.diagnosis} (CIE-10: ${data.icd10})`);
+    page1.drawText(lastNameP, { x: 35, y: 580, size: fontSize, font: font, color });
+    page1.drawText(lastNameM, { x: 180, y: 580, size: fontSize, font: font, color });
+    page1.drawText(names, { x: 330, y: 580, size: fontSize, font: font, color });
 
-        // Checkboxes (ej. ¿Fue accidente?)
-        if (data.isAccident) {
-            const accidentCheck = form.getCheckBox('check_accidente');
-            if (accidentCheck) accidentCheck.check();
-        }
-    } catch (e) {
-        console.warn("No se encontraron AcroFields, usando modo Coordenadas (Fallback).");
+    // 2. Género (Checkboxes manuales - Dibujamos una X)
+    if (data.gender === 'M') {
+       page1.drawText('X', { x: 485, y: 580, size: 12, font: boldFont, color });
+    } else {
+       page1.drawText('X', { x: 515, y: 580, size: 12, font: boldFont, color });
     }
 
-    // --- ESTRATEGIA B: ESCRITURA DIRECTA (COORDENADAS X,Y) ---
-    // Útil si el PDF es "plano" (sin campos editables).
-    // drawText(texto, { x, y, size, font })
-    
-    // Nombre del Paciente (Ejemplo de posición)
-    firstPage.drawText(data.patientName, {
-        x: 120, 
-        y: 650, 
-        size: 10,
-        font: font
-    });
+    // 3. Edad
+    page1.drawText(data.age.toString(), { x: 550, y: 580, size: fontSize, font: font, color });
 
-    // Diagnóstico
-    firstPage.drawText(data.diagnosis, {
-        x: 120,
-        y: 600,
-        size: 9,
-        font: font
-    });
-
-    // Fecha de Inicio de Padecimiento (CRÍTICO PARA PREEXISTENCIAS)
-    firstPage.drawText(data.symptomsStartDate, {
-        x: 450,
-        y: 600,
-        size: 10,
-        font: font
-    });
-
-    // Narrativa Clínica (Resumen)
-    firstPage.drawText(data.clinicalSummary, {
-        x: 50,
-        y: 500,
+    // 4. Padecimiento Actual (Resumen Clínico) - Área Grande
+    // GNP suele tener un área grande a la mitad.
+    page1.drawText(data.clinicalSummary, {
+        x: 35,
+        y: 400, // Altura media
         size: 8,
         font: font,
-        maxWidth: 500, // Auto-wrap
-        lineHeight: 12
+        color,
+        maxWidth: 520, // Ancho de la página menos márgenes
+        lineHeight: 10
     });
 
-    // 4. Aplanar formulario (para que no sea editable) y guardar
-    form.flatten();
+    // 5. Diagnóstico y CIE-10
+    page1.drawText(`${data.diagnosis} (CIE-10: ${data.icd10})`, {
+        x: 35,
+        y: 200, // Parte inferior
+        size: fontSize,
+        font: boldFont,
+        color
+    });
+
+    // 6. Fecha de Inicio de Síntomas
+    page1.drawText(data.symptomsStartDate, { x: 450, y: 450, size: fontSize, font: font, color });
+
     return await pdfDoc.save();
   },
 
   /**
-   * Lógica específica para Informe Médico AXA
+   * MAPEO: AXA (Informe Médico)
+   * Archivo: axa_informe_medico.pdf
    */
   async fillAXAForm(data: MedicalReportData): Promise<Uint8Array> {
-    const formBytes = await this.loadPDFTemplate('/forms/axa_informe_medico.pdf');
+    const formBytes = await this.loadPDFTemplate('axa_informe_medico.pdf');
     const pdfDoc = await PDFDocument.load(formBytes);
     const pages = pdfDoc.getPages();
-    const firstPage = pages[0];
+    const page1 = pages[0]; 
     const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    const fontSize = 10;
 
-    // Lógica AXA (Difiere en coordenadas)
-    firstPage.drawText(data.patientName, { x: 100, y: 700, size: 10, font });
-    firstPage.drawText(data.diagnosis, { x: 100, y: 650, size: 10, font });
+    // --- COORDENADAS APROXIMADAS AXA ---
+    // AXA suele pedir Apellidos primero en lista vertical
+
+    // Apellido Paterno
+    const nameParts = data.patientName.split(" ");
+    page1.drawText(nameParts[0] || "", { x: 150, y: 635, size: fontSize, font });
+    // Apellido Materno
+    page1.drawText(nameParts[1] || "", { x: 350, y: 635, size: fontSize, font });
+    // Nombre
+    page1.drawText(nameParts.slice(2).join(" "), { x: 150, y: 615, size: fontSize, font });
+
+    // Fecha Nacimiento (Ejemplo de posición)
+    page1.drawText(data.age.toString(), { x: 500, y: 615, size: fontSize, font });
+
+    // Padecimiento Actual (Suele estar en la página 2 en AXA, pero pondremos algo en la 1 por seguridad)
+    // Nota: AXA es multipágina. Si el campo está en la pag 2:
+    if (pages.length > 1) {
+        const page2 = pages[1];
+        page2.drawText(data.clinicalSummary, {
+            x: 40, y: 700, size: 8, font, maxWidth: 500, lineHeight: 10
+        });
+        
+        // Diagnóstico en pag 2
+        page2.drawText(data.diagnosis, { x: 40, y: 550, size: 10, font });
+        page2.drawText(data.icd10, { x: 40, y: 530, size: 10, font });
+    }
 
     return await pdfDoc.save();
   },
 
    /**
-   * Lógica específica para Informe Médico MetLife
+   * MAPEO: MetLife (Informe Médico)
+   * Archivo: metlife_informe_medico.pdf
    */
    async fillMetLifeForm(data: MedicalReportData): Promise<Uint8Array> {
-    const formBytes = await this.loadPDFTemplate('/forms/metlife_informe_medico.pdf');
+    const formBytes = await this.loadPDFTemplate('metlife_informe_medico.pdf');
     const pdfDoc = await PDFDocument.load(formBytes);
-    // ... lógica similar
+    const pages = pdfDoc.getPages();
+    const page1 = pages[0];
+    const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+    
+    // MetLife suele pedir "Nombre Completo" en una sola línea
+    page1.drawText(data.patientName, { x: 130, y: 675, size: 10, font });
+
+    // Fecha
+    const today = new Date();
+    page1.drawText(today.getDate().toString(), { x: 450, y: 675, size: 10, font }); // Día
+    
+    // Antecedentes (Sección grande abajo)
+    page1.drawText(data.clinicalSummary, {
+        x: 40, y: 450, size: 9, font, maxWidth: 520, lineHeight: 11
+    });
+
     return await pdfDoc.save();
   }
 };
