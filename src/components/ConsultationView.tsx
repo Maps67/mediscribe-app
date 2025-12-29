@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
+import { useLocation } from 'react-router-dom'; 
 import { 
   Mic, Square, RefreshCw, FileText, Search, X, 
   MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
@@ -842,15 +843,11 @@ const ConsultationView: React.FC = () => {
 
         const durationSeconds = Math.round((Date.now() - startTimeRef.current) / 1000);
 
-        // --- PREPARACIÓN DEL PAYLOAD CON DATOS DE SEGUROS (CORREGIDO) ---
+        // --- PREPARACIÓN DEL PAYLOAD CON DATOS DE SEGUROS ---
         // Combinamos la respuesta de la IA con los datos capturados manualmente en el panel de seguros
-        // SOLO si hay una póliza real escrita (Evita "GNP/No Registrada" basura)
-        
-        const hasValidInsurance = insuranceData && insuranceData.policyNumber && insuranceData.policyNumber.trim().length > 0;
-
         const finalAiData = {
             ...generatedNote,
-            insurance_data: hasValidInsurance ? insuranceData : null // Filtro de seguridad
+            insurance_data: insuranceData // Aquí se inyectan los datos de Póliza/Fecha
         };
 
         const payload = {
