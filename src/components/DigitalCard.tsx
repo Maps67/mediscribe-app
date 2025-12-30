@@ -141,11 +141,12 @@ const DigitalCard: React.FC = () => {
   };
 
   // --- RECURSOS OFICIALES (SEGURIDAD Y TRÁMITES) ---
+  // CORRECCIÓN: Usamos enlaces a los Portales de Formatos, no a los PDFs directos que caducan.
   const OFFICIAL_RESOURCES = [
-      { name: 'Informe Médico GNP', url: 'https://www.gnp.com.mx/content/dam/gnp-corp/formatos-de-servicio/gastos-medicos/formato-informe-medico-gnp.pdf', color: 'blue' },
-      { name: 'Informe Médico AXA', url: 'https://axa.mx/content/dam/axa-mx/formatos/gastos-medicos/formato-informe-medico-axa.pdf', color: 'red' },
-      { name: 'Informe Médico MetLife', url: 'https://www.metlife.com.mx/content/dam/metlifecom/mx/formatos/gastos-medicos/formato-informe-medico-metlife.pdf', color: 'cyan' },
-      { name: 'Alertas COFEPRIS', url: 'https://www.gob.mx/cofepris/acciones-y-programas/alertas-sanitarias', color: 'amber' }
+      { name: 'Portal Formatos GNP', url: 'https://www.gnp.com.mx/personas/seguros-medicos', color: 'blue' },
+      { name: 'Portal Formatos AXA', url: 'https://axa.mx/personas/servicios/formatos', color: 'red' },
+      { name: 'Portal Formatos MetLife', url: 'https://www.metlife.com.mx/servicio-y-apoyo/centro-de-formatos/', color: 'cyan' },
+      { name: 'Alertas COFEPRIS', url: 'https://www.gob.mx/cofepris', color: 'amber' }
   ];
 
   if (loading) return <div className="flex justify-center items-center h-full text-slate-400 gap-2"><Activity className="animate-spin"/> Cargando Hub...</div>;
