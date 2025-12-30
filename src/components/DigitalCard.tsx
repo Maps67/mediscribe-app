@@ -6,24 +6,16 @@ import {
   Share2, Users, Clock, FileText, 
   Search, BookOpen, Activity, Globe, 
   ExternalLink, Download, 
-  Calendar, Stethoscope, Briefcase
+  Calendar, Stethoscope, Briefcase,
+  ShieldCheck, FileCheck, AlertTriangle
 } from 'lucide-react';
 
 // IMPORTACIÓN DE MÓDULOS
 import { InteractiveClinicalCase } from './InteractiveClinicalCase';
 import { MedicalCalculators } from './MedicalCalculators';
-import { QuickNotes } from './QuickNotes'; // <--- AQUÍ IMPORTAMOS EL BLOC
+import { QuickNotes } from './QuickNotes'; 
 
 // --- TIPOS ---
-interface MedicalNews {
-  id?: string;
-  title: string;
-  summary: string;
-  source: string;
-  url: string;
-  created_at?: string;
-}
-
 interface UserProfile {
   full_name: string;
   specialty: string;
@@ -75,43 +67,18 @@ const DigitalCard: React.FC = () => {
   const navigate = useNavigate();
   
   const [profile, setProfile] = useState<UserProfile | null>(null);
-  const [newsFeed, setNewsFeed] = useState<MedicalNews[]>([]); 
   const [stats, setStats] = useState({ patientsCount: 0, avgDuration: 0, loadingStats: true });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-
-  const STATIC_NEWS: MedicalNews[] = [
-    { title: 'FDA Aprueba Voyxact', summary: 'Tratamiento para nefropatía por IgA.', source: 'FDA', url: 'https://www.fda.gov' },
-    { title: 'Guías IDSA 2025', summary: 'Manejo de infecciones urinarias.', source: 'IDSA', url: 'https://www.idsociety.org' }
-  ];
 
   useEffect(() => {
     let mounted = true;
     const init = async () => {
         await loadData();
-        if(mounted) fetchNews();
     };
     init();
     return () => { mounted = false; };
   }, []);
-
-  const fetchNews = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('medical_news')
-        .select('*')
-        .order('created_at', { ascending: false })
-        .limit(10);
-
-      if (!error && data && data.length > 0) {
-        setNewsFeed(data);
-      } else {
-        setNewsFeed(STATIC_NEWS); 
-      }
-    } catch (e) {
-      setNewsFeed(STATIC_NEWS);
-    }
-  };
 
   const loadData = async () => {
     try {
@@ -156,15 +123,6 @@ const DigitalCard: React.FC = () => {
     return Math.round((filled / fields.length) * 100);
   }, [profile]);
 
-  const handleNewsClick = (newsItem: MedicalNews) => {
-    if (newsItem.url && newsItem.url.startsWith('http')) {
-        window.open(newsItem.url, '_blank');
-    } else {
-        const query = encodeURIComponent(newsItem.title + " medical study");
-        window.open(`https://www.google.com/search?q=${query}`, '_blank');
-    }
-  };
-
   const handleSearch = (e: React.FormEvent) => {
       e.preventDefault();
       if(!searchTerm.trim()) return;
@@ -181,6 +139,14 @@ const DigitalCard: React.FC = () => {
     if (navigator.share) try { await navigator.share({ title: `Dr. ${profile?.full_name}`, url: getQRTarget() }); } catch (e) {}
     else alert("Enlace copiado manualmente.");
   };
+
+  // --- RECURSOS OFICIALES (SEGURIDAD Y TRÁMITES) ---
+  const OFFICIAL_RESOURCES = [
+      { name: 'Informe Médico GNP', url: 'https://www.gnp.com.mx/content/dam/gnp-corp/formatos-de-servicio/gastos-medicos/formato-informe-medico-gnp.pdf', color: 'blue' },
+      { name: 'Informe Médico AXA', url: 'https://axa.mx/content/dam/axa-mx/formatos/gastos-medicos/formato-informe-medico-axa.pdf', color: 'red' },
+      { name: 'Informe Médico MetLife', url: 'https://www.metlife.com.mx/content/dam/metlifecom/mx/formatos/gastos-medicos/formato-informe-medico-metlife.pdf', color: 'cyan' },
+      { name: 'Alertas COFEPRIS', url: 'https://www.gob.mx/cofepris/acciones-y-programas/alertas-sanitarias', color: 'amber' }
+  ];
 
   if (loading) return <div className="flex justify-center items-center h-full text-slate-400 gap-2"><Activity className="animate-spin"/> Cargando Hub...</div>;
 
@@ -298,21 +264,46 @@ const DigitalCard: React.FC = () => {
                 </div>
             </div>
 
-            {/* Feed de Noticias (BLINDADO) */}
-            <div className="bg-white rounded-2xl border border-slate-200 shadow-xl overflow-hidden flex-1 max-h-[400px] overflow-y-auto custom-scrollbar relative">
-                <div className="p-4 border-b border-slate-100 bg-white/90 backdrop-blur sticky top-0 z-20 flex justify-between items-center">
-                    <h3 className="font-bold text-slate-800 flex items-center gap-2"><span className="flex h-2.5 w-2.5 relative"><span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-red-400 opacity-75"></span><span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-red-500"></span></span> Actualizaciones Médicas</h3>
+            {/* SECCIÓN NUEVA: CENTRAL DE TRÁMITES Y SEGURIDAD */}
+            <div className="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden flex-1 relative p-6">
+                <div className="flex justify-between items-center mb-6">
+                    <h3 className="font-bold text-slate-800 flex items-center gap-2">
+                        <ShieldCheck size={20} className="text-indigo-600"/> 
+                        Gestión Administrativa y Seguridad
+                    </h3>
+                    <span className="text-[10px] font-bold bg-indigo-50 text-indigo-700 px-2 py-1 rounded-md">Recursos Oficiales</span>
                 </div>
-                <div className="divide-y divide-slate-50">
-                    {newsFeed.map((news, idx) => (
-                        <div key={idx} onClick={() => handleNewsClick(news)} className="p-5 hover:bg-slate-50 cursor-pointer group transition-colors">
-                            <div className="flex justify-between items-start mb-2">
-                                <span className="text-[10px] font-bold px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 group-hover:bg-teal-100 group-hover:text-teal-700 transition-colors">{news.source}</span>
-                                <ExternalLink size={14} className="text-slate-300 group-hover:text-teal-500 transition-colors"/>
+                
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-2 gap-4">
+                    {OFFICIAL_RESOURCES.map((resource, idx) => (
+                        <a 
+                            key={idx} 
+                            href={resource.url} 
+                            target="_blank" 
+                            rel="noopener noreferrer"
+                            className={`flex items-center justify-between p-4 rounded-xl border transition-all hover:shadow-md group ${
+                                resource.color === 'blue' ? 'border-blue-100 bg-blue-50/50 hover:border-blue-300' :
+                                resource.color === 'red' ? 'border-red-100 bg-red-50/50 hover:border-red-300' :
+                                resource.color === 'cyan' ? 'border-cyan-100 bg-cyan-50/50 hover:border-cyan-300' :
+                                'border-amber-100 bg-amber-50/50 hover:border-amber-300'
+                            }`}
+                        >
+                            <div className="flex items-center gap-3">
+                                <div className={`p-2 rounded-lg ${
+                                    resource.color === 'blue' ? 'bg-blue-100 text-blue-600' :
+                                    resource.color === 'red' ? 'bg-red-100 text-red-600' :
+                                    resource.color === 'cyan' ? 'bg-cyan-100 text-cyan-600' :
+                                    'bg-amber-100 text-amber-600'
+                                }`}>
+                                    {resource.name.includes('Alertas') ? <AlertTriangle size={18} /> : <FileCheck size={18} />}
+                                </div>
+                                <div>
+                                    <p className="font-bold text-sm text-slate-700 group-hover:text-slate-900">{resource.name}</p>
+                                    <p className="text-[10px] text-slate-500">Descarga directa oficial</p>
+                                </div>
                             </div>
-                            <h4 className="text-sm font-bold text-slate-800 mb-1 group-hover:text-teal-700 transition-colors">{news.title}</h4>
-                            <p className="text-xs text-slate-500 leading-relaxed line-clamp-2">{news.summary}</p>
-                        </div>
+                            <ExternalLink size={16} className="text-slate-300 group-hover:text-slate-500"/>
+                        </a>
                     ))}
                 </div>
             </div>
