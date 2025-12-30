@@ -1116,7 +1116,7 @@ const ConsultationView: React.FC = () => {
                             {activeMedicalContext.lastConsultation && (
                                 <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800/50">
                                      <span className="font-bold block text-[10px] uppercase text-amber-600 mb-1">
-                                         Resumen Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
+                                          Resumen Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
                                      </span>
                                      <div className="p-2 bg-white dark:bg-slate-900 rounded border border-amber-100 dark:border-amber-900/50">
                                           <p className="italic opacity-100 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
