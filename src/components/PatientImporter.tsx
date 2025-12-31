@@ -1,19 +1,19 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
 import { supabase } from '../lib/supabase';
-import { Upload, ArrowRight, AlertTriangle, FileSpreadsheet, Database, RefreshCw, X } from 'lucide-react';
+import { Upload, ArrowRight, AlertTriangle, FileSpreadsheet, Database, RefreshCw, X, ShieldAlert } from 'lucide-react';
 import { toast } from 'sonner';
 
-// Definición de los campos que VitalScribe necesita
+// DEFINICIÓN DE CAMPOS CON TIPADO ESTRICTO
+// Agregamos la propiedad 'type' para saber cómo limpiar cada dato
 const REQUIRED_FIELDS = [
-  { key: 'name', label: 'Nombre Completo (Obligatorio)', required: true },
-  { key: 'phone', label: 'Teléfono', required: false },
-  { key: 'email', label: 'Correo Electrónico', required: false },
-  { key: 'birth_date', label: 'Fecha de Nacimiento (YYYY-MM-DD)', required: false },
-  { key: 'allergies', label: 'Alergias', required: false },
-  // SEPARACIÓN CRÍTICA: Distinguir entre antecedentes fijos y notas de evolución
-  { key: 'history', label: 'Antecedentes (Enfermedades/Cirugías)', required: false },
-  { key: 'clinical_note', label: 'Notas de Última Consulta / Contexto', required: false },
+  { key: 'name', label: 'Nombre Completo (Obligatorio)', required: true, type: 'text' },
+  { key: 'phone', label: 'Teléfono', required: false, type: 'text' },
+  { key: 'email', label: 'Correo Electrónico', required: false, type: 'text' },
+  { key: 'birth_date', label: 'Fecha de Nacimiento (YYYY-MM-DD)', required: false, type: 'date' }, // TIPO DATE
+  { key: 'allergies', label: 'Alergias', required: false, type: 'text' },
+  { key: 'history', label: 'Antecedentes (Enfermedades/Cirugías)', required: false, type: 'text' },
+  { key: 'clinical_note', label: 'Notas de Última Consulta / Contexto', required: false, type: 'text' },
 ];
 
 interface PatientImporterProps {
@@ -28,6 +28,26 @@ const PatientImporter: React.FC<PatientImporterProps> = ({ onComplete, onClose }
   const [mapping, setMapping] = useState<Record<string, string>>({});
   const [importing, setImporting] = useState(false);
 
+  // --- FUNCIÓN DE SANITIZACIÓN (EL BLINDAJE) ---
+  const cleanDateValue = (value: any): string | null => {
+    if (!value) return null;
+    const str = String(value).trim();
+    
+    // Lista negra de valores que rompen PostgreSQL
+    const invalidValues = ['N/A', 'n/a', 'NA', 'na', 'No aplica', 'error', 'null', 'undefined'];
+    if (invalidValues.includes(str) || str === '') return null;
+
+    // Intento de parseo de fecha estándar
+    const date = new Date(str);
+    if (isNaN(date.getTime())) {
+        console.warn(`Fecha inválida detectada e ignorada: ${str}`);
+        return null; // Si no es fecha válida, retornar null para evitar crash
+    }
+
+    // Retornar formato ISO estricto (YYYY-MM-DD)
+    return date.toISOString().split('T')[0];
+  };
+
   // 1. CARGA Y PARSEO DEL ARCHIVO
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
@@ -40,7 +60,7 @@ const PatientImporter: React.FC<PatientImporterProps> = ({ onComplete, onClose }
         if (results.meta.fields && results.meta.fields.length > 0) {
           setFileHeaders(results.meta.fields);
           setRawFile(results.data);
-          setStep(2); // Pasar al mapeo
+          setStep(2); 
           toast.success(`Archivo cargado: ${results.data.length} registros detectados`);
         } else {
             toast.error("El archivo parece estar vacío o no tiene encabezados.");
@@ -50,83 +70,99 @@ const PatientImporter: React.FC<PatientImporterProps> = ({ onComplete, onClose }
     });
   };
 
-  // 2. LÓGICA DE MAPEO (Emparejar columnas)
   const handleMapChange = (vitalScribeField: string, userColumn: string) => {
     setMapping(prev => ({ ...prev, [vitalScribeField]: userColumn }));
   };
 
-  // 3. PROCESAMIENTO E INSERCIÓN
+  // 3. PROCESAMIENTO E INSERCIÓN BLINDADA
   const executeImport = async () => {
     try {
       setImporting(true);
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No autenticado");
 
-      // Transformar datos según el mapeo
       const formattedPatients = rawFile.map(row => {
         const patient: any = { doctor_id: user.id, created_at: new Date() };
         
-        // Variables temporales para fusión de contexto
+        // Variables para contexto
         let tempHistory = "";
         let tempNotes = "";
         let hasName = false;
 
-        // Mapear campos
         Object.keys(mapping).forEach(vkKey => {
           const userCol = mapping[vkKey];
-          if (userCol && row[userCol]) {
-            const val = row[userCol].toString().trim();
-            if (val) {
-                if (vkKey === 'history') {
-                    tempHistory = val;
-                } else if (vkKey === 'clinical_note') {
-                    tempNotes = val;
-                } else {
-                    patient[vkKey] = val; // Campos directos (name, phone, birth_date, etc.)
-                }
+          // Buscar la definición del campo para saber su tipo
+          const fieldDef = REQUIRED_FIELDS.find(f => f.key === vkKey);
 
-                if (vkKey === 'name') hasName = true;
+          if (userCol && row[userCol]) {
+            let val = row[userCol];
+            
+            // --- APLICACIÓN DE SANITIZACIÓN SEGÚN TIPO ---
+            if (fieldDef?.type === 'date') {
+                // Si el campo destino es FECHA, usamos el limpiador estricto
+                const cleanDate = cleanDateValue(val);
+                if (cleanDate) {
+                    patient[vkKey] = cleanDate;
+                }
+                // Nota: Si cleanDate es null (ej. era "N/A"), simplemente no asignamos nada a patient[vkKey]
+                // Supabase lo tomará como NULL automáticamente sin dar error.
+            } else {
+                // Si es TEXTO, solo limpiamos espacios y convertimos a string
+                val = val.toString().trim();
+                
+                if (val) {
+                    if (vkKey === 'history') {
+                        tempHistory = val;
+                    } else if (vkKey === 'clinical_note') {
+                        tempNotes = val;
+                    } else {
+                        patient[vkKey] = val;
+                    }
+                    if (vkKey === 'name') hasName = true;
+                }
             }
           }
         });
 
-        // Validaciones básicas por fila
-        if (!hasName) return null; // Saltar si no hay nombre
+        if (!hasName) return null;
         
-        // --- FUSIÓN DE CONTEXTO INTELIGENTE ---
-        // En lugar de anidar en 'legacy_data', creamos una estructura JSON plana
-        // que la IA (Gemini) pueda leer fácilmente como contexto clínico.
+        // CONSTRUCCIÓN DEL JSON DE CONTEXTO
+        // Aquí sí podemos guardar datos "sucios" o texto libre sin romper la BD
         const contextObject = {
             antecedentes: tempHistory || "No especificados",
-            evolucion_previa: tempNotes || "Sin notas de consultas anteriores",
+            evolucion_previa: tempNotes || "Sin notas previas",
+            // Agregamos metadatos extra si existen en el Excel original para no perder info
             importacion: {
                 fecha: new Date().toISOString().split('T')[0],
-                origen: 'Migración Masiva'
+                origen: 'Migración Excel'
             }
         };
 
-        // Guardamos como string JSON en la columna 'history' (Fuente de Verdad del Contexto)
         patient.history = JSON.stringify(contextObject);
 
         return patient;
-      }).filter(p => p !== null); // Eliminar nulos
+      }).filter(p => p !== null);
 
-      if (formattedPatients.length === 0) throw new Error("No se encontraron datos válidos para importar (falta Nombre).");
+      if (formattedPatients.length === 0) throw new Error("No se encontraron datos válidos.");
 
-      // Inserción en Lotes (Bulk Insert)
       const { error } = await supabase.from('patients').insert(formattedPatients);
 
       if (error) throw error;
 
-      toast.success(`${formattedPatients.length} pacientes importados con contexto médico.`);
+      toast.success(`${formattedPatients.length} pacientes importados correctamente.`);
       onComplete();
       setRawFile([]);
       setMapping({});
-      onClose(); // Cerrar modal al terminar
+      onClose();
 
     } catch (error: any) {
       console.error(error);
-      toast.error("Error en importación: " + error.message);
+      // Mensaje de error más amigable
+      if (error.message?.includes('invalid input syntax')) {
+          toast.error("Error de formato: Algún dato no coincide con el tipo esperado (Fecha/Número).");
+      } else {
+          toast.error("Error en importación: " + error.message);
+      }
     } finally {
       setImporting(false);
     }
@@ -142,10 +178,9 @@ const PatientImporter: React.FC<PatientImporterProps> = ({ onComplete, onClose }
 
             <h3 className="text-xl font-bold mb-6 flex items-center gap-2 text-slate-900 dark:text-white">
                 <Database size={24} className="text-indigo-600"/> 
-                Asistente de Migración
+                Asistente de Migración Inteligente
             </h3>
 
-            {/* PASO 1: SUBIR ARCHIVO */}
             {step === 1 && (
                 <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-12 text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors relative group cursor-pointer">
                     <div className="flex justify-center mb-4">
@@ -154,7 +189,7 @@ const PatientImporter: React.FC<PatientImporterProps> = ({ onComplete, onClose }
                         </div>
                     </div>
                     <p className="text-lg font-bold text-slate-700 dark:text-slate-200">Sube tu archivo de Pacientes</p>
-                    <p className="text-sm text-slate-500 mt-2 mb-6">Asegúrate de incluir columnas para Historial y Notas Clínicas si deseas contexto para la IA.</p>
+                    <p className="text-sm text-slate-500 mt-2 mb-6">El sistema detectará y limpiará automáticamente errores como "N/A" en fechas.</p>
                     
                     <div className="inline-block px-4 py-2 bg-indigo-600 text-white rounded-lg font-bold shadow-md group-hover:bg-indigo-700 pointer-events-none">
                         Seleccionar Archivo CSV
@@ -163,14 +198,15 @@ const PatientImporter: React.FC<PatientImporterProps> = ({ onComplete, onClose }
                 </div>
             )}
 
-            {/* PASO 2: MAPEO DE COLUMNAS */}
             {step === 2 && (
                 <div className="space-y-6 animate-in slide-in-from-bottom-4">
-                    <div className="bg-blue-50 dark:bg-blue-900/20 p-4 rounded-xl text-sm text-blue-800 dark:text-blue-200 flex items-start gap-3 border border-blue-100 dark:border-blue-800">
-                        <AlertTriangle size={18} className="mt-0.5 shrink-0 text-blue-600"/>
+                    <div className="bg-amber-50 dark:bg-amber-900/20 p-4 rounded-xl text-sm text-amber-800 dark:text-amber-200 flex items-start gap-3 border border-amber-100 dark:border-amber-800">
+                        <ShieldAlert size={18} className="mt-0.5 shrink-0 text-amber-600"/>
                         <div>
-                            <p className="font-bold">Mapeo de Contexto Clínico</p>
-                            <p className="opacity-90">Para que la IA conozca el pasado del paciente, asegúrate de conectar las columnas de <b>"Antecedentes"</b> y <b>"Notas de Consulta"</b>.</p>
+                            <p className="font-bold">Aviso sobre Fechas</p>
+                            <p className="opacity-90">
+                                Si tu Excel tiene textos como "N/A" o celdas vacías en fechas, el sistema las convertirá a "Sin Dato" automáticamente para evitar errores.
+                            </p>
                         </div>
                     </div>
 
@@ -178,9 +214,12 @@ const PatientImporter: React.FC<PatientImporterProps> = ({ onComplete, onClose }
                         {REQUIRED_FIELDS.map((field) => (
                         <div key={field.key} className="flex flex-col sm:flex-row sm:items-center justify-between p-4 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-100 dark:border-slate-700 gap-3">
                             <div className="flex flex-col">
-                                <span className={`font-bold text-sm ${field.required ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300'}`}>
-                                    {field.label}
-                                </span>
+                                <div className="flex items-center gap-2">
+                                    <span className={`font-bold text-sm ${field.required ? 'text-indigo-700 dark:text-indigo-300' : 'text-slate-700 dark:text-slate-300'}`}>
+                                        {field.label}
+                                    </span>
+                                    {field.type === 'date' && <span className="text-[10px] px-1.5 py-0.5 bg-indigo-100 text-indigo-700 rounded font-mono">FECHA</span>}
+                                </div>
                                 <span className="text-[10px] text-slate-400 uppercase tracking-wider">Campo Destino</span>
                             </div>
                             
