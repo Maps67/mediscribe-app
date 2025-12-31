@@ -1,25 +1,34 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
 import { supabase } from '../lib/supabase';
+import { z } from 'zod'; // IMPORTACIÓN CRÍTICA: El motor de validación
 import { 
-  Upload, Database, X, ShieldCheck, Loader2, FileWarning, RefreshCw, History 
+  Upload, Database, X, ShieldCheck, Loader2, FileWarning, RefreshCw, History, CheckCircle, AlertTriangle
 } from 'lucide-react';
 import { toast } from 'sonner';
 
-// --- UTILIDADES ---
-
-const sanitizeDate = (value: any): string | null => {
-  if (!value) return null;
-  const s = String(value).trim();
-  if (["n/a", "na", "null", ""].includes(s.toLowerCase())) return null;
-  const parsed = Date.parse(s);
-  return !isNaN(parsed) ? new Date(parsed).toISOString().split('T')[0] : null;
-};
-
-const sanitizePhone = (value: any): string => {
-  if (!value) return '';
-  return String(value).replace(/[^0-9+]/g, '').trim().substring(0, 20);
-};
+// --- 1. DEFINICIÓN DEL ESQUEMA BLINDADO (ZOD) ---
+// Esto actúa como el "Portero" de tu investigación. Nada entra si no cumple esto.
+const PatientSchema = z.object({
+  name: z.string().min(2, "Nombre muy corto").transform(val => val.trim()),
+  phone: z.string().optional().transform(val => {
+     if (!val) return null;
+     const clean = String(val).replace(/[^0-9+]/g, '').trim().substring(0, 20);
+     return clean.length > 5 ? clean : null;
+  }),
+  email: z.string().email().optional().or(z.literal('')).transform(val => val || null),
+  birth_date: z.string().optional().transform(val => {
+     if (!val) return null;
+     const s = String(val).trim();
+     if (["n/a", "na", ""].includes(s.toLowerCase())) return null;
+     // Intento de parseo seguro
+     const d = Date.parse(s);
+     return !isNaN(d) ? new Date(d).toISOString().split('T')[0] : null;
+  }),
+  allergies: z.string().optional().nullable(),
+  // Aquí capturamos el historial crudo para transformarlo después
+  raw_history: z.any().optional()
+});
 
 const PatientImporter: React.FC<{ onComplete: () => void; onClose: () => void }> = ({ onComplete, onClose }) => {
   const [step, setStep] = useState<1 | 2>(1);
@@ -31,6 +40,7 @@ const PatientImporter: React.FC<{ onComplete: () => void; onClose: () => void }>
     name: '', phone: '', email: '', birth_date: '', history: '', allergies: ''
   });
 
+  // --- 2. LECTURA DEL ARCHIVO ---
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
@@ -43,16 +53,16 @@ const PatientImporter: React.FC<{ onComplete: () => void; onClose: () => void }>
         setHeaders(fileHeaders);
         setRawFile(results.data);
         
-        // AUTO-DETECCIÓN INTELIGENTE
+        // Auto-detección inteligente de columnas
         const newMap: any = {};
         fileHeaders.forEach(h => {
           const lower = h.toLowerCase();
-          if (lower.includes('nombre') || lower.includes('name')) newMap.name = h;
+          if (lower.includes('nombre') || lower.includes('name') || lower.includes('patient')) newMap.name = h;
           else if (lower.includes('tel') || lower.includes('phone')) newMap.phone = h;
           else if (lower.includes('mail') || lower.includes('correo')) newMap.email = h;
-          else if (lower.includes('naci') || lower.includes('birth')) newMap.birth_date = h;
+          else if (lower.includes('naci') || lower.includes('birth') || lower.includes('edad')) newMap.birth_date = h;
           else if (lower.includes('alerg') || lower.includes('allergy')) newMap.allergies = h;
-          else if (lower.includes('hist') || lower.includes('note') || lower.includes('context') || lower.includes('transcri')) newMap.history = h;
+          else if (lower.includes('hist') || lower.includes('note') || lower.includes('context') || lower.includes('resumen')) newMap.history = h;
         });
         setColumnMap(prev => ({ ...prev, ...newMap }));
         setStep(2);
@@ -60,123 +70,180 @@ const PatientImporter: React.FC<{ onComplete: () => void; onClose: () => void }>
     });
   };
 
-  const restoreData = async () => {
+  // --- 3. PROCESO ETL (Extracción, Transformación y Carga) ---
+  const executeETL = async () => {
     setIsProcessing(true);
+    let successCount = 0;
+    let errorCount = 0;
+
     try {
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Sin sesión");
+      if (!user) throw new Error("Sin sesión activa.");
 
-      const patientsToRestore = rawFile.map(row => {
-        const p: any = {
-          doctor_id: user.id,
-          name: row[columnMap.name]?.trim(), // Trim es vital para evitar "Mariana " vs "Mariana"
-          isTemporary: false,
-          created_at: new Date().toISOString()
-        };
+      // A. Transformación y Validación en Memoria
+      const validPayloads = rawFile.map((row, index) => {
+        try {
+            // Mapeo inicial
+            const rawData = {
+                name: row[columnMap.name],
+                phone: row[columnMap.phone],
+                email: row[columnMap.email],
+                birth_date: row[columnMap.birth_date],
+                allergies: row[columnMap.allergies],
+                raw_history: row[columnMap.history]
+            };
 
-        if (!p.name) return null;
+            // VALIDACIÓN ZOD (El Portero)
+            const cleanData = PatientSchema.parse(rawData);
 
-        if (columnMap.phone) p.phone = sanitizePhone(row[columnMap.phone]);
-        if (columnMap.email) p.email = row[columnMap.email];
-        if (columnMap.birth_date) p.birth_date = sanitizeDate(row[columnMap.birth_date]);
-        if (columnMap.allergies) p.allergies = row[columnMap.allergies];
-
-        // LOGICA DE HISTORIAL
-        if (columnMap.history) {
-          const rawHistory = row[columnMap.history];
-          try {
-            if (rawHistory && (rawHistory.startsWith('{') || rawHistory.startsWith('['))) {
-               JSON.parse(rawHistory); 
-               p.history = rawHistory; 
-            } else if (rawHistory) {
-               p.history = JSON.stringify({
-                 origen: "Restauración Backup",
-                 resumen_clinico: rawHistory
-               });
+            // TRANSFORMACIÓN DE HISTORIAL (El Cerebro)
+            // Convierte texto plano en el JSON que VitalScribe necesita
+            let finalHistory = null;
+            if (cleanData.raw_history) {
+                const val = String(cleanData.raw_history).trim();
+                if (val.length > 0) {
+                    // Si ya parece JSON, lo dejamos, si no, lo encapsulamos
+                    if (val.startsWith('{') || val.startsWith('[')) {
+                        try { JSON.parse(val); finalHistory = val; } 
+                        catch { finalHistory = JSON.stringify({ resumen_clinico: val }); }
+                    } else {
+                        finalHistory = JSON.stringify({ 
+                            origen: "Importación Masiva",
+                            resumen_clinico: val 
+                        });
+                    }
+                }
             }
-          } catch (e) {
-            p.history = JSON.stringify({ nota_recuperada: rawHistory });
-          }
+
+            // Objeto listo para SQL
+            return {
+                doctor_id: user.id,
+                name: cleanData.name, // Ya viene trimado por Zod
+                phone: cleanData.phone,
+                email: cleanData.email,
+                birth_date: cleanData.birth_date,
+                allergies: cleanData.allergies,
+                history: finalHistory, // Aquí va el JSON stringificado correcto
+                isTemporary: false,
+                created_at: new Date().toISOString()
+            };
+
+        } catch (validationError) {
+            // Si Zod falla, omitimos silenciosamente o logueamos
+            // console.warn(`Fila ${index} inválida:`, validationError);
+            errorCount++;
+            return null;
         }
-        return p;
-      }).filter(Boolean);
+      }).filter(Boolean); // Eliminamos nulos
 
-      if (patientsToRestore.length === 0) throw new Error("No se detectaron pacientes válidos.");
+      if (validPayloads.length === 0) throw new Error("No se encontraron registros válidos tras la validación.");
 
-      // --- CAMBIO CRÍTICO AQUÍ ---
-      // Usamos upsert en lugar de insert.
-      // onConflict: Ignora el ID, usa el índice único que creamos (doctor_id, name)
+      // B. CARGA BLINDADA (Upsert)
+      // onConflict coincide con tu UNIQUE INDEX: (doctor_id, name)
       const { error } = await supabase
         .from('patients')
-        .upsert(patientsToRestore, { 
-          onConflict: 'doctor_id, name', // Esto coincide con tu índice SQL
-          ignoreDuplicates: false // False = Sobrescribe con la info nueva (fusión)
+        .upsert(validPayloads, { 
+            onConflict: 'doctor_id, name',
+            ignoreDuplicates: false // False = Actualizar datos si ya existe
         });
-      
+
       if (error) throw error;
 
-      toast.success(`¡Restauración exitosa! Pacientes procesados y unificados.`);
+      successCount = validPayloads.length;
+      toast.success(`Proceso ETL completado.`, {
+          description: `${successCount} procesados correctamente. ${errorCount} omitidos por datos inválidos.`
+      });
+      
       onComplete();
       onClose();
 
     } catch (e: any) {
       console.error(e);
-      toast.error("Error al restaurar: " + e.message);
+      toast.error(`Error en la carga: ${e.message}`);
     } finally {
       setIsProcessing(false);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl p-6 shadow-2xl border border-slate-700">
-        <div className="flex justify-between items-center mb-6">
-          <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <RefreshCw className="text-emerald-500"/> Restaurador Inteligente
-          </h2>
-          <button onClick={onClose}><X className="text-slate-400"/></button>
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 flex flex-col max-h-[90vh]">
+        
+        {/* Encabezado */}
+        <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 rounded-t-2xl">
+          <div>
+            <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
+              <Database className="text-indigo-500"/> Importador ETL Clínico
+            </h2>
+            <p className="text-xs text-slate-500 mt-1">Validación Zod + Transformación JSON Activa</p>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"><X size={20}/></button>
         </div>
 
-        {step === 1 ? (
-          <div className="text-center py-12 border-2 border-dashed border-slate-700 rounded-xl bg-slate-800/50">
-            <p className="text-slate-300 mb-4">Sube el archivo Excel/CSV de respaldo</p>
-            <label className="px-6 py-3 bg-emerald-600 hover:bg-emerald-500 text-white rounded-lg cursor-pointer font-bold transition-colors">
-              Seleccionar Respaldo
-              <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
-            </label>
-            <p className="text-xs text-slate-500 mt-4">El sistema fusionará automáticamente los duplicados.</p>
-          </div>
-        ) : (
-          <div className="space-y-4">
-            <div className="bg-emerald-900/20 p-4 rounded-lg border border-emerald-800 text-emerald-200 text-sm">
-              <p>Mapeo de Columnas Detectado. Verifica especialmente el campo "History".</p>
+        {/* Contenido */}
+        <div className="p-6 overflow-y-auto">
+          {step === 1 ? (
+            <div className="text-center py-10 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/30 transition-colors">
+              <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
+                <Upload className="text-indigo-600 dark:text-indigo-400" size={32}/>
+              </div>
+              <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">Sube tu base de datos</h3>
+              <p className="text-sm text-slate-500 max-w-xs mx-auto mb-6">Soporta CSV/Excel. El sistema limpiará fechas, teléfonos y estructurará el historial automáticamente.</p>
+              
+              <label className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold cursor-pointer shadow-lg shadow-indigo-500/20 transition-all active:scale-95 inline-flex items-center gap-2">
+                <Upload size={18}/>
+                Seleccionar Archivo
+                <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
+              </label>
             </div>
-            
-            <div className="grid grid-cols-2 gap-4">
-              {Object.keys(columnMap).map(key => (
-                <div key={key}>
-                  <label className="text-xs uppercase font-bold text-slate-500 block mb-1">{key}</label>
-                  <select 
-                    value={columnMap[key]} 
-                    onChange={(e) => setColumnMap({...columnMap, [key]: e.target.value})}
-                    className="w-full p-2 bg-slate-800 border border-slate-700 rounded text-white text-sm"
-                  >
-                    <option value="">-- Ignorar --</option>
-                    {headers.map(h => <option key={h} value={h}>{h}</option>)}
-                  </select>
+          ) : (
+            <div className="space-y-6">
+              <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
+                <ShieldCheck className="text-blue-600 shrink-0 mt-0.5" size={20}/>
+                <div className="text-sm text-blue-800 dark:text-blue-200">
+                  <span className="font-bold block mb-1">Motor de Validación Listo</span>
+                  Se han detectado <strong>{rawFile.length}</strong> filas. Confirma qué columna corresponde a cada dato. 
+                  <br/><span className="text-xs opacity-75 mt-1 block">Nota: Los registros con nombre vacío o inválido serán filtrados automáticamente.</span>
                 </div>
-              ))}
+              </div>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                {Object.keys(columnMap).map(key => (
+                  <div key={key} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
+                    <label className="text-xs uppercase font-extrabold text-slate-400 block mb-2 tracking-wider">{key.replace('_', ' ')}</label>
+                    <select 
+                      value={columnMap[key]} 
+                      onChange={(e) => setColumnMap({...columnMap, [key]: e.target.value})}
+                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-slate-700 dark:text-slate-200 text-sm focus:ring-2 focus:ring-indigo-500 outline-none"
+                    >
+                      <option value="">-- Ignorar / No existe --</option>
+                      {headers.map(h => <option key={h} value={h}>{h}</option>)}
+                    </select>
+                  </div>
+                ))}
+              </div>
             </div>
+          )}
+        </div>
 
-            <button 
-              onClick={restoreData} 
-              disabled={isProcessing}
-              className="w-full py-4 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl mt-4 flex justify-center items-center gap-2"
-            >
-              {isProcessing ? <Loader2 className="animate-spin"/> : <History/>}
-              {isProcessing ? "Procesando..." : "Fusionar y Restaurar"}
-            </button>
-          </div>
+        {/* Footer */}
+        {step === 2 && (
+            <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 rounded-b-2xl">
+                <button 
+                    onClick={() => setStep(1)}
+                    className="px-5 py-2.5 text-slate-600 dark:text-slate-400 font-bold hover:bg-slate-200 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                    Atrás
+                </button>
+                <button 
+                    onClick={executeETL} 
+                    disabled={isProcessing || !columnMap.name}
+                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center gap-2 shadow-lg shadow-emerald-500/20 disabled:opacity-50 disabled:cursor-not-allowed transition-all"
+                >
+                    {isProcessing ? <Loader2 className="animate-spin" size={18}/> : <RefreshCw size={18}/>}
+                    {isProcessing ? "Procesando..." : "Importar y Fusionar"}
+                </button>
+            </div>
         )}
       </div>
     </div>
