@@ -31,6 +31,12 @@ export class MedicalDataService {
     if (error) throw error;
   }
 
+  // ✅ NUEVO: ELIMINACIÓN MASIVA
+  static async deletePatientsBulk(ids: string[]): Promise<void> {
+    const { error } = await supabase.from('patients').delete().in('id', ids);
+    if (error) throw error;
+  }
+
   // --- CONSULTAS ---
 
   static async createConsultation(consultation: Omit<Consultation, 'id' | 'created_at' | 'doctor_id'>): Promise<Consultation> {
@@ -41,7 +47,7 @@ export class MedicalDataService {
     return data;
   }
 
-  // --- NUEVO: EXPORTACIÓN CSV (SOBERANÍA DE DATOS) ---
+  // --- EXPORTACIÓN CSV (SOBERANÍA DE DATOS) ---
   static async downloadFullBackup(): Promise<boolean> {
     try {
       // 1. Bajar pacientes
@@ -61,13 +67,13 @@ export class MedicalDataService {
         const pConsults = consultations?.filter(c => c.patient_id === p.id) || [];
         
         if (pConsults.length === 0) {
-             csv += `"${p.id}","${p.name}",${p.age},"${p.gender}","${p.phone||''}","${p.email||''}","${p.created_at}","N/A","N/A","N/A","N/A"\n`;
+              csv += `"${p.id}","${p.name}",${p.age},"${p.gender}","${p.phone||''}","${p.email||''}","${p.created_at}","N/A","N/A","N/A","N/A"\n`;
         } else {
-             pConsults.forEach(c => {
-                 const cleanSum = c.summary ? c.summary.replace(/(\r\n|\n|\r)/gm, " | ").replace(/"/g, '""') : "";
-                 const cleanTran = c.transcript ? c.transcript.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""') : "";
-                 csv += `"${p.id}","${p.name}",${p.age},"${p.gender}","${p.phone||''}","${p.email||''}","${p.created_at}","${c.id}","${c.created_at}","${cleanSum}","${cleanTran}"\n`;
-             });
+              pConsults.forEach(c => {
+                  const cleanSum = c.summary ? c.summary.replace(/(\r\n|\n|\r)/gm, " | ").replace(/"/g, '""') : "";
+                  const cleanTran = c.transcript ? c.transcript.replace(/(\r\n|\n|\r)/gm, " ").replace(/"/g, '""') : "";
+                  csv += `"${p.id}","${p.name}",${p.age},"${p.gender}","${p.phone||''}","${p.email||''}","${p.created_at}","${c.id}","${c.created_at}","${cleanSum}","${cleanTran}"\n`;
+              });
         }
       });
 

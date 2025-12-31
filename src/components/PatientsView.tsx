@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { 
   Search, UserPlus, FileText, Trash2, Edit2, Eye, Calendar, 
   Share2, Download, FolderOpen, Paperclip, MoreVertical, X, 
-  FileCode, Phone, Pill, ChevronDown, ChevronUp, AlertTriangle, MessageCircle, Sparkles
+  FileCode, Phone, Pill, ChevronDown, ChevronUp, AlertTriangle, MessageCircle, Sparkles, CheckSquare, Square
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { Patient, DoctorProfile, PatientInsight } from '../types';
@@ -11,12 +11,12 @@ import QuickRxModal from './QuickRxModal';
 import FormattedText from './FormattedText'; 
 import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
-// 👇 IMPORTAMOS EL NUEVO COMPONENTE DE HISTORIAL
 import ClinicalHistoryPDF from '../components/ClinicalHistoryPDF'; 
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { PatientWizard } from './PatientWizard';
 import { InsightsPanel } from './InsightsPanel'; 
 import { GeminiMedicalService } from '../services/GeminiMedicalService'; 
+import { MedicalDataService } from '../services/MedicalDataService';
 
 // ✅ CORRECCIÓN DE TIPO: Usamos Omit para evitar conflictos con la definición base de 'age'
 interface PatientData extends Omit<Partial<Patient>, 'age'> {
@@ -61,6 +61,9 @@ const PatientsView: React.FC = () => {
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [analyzingPatientName, setAnalyzingPatientName] = useState('');
 
+  // ✅ ESTADO PARA SELECCIÓN MASIVA
+  const [selectedIds, setSelectedIds] = useState<string[]>([]);
+
   useEffect(() => {
     fetchPatients();
     fetchDoctorProfile();
@@ -89,6 +92,42 @@ const PatientsView: React.FC = () => {
     if (user) {
         const { data } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         if (data) setDoctorProfile(data as DoctorProfile);
+    }
+  };
+
+  // ✅ LÓGICA DE SELECCIÓN
+  const filteredPatients = patients.filter(p => 
+    (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
+    (p.email || '').toLowerCase().includes(searchTerm.toLowerCase())
+  );
+
+  const handleSelectAll = () => {
+    if (selectedIds.length === filteredPatients.length && filteredPatients.length > 0) {
+        setSelectedIds([]);
+    } else {
+        setSelectedIds(filteredPatients.map(p => p.id));
+    }
+  };
+
+  const handleSelectPatient = (id: string) => {
+    setSelectedIds(prev => 
+        prev.includes(id) ? prev.filter(pid => pid !== id) : [...prev, id]
+    );
+  };
+
+  const handleBulkDelete = async () => {
+    if (selectedIds.length === 0) return;
+    if (!confirm(`¿Estás seguro de eliminar permanentemente a los ${selectedIds.length} pacientes seleccionados? Esta acción es irreversible.`)) return;
+
+    const toastId = toast.loading('Eliminando pacientes...');
+    try {
+        await MedicalDataService.deletePatientsBulk(selectedIds);
+        toast.success(`${selectedIds.length} pacientes eliminados`, { id: toastId });
+        setSelectedIds([]);
+        fetchPatients();
+    } catch (error) {
+        console.error(error);
+        toast.error('Error al eliminar pacientes', { id: toastId });
     }
   };
 
@@ -183,7 +222,6 @@ const PatientsView: React.FC = () => {
       } catch (e) { toast.error("Error generando PDF"); }
   };
 
-  // --- 🔥 NUEVA FUNCIÓN: DESCARGAR HISTORIAL COMPLETO ---
   const handleDownloadFullHistory = async () => {
       if (!viewingPatient || !doctorProfile || patientHistory.length === 0) {
           return toast.error("No hay datos suficientes para generar el historial.");
@@ -192,7 +230,6 @@ const PatientsView: React.FC = () => {
       const toastId = toast.loading("Generando expediente completo...");
 
       try {
-          // Preparamos los datos del paciente para el PDF
           let patientHistoryText = "No registrado";
           try {
              if (viewingPatient.history) {
@@ -242,8 +279,7 @@ const PatientsView: React.FC = () => {
   const handleDelete = async (id: string) => {
     if (!confirm('¿Estás seguro de eliminar este paciente y todo su historial?')) return;
     try {
-      const { error } = await supabase.from('patients').delete().eq('id', id);
-      if (error) throw error;
+      await MedicalDataService.deletePatient(id);
       toast.success('Paciente eliminado');
       fetchPatients();
     } catch (error) {
@@ -284,11 +320,6 @@ const PatientsView: React.FC = () => {
     }
   };
 
-  const filteredPatients = patients.filter(p => 
-    (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
-    (p.email || '').toLowerCase().includes(searchTerm.toLowerCase())
-  );
-
   const renderNoteContent = (summary: string) => { return <FormattedText content={summary} />; };
 
   const getCriticalTags = (historyJSON: string | undefined) => {
@@ -326,6 +357,26 @@ const PatientsView: React.FC = () => {
         <button onClick={() => { setEditingPatient(null); setIsModalOpen(true); }} className="bg-brand-teal hover:bg-teal-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-teal-500/20 active:scale-95"><UserPlus size={20} /> <span className="hidden sm:inline">Nuevo</span></button>
       </div>
 
+      {/* ✅ BARRA DE ACCIONES FLOTANTE (SELECCIÓN MÚLTIPLE) */}
+      {selectedIds.length > 0 && (
+          <div className="mb-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl flex justify-between items-center animate-fade-in-down">
+              <div className="flex items-center gap-3">
+                  <div className="bg-indigo-600 text-white text-xs font-bold px-3 py-1 rounded-full shadow-sm">
+                      {selectedIds.length} seleccionados
+                  </div>
+                  <span className="text-sm text-indigo-800 dark:text-indigo-200 hidden sm:inline">
+                      Se aplicarán acciones a los pacientes marcados.
+                  </span>
+              </div>
+              <button 
+                  onClick={handleBulkDelete}
+                  className="bg-red-500 hover:bg-red-600 text-white px-4 py-2 rounded-lg font-bold text-sm flex items-center gap-2 transition-colors shadow-sm"
+              >
+                  <Trash2 size={16}/> Eliminar Seleccionados
+              </button>
+          </div>
+      )}
+
       {/* BUSCADOR */}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-4">
           <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder="Buscar paciente por nombre..." className="w-full pl-10 pr-4 py-3 bg-transparent border-none rounded-xl text-slate-700 dark:text-slate-200 focus:ring-0 placeholder:text-slate-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
@@ -337,11 +388,38 @@ const PatientsView: React.FC = () => {
         <div className="hidden md:block overflow-x-auto">
           <table className="w-full text-left border-collapse">
             <thead>
-              <tr className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-xs uppercase"><th className="p-4 font-bold">Nombre / Alertas</th><th className="p-4 font-bold">Edad/Sexo</th><th className="p-4 font-bold">Contacto</th><th className="p-4 font-bold text-center">Acciones</th></tr>
+              <tr className="bg-slate-50 dark:bg-slate-900/50 text-slate-500 dark:text-slate-400 text-xs uppercase">
+                  <th className="p-4 w-12">
+                      <button 
+                          onClick={handleSelectAll} 
+                          className="text-slate-400 hover:text-indigo-600 transition-colors"
+                          title="Seleccionar Todos"
+                      >
+                          {selectedIds.length === filteredPatients.length && filteredPatients.length > 0 
+                              ? <CheckSquare size={20} className="text-indigo-600"/> 
+                              : <Square size={20}/>
+                          }
+                      </button>
+                  </th>
+                  <th className="p-4 font-bold">Nombre / Alertas</th>
+                  <th className="p-4 font-bold">Edad/Sexo</th>
+                  <th className="p-4 font-bold">Contacto</th>
+                  <th className="p-4 font-bold text-center">Acciones</th>
+              </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 dark:divide-slate-700">
-              {filteredPatients.map(patient => (
-                <tr key={patient.id} className="hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group">
+              {filteredPatients.map(patient => {
+                const isSelected = selectedIds.includes(patient.id);
+                return (
+                <tr key={patient.id} className={`hover:bg-slate-50 dark:hover:bg-slate-700/30 transition-colors group ${isSelected ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''}`}>
+                  <td className="p-4">
+                      <button 
+                          onClick={() => handleSelectPatient(patient.id)}
+                          className={`transition-colors ${isSelected ? 'text-indigo-600' : 'text-slate-300 hover:text-slate-500'}`}
+                      >
+                          {isSelected ? <CheckSquare size={20}/> : <Square size={20}/>}
+                      </button>
+                  </td>
                   <td className="p-4">
                       <div className="flex items-center gap-3">
                         <div className="w-10 h-10 rounded-full bg-teal-50 text-brand-teal flex items-center justify-center font-bold text-sm border border-teal-100">
@@ -373,7 +451,8 @@ const PatientsView: React.FC = () => {
                     </div>
                   </td>
                 </tr>
-              ))}
+                );
+              })}
             </tbody>
           </table>
         </div>
@@ -382,13 +461,22 @@ const PatientsView: React.FC = () => {
         <div className="md:hidden divide-y divide-slate-100 dark:divide-slate-700">
               {filteredPatients.map(patient => {
                 const isExpanded = expandedPatientId === patient.id;
+                const isSelected = selectedIds.includes(patient.id);
                 return (
-                <div key={patient.id} className={`transition-all duration-300 ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/50 pb-3' : 'bg-white dark:bg-slate-800'}`}>
+                <div key={patient.id} className={`transition-all duration-300 ${isExpanded ? 'bg-slate-50 dark:bg-slate-800/50 pb-3' : 'bg-white dark:bg-slate-800'} ${isSelected ? 'bg-indigo-50/30' : ''}`}>
                     <div 
-                        className="p-4 flex items-start gap-3 cursor-pointer active:bg-slate-100 dark:active:bg-slate-700/50 transition-colors"
+                        className="p-4 flex items-start gap-3 cursor-pointer active:bg-slate-100 dark:active:bg-slate-700/50 transition-colors relative"
                         onClick={() => toggleExpand(patient.id)}
                     >
-                        <div className="w-10 h-10 rounded-full bg-teal-50 dark:bg-teal-900/20 text-brand-teal dark:text-teal-400 flex items-center justify-center font-bold text-sm shrink-0 border border-teal-100 dark:border-teal-900/50 mt-1">
+                        {/* Checkbox Móvil */}
+                        <div 
+                            className="absolute left-2 top-2 z-10 p-2"
+                            onClick={(e) => { e.stopPropagation(); handleSelectPatient(patient.id); }}
+                        >
+                             {isSelected ? <CheckSquare size={20} className="text-indigo-600"/> : <Square size={20} className="text-slate-300"/>}
+                        </div>
+
+                        <div className="w-10 h-10 rounded-full bg-teal-50 dark:bg-teal-900/20 text-brand-teal dark:text-teal-400 flex items-center justify-center font-bold text-sm shrink-0 border border-teal-100 dark:border-teal-900/50 mt-1 ml-8">
                             {getInitials(patient.name)}
                         </div>
                         <div className="flex-1 min-w-0">
@@ -406,7 +494,7 @@ const PatientsView: React.FC = () => {
                     </div>
 
                     {isExpanded && (
-                        <div className="px-4 animate-fade-in-down">
+                        <div className="px-4 animate-fade-in-down ml-8">
                             <button 
                                 onClick={(e) => { e.stopPropagation(); handleLoadInsights(patient); }}
                                 className="w-full mb-2 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 border border-indigo-100 dark:border-indigo-800 rounded-xl text-xs font-bold flex items-center justify-center gap-2 hover:bg-indigo-100 dark:hover:bg-indigo-900/40 transition-colors"
@@ -439,7 +527,7 @@ const PatientsView: React.FC = () => {
                         </div>
                     )}
                 </div>
-             );
+              );
             })}
         </div>
         {filteredPatients.length === 0 && <div className="p-10 text-center text-slate-400">No se encontraron pacientes.</div>}
@@ -515,7 +603,6 @@ const PatientsView: React.FC = () => {
             <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
               <div><h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><FileText className="text-brand-teal"/> Expediente Clínico</h3><p className="text-sm text-slate-500 dark:text-slate-400">Paciente: <span className="font-bold">{viewingPatient.name}</span></p></div>
               <div className="flex items-center gap-2">
-                  {/* 🔥 BOTÓN DESCARGAR HISTORIAL COMPLETO */}
                   <button onClick={handleDownloadFullHistory} className="hidden md:flex p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 font-bold text-xs items-center gap-2 transition-colors">
                       <FileText size={16}/> Descargar Historial
                   </button>
