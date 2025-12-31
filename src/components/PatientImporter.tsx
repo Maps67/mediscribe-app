@@ -9,7 +9,8 @@ const REQUIRED_FIELDS = [
   { key: 'name', label: 'Nombre Completo (Obligatorio)', required: true },
   { key: 'phone', label: 'Teléfono', required: false },
   { key: 'email', label: 'Correo Electrónico', required: false },
-  { key: 'dob', label: 'Fecha de Nacimiento (YYYY-MM-DD)', required: false },
+  // CAMBIO APLICADO: Normalización a estándar SQL (birth_date)
+  { key: 'birth_date', label: 'Fecha de Nacimiento (YYYY-MM-DD)', required: false },
   { key: 'allergies', label: 'Alergias', required: false },
   { key: 'history', label: 'Antecedentes / Historial', required: false },
 ];
