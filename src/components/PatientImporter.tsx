@@ -1,285 +1,315 @@
 import React, { useState } from 'react';
-import Papa from 'papaparse';
-import { supabase } from '../lib/supabase';
+import Papa from 'papaparse'; // ✅ USO DE LIBRERÍA ROBUSTA (Mitiga Riesgo 1)
+import { supabase } from '../lib/supabase'; // ✅ CONEXIÓN REAL (Mitiga Riesgo 3)
 import { z } from 'zod';
-import { 
-  Upload, Database, X, ShieldCheck, Loader2, RefreshCw, AlertTriangle 
-} from 'lucide-react';
+import { Upload, Database, X, ShieldCheck, Loader2, CheckCircle, AlertTriangle, FileType } from 'lucide-react';
 import { toast } from 'sonner';
+import { Button } from './ui/button'; // Ajusta la ruta si usas shadcn/ui o usa botones HTML normales
+import { Alert, AlertDescription, AlertTitle } from './ui/alert'; // Ajusta ruta si es necesario
 
-// --- 1. DEFINICIÓN DEL ESQUEMA FLEXIBLE (ZOD) ---
-const PatientSchema = z.object({
-  name: z.string().min(2, "Nombre muy corto").transform(val => val.trim()),
-  phone: z.string().optional().transform(val => {
-     if (!val) return null;
-     const clean = String(val).replace(/[^0-9+]/g, '').trim().substring(0, 20);
-     return clean.length > 5 ? clean : null;
-  }),
-  email: z.string().email().optional().or(z.literal('')).transform(val => val || null),
-  
-  // CORRECCIÓN 1: SOPORTE PARA "EDAD" (NÚMERO) O "FECHA"
-  birth_date: z.string().or(z.number()).optional().transform(val => {
-     if (!val) return null;
-     const s = String(val).trim();
-     if (["n/a", "na", "", "null"].includes(s.toLowerCase())) return null;
-     
-     // Caso A: Es una edad (ej: "33" o 33)
-     // Si es un número menor a 120, asumimos que es edad y calculamos año
-     if (!isNaN(Number(s)) && Number(s) < 120 && !s.includes('-') && !s.includes('/')) {
-        const age = Number(s);
-        const currentYear = new Date().getFullYear();
-        const birthYear = currentYear - age;
-        return `${birthYear}-01-01`; // Fecha aproximada
-     }
+// --- TIPOS Y ESQUEMAS ---
 
-     // Caso B: Es una fecha real
-     const d = Date.parse(s);
-     return !isNaN(d) ? new Date(d).toISOString().split('T')[0] : null;
-  }),
-  
-  allergies: z.string().optional().nullable(),
-  raw_history: z.any().optional()
+interface Patient {
+  name: string;
+  doctor_id: string;
+  history?: string;
+  phone?: string;
+  email?: string;
+  birth_date?: string;
+  created_at?: string;
+}
+
+// Validación laxa para la entrada (permite números que luego transformamos)
+const RawCsvRowSchema = z.object({
+  Nombre: z.string().min(1, "El nombre es obligatorio"),
+  Edad: z.union([z.string(), z.number()]).optional(),
+  Telefono: z.union([z.string(), z.number()]).optional(),
+  Email: z.string().email().optional().or(z.literal("")),
+  Transcripcion: z.string().optional(),
+  Fecha: z.string().optional(),
 });
 
-const PatientImporter: React.FC<{ onComplete: () => void; onClose: () => void }> = ({ onComplete, onClose }) => {
-  const [step, setStep] = useState<1 | 2>(1);
-  const [rawFile, setRawFile] = useState<any[]>([]);
-  const [headers, setHeaders] = useState<string[]>([]);
-  const [isProcessing, setIsProcessing] = useState(false);
-  
-  const [columnMap, setColumnMap] = useState<Record<string, string>>({
-    name: '', phone: '', email: '', birth_date: '', history: '', allergies: ''
-  });
+interface AggregatedPatient {
+  name: string;
+  phone: string;
+  email: string;
+  birth_date: string;
+  historyEvents: string[];
+}
+
+export default function PatientImporter({ onComplete, onClose }: { onComplete?: () => void, onClose: () => void }) {
+  const [isLoading, setIsLoading] = useState(false);
+  const [stats, setStats] = useState<{ processed: number; success: number; merged: number } | null>(null);
+  const [error, setError] = useState<string | null>(null);
+
+  // --- LÓGICA DE NEGOCIO (TRANSFORMACIONES) ---
+
+  const calculateBirthDate = (ageInput: string | number | undefined): string | undefined => {
+    if (!ageInput) return undefined;
+    const s = String(ageInput).trim();
+    if (["n/a", "na", "", "null"].includes(s.toLowerCase())) return undefined;
+
+    // Caso A: Es una edad numérica (ej: 33)
+    // Eliminamos caracteres no numéricos para evitar errores
+    const ageNum = parseInt(s.replace(/\D/g, ''), 10);
+    
+    // Si es un número válido y parece una edad (0-120), calculamos año
+    if (!isNaN(ageNum) && ageNum > 0 && ageNum < 120) {
+      const currentYear = new Date().getFullYear();
+      const birthYear = currentYear - ageNum;
+      return `${birthYear}-01-01`; 
+    }
+    
+    // Caso B: Ya es una fecha o formato inválido, intentamos parsear
+    const d = Date.parse(s);
+    return !isNaN(d) ? new Date(d).toISOString().split('T')[0] : undefined;
+  };
+
+  const sanitizeHistoryText = (text: string | undefined): string | null => {
+    if (!text) return null;
+    const clean = String(text).trim();
+    if (clean === "" || ["N/A", "NA", "NULL", "undefined"].includes(clean.toUpperCase())) return null;
+    return clean;
+  };
+
+  // --- PROCESAMIENTO ---
 
   const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const file = e.target.files?.[0];
     if (!file) return;
-
-    Papa.parse(file, {
-      header: true,
-      skipEmptyLines: true,
-      complete: (results) => {
-        const fileHeaders = results.meta.fields || [];
-        setHeaders(fileHeaders);
-        setRawFile(results.data);
-        
-        const newMap: any = {};
-        fileHeaders.forEach(h => {
-          const lower = h.toLowerCase();
-          if (lower.includes('nombre') || lower.includes('name')) newMap.name = h;
-          else if (lower.includes('tel') || lower.includes('phone')) newMap.phone = h;
-          else if (lower.includes('mail') || lower.includes('correo')) newMap.email = h;
-          // Detecta "Edad" automáticamente
-          else if (lower.includes('naci') || lower.includes('birth') || lower.includes('edad')) newMap.birth_date = h;
-          else if (lower.includes('alerg') || lower.includes('allergy')) newMap.allergies = h;
-          // Prioriza columnas de resumen o transcripción
-          else if (lower.includes('resumen') || lower.includes('transcrip') || lower.includes('hist') || lower.includes('note')) newMap.history = h;
-        });
-        setColumnMap(prev => ({ ...prev, ...newMap }));
-        setStep(2);
-      }
-    });
+    processFile(file);
   };
 
-  const executeETL = async () => {
-    setIsProcessing(true);
-    let successCount = 0;
-    let errorCount = 0;
+  const processFile = async (file: File) => {
+    setIsLoading(true);
+    setError(null);
+    setStats(null);
 
     try {
+      // 1. VERIFICACIÓN DE SESIÓN REAL
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("Sin sesión activa.");
+      if (!user) throw new Error("Sesión expirada. Por favor recarga la página.");
 
-      const validPayloads = rawFile.map((row) => {
-        try {
-            const rawData = {
-                name: row[columnMap.name],
-                phone: row[columnMap.phone],
-                email: row[columnMap.email],
-                birth_date: row[columnMap.birth_date], // Aquí pasamos la columna "Edad" si se mapeó
-                allergies: row[columnMap.allergies],
-                raw_history: row[columnMap.history]
-            };
-            return PatientSchema.parse(rawData);
-        } catch {
-            errorCount++;
-            return null;
+      // 2. PARSEO ROBUSTO CON PAPAPARSE
+      Papa.parse(file, {
+        header: true,
+        skipEmptyLines: true,
+        complete: async (results) => {
+          try {
+            const rawRows: any[] = results.data;
+            if (rawRows.length === 0) throw new Error("El archivo CSV está vacío.");
+
+            const patientMap = new Map<string, AggregatedPatient>();
+            let processedRows = 0;
+
+            console.log(`[ETL Prod] Procesando ${rawRows.length} filas...`);
+
+            // 3. AGREGACIÓN EN MEMORIA (DEDUPLICACIÓN + FUSIÓN)
+            for (const row of rawRows) {
+              // Normalización de claves para que coincidan con el Schema (Mapeo Automático Básico)
+              // Intentamos buscar las columnas clave independientemente de mayúsculas/minúsculas
+              const normalizedRow: any = {};
+              Object.keys(row).forEach(key => {
+                const lower = key.toLowerCase();
+                if (lower.includes('nombre') || lower.includes('name')) normalizedRow.Nombre = row[key];
+                else if (lower.includes('edad') || lower.includes('age') || lower.includes('birth')) normalizedRow.Edad = row[key];
+                else if (lower.includes('tel') || lower.includes('phone')) normalizedRow.Telefono = row[key];
+                else if (lower.includes('mail') || lower.includes('email')) normalizedRow.Email = row[key];
+                else if (lower.includes('transcrip') || lower.includes('nota') || lower.includes('hist') || lower.includes('resumen')) normalizedRow.Transcripcion = row[key];
+                else if (lower.includes('fecha') || lower.includes('date')) normalizedRow.Fecha = row[key];
+              });
+
+              // Validación Zod silenciosa (si falla, ignoramos la fila o tomamos parciales)
+              const parseResult = RawCsvRowSchema.safeParse(normalizedRow);
+              if (!parseResult.success || !parseResult.data.Nombre) continue;
+
+              const data = parseResult.data;
+              const normalizedName = data.Nombre.trim();
+              
+              if (normalizedName.length < 2) continue; // Ignorar nombres basura
+
+              processedRows++;
+
+              const birthDate = calculateBirthDate(data.Edad);
+              const note = sanitizeHistoryText(data.Transcripcion);
+              // Fecha del evento para el historial
+              const eventDate = data.Fecha ? String(data.Fecha).split('T')[0] : new Date().toISOString().split('T')[0];
+
+              if (patientMap.has(normalizedName)) {
+                // FUSIÓN: El paciente ya existe, agregamos datos nuevos
+                const existing = patientMap.get(normalizedName)!;
+                
+                // Unimos historial cronológicamente
+                if (note) {
+                   // Evitar duplicar la misma nota exacta
+                   if (!existing.historyEvents.some(h => h.includes(note))) {
+                       existing.historyEvents.push(`[${eventDate}]: ${note}`);
+                   }
+                }
+                
+                // Rellenamos datos faltantes (Estrategia: Mejor dato gana)
+                if (!existing.email && data.Email) existing.email = data.Email;
+                if (!existing.phone && data.Telefono) existing.phone = String(data.Telefono);
+                if (!existing.birth_date && birthDate) existing.birth_date = birthDate;
+
+              } else {
+                // NUEVO: Creamos la entrada inicial
+                patientMap.set(normalizedName, {
+                  name: normalizedName,
+                  email: data.Email || "",
+                  phone: data.Telefono ? String(data.Telefono) : "",
+                  birth_date: birthDate || "",
+                  historyEvents: note ? [`[${eventDate}]: ${note}`] : []
+                });
+              }
+            }
+
+            // 4. PREPARACIÓN DE PAYLOAD FINAL
+            const patientsToUpsert: Patient[] = Array.from(patientMap.values()).map(p => {
+              // Construcción del JSON estricto requerido por GeminiMedicalService
+              const historyJson = JSON.stringify({
+                origen: "Importación Masiva ETL (v5.3)",
+                resumen_clinico: p.historyEvents.length > 0 
+                  ? p.historyEvents.join("\n\n---\n\n") 
+                  : "Sin historial previo importado."
+              });
+
+              return {
+                name: p.name,
+                email: p.email || undefined,
+                phone: p.phone || undefined,
+                birth_date: p.birth_date || undefined,
+                history: historyJson,
+                doctor_id: user.id,
+                created_at: new Date().toISOString() // Upsert lo manejará
+              };
+            });
+
+            if (patientsToUpsert.length === 0) throw new Error("No se generaron pacientes válidos. Revisa las columnas del CSV.");
+
+            // 5. INSERCIÓN ATÓMICA (UPSERT REAL)
+            // Usamos onConflict para respetar la unicidad por nombre y doctor
+            const { error: upsertError } = await supabase
+              .from('patients')
+              .upsert(patientsToUpsert, { 
+                onConflict: 'doctor_id, name', 
+                ignoreDuplicates: false 
+              });
+
+            if (upsertError) throw upsertError;
+
+            setStats({
+              processed: processedRows,
+              merged: processedRows - patientsToUpsert.length,
+              success: patientsToUpsert.length
+            });
+            
+            toast.success("Importación completada exitosamente.");
+            if (onComplete) onComplete();
+
+          } catch (err: any) {
+            console.error("Error ETL:", err);
+            setError(err.message || "Error procesando el archivo.");
+            toast.error("Error en la importación.");
+          } finally {
+            setIsLoading(false);
+          }
+        },
+        error: (err) => {
+           setIsLoading(false);
+           setError(`Error leyendo CSV: ${err.message}`);
         }
-      }).filter(Boolean);
-
-      if (validPayloads.length === 0) throw new Error("No se encontraron registros válidos.");
-
-      // --- CORRECCIÓN 2: DEDUPLICACIÓN CON FUSIÓN (MERGE) ---
-      // En lugar de sobrescribir, ACUMULAMOS la información
-      const uniqueMap = new Map();
-
-      validPayloads.forEach((item: any) => {
-          const key = item.name.toLowerCase().trim();
-          
-          // Preparamos el fragmento de historial de ESTA fila
-          let fragmentoHistoria = "";
-          if (item.raw_history) {
-              const val = String(item.raw_history).trim();
-              if (val.length > 0 && !["n/a", "na", "null"].includes(val.toLowerCase())) {
-                  fragmentoHistoria = val;
-              }
-          }
-
-          if (uniqueMap.has(key)) {
-              // SI YA EXISTE: Fusionamos datos
-              const existing = uniqueMap.get(key);
-              
-              // 1. Fusionar Historial (Concatenar texto)
-              let historyAccumulator = "";
-              // Recuperar historial previo si existe
-              if (existing.history) {
-                  try {
-                      const parsed = JSON.parse(existing.history);
-                      historyAccumulator = parsed.resumen_clinico || "";
-                  } catch { historyAccumulator = ""; }
-              }
-              
-              // Agregar nuevo fragmento si no está repetido
-              if (fragmentoHistoria && !historyAccumulator.includes(fragmentoHistoria)) {
-                  historyAccumulator += `\n\n[Nota Adicional]: ${fragmentoHistoria}`;
-              }
-
-              // Re-empaquetar historial fusionado
-              existing.history = JSON.stringify({
-                  origen: "Importación Masiva (Fusionada)",
-                  resumen_clinico: historyAccumulator
-              });
-
-              // 2. Rellenar huecos (Si el registro viejo no tenía edad, pero este sí)
-              if (!existing.birth_date && item.birth_date) existing.birth_date = item.birth_date;
-              if (!existing.phone && item.phone) existing.phone = item.phone;
-              if (!existing.email && item.email) existing.email = item.email;
-
-          } else {
-              // SI ES NUEVO: Creamos el registro base
-              let finalHistory = null;
-              if (fragmentoHistoria) {
-                  finalHistory = JSON.stringify({ 
-                      origen: "Importación Masiva",
-                      resumen_clinico: fragmentoHistoria 
-                  });
-              }
-
-              uniqueMap.set(key, {
-                  doctor_id: user.id,
-                  name: item.name,
-                  phone: item.phone,
-                  email: item.email,
-                  birth_date: item.birth_date,
-                  allergies: item.allergies,
-                  history: finalHistory,
-                  isTemporary: false,
-                  created_at: new Date().toISOString()
-              });
-          }
       });
-      
-      const finalPayloads = Array.from(uniqueMap.values());
-
-      const { error } = await supabase
-        .from('patients')
-        .upsert(finalPayloads, { 
-            onConflict: 'doctor_id, name',
-            ignoreDuplicates: false 
-        });
-
-      if (error) throw error;
-
-      successCount = finalPayloads.length;
-      toast.success(`Éxito total.`, {
-          description: `${successCount} expedientes unificados (Datos de ${validPayloads.length} filas combinados).`
-      });
-      
-      onComplete();
-      onClose();
 
     } catch (e: any) {
-      console.error(e);
-      toast.error(`Error: ${e.message}`);
-    } finally {
-      setIsProcessing(false);
+      setIsLoading(false);
+      setError(e.message);
     }
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/80 backdrop-blur-sm p-4 animate-in fade-in">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-700 flex flex-col max-h-[90vh]">
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in">
+      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl border border-slate-200 dark:border-slate-800 flex flex-col max-h-[90vh]">
         
         <div className="p-5 border-b border-slate-200 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-800/50 rounded-t-2xl">
           <div>
             <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-              <Database className="text-indigo-500"/> Importador ETL v2
+              <Database className="text-emerald-600"/> Importador ETL v5.3 (Producción)
             </h2>
-            <p className="text-xs text-slate-500 mt-1">Fusión de Duplicados + Cálculo de Edad</p>
+            <p className="text-xs text-slate-500 mt-1">Deduplicación Activa + Parser Robusto</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors"><X size={20}/></button>
         </div>
 
-        <div className="p-6 overflow-y-auto">
-          {step === 1 ? (
-            <div className="text-center py-10 border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl hover:bg-slate-50 dark:hover:bg-slate-800/30">
-              <div className="w-16 h-16 bg-indigo-100 dark:bg-indigo-900/30 rounded-full flex items-center justify-center mx-auto mb-4">
-                <Upload className="text-indigo-600 dark:text-indigo-400" size={32}/>
-              </div>
-              <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-2">Sube tu Excel</h3>
-              <p className="text-sm text-slate-500 max-w-xs mx-auto mb-6">Si tienes varias filas del mismo paciente, se unirán en un solo historial.</p>
-              
-              <label className="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl font-bold cursor-pointer shadow-lg inline-flex items-center gap-2">
-                <Upload size={18}/>
-                Seleccionar Archivo
-                <input type="file" accept=".csv" className="hidden" onChange={handleFileUpload} />
-              </label>
-            </div>
-          ) : (
-            <div className="space-y-6">
-              <div className="flex items-start gap-3 p-4 bg-blue-50 dark:bg-blue-900/20 border border-blue-100 dark:border-blue-800 rounded-lg">
-                <ShieldCheck className="text-blue-600 shrink-0 mt-0.5" size={20}/>
-                <div className="text-sm text-blue-800 dark:text-blue-200">
-                  <span className="font-bold block mb-1">Mapeo Inteligente</span>
-                  Confirma las columnas. El sistema detectó <strong>{rawFile.length}</strong> filas y las fusionará en pacientes únicos.
+        <div className="p-8 overflow-y-auto space-y-6">
+          
+          <Alert className="bg-blue-50 text-blue-900 border-blue-200">
+            <ShieldCheck className="h-4 w-4 text-blue-600" />
+            <AlertTitle>Modo Seguro Activado</AlertTitle>
+            <AlertDescription className="text-xs mt-1">
+              Este sistema detectará duplicados en el archivo y <strong>fusionará sus historiales</strong> en un solo expediente cronológico.
+              <br/>
+              Las edades (ej: "33") se convertirán automáticamente a fechas de nacimiento (ej: "1991-01-01").
+            </AlertDescription>
+          </Alert>
+
+          {!stats ? (
+            <div className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-xl p-10 text-center hover:bg-slate-50 dark:hover:bg-slate-800/50 transition-colors relative group">
+              <input 
+                type="file" 
+                accept=".csv"
+                onChange={handleFileUpload}
+                disabled={isLoading}
+                className="absolute inset-0 w-full h-full opacity-0 cursor-pointer disabled:cursor-not-allowed z-10"
+              />
+              <div className="flex flex-col items-center gap-4">
+                <div className="p-4 bg-emerald-100 dark:bg-emerald-900/30 rounded-full group-hover:scale-110 transition-transform">
+                  {isLoading ? <Loader2 className="w-8 h-8 text-emerald-600 animate-spin" /> : <Upload className="w-8 h-8 text-emerald-600" />}
+                </div>
+                <div>
+                  <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200">Sube tu archivo CSV</h3>
+                  <p className="text-sm text-slate-500 mt-1">Arrastra el archivo aquí o haz clic para buscar</p>
                 </div>
               </div>
-              
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-                {Object.keys(columnMap).map(key => (
-                  <div key={key} className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <label className="text-xs uppercase font-extrabold text-slate-400 block mb-2 tracking-wider">{key.replace('_', ' ')}</label>
-                    <select 
-                      value={columnMap[key]} 
-                      onChange={(e) => setColumnMap({...columnMap, [key]: e.target.value})}
-                      className="w-full p-2.5 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-lg text-sm"
-                    >
-                      <option value="">-- Ignorar --</option>
-                      {headers.map(h => <option key={h} value={h}>{h}</option>)}
-                    </select>
-                  </div>
-                ))}
-              </div>
             </div>
+          ) : (
+             <div className="space-y-6">
+               <div className="grid grid-cols-3 gap-4">
+                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 text-center">
+                    <div className="text-2xl font-bold text-slate-700">{stats.processed}</div>
+                    <div className="text-xs text-slate-500 uppercase font-bold tracking-wider">Filas Leídas</div>
+                 </div>
+                 <div className="bg-amber-50 p-4 rounded-xl border border-amber-200 text-center">
+                    <div className="text-2xl font-bold text-amber-700">{stats.merged}</div>
+                    <div className="text-xs text-amber-600 uppercase font-bold tracking-wider">Fusionados</div>
+                 </div>
+                 <div className="bg-emerald-50 p-4 rounded-xl border border-emerald-200 text-center">
+                    <div className="text-2xl font-bold text-emerald-700">{stats.success}</div>
+                    <div className="text-xs text-emerald-600 uppercase font-bold tracking-wider">Pacientes Únicos</div>
+                 </div>
+               </div>
+               
+               <div className="flex justify-center">
+                  <button 
+                    onClick={onClose}
+                    className="px-6 py-2 bg-slate-900 text-white rounded-lg font-bold hover:bg-slate-800 transition-colors"
+                  >
+                    Finalizar Importación
+                  </button>
+               </div>
+             </div>
           )}
-        </div>
 
-        {step === 2 && (
-            <div className="p-5 border-t border-slate-200 dark:border-slate-800 bg-slate-50 dark:bg-slate-900 flex justify-end gap-3 rounded-b-2xl">
-                <button onClick={() => setStep(1)} className="px-5 py-2.5 text-slate-600 font-bold hover:bg-slate-200 rounded-lg">Atrás</button>
-                <button 
-                    onClick={executeETL} 
-                    disabled={isProcessing || !columnMap.name}
-                    className="px-6 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white font-bold rounded-xl flex items-center gap-2 shadow-lg disabled:opacity-50"
-                >
-                    {isProcessing ? <Loader2 className="animate-spin" size={18}/> : <RefreshCw size={18}/>}
-                    {isProcessing ? "Procesando..." : "Importar y Unificar"}
-                </button>
-            </div>
-        )}
+          {error && (
+            <Alert variant="destructive">
+              <AlertTriangle className="h-4 w-4" />
+              <AlertTitle>Error</AlertTitle>
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
+
+        </div>
       </div>
     </div>
   );
-};
-
-export default PatientImporter;
+}
