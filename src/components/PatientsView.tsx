@@ -15,11 +15,10 @@ import ClinicalHistoryPDF from './ClinicalHistoryPDF';
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { PatientWizard } from './PatientWizard';
 import { InsightsPanel } from './InsightsPanel'; 
-import PatientDashboard from './PatientDashboard'; // ✅ Corregido para estar en la misma carpeta
+import PatientDashboard from './PatientDashboard'; 
 import { GeminiMedicalService } from '../services/GeminiMedicalService'; 
 import { MedicalDataService } from '../services/MedicalDataService';
 
-// ✅ CORRECCIÓN DE TIPO: Usamos Omit para evitar conflictos con la definición base de 'age'
 interface PatientData extends Omit<Partial<Patient>, 'age'> {
   id: string;
   name: string; 
@@ -30,7 +29,7 @@ interface PatientData extends Omit<Partial<Patient>, 'age'> {
   history?: string;
   created_at?: string;
   curp?: string; 
-  birth_date?: string; // Aseguramos compatibilidad con PatientDashboard
+  birth_date?: string; 
 }
 
 interface ConsultationRecord {
@@ -48,7 +47,6 @@ const PatientsView: React.FC = () => {
   const [editingPatient, setEditingPatient] = useState<PatientData | null>(null);
   const [selectedPatientForRx, setSelectedPatientForRx] = useState<PatientData | null>(null);
   
-  // ✅ ESTADO PARA DASHBOARD V7.0
   const [selectedDashboardPatient, setSelectedDashboardPatient] = useState<PatientData | null>(null);
     
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
@@ -60,13 +58,29 @@ const PatientsView: React.FC = () => {
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
   const [analyzingPatientName, setAnalyzingPatientName] = useState('');
 
-  // ✅ ESTADO PARA SELECCIÓN MASIVA
   const [selectedIds, setSelectedIds] = useState<string[]>([]);
 
   useEffect(() => {
     fetchPatients();
     fetchDoctorProfile();
   }, []);
+
+  // --- HELPER: CÁLCULO DE EDAD DINÁMICA ---
+  const calculateDynamicAge = (dob: string | undefined | null): number | string => {
+      if (!dob) return 0;
+      try {
+          const birthDate = new Date(dob);
+          const today = new Date();
+          let age = today.getFullYear() - birthDate.getFullYear();
+          const m = today.getMonth() - birthDate.getMonth();
+          if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+              age--;
+          }
+          return age >= 0 ? age : 0;
+      } catch (e) {
+          return 0;
+      }
+  };
 
   const fetchPatients = async () => {
     const { data: { user } } = await supabase.auth.getUser();
@@ -82,7 +96,12 @@ const PatientsView: React.FC = () => {
       console.error("Error fetching patients:", error); 
       toast.error('Error al cargar pacientes'); 
     } else { 
-      setPatients((data as unknown as PatientData[]) || []); 
+      // ✅ CORRECCIÓN DE EDAD: Si 'age' es 0 o null, la calculamos desde 'birth_date'
+      const processedPatients = (data as any[]).map(p => ({
+          ...p,
+          age: (p.age && p.age > 0) ? p.age : calculateDynamicAge(p.birth_date)
+      }));
+      setPatients(processedPatients); 
     }
   };
 
@@ -94,7 +113,6 @@ const PatientsView: React.FC = () => {
     }
   };
 
-  // ✅ LÓGICA DE SELECCIÓN
   const filteredPatients = patients.filter(p => 
     (p.name || '').toLowerCase().includes(searchTerm.toLowerCase()) || 
     (p.email || '').toLowerCase().includes(searchTerm.toLowerCase())
@@ -162,13 +180,11 @@ const PatientsView: React.FC = () => {
       }
   };
 
-  // ✅ NUEVO HANDLER: Abrir el Dashboard V7.0
   const handleViewHistory = (patient: PatientData) => {
-      // Normalizamos el objeto para que coincida con lo que espera el Dashboard
       setSelectedDashboardPatient({
           id: patient.id,
           name: patient.name,
-          birth_date: patient.birth_date, // Importante para V7
+          birth_date: patient.birth_date, 
           email: patient.email,
           phone: patient.phone,
           gender: patient.gender,
@@ -249,13 +265,11 @@ const PatientsView: React.FC = () => {
   return (
     <div className="p-4 md:p-6 max-w-7xl mx-auto pb-24 md:pb-6">
       
-      {/* HEADER */}
       <div className="flex justify-between items-center mb-6">
         <div><h1 className="text-2xl font-bold text-slate-800 dark:text-white">Pacientes</h1><p className="text-slate-500 dark:text-slate-400 text-sm">Directorio clínico</p></div>
         <button onClick={() => { setEditingPatient(null); setIsModalOpen(true); }} className="bg-brand-teal hover:bg-teal-600 text-white px-4 py-2 rounded-xl font-bold flex items-center gap-2 transition-all shadow-lg shadow-teal-500/20 active:scale-95"><UserPlus size={20} /> <span className="hidden sm:inline">Nuevo</span></button>
       </div>
 
-      {/* ✅ BARRA DE ACCIONES FLOTANTE (SELECCIÓN MÚLTIPLE) */}
       {selectedIds.length > 0 && (
           <div className="mb-4 p-4 bg-indigo-50 dark:bg-indigo-900/20 border border-indigo-100 dark:border-indigo-800 rounded-xl flex justify-between items-center animate-fade-in-down">
               <div className="flex items-center gap-3">
@@ -275,7 +289,6 @@ const PatientsView: React.FC = () => {
           </div>
       )}
 
-      {/* BUSCADOR */}
       <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 mb-4">
           <div className="relative"><Search className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" size={20} /><input type="text" placeholder="Buscar paciente por nombre..." className="w-full pl-10 pr-4 py-3 bg-transparent border-none rounded-xl text-slate-700 dark:text-slate-200 focus:ring-0 placeholder:text-slate-400" value={searchTerm} onChange={(e) => setSearchTerm(e.target.value)} /></div>
       </div>
