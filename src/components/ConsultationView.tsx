@@ -287,8 +287,17 @@ const ConsultationView: React.FC = () => {
       if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
           try {
               const parsed = JSON.parse(trimmed);
+              // --- FIX: LEER 'clinicalNote' (la llave del Importador v6.0) ---
+              if (parsed.clinicalNote && typeof parsed.clinicalNote === 'string' && parsed.clinicalNote.trim() !== "") {
+                   return parsed.clinicalNote;
+              }
+              // Fallback a legacyNote si clinicalNote no existe
               if (parsed.legacyNote && typeof parsed.legacyNote === 'string' && parsed.legacyNote.trim() !== "") {
                   return parsed.legacyNote;
+              }
+               // Fallback a resumen_clinico (Importador v5.2)
+              if (parsed.resumen_clinico && typeof parsed.resumen_clinico === 'string' && parsed.resumen_clinico.trim() !== "") {
+                  return parsed.resumen_clinico;
               }
               return ""; 
           } catch (e) {
@@ -1122,7 +1131,7 @@ const ConsultationView: React.FC = () => {
                                      </span>
                                      <div className="p-2 bg-white dark:bg-slate-900 rounded border border-amber-100 dark:border-amber-900/50">
                                           <p className="italic opacity-100 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
-                                             {activeMedicalContext.lastConsultation.summary}
+                                              {activeMedicalContext.lastConsultation.summary}
                                           </p>
                                      </div>
                                 </div>
