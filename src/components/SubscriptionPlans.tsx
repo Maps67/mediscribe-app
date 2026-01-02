@@ -12,7 +12,7 @@ export const SubscriptionPlans = () => {
   const handleSubscribe = (plan: string) => {
     // AQUÍ PONDREMOS TU LINK DE STRIPE MÁS ADELANTE
     // Por ahora, simula la acción o lleva a WhatsApp de ventas
-    const message = `Hola Pixelarte, quiero contratar el plan ${plan} de MediScribe.`;
+    const message = `Hola Pixelarte, quiero contratar el plan ${plan} de VitalScribe.`;
     window.open(`https://wa.me/5213347211199?text=${encodeURIComponent(message)}`, '_blank');
   };
 

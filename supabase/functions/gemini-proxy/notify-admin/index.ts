@@ -19,10 +19,10 @@ serve(async (req) => {
     console.log("Procesando alerta para:", emailUsuario)
 
     const { data, error } = await resend.emails.send({
-      from: "MediScribe Alerta <onboarding@resend.dev>",
+      from: "VitalScribe Alerta <onboarding@resend.dev>",
       // CAMBIA ESTO POR TU CORREO REAL:
       to: ["contacto@pixelartestudio.art"], 
-      subject: "🚨 Nuevo Usuario Registrado en MediScribe",
+      subject: "🚨 Nuevo Usuario Registrado en VitalScribe",
       html: `
         <h1>Nuevo Registro Detectado</h1>
         <p>Un nuevo médico se ha unido a la plataforma.</p>

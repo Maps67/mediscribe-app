@@ -20,7 +20,7 @@ const TermsOfService = () => {
                <span className="text-sm font-bold uppercase tracking-wider">Compliance & Trust</span>
             </div>
             <h1 className="text-3xl font-bold text-slate-900">Centro de Transparencia y Legalidad</h1>
-            <p className="text-slate-500 mt-1">Marco normativo, seguridad técnica y términos de uso de MediScribe AI.</p>
+            <p className="text-slate-500 mt-1">Marco normativo, seguridad técnica y términos de uso de VitalScribe AI.</p>
           </div>
           <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 hover:border-slate-300 shadow-sm transition-all">
             <Download size={18} />
@@ -69,7 +69,7 @@ const TermsOfService = () => {
               <div className="absolute top-0 left-0 w-1 h-full bg-teal-500"></div>
               <h3 className="text-xl font-bold text-slate-900 mb-4">Resumen Ejecutivo</h3>
               <p className="text-slate-600 leading-relaxed text-sm md:text-base">
-                **MediScribe AI (v4.0)** es una plataforma de **Inteligencia Ambiental Clínica** diseñada para mitigar el *burnout* médico. 
+                **VitalScribe AI (v4.0)** es una plataforma de **Inteligencia Ambiental Clínica** diseñada para mitigar el *burnout* médico. 
                 Opera bajo una arquitectura **Offline-First** segura y cumple con las normativas **NOM-004** y **NOM-024** como 
                 Software de Apoyo a la Gestión Administrativa, garantizando la soberanía de datos y la responsabilidad clínica humana.
               </p>
@@ -80,7 +80,7 @@ const TermsOfService = () => {
                    <div>
                       <h4 className="font-bold text-slate-800 text-sm">1. Clasificación Regulatoria (México)</h4>
                       <p className="text-slate-500 text-xs mt-1 leading-relaxed">
-                        MediScribe AI se clasifica estrictamente como <strong>Software de Gestión Administrativa y Documental</strong>. 
+                        VitalScribe AI se clasifica estrictamente como <strong>Software de Gestión Administrativa y Documental</strong>. 
                         <strong> NO es un Dispositivo Médico (SaMD):</strong> No realiza diagnósticos autónomos ni dosifica medicamentos sin supervisión.
                         <br/><br/>
                         <strong>Cumplimiento NOM-004-SSA3-2012:</strong> Integra la Ficha de Identificación completa (CURP, Tipo de Sangre) y respeta el orden de la Historia Clínica.
@@ -128,7 +128,7 @@ const TermsOfService = () => {
                   <h4 className="font-bold text-slate-700 text-sm uppercase tracking-wider">3. Soberanía de Datos</h4>
                </div>
                <p className="text-sm text-slate-600 mb-4">
-                 El médico y la institución retienen la <strong>propiedad absoluta</strong> de la información. MediScribe AI evita el "secuestro de datos" (*Vendor Lock-in*), permitiendo la exportación completa en cualquier momento.
+                 El médico y la institución retienen la <strong>propiedad absoluta</strong> de la información. VitalScribe AI evita el "secuestro de datos" (*Vendor Lock-in*), permitiendo la exportación completa en cualquier momento.
                </p>
                
                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -155,12 +155,12 @@ const TermsOfService = () => {
             <div className="space-y-6 text-sm text-slate-600">
               <section>
                 <h4 className="font-bold text-slate-800 mb-2">1. Aceptación de los Términos</h4>
-                <p>Al acceder y utilizar MediScribe AI, usted acepta cumplir con estos términos. El servicio está destinado exclusivamente a profesionales de la salud debidamente acreditados.</p>
+                <p>Al acceder y utilizar VitalScribe AI, usted acepta cumplir con estos términos. El servicio está destinado exclusivamente a profesionales de la salud debidamente acreditados.</p>
               </section>
 
               <section>
                 <h4 className="font-bold text-slate-800 mb-2">2. Responsabilidad del Usuario</h4>
-                <p>El usuario reconoce que MediScribe AI es una herramienta de asistencia para la documentación. El usuario es el único responsable de revisar, editar y aprobar la exactitud de cualquier nota clínica generada antes de guardarla en el expediente oficial del paciente.</p>
+                <p>El usuario reconoce que VitalScribe AI es una herramienta de asistencia para la documentación. El usuario es el único responsable de revisar, editar y aprobar la exactitud de cualquier nota clínica generada antes de guardarla en el expediente oficial del paciente.</p>
               </section>
 
               <section>
@@ -170,7 +170,7 @@ const TermsOfService = () => {
 
               <section>
                 <h4 className="font-bold text-slate-800 mb-2">4. Limitación de Responsabilidad</h4>
-                <p>MediScribe AI no será responsable por decisiones médicas, diagnósticos o tratamientos realizados basándose en la documentación generada por el sistema. El juicio clínico humano prevalece en todo momento.</p>
+                <p>VitalScribe AI no será responsable por decisiones médicas, diagnósticos o tratamientos realizados basándose en la documentación generada por el sistema. El juicio clínico humano prevalece en todo momento.</p>
               </section>
             </div>
           </div>

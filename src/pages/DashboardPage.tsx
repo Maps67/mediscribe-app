@@ -493,7 +493,7 @@ const Dashboard: React.FC = () => {
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans w-full pb-32 md:pb-8 relative overflow-hidden">
       
       <div className="md:hidden px-5 py-4 flex justify-between items-center bg-white sticky top-0 z-30 shadow-sm">
-        <span className="font-bold text-lg text-indigo-700">MediScribe</span>
+        <span className="font-bold text-lg text-indigo-700">VitalScribe</span>
         <div className="h-8 w-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
       </div>
 

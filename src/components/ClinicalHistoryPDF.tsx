@@ -481,7 +481,7 @@ const ClinicalHistoryPDF: React.FC<ClinicalHistoryPDFProps> = ({
         <Text 
           style={styles.footer} 
           render={({ pageNumber, totalPages }) => (
-            `Documento generado electrónicamente por MediScribe. Confidencialidad Médico-Paciente garantizada. - Pág. ${pageNumber} de ${totalPages}`
+            `Documento generado electrónicamente por VitalScribe. Confidencialidad Médico-Paciente garantizada. - Pág. ${pageNumber} de ${totalPages}`
           )} 
           fixed 
         />

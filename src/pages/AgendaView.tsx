@@ -66,7 +66,7 @@ const getCalendarLink = (appt: any, provider: CalendarProvider) => {
   const endDate = new Date(startDate.getTime() + duration * 60000);
   
   const title = `Consulta: ${appt.title || appt.patient_name}`;
-  const description = `Tipo: ${appt.type}\nNotas: ${appt.notes || ''}\n---\nGenerado por MediScribe AI`;
+  const description = `Tipo: ${appt.type}\nNotas: ${appt.notes || ''}\n---\nGenerado por VitalScribe AI`;
   const location = 'Consultorio';
   const formatDate = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
 
@@ -139,7 +139,7 @@ const SyncConfigModal = ({ isOpen, onClose, currentProvider, setProvider }: { is
           <div className="mb-6 bg-teal-50 border border-teal-100 rounded-lg p-4 text-sm text-teal-800">
             <p className="font-bold mb-1">¿Cómo funciona?</p>
             <p className="opacity-90 leading-relaxed">
-              MediScribe genera enlaces inteligentes para exportar tus citas. 
+              VitalScribe genera enlaces inteligentes para exportar tus citas. 
               Selecciona tu ecosistema preferido para que el botón de "Sincronizar" se adapte a tu flujo de trabajo diario.
             </p>
           </div>

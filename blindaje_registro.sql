@@ -1,5 +1,5 @@
 -- ARCHIVO DE RESPALDO: CONFIGURACIÓN DE REGISTRO BLINDADO
--- PROYECTO: MediScribe AI
+-- PROYECTO: VitalScribe AI
 -- ESTADO: Stable v2.0 - SEGURIDAD CRITICA
 
 -- 1. Políticas de Seguridad (RLS) para Doctors

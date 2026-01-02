@@ -38,7 +38,7 @@ const PrivacyPolicy: React.FC = () => {
                     <FileText size={20} className="text-teal-600"/> 1. Finalidades del Tratamiento (NOM-004)
                 </h3>
                 <p className="mb-2">
-                    Los datos personales y <strong>datos personales sensibles (referentes al estado de salud)</strong> que recabamos a través de la plataforma <strong>MediScribe AI</strong>, son utilizados para:
+                    Los datos personales y <strong>datos personales sensibles (referentes al estado de salud)</strong> que recabamos a través de la plataforma <strong>VitalScribe AI</strong>, son utilizados para:
                 </p>
                 <ul className="list-disc pl-5 space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
                     <li>Gestión de agenda médica y administración de expedientes clínicos conforme a la <strong>NOM-004-SSA3-2012</strong>.</li>
@@ -59,7 +59,7 @@ const PrivacyPolicy: React.FC = () => {
 
         <div className="bg-slate-900 text-slate-400 p-8 text-center text-xs mt-4">
             <p className="mb-2">
-                © {new Date().getFullYear()} <span className="text-white font-bold">MediScribe AI</span>. Desarrollado por PixelArte Studio.
+                © {new Date().getFullYear()} <span className="text-white font-bold">VitalScribe AI</span>. Desarrollado por PixelArte Studio.
             </p>
             <p>Todos los derechos reservados. v2.4 Golden.</p>
         </div>

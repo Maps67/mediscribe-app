@@ -10,7 +10,7 @@ export const QuickNotes: React.FC<QuickNotesProps> = ({ userId }) => {
   const [saved, setSaved] = useState(false);
 
   // Generamos una clave única por usuario para aislar los datos (Solución de Fuga de Datos)
-  const storageKey = userId ? `mediscribe_scratchpad_${userId}` : null;
+  const storageKey = userId ? `VitalScribe_scratchpad_${userId}` : null;
 
   // Cargar nota al iniciar o cuando cambia el usuario
   useEffect(() => {

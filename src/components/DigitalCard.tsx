@@ -41,7 +41,7 @@ const generateVCard = (profile: UserProfile | null) => {
         'VERSION:3.0',
         `FN:Dr. ${safeName}`,
         `N:${lastName};${firstName};Dr.;;`,
-        `ORG:MediScribe AI - ${profile.university || 'Consultorio Privado'}`,
+        `ORG:VitalScribe AI - ${profile.university || 'Consultorio Privado'}`,
         `TITLE:${profile.specialty || 'Medicina General'}`,
         `TEL;TYPE=CELL:${profile.phone || ''}`,
         `URL:${profile.website_url || ''}`,

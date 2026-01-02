@@ -1,5 +1,5 @@
 {
-  "name": "Copy of MediScribe AI",
+  "name": "Copy of VitalScribe AI",
   "description": "Asistente médico inteligente que automatiza la creación de expedientes y la comunicación con pacientes vía WhatsApp.",
   "requestFramePermissions": [
     "microphone"

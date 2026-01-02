@@ -9,7 +9,7 @@ import { registerSW } from 'virtual:pwa-register'
 const updateSW = registerSW({
   onNeedRefresh() {
     // Si hay una nueva versión, preguntamos al usuario o actualizamos
-    if (confirm('Nueva versión de MediScribe disponible. ¿Actualizar?')) {
+    if (confirm('Nueva versión de VitalScribe disponible. ¿Actualizar?')) {
       updateSW(true);
     }
   },

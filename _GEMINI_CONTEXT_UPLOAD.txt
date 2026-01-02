@@ -1,4 +1,4 @@
-DOCUMENTACIÓN DE CONTEXTO TÉCNICO - MEDISCRIBE AI
+DOCUMENTACIÓN DE CONTEXTO TÉCNICO - VitalScribe AI
 GENERADO: 2025-12-11T01:15:29.788Z
 ==================================================
 
@@ -3501,7 +3501,7 @@ define(['exports'], (function (exports) { 'use strict';
 📁 PATH: metadata.json
 --------------------------------------------------
 {
-  "name": "Copy of MediScribe AI",
+  "name": "Copy of VitalScribe AI",
   "description": "Asistente médico inteligente que automatiza la creación de expedientes y la comunicación con pacientes vía WhatsApp.",
   "requestFramePermissions": [
     "microphone"
@@ -3512,7 +3512,7 @@ define(['exports'], (function (exports) { 'use strict';
 📁 PATH: package.json
 --------------------------------------------------
 {
-  "name": "copy-of-mediscribe-ai",
+  "name": "copy-of-VitalScribe-ai",
   "private": true,
   "version": "0.0.0",
   "type": "module",
@@ -3564,7 +3564,7 @@ export default {
 --------------------------------------------------
 📁 PATH: RESTORE_GUIDE.md
 --------------------------------------------------
-Guía de Restauración - Proyecto MediScribe (v3.2)Este documento detalla cómo generar puntos de restauración y cómo recuperar el proyecto en caso de error crítico.1. Cómo crear un Punto de Restauración (Backup)Cada vez que alcances un hito estable, ejecuta el script de respaldo.Desde la Terminal de Visual Studio Code:Asegúrate de estar en la raíz del proyecto.Ejecuta el comando:.\scripts\create_restore_point.ps1
+Guía de Restauración - Proyecto VitalScribe (v3.2)Este documento detalla cómo generar puntos de restauración y cómo recuperar el proyecto en caso de error crítico.1. Cómo crear un Punto de Restauración (Backup)Cada vez que alcances un hito estable, ejecuta el script de respaldo.Desde la Terminal de Visual Studio Code:Asegúrate de estar en la raíz del proyecto.Ejecuta el comando:.\scripts\create_restore_point.ps1
 (Si PowerShell bloquea el script, ejecuta primero: Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass)Resultado:Se creará un Git Tag (ej. restore-point-v3.2-20231126-1200).Se creará un archivo .zip en la carpeta /backups.2. Método de Restauración (En caso de emergencia)Si una nueva funcionalidad rompe el proyecto, tienes dos formas de volver atrás.Opción A: Restauración vía Git (Recomendada)Este método revierte el código a un punto exacto en el tiempo sin perder el historial posterior (te mueve a un estado "detatched").Listar puntos disponibles:git tag
 Restaurar al punto deseado:# Reemplaza con el nombre exacto del tag que quieres usar
 git checkout restore-point-v3.2-YYYYMMDD-HHMM
@@ -3971,8 +3971,8 @@ const AuthView: React.FC<AuthProps> = ({
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900/90 to-teal-900/80 z-10" />
         <div className="relative z-10 max-w-lg">
           <div className="flex items-center gap-4 mb-8">
-            <img src="/pwa-192x192.png" alt="Logo MediScribe" className="w-20 h-20 rounded-2xl bg-white p-1 shadow-lg object-cover" />
-            <h1 className="text-5xl font-bold tracking-tight">MediScribe AI</h1>
+            <img src="/pwa-192x192.png" alt="Logo VitalScribe" className="w-20 h-20 rounded-2xl bg-white p-1 shadow-lg object-cover" />
+            <h1 className="text-5xl font-bold tracking-tight">VitalScribe AI</h1>
           </div>
           <h2 className="text-3xl font-bold mb-4 leading-tight">El asistente clínico inteligente para médicos modernos.</h2>
           <p className="text-slate-400 text-lg">Automatice sus notas clínicas, gestione su agenda y recupere su tiempo con el poder de la IA.</p>
@@ -4095,7 +4095,7 @@ const AuthView: React.FC<AuthProps> = ({
           {/* INICIO DEL BLOQUE REEMPLAZADO */}
           <div className="mt-8 pt-6 border-t border-slate-100 text-center text-xs text-slate-400">
             <p>
-              &copy; {new Date().getFullYear()} <strong>MediScribe AI™</strong>. Todos los derechos reservados.
+              &copy; {new Date().getFullYear()} <strong>VitalScribe AI™</strong>. Todos los derechos reservados.
             </p>
             <p className="mt-1 text-[10px] text-slate-300">
               Desarrollado por <span className="font-bold text-slate-500">PixelArte Studio</span>. 
@@ -4982,7 +4982,7 @@ const ClinicalHistoryPDF: React.FC<ClinicalHistoryPDFProps> = ({
         <Text 
           style={styles.footer} 
           render={({ pageNumber, totalPages }) => (
-            `Documento generado electrónicamente por MediScribe. Confidencialidad Médico-Paciente garantizada. - Pág. ${pageNumber} de ${totalPages}`
+            `Documento generado electrónicamente por VitalScribe. Confidencialidad Médico-Paciente garantizada. - Pág. ${pageNumber} de ${totalPages}`
           )} 
           fixed 
         />
@@ -5964,7 +5964,7 @@ const generateVCard = (profile: UserProfile | null) => {
         'VERSION:3.0',
         `FN:Dr. ${safeName}`,
         `N:${lastName};${firstName};Dr.;;`,
-        `ORG:MediScribe AI - ${profile.university || 'Consultorio Privado'}`,
+        `ORG:VitalScribe AI - ${profile.university || 'Consultorio Privado'}`,
         `TITLE:${profile.specialty || 'Medicina General'}`,
         `TEL;TYPE=CELL:${profile.phone || ''}`,
         `URL:${profile.website_url || ''}`,
@@ -8511,7 +8511,7 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
                 Su falsificación, alteración o uso indebido constituye un delito sancionado por la ley.
              </Text>
              <Text style={styles.legalText}>
-                Generado digitalmente vía MediScribe AI. {new Date().toISOString().split('T')[0]}
+                Generado digitalmente vía VitalScribe AI. {new Date().toISOString().split('T')[0]}
              </Text>
           </View>
           
@@ -8727,7 +8727,7 @@ export const QuickNotes = () => {
 
   // Cargar nota al iniciar
   useEffect(() => {
-    const savedNote = localStorage.getItem('mediscribe_scratchpad');
+    const savedNote = localStorage.getItem('VitalScribe_scratchpad');
     if (savedNote) setNote(savedNote);
   }, []);
 
@@ -8735,7 +8735,7 @@ export const QuickNotes = () => {
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     const text = e.target.value;
     setNote(text);
-    localStorage.setItem('mediscribe_scratchpad', text);
+    localStorage.setItem('VitalScribe_scratchpad', text);
     
     // Feedback visual sutil
     setSaved(true);
@@ -8745,7 +8745,7 @@ export const QuickNotes = () => {
   const clearNotes = () => {
     if (confirm('¿Borrar tus notas rápidas?')) {
       setNote('');
-      localStorage.removeItem('mediscribe_scratchpad');
+      localStorage.removeItem('VitalScribe_scratchpad');
     }
   };
 
@@ -9595,7 +9595,7 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
         <div className="p-6 flex items-center justify-between border-b border-slate-100 dark:border-slate-800 shrink-0">
           <div className="flex items-center space-x-3">
             <img src="/pwa-192x192.png" alt="Logo" className="h-10 w-10 rounded-xl shadow-sm object-cover bg-slate-50" />
-            <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">MediScribe</span>
+            <span className="text-xl font-bold text-slate-800 dark:text-white tracking-tight">VitalScribe</span>
           </div>
           <button onClick={onClose} className="md:hidden text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
             <X size={24} />
@@ -9685,13 +9685,13 @@ const SplashScreen: React.FC = () => {
             <div className="absolute inset-0 bg-brand-teal blur-xl opacity-20 rounded-full animate-pulse"></div>
             <img 
                 src="/pwa-192x192.png" 
-                alt="MediScribe Logo" 
+                alt="VitalScribe Logo" 
                 className="relative w-32 h-32 object-cover rounded-3xl shadow-2xl animate-bounce-slow"
             />
         </div>
 
         <h1 className="text-3xl font-bold text-slate-800 dark:text-white tracking-tight mb-2">
-          MediScribe <span className="text-brand-teal">AI</span>
+          VitalScribe <span className="text-brand-teal">AI</span>
         </h1>
         
         <div className="flex items-center gap-2 text-slate-400 text-sm font-medium mt-4">
@@ -9728,7 +9728,7 @@ export const SubscriptionPlans = () => {
   const handleSubscribe = (plan: string) => {
     // AQUÍ PONDREMOS TU LINK DE STRIPE MÁS ADELANTE
     // Por ahora, simula la acción o lleva a WhatsApp de ventas
-    const message = `Hola Pixelarte, quiero contratar el plan ${plan} de MediScribe.`;
+    const message = `Hola Pixelarte, quiero contratar el plan ${plan} de VitalScribe.`;
     window.open(`https://wa.me/5213347211199?text=${encodeURIComponent(message)}`, '_blank');
   };
 
@@ -10615,7 +10615,7 @@ import { registerSW } from 'virtual:pwa-register'
 const updateSW = registerSW({
   onNeedRefresh() {
     // Si hay una nueva versión, preguntamos al usuario o actualizamos
-    if (confirm('Nueva versión de MediScribe disponible. ¿Actualizar?')) {
+    if (confirm('Nueva versión de VitalScribe disponible. ¿Actualizar?')) {
       updateSW(true);
     }
   },
@@ -10701,7 +10701,7 @@ const getCalendarLink = (appt: any, provider: CalendarProvider) => {
   const endDate = new Date(startDate.getTime() + duration * 60000);
   
   const title = `Consulta: ${appt.title || appt.patient_name}`;
-  const description = `Tipo: ${appt.type}\nNotas: ${appt.notes || ''}\n---\nGenerado por MediScribe AI`;
+  const description = `Tipo: ${appt.type}\nNotas: ${appt.notes || ''}\n---\nGenerado por VitalScribe AI`;
   const location = 'Consultorio';
   const formatDate = (date: Date) => date.toISOString().replace(/-|:|\.\d\d\d/g, "");
 
@@ -10774,7 +10774,7 @@ const SyncConfigModal = ({ isOpen, onClose, currentProvider, setProvider }: { is
           <div className="mb-6 bg-teal-50 border border-teal-100 rounded-lg p-4 text-sm text-teal-800">
             <p className="font-bold mb-1">¿Cómo funciona?</p>
             <p className="opacity-90 leading-relaxed">
-              MediScribe genera enlaces inteligentes para exportar tus citas. 
+              VitalScribe genera enlaces inteligentes para exportar tus citas. 
               Selecciona tu ecosistema preferido para que el botón de "Sincronizar" se adapte a tu flujo de trabajo diario.
             </p>
           </div>
@@ -11657,7 +11657,7 @@ const Dashboard: React.FC = () => {
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans w-full pb-32 md:pb-8 relative overflow-hidden">
       
       <div className="md:hidden px-5 py-4 flex justify-between items-center bg-white sticky top-0 z-30 shadow-sm">
-        <span className="font-bold text-lg text-indigo-700">MediScribe</span>
+        <span className="font-bold text-lg text-indigo-700">VitalScribe</span>
         <div className="h-8 w-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
       </div>
 
@@ -11816,7 +11816,7 @@ const PrivacyPolicy: React.FC = () => {
                     <FileText size={20} className="text-teal-600"/> 1. Finalidades del Tratamiento (NOM-004)
                 </h3>
                 <p className="mb-2">
-                    Los datos personales y <strong>datos personales sensibles (referentes al estado de salud)</strong> que recabamos a través de la plataforma <strong>MediScribe AI</strong>, son utilizados para:
+                    Los datos personales y <strong>datos personales sensibles (referentes al estado de salud)</strong> que recabamos a través de la plataforma <strong>VitalScribe AI</strong>, son utilizados para:
                 </p>
                 <ul className="list-disc pl-5 space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
                     <li>Gestión de agenda médica y administración de expedientes clínicos conforme a la <strong>NOM-004-SSA3-2012</strong>.</li>
@@ -11837,7 +11837,7 @@ const PrivacyPolicy: React.FC = () => {
 
         <div className="bg-slate-900 text-slate-400 p-8 text-center text-xs mt-4">
             <p className="mb-2">
-                © {new Date().getFullYear()} <span className="text-white font-bold">MediScribe AI</span>. Desarrollado por PixelArte Studio.
+                © {new Date().getFullYear()} <span className="text-white font-bold">VitalScribe AI</span>. Desarrollado por PixelArte Studio.
             </p>
             <p>Todos los derechos reservados. v2.4 Golden.</p>
         </div>
@@ -11910,7 +11910,7 @@ const TermsOfService = () => {
                <span className="text-sm font-bold uppercase tracking-wider">Compliance & Trust</span>
             </div>
             <h1 className="text-3xl font-bold text-slate-900">Centro de Transparencia y Legalidad</h1>
-            <p className="text-slate-500 mt-1">Marco normativo, seguridad técnica y términos de uso de MediScribe AI.</p>
+            <p className="text-slate-500 mt-1">Marco normativo, seguridad técnica y términos de uso de VitalScribe AI.</p>
           </div>
           <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 hover:border-slate-300 shadow-sm transition-all">
             <Download size={18} />
@@ -11959,7 +11959,7 @@ const TermsOfService = () => {
               <div className="absolute top-0 left-0 w-1 h-full bg-teal-500"></div>
               <h3 className="text-xl font-bold text-slate-900 mb-4">Resumen Ejecutivo</h3>
               <p className="text-slate-600 leading-relaxed text-sm md:text-base">
-                **MediScribe AI (v4.0)** es una plataforma de **Inteligencia Ambiental Clínica** diseñada para mitigar el *burnout* médico. 
+                **VitalScribe AI (v4.0)** es una plataforma de **Inteligencia Ambiental Clínica** diseñada para mitigar el *burnout* médico. 
                 Opera bajo una arquitectura **Offline-First** segura y cumple con las normativas **NOM-004** y **NOM-024** como 
                 Software de Apoyo a la Gestión Administrativa, garantizando la soberanía de datos y la responsabilidad clínica humana.
               </p>
@@ -11970,7 +11970,7 @@ const TermsOfService = () => {
                    <div>
                       <h4 className="font-bold text-slate-800 text-sm">1. Clasificación Regulatoria (México)</h4>
                       <p className="text-slate-500 text-xs mt-1 leading-relaxed">
-                        MediScribe AI se clasifica estrictamente como <strong>Software de Gestión Administrativa y Documental</strong>. 
+                        VitalScribe AI se clasifica estrictamente como <strong>Software de Gestión Administrativa y Documental</strong>. 
                         <strong> NO es un Dispositivo Médico (SaMD):</strong> No realiza diagnósticos autónomos ni dosifica medicamentos sin supervisión.
                         <br/><br/>
                         <strong>Cumplimiento NOM-004-SSA3-2012:</strong> Integra la Ficha de Identificación completa (CURP, Tipo de Sangre) y respeta el orden de la Historia Clínica.
@@ -12018,7 +12018,7 @@ const TermsOfService = () => {
                   <h4 className="font-bold text-slate-700 text-sm uppercase tracking-wider">3. Soberanía de Datos</h4>
                </div>
                <p className="text-sm text-slate-600 mb-4">
-                 El médico y la institución retienen la <strong>propiedad absoluta</strong> de la información. MediScribe AI evita el "secuestro de datos" (*Vendor Lock-in*), permitiendo la exportación completa en cualquier momento.
+                 El médico y la institución retienen la <strong>propiedad absoluta</strong> de la información. VitalScribe AI evita el "secuestro de datos" (*Vendor Lock-in*), permitiendo la exportación completa en cualquier momento.
                </p>
                
                <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
@@ -12045,12 +12045,12 @@ const TermsOfService = () => {
             <div className="space-y-6 text-sm text-slate-600">
               <section>
                 <h4 className="font-bold text-slate-800 mb-2">1. Aceptación de los Términos</h4>
-                <p>Al acceder y utilizar MediScribe AI, usted acepta cumplir con estos términos. El servicio está destinado exclusivamente a profesionales de la salud debidamente acreditados.</p>
+                <p>Al acceder y utilizar VitalScribe AI, usted acepta cumplir con estos términos. El servicio está destinado exclusivamente a profesionales de la salud debidamente acreditados.</p>
               </section>
 
               <section>
                 <h4 className="font-bold text-slate-800 mb-2">2. Responsabilidad del Usuario</h4>
-                <p>El usuario reconoce que MediScribe AI es una herramienta de asistencia para la documentación. El usuario es el único responsable de revisar, editar y aprobar la exactitud de cualquier nota clínica generada antes de guardarla en el expediente oficial del paciente.</p>
+                <p>El usuario reconoce que VitalScribe AI es una herramienta de asistencia para la documentación. El usuario es el único responsable de revisar, editar y aprobar la exactitud de cualquier nota clínica generada antes de guardarla en el expediente oficial del paciente.</p>
               </section>
 
               <section>
@@ -12060,7 +12060,7 @@ const TermsOfService = () => {
 
               <section>
                 <h4 className="font-bold text-slate-800 mb-2">4. Limitación de Responsabilidad</h4>
-                <p>MediScribe AI no será responsable por decisiones médicas, diagnósticos o tratamientos realizados basándose en la documentación generada por el sistema. El juicio clínico humano prevalece en todo momento.</p>
+                <p>VitalScribe AI no será responsable por decisiones médicas, diagnósticos o tratamientos realizados basándose en la documentación generada por el sistema. El juicio clínico humano prevalece en todo momento.</p>
               </section>
             </div>
           </div>
@@ -12666,7 +12666,7 @@ export const GeminiMedicalService = {
 
       // Prompt Reforzado v5.4
       const prompt = `
-        ROL: Eres "MediScribe AI", Auditor de Seguridad Clínica en Tiempo Real.
+        ROL: Eres "VitalScribe AI", Auditor de Seguridad Clínica en Tiempo Real.
         ESPECIALIDAD: ${profile.role}.
         ENFOQUE: ${profile.focus}
         
@@ -12900,7 +12900,7 @@ export class MedicalDataService {
       const url = URL.createObjectURL(blob);
       const link = document.createElement("a");
       link.href = url;
-      link.download = `MediScribe_Backup_${new Date().toISOString().slice(0,10)}.csv`;
+      link.download = `VitalScribe_Backup_${new Date().toISOString().slice(0,10)}.csv`;
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
@@ -13589,10 +13589,10 @@ serve(async (req) => {
     console.log("Procesando alerta para:", emailUsuario)
 
     const { data, error } = await resend.emails.send({
-      from: "MediScribe Alerta <onboarding@resend.dev>",
+      from: "VitalScribe Alerta <onboarding@resend.dev>",
       // CAMBIA ESTO POR TU CORREO REAL:
       to: ["contacto@pixelartestudio.art"], 
-      subject: "🚨 Nuevo Usuario Registrado en MediScribe",
+      subject: "🚨 Nuevo Usuario Registrado en VitalScribe",
       html: `
         <h1>Nuevo Registro Detectado</h1>
         <p>Un nuevo médico se ha unido a la plataforma.</p>
@@ -13738,8 +13738,8 @@ export default defineConfig({
       
       // ELIMINAMOS "WORKBOX": Dejamos que Vite use la configuración estándar de Google
       manifest: {
-        name: 'MediScribe AI',
-        short_name: 'MediScribe', // Regresamos al nombre corto original
+        name: 'VitalScribe AI',
+        short_name: 'VitalScribe', // Regresamos al nombre corto original
         description: 'Asistente Médico Inteligente',
         theme_color: '#0d9488',
         background_color: '#0f172a',

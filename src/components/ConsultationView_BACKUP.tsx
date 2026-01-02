@@ -905,7 +905,7 @@ const ConsultationView: React.FC = () => {
                                       <div className="flex items-start justify-end gap-1.5 max-w-xs text-right opacity-60 hover:opacity-100 transition-opacity duration-300 group cursor-help">
                                         <ShieldCheck className="w-3 h-3 text-slate-400 mt-[2px] flex-shrink-0 group-hover:text-brand-teal" />
                                         <p className="text-[10px] leading-3 text-slate-400 group-hover:text-slate-600 transition-colors">
-                                          <span className="font-semibold text-brand-teal">MediScribe AI</span> es soporte clínico. 
+                                          <span className="font-semibold text-brand-teal">VitalScribe AI</span> es soporte clínico. 
                                           La responsabilidad final del tratamiento es exclusiva del médico tratante.
                                         </p>
                                       </div>

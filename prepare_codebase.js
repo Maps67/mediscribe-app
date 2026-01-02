@@ -1,5 +1,5 @@
 /**
- * 🛡️ MEDISCRIBE CONTEXT PREPARER (Versión ESM)
+ * 🛡️ VitalScribe CONTEXT PREPARER (Versión ESM)
  * Script compatible con "type": "module"
  */
 
@@ -80,7 +80,7 @@ function generateContext() {
 
   console.log(`📂 Archivos encontrados: ${filteredFiles.length}`);
   
-  let content = `DOCUMENTACIÓN DE CONTEXTO TÉCNICO - MEDISCRIBE AI\n`;
+  let content = `DOCUMENTACIÓN DE CONTEXTO TÉCNICO - VitalScribe AI\n`;
   content += `GENERADO: ${new Date().toISOString()}\n`;
   content += `==================================================\n\n`;
 
