@@ -11,10 +11,11 @@ import QuickRxModal from './QuickRxModal';
 import FormattedText from './FormattedText'; 
 import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
-import ClinicalHistoryPDF from '../components/ClinicalHistoryPDF'; 
+import ClinicalHistoryPDF from './ClinicalHistoryPDF'; 
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { PatientWizard } from './PatientWizard';
 import { InsightsPanel } from './InsightsPanel'; 
+import PatientDashboard from './PatientDashboard'; // ✅ Corregido para estar en la misma carpeta
 import { GeminiMedicalService } from '../services/GeminiMedicalService'; 
 import { MedicalDataService } from '../services/MedicalDataService';
 
@@ -29,6 +30,7 @@ interface PatientData extends Omit<Partial<Patient>, 'age'> {
   history?: string;
   created_at?: string;
   curp?: string; 
+  birth_date?: string; // Aseguramos compatibilidad con PatientDashboard
 }
 
 interface ConsultationRecord {
@@ -43,16 +45,13 @@ const PatientsView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
     
   const [isModalOpen, setIsModalOpen] = useState(false);
-  const [isHistoryOpen, setIsHistoryOpen] = useState(false);
-  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
-    
   const [editingPatient, setEditingPatient] = useState<PatientData | null>(null);
   const [selectedPatientForRx, setSelectedPatientForRx] = useState<PatientData | null>(null);
-  const [viewingPatient, setViewingPatient] = useState<PatientData | null>(null); 
+  
+  // ✅ ESTADO PARA DASHBOARD V7.0
+  const [selectedDashboardPatient, setSelectedDashboardPatient] = useState<PatientData | null>(null);
     
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
-  const [patientHistory, setPatientHistory] = useState<ConsultationRecord[]>([]);
-  const [loadingHistory, setLoadingHistory] = useState(false);
 
   const [expandedPatientId, setExpandedPatientId] = useState<string | null>(null);
 
@@ -163,117 +162,18 @@ const PatientsView: React.FC = () => {
       }
   };
 
-  const handleViewHistory = async (patient: PatientData) => {
-      setViewingPatient(patient);
-      setIsHistoryOpen(true);
-      setIsGalleryOpen(false); 
-      setLoadingHistory(true);
-      setPatientHistory([]); 
-
-      try {
-          const { data, error } = await supabase.from('consultations').select('*').eq('patient_id', patient.id).order('created_at', { ascending: false });
-          if (error) throw error;
-          setPatientHistory(data || []);
-      } catch (error) {
-          console.error(error);
-          toast.error("Error al cargar el expediente");
-      } finally { setLoadingHistory(false); }
-  };
-
-  const handleOpenFiles = (patient: PatientData) => {
-      handleViewHistory(patient); 
-      setIsGalleryOpen(true);
-  };
-
-  const handleShareNoteWhatsApp = (consultation: ConsultationRecord) => {
-      if (!viewingPatient) return;
-      const drName = doctorProfile?.full_name || 'su médico';
-      let content = consultation.summary;
-      if (content.trim().startsWith('{')) { 
-          try { content = `Resumen de consulta del día ${new Date(consultation.created_at).toLocaleDateString()}.`; } catch {}
-      }
-      const message = `*Historial Médico - Dr. ${drName}*\n*Paciente:* ${viewingPatient.name}\n*Fecha:* ${new Date(consultation.created_at).toLocaleDateString()}\n\n${content.substring(0, 1000)}...\n\n*Saludos.*`;
-      const whatsappUrl = viewingPatient.phone && viewingPatient.phone.length >= 10 
-        ? `https://wa.me/${viewingPatient.phone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`
-        : `https://wa.me/?text=${encodeURIComponent(message)}`;
-      window.open(whatsappUrl, '_blank');
-  };
-
-  const handlePrintNote = async (consultation: ConsultationRecord) => {
-      if (!viewingPatient || !doctorProfile) return;
-      try {
-          const blob = await pdf(
-            <PrescriptionPDF 
-                doctorName={doctorProfile.full_name} 
-                specialty={doctorProfile.specialty} 
-                license={doctorProfile.license_number} 
-                phone={doctorProfile.phone} 
-                university={doctorProfile.university} 
-                address={doctorProfile.address} 
-                logoUrl={doctorProfile.logo_url} 
-                signatureUrl={doctorProfile.signature_url} 
-                patientName={viewingPatient.name} 
-                date={new Date(consultation.created_at).toLocaleDateString()} 
-                content={consultation.summary} 
-                documentTitle="NOTA DE EVOLUCIÓN"
-            />
-          ).toBlob();
-          window.open(URL.createObjectURL(blob), '_blank');
-      } catch (e) { toast.error("Error generando PDF"); }
-  };
-
-  const handleDownloadFullHistory = async () => {
-      if (!viewingPatient || !doctorProfile || patientHistory.length === 0) {
-          return toast.error("No hay datos suficientes para generar el historial.");
-      }
-
-      const toastId = toast.loading("Generando expediente completo...");
-
-      try {
-          let patientHistoryText = "No registrado";
-          try {
-             if (viewingPatient.history) {
-                 const h = JSON.parse(viewingPatient.history);
-                 patientHistoryText = h.background || h.legacyNote || "No registrado";
-             }
-          } catch(e) {}
-
-          const blob = await pdf(
-              <ClinicalHistoryPDF 
-                  doctorProfile={{
-                      full_name: doctorProfile.full_name,
-                      specialty: doctorProfile.specialty,
-                      license_number: doctorProfile.license_number,
-                      university: doctorProfile.university,
-                      address: doctorProfile.address,
-                      phone: doctorProfile.phone,
-                      logo_url: doctorProfile.logo_url
-                  }}
-                  patientData={{
-                      name: viewingPatient.name,
-                      age: viewingPatient.age?.toString(),
-                      gender: viewingPatient.gender,
-                      history: patientHistoryText
-                  }}
-                  consultations={patientHistory}
-                  generatedDate={new Date().toLocaleDateString()}
-              />
-          ).toBlob();
-
-          const url = URL.createObjectURL(blob);
-          const link = document.createElement('a');
-          link.href = url;
-          link.download = `Expediente_${viewingPatient.name.replace(/\s+/g, '_')}.pdf`;
-          document.body.appendChild(link);
-          link.click();
-          document.body.removeChild(link);
-          
-          toast.success("Expediente descargado correctamente", { id: toastId });
-
-      } catch (error) {
-          console.error("Error PDF Historial:", error);
-          toast.error("Error al generar el documento", { id: toastId });
-      }
+  // ✅ NUEVO HANDLER: Abrir el Dashboard V7.0
+  const handleViewHistory = (patient: PatientData) => {
+      // Normalizamos el objeto para que coincida con lo que espera el Dashboard
+      setSelectedDashboardPatient({
+          id: patient.id,
+          name: patient.name,
+          birth_date: patient.birth_date, // Importante para V7
+          email: patient.email,
+          phone: patient.phone,
+          gender: patient.gender,
+          age: patient.age
+      });
   };
 
   const handleDelete = async (id: string) => {
@@ -319,8 +219,6 @@ const PatientsView: React.FC = () => {
         setExpandedPatientId(id); 
     }
   };
-
-  const renderNoteContent = (summary: string) => { return <FormattedText content={summary} />; };
 
   const getCriticalTags = (historyJSON: string | undefined) => {
       if (!historyJSON) return null;
@@ -550,8 +448,8 @@ const PatientsView: React.FC = () => {
                                 pathological: h.background,
                                 nonPathological: h.lifestyle,
                                 family: h.family,
-                                allergies: h.legacyNote || h.allergies,
                                 obgyn: h.obgyn,
+                                allergies: h.legacyNote || h.allergies,
                                 insurance: h.admin?.insurance,
                                 rfc: h.admin?.rfc,
                                 invoice: h.admin?.invoice,
@@ -597,49 +495,19 @@ const PatientsView: React.FC = () => {
         </div>
       )}
 
-      {isHistoryOpen && viewingPatient && (
-        <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4 backdrop-blur-sm">
-          <div className="bg-white dark:bg-slate-900 w-full max-w-4xl h-[85vh] rounded-2xl shadow-2xl overflow-hidden animate-fade-in-up flex flex-col relative">
-            <div className="p-6 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950">
-              <div><h3 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-2"><FileText className="text-brand-teal"/> Expediente Clínico</h3><p className="text-sm text-slate-500 dark:text-slate-400">Paciente: <span className="font-bold">{viewingPatient.name}</span></p></div>
-              <div className="flex items-center gap-2">
-                  <button onClick={handleDownloadFullHistory} className="hidden md:flex p-2 bg-indigo-50 text-indigo-600 rounded-lg hover:bg-indigo-100 dark:bg-indigo-900/20 dark:text-indigo-300 font-bold text-xs items-center gap-2 transition-colors">
-                      <FileText size={16}/> Descargar Historial
-                  </button>
-
-                  <button onClick={() => setIsGalleryOpen(!isGalleryOpen)} className={`p-2 rounded-full transition-colors flex items-center gap-2 text-sm font-bold border ${isGalleryOpen ? 'bg-teal-100 text-brand-teal border-teal-200' : 'bg-white dark:bg-slate-800 text-slate-500 border-slate-200 dark:border-slate-700 hover:text-brand-teal'}`} title="Archivos"><FolderOpen size={18}/><span>Archivos</span></button>
-                  <div className="h-6 w-px bg-slate-300 dark:bg-slate-700 mx-1"></div>
-                  <button onClick={() => setIsHistoryOpen(false)} className="p-2 bg-white dark:bg-slate-800 rounded-full text-slate-400 hover:text-red-500 shadow-sm transition-colors"><X size={24}/></button>
-              </div>
-            </div>
-            
-            <div className="flex-1 overflow-hidden relative flex">
-                <div className={`flex-1 overflow-y-auto p-6 bg-slate-100 dark:bg-slate-900 transition-all duration-300 ${isGalleryOpen ? 'w-1/2 opacity-50 md:opacity-100' : 'w-full'}`}>
-                    {loadingHistory ? ( <div className="flex flex-col items-center justify-center h-full text-slate-400 gap-3"><div className="animate-spin rounded-full h-10 w-10 border-b-2 border-brand-teal"></div><p>Cargando historial...</p></div> ) : patientHistory.length === 0 ? ( <div className="flex flex-col items-center justify-center h-full text-slate-400 opacity-70"><FileCode size={64} strokeWidth={1} className="mb-4"/><p className="text-lg">No hay consultas registradas aún.</p></div> ) : (
-                        <div className="space-y-6">
-                            {patientHistory.map((consultation) => (
-                                <div key={consultation.id} className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                                    <div className="bg-slate-50 dark:bg-slate-950 p-3 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
-                                            <div className="flex items-center gap-3 text-sm font-medium text-slate-600 dark:text-slate-300">
-                                                <div className="flex items-center gap-1 bg-white dark:bg-slate-800 px-2 py-1 rounded border dark:border-slate-700"><Calendar size={14} className="text-brand-teal"/>{new Date(consultation.created_at).toLocaleDateString()}</div>
-                                            </div>
-                                            <div className="flex gap-2">
-                                                <button onClick={() => handleShareNoteWhatsApp(consultation)} className="p-1.5 text-green-600 hover:bg-green-50 dark:hover:bg-green-900/20 rounded border border-transparent hover:border-green-200 transition-colors"><Share2 size={16}/></button>
-                                                <button onClick={() => handlePrintNote(consultation)} className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-blue-900/20 rounded border border-transparent hover:border-blue-200 transition-colors" title="Descargar PDF"><Download size={16}/></button>
-                                            </div>
-                                    </div>
-                                    <div className="p-5 text-sm text-slate-700 dark:text-slate-300 leading-relaxed">
-                                            {renderNoteContent(consultation.summary)}
-                                    </div>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-                </div>
-                {isGalleryOpen && (<div className="w-full md:w-[400px] border-l dark:border-slate-800 bg-white dark:bg-slate-900 shadow-2xl animate-slide-in-right absolute right-0 h-full z-20 flex flex-col"><div className="p-4 border-b dark:border-slate-800 bg-slate-50 dark:bg-slate-950/50 flex justify-between items-center"><h4 className="font-bold text-slate-700 dark:text-white flex items-center gap-2"><Paperclip size={16}/> Archivos del Paciente</h4><button onClick={() => setIsGalleryOpen(false)} className="md:hidden p-1 text-slate-400"><X size={16}/></button></div><div className="flex-1 overflow-y-auto p-0"><DoctorFileGallery patientId={viewingPatient.id} /></div></div>)}
-            </div>
-          </div>
-        </div>
+      {/* ✅ INTEGRACIÓN: DASHBOARD DE PACIENTE V7.0 */}
+      {selectedDashboardPatient && (
+          <PatientDashboard 
+              patient={{
+                  id: selectedDashboardPatient.id,
+                  name: selectedDashboardPatient.name,
+                  birth_date: selectedDashboardPatient.birth_date,
+                  email: selectedDashboardPatient.email,
+                  phone: selectedDashboardPatient.phone,
+                  gender: selectedDashboardPatient.gender
+              }}
+              onClose={() => setSelectedDashboardPatient(null)}
+          />
       )}
 
       <InsightsPanel 
