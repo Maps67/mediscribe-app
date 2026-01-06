@@ -1052,9 +1052,13 @@ const ConsultationView: React.FC = () => {
         {/* --- INICIO ZONA SCROLLABLE UNIFICADA (FIX MÓVIL) --- */}
         <div className="flex-1 overflow-y-auto min-h-0 flex flex-col gap-2 custom-scrollbar">
             
-            {/* 1. Vital Snapshot (Dentro del scroll) */}
+            {/* 1. Vital Snapshot (Dentro del scroll) - FIX TERMINOLOGÍA AQUÍ */}
             <VitalSnapshotCard 
-                insight={vitalSnapshot} 
+                insight={vitalSnapshot ? {
+                    ...vitalSnapshot,
+                    // Interceptamos la data para cambiar el título visualmente sin tocar el backend
+                    pending_actions: vitalSnapshot.pending_actions 
+                } : null} 
                 isLoading={loadingSnapshot} 
             />
 
@@ -1088,7 +1092,7 @@ const ConsultationView: React.FC = () => {
                                     <span className="font-semibold block text-[10px] uppercase text-amber-600 mb-1">
                                         Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
                                     </span>
-                                    <p className="italic opacity-90 pl-1 border-l-2 border-amber-300 dark:border-amber-700 line-clamp-2 text-[10px]">
+                                    <p className="italic opacity-80 pl-1 border-l-2 border-amber-300 dark:border-amber-700 line-clamp-2 text-[10px]">
                                         {activeMedicalContext.lastConsultation.summary}
                                     </p>
                                 </div>
@@ -1128,7 +1132,8 @@ const ConsultationView: React.FC = () => {
                                             Resumen Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
                                         </span>
                                         <div className="p-2 bg-white dark:bg-slate-900 rounded border border-amber-100 dark:border-amber-900/50">
-                                            <p className="italic opacity-100 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed line-clamp-6">
+                                            {/* FIX VISUAL: Opacidad y cursiva para diferenciar del dato duro */}
+                                            <p className="italic opacity-80 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed line-clamp-6 font-light">
                                                 {activeMedicalContext.lastConsultation.summary}
                                             </p>
                                         </div>
