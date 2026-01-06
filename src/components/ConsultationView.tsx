@@ -24,7 +24,7 @@ import { UploadMedico } from './UploadMedico';
 import { InsightsPanel } from './InsightsPanel';
 import { RiskBadge } from './RiskBadge';
 import InsurancePanel from './Insurance/InsurancePanel';
-import { VitalSnapshotCard } from '../components/VitalSnapshotCard';
+import { VitalSnapshotCard } from './VitalSnapshotCard';
 
 type TabType = 'record' | 'patient' | 'chat' | 'insurance';
 
@@ -381,26 +381,53 @@ const ConsultationView: React.FC = () => {
     fetchMedicalContext();
   }, [selectedPatient]);
 
-  // --- EFECTO PARA VITAL SNAPSHOT ---
+  // --- EFECTO PARA VITAL SNAPSHOT (ACTUALIZADO: FUSIONA HISTORIAL + ÚLTIMA CONSULTA) ---
   useEffect(() => {
-    if (selectedPatient && !(selectedPatient as any).isTemporary) {
+    // Solo disparamos si tenemos paciente y el contexto médico ya cargó (para tener la última consulta)
+    if (selectedPatient && !(selectedPatient as any).isTemporary && activeMedicalContext) {
         setLoadingSnapshot(true);
-        // Construimos un contexto ligero para el snapshot
+        
+        // 1. Obtener Historial Estático
         const rawHistory = selectedPatient.history || '';
         const historyStr = typeof rawHistory === 'string' ? rawHistory : JSON.stringify(rawHistory);
         
-        // Llamamos al servicio (Asumiendo que se implementó la función generateVitalSnapshot en GeminiMedicalService)
-        GeminiMedicalService.generateVitalSnapshot(historyStr)
+        // 2. Obtener Resumen Dinámico de Última Consulta (Aquí estaba la pieza faltante)
+        let lastConsultationContext = "";
+        if (activeMedicalContext.lastConsultation) {
+            lastConsultationContext = `
+            \n=== RESUMEN ÚLTIMA CONSULTA (${new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}) ===
+            ${activeMedicalContext.lastConsultation.summary}
+            `;
+        } else {
+            lastConsultationContext = "\n(Sin consultas previas registradas)";
+        }
+
+        // 3. Fusionar para la IA
+        const fullContextForSnapshot = `
+            ANTECEDENTES GENERALES:
+            ${historyStr}
+            
+            ${lastConsultationContext}
+        `;
+
+        // 4. Llamada al Servicio
+        GeminiMedicalService.generateVitalSnapshot(fullContextForSnapshot)
             .then(data => setVitalSnapshot(data))
             .catch(err => {
                 console.error("Error generando Vital Snapshot:", err);
                 setVitalSnapshot(null);
             })
             .finally(() => setLoadingSnapshot(false));
+            
+    } else if (selectedPatient && !(selectedPatient as any).isTemporary && !activeMedicalContext) {
+        // Si hay paciente pero el contexto aun carga, mostramos loading
+        setLoadingSnapshot(true);
     } else {
+        // Si no hay paciente o es temporal
         setVitalSnapshot(null);
+        setLoadingSnapshot(false);
     }
-  }, [selectedPatient?.id]);
+  }, [selectedPatient?.id, activeMedicalContext]); // Dependemos de activeMedicalContext ahora
 
   useEffect(() => {
     if (selectedPatient) {
