@@ -1054,12 +1054,12 @@ const ConsultationView: React.FC = () => {
                     <div className="bg-amber-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-amber-300 dark:border-amber-600 text-xs shadow-2xl scale-100 origin-top">
                          <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-bold border-b border-amber-200 dark:border-amber-800 pb-1">
                             <AlertCircle size={14} />
-                            <span>Antecedentes Activos (Detalle Completo)</span>
+                            <span>Antecedentes Activos (Detalle)</span>
                         </div>
-                        <div className="space-y-3 text-slate-800 dark:text-slate-200 max-h-[60vh] overflow-y-auto custom-scrollbar">
+                        <div className="space-y-3 text-slate-800 dark:text-slate-200 max-h-[300px] overflow-y-auto custom-scrollbar">
                              <div>
-                                <span className="font-bold block text-[10px] uppercase text-amber-600">Historial Completo:</span>
-                                <p className="whitespace-pre-wrap leading-relaxed">{activeMedicalContext.history}</p>
+                                <span className="font-bold block text-[10px] uppercase text-amber-600">Historial (Resumen):</span>
+                                <p className="whitespace-pre-wrap leading-relaxed line-clamp-4 text-xs">{activeMedicalContext.history}</p>
                             </div>
                              {activeMedicalContext.allergies && activeMedicalContext.allergies !== "No registradas" && (
                                 <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded border border-red-100 dark:border-red-800">
@@ -1073,9 +1073,15 @@ const ConsultationView: React.FC = () => {
                                           Resumen Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
                                      </span>
                                      <div className="p-2 bg-white dark:bg-slate-900 rounded border border-amber-100 dark:border-amber-900/50">
-                                          <p className="italic opacity-100 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed">
+                                          {/* FIX VISUAL: Aquí limitamos el texto expandido para que no inunde la pantalla si es un transcript */}
+                                          <p className="italic opacity-100 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed line-clamp-6">
                                               {activeMedicalContext.lastConsultation.summary}
                                           </p>
+                                          {activeMedicalContext.lastConsultation.summary.length > 300 && (
+                                              <span className="text-[9px] text-indigo-500 mt-1 block font-bold text-right cursor-pointer">
+                                                  Ver detalle completo en Historial...
+                                              </span>
+                                          )}
                                      </div>
                                 </div>
                             )}
