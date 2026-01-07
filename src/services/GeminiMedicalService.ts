@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v6.4) [Active Blockade System]");
+console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v6.5) [Active Blockade System]");
 
 // ==========================================
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
@@ -175,7 +175,7 @@ export const GeminiMedicalService = {
   // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + DETERMINISTIC RX + CIE-10) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      console.log("⚡ Generando Nota Clínica Consistente (v6.4 - Safety Override)...");
+      console.log("⚡ Generando Nota Clínica Consistente (v6.5 - Safety Override)...");
 
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
@@ -229,13 +229,13 @@ export const GeminiMedicalService = {
            - En "prescriptions", incluye SOLAMENTE los medicamentos que el médico haya dictado verbalmente.
            - NO INVENTES medicamentos no mencionados (Prohibido alucinar tratamientos).
 
-        2. EXCEPCIÓN DE SEGURIDAD (SAFETY OVERRIDE):
+        2. EXCEPCIÓN DE SEGURIDAD (SAFETY OVERRIDE - NIVEL MÁXIMO):
            - SI EL MÉDICO DICTA UN MEDICAMENTO LETAL O GRAVEMENTE CONTRAINDICADO (Ej: Claritromicina en QT Largo, AINES en Hemorragia Activa):
              A) DEBES incluirlo en la lista "prescriptions" (Porque el médico lo dijo).
-             B) PERO DEBES FORZAR SU ESTADO:
-                - Cambia "action" a "SUSPENDER" (Esto lo bloqueará visualmente en rojo).
+             B) PERO DEBES FORZAR SU ESTADO PARA ACTIVAR LA ALERTA ROJA EN LA UI:
+                - Cambia "action" a "SUSPENDER" (OBLIGATORIO: Esto pintará la tarjeta de ROJO).
                 - Cambia "dose" a "BLOQUEO DE SEGURIDAD".
-                - En "notes" escribe en MAYÚSCULAS: "CONTRAINDICADO: RIESGO DE [EFECTO ADVERSO]. SUGERENCIA: [ALTERNATIVA]".
+                - En "notes" escribe en MAYÚSCULAS: "⛔ CONTRAINDICADO: RIESGO DE [EFECTO ADVERSO]. SE REQUIERE VALORACIÓN INMEDIATA".
            
            - ESTO ES OBLIGATORIO: No permitas que un medicamento letal salga con estado "NUEVO" o "CONTINUAR" solo porque el médico lo dijo. Tu deber es proteger.
 
@@ -245,7 +245,7 @@ export const GeminiMedicalService = {
         2. clinicalNote: Nota SOAP formal corregida.
         3. prescriptions: Array de objetos.
            - Campo "action" es OBLIGATORIO: "NUEVO" | "CONTINUAR" | "AJUSTAR" | "SUSPENDER".
-           - Si action es "SUSPENDER", el sistema lo tacha. ÚSALO PARA BLOQUEAR ERRORES.
+           - Si action es "SUSPENDER", el sistema lo tacha y, si es por riesgo, LO PINTA DE ROJO.
         4. patientInstructions: Instrucciones narrativas.
 
         SALIDA ESPERADA (JSON Schema Strict):
