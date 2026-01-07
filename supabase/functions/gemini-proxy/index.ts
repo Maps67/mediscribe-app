@@ -62,6 +62,34 @@ serve(async (req) => {
         `;
         break;
 
+      case "generate_vital_snapshot":
+        isJsonExpected = true;
+        prompt = `
+            ACTÚA COMO: Asistente Clínico Experto en ${payload.specialty}.
+            TU OBJETIVO: Analizar el historial del paciente y extraer 3 puntos clave para el médico, FILTRANDO el ruido de otras especialidades.
+
+            LENTE DE ESPECIALIDAD: Eres ${payload.specialty}. 
+            - Si el historial tiene datos de otras áreas que NO te impactan, IGNÓRALOS. 
+            - Si hay interacciones farmacológicas o riesgos fisiológicos cruzados, DESTÁCALOS.
+            
+            INPUT (HISTORIAL):
+            "${payload.historyJSON}"
+
+            TAREA DE EXTRACCIÓN (NO RESUMIR, EXTRAER CON LENTE CLÍNICO):
+            1. EL GANCHO (evolution): ¿Por qué es relevante este paciente para ${payload.specialty} hoy?
+            2. RIESGOS ACTIVOS (risk_flags): Alergias o riesgos específicos para tu área.
+            3. PENDIENTES (pending_actions): Estudios o laboratorios faltantes.
+
+            FORMATO DE SALIDA (JSON STRICTO - PatientInsight):
+            {
+                "evolution": "Texto corto del motivo/gancho (Máx 15 palabras)",
+                "medication_audit": "Auditoría rápida de fármacos relevantes",
+                "risk_flags": ["Riesgo 1", "Riesgo 2"],
+                "pending_actions": ["Pendiente 1", "Pendiente 2"]
+            }
+        `;
+        break;
+
       case "generate_quick_rx":
         prompt = `
           Actúa como médico. Genera una receta médica en TEXTO PLANO (No JSON, No Markdown) para: 
@@ -132,7 +160,7 @@ serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
 
-  } catch (error) {
+  } catch (error: any) {
     // 8. Manejo de Errores Global
     return new Response(JSON.stringify({ error: error.message }), {
       status: 500,

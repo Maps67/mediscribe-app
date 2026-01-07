@@ -415,8 +415,8 @@ const ConsultationView: React.FC = () => {
             ${lastConsultationContext}
         `;
 
-        // 4. Llamada al Servicio
-        GeminiMedicalService.generateVitalSnapshot(fullContextForSnapshot)
+        // 4. Llamada al Servicio (ACTUALIZADO: PASAMOS ESPECIALIDAD)
+        GeminiMedicalService.generateVitalSnapshot(fullContextForSnapshot, selectedSpecialty)
             .then(data => setVitalSnapshot(data))
             .catch(err => {
                 console.error("Error generando Vital Snapshot:", err);
@@ -432,7 +432,7 @@ const ConsultationView: React.FC = () => {
         setVitalSnapshot(null);
         setLoadingSnapshot(false);
     }
-  }, [selectedPatient?.id, activeMedicalContext]); // Dependemos de activeMedicalContext ahora
+  }, [selectedPatient?.id, activeMedicalContext, selectedSpecialty]); // Agregamos selectedSpecialty
 
   useEffect(() => {
     if (selectedPatient) {
@@ -1344,7 +1344,7 @@ const ConsultationView: React.FC = () => {
       <div className={`w-full md:w-3/4 bg-slate-100 dark:bg-slate-950 flex flex-col border-l dark:border-slate-800 ${!generatedNote?'hidden md:flex':'flex h-full'}`}>
           <div className="flex border-b dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 items-center px-2">
              <button onClick={()=>setGeneratedNote(null)} className="md:hidden p-4 text-slate-500"><ArrowLeft/></button>
-             {[{id:'record',icon:FileText,l:'EXPEDIENTE CLÍNICO'},{id:'patient',icon:User,l:'PLAN PACIENTE'},{id:'chat',icon:MessageSquare,l:'ASISTENTE'}, {id:'insurance', icon:Building2, l:'SEGUROS'}].map(t=><button key={t.id} onClick={()=>setActiveTab(t.id as TabType)} disabled={!generatedNote&&t.id!=='record'} className={`flex-1 py-4 flex justify-center gap-2 text-sm font-bold border-b-4 transition-colors ${activeTab===t.id?'text-brand-teal border-brand-teal':'text-slate-400 border-transparent hover:text-slate-600'}`}><t.icon size={18}/><span className="hidden sm:inline">{t.l}</span></button>)}
+             {[{id:'record',icon:FileText,l:'EXPEDIENTE CLÍNICO'},{id:'patient',icon:User,l:'PLAN PACIENTE'},{id:'chat',icon:MessageSquare,l:'ASISTENTE'}, {id:'insurance', icon:Building2, l:'SEGUROS'}].map(t=><button key={t.id} onClick={()=>setActiveTab(t.id as TabType)} disabled={!generatedNote&&t.id!=='record'} className={`flex-1 py-4 flex justify-center gap-2 text-sm font-bold border-b-4 transition-colors ${activeTab===t.id?'text-brand-teal border-brand-teal':'text-slate-400 border-transparent hover:text-slate-600'}`}><t.icon size={18} className="shrink-0"/><span className="hidden sm:inline">{t.l}</span></button>)}
           </div>
           
           <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100 dark:bg-slate-950">
