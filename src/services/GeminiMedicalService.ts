@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v6.7) [Intuitive Core Active]");
+console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v6.8) [Specialist Hardening Mode]");
 
 // ==========================================
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
@@ -175,7 +175,7 @@ export const GeminiMedicalService = {
   // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + DETERMINISTIC RX + CIE-10) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      console.log("⚡ Generando Nota Clínica Consistente (v6.7 - Intuitive Core)...");
+      console.log("⚡ Generando Nota Clínica Consistente (v6.8 - Specialist Hardening)...");
 
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
@@ -213,7 +213,7 @@ export const GeminiMedicalService = {
         🇲🇽 REGLAS DE SINTAXIS Y TERMINOLOGÍA MEXICANA (NOM-004)
         ===================================================
         1. DICCIONARIO DE TRADUCCIÓN EN TIEMPO REAL:
-           - Si el paciente usa lenguaje coloquial ("me duele la panza", "siento hormigas", "me zumban los oídos"), DEBES transformarlo a terminología médica técnica ("algía abdominal", "parestesias", "acúfenos").
+           - Si el paciente usa lenguaje coloquial, DEBES transformarlo a terminología médica técnica.
            - La nota clínica NUNCA debe contener jerga coloquial en las secciones Objetivas o de Análisis.
 
         2. ABREVIATURAS ESTÁNDAR:
@@ -221,7 +221,7 @@ export const GeminiMedicalService = {
 
         3. CORRECCIÓN FONÉTICA DE MEDICAMENTOS:
            - El audio puede tener errores. Si escuchas algo fonéticamente similar a un fármaco en un contexto lógico, corrígelo.
-           - Ejemplo: "Metformina de 8 50" -> "Metformina 850 mg". "Que todo flaco" -> "Ketorolaco".
+           - Ejemplo: "Metformina de 8 50" -> "Metformina 850 mg".
            - Prioriza siempre nombres de fármacos reales sobre palabras comunes si el contexto es terapéutico.
 
         ===================================================
@@ -263,25 +263,26 @@ export const GeminiMedicalService = {
 
         1. PRINCIPIO DE FIDELIDAD (REGLA GENERAL):
            - En "prescriptions", incluye SOLAMENTE los medicamentos que el médico haya dictado verbalmente.
-           - NO INVENTES medicamentos no mencionados (Prohibido alucinar tratamientos).
+           - NO INVENTES medicamentos no mencionados.
 
         2. EXCEPCIÓN DE SEGURIDAD (SAFETY OVERRIDE - NIVEL MÁXIMO):
-           - SI EL MÉDICO DICTA UN MEDICAMENTO LETAL O GRAVEMENTE CONTRAINDICADO (Ej: Claritromicina en QT Largo, AINES en Hemorragia Activa):
-             A) DEBES incluirlo en la lista "prescriptions" (Porque el médico lo dijo).
-             B) PERO DEBES FORZAR SU ESTADO PARA ACTIVAR LA ALERTA ROJA EN LA UI:
-                - Cambia "action" a "SUSPENDER" (OBLIGATORIO: Esto pintará la tarjeta de ROJO).
-                - Cambia "dose" a "BLOQUEO DE SEGURIDAD".
-                - En "notes" escribe en MAYÚSCULAS: "⛔ CONTRAINDICADO: RIESGO DE [EFECTO ADVERSO]. SE REQUIERE VALORACIÓN INMEDIATA".
+           - APLICA PARA:
+             A) Interacciones Letales (Ej: Claritromicina + QT Largo).
+             B) Contraindicaciones Fisiológicas ABSOLUTAS (Ej: Metformina/AINES con TFG < 30 ml/min).
            
-           - ESTO ES OBLIGATORIO: No permitas que un medicamento letal salga con estado "NUEVO" o "CONTINUAR" solo porque el médico lo dijo. Tu deber es proteger.
+           - SI DETECTAS ESTOS CASOS:
+             1. INCLUYE el fármaco en "prescriptions" (Fidelidad de dictado).
+             2. FUERZA EL ESTADO DE BLOQUEO:
+                - action: "SUSPENDER" (OBLIGATORIO: Esto pintará la tarjeta de ROJO).
+                - dose: "BLOQUEO DE SEGURIDAD".
+                - notes: "⛔ CONTRAINDICADO: [RAZÓN CRÍTICA]. RIESGO MORTAL".
+           
+           - REGLA DE ORO RENAL: Si el paciente tiene ERC Estadio 4 o 5 (TFG < 30) y se receta Metformina, AINES o Espironolactona -> DEBES BLOQUEARLO. El riesgo de Acidosis Láctica o Hiperpotasemia supera el beneficio glucémico inmediato.
 
         INSTRUCCIONES JSON:
-        
         1. conversation_log: Transcripción limpia y completa.
         2. clinicalNote: Nota SOAP formal corregida.
         3. prescriptions: Array de objetos.
-           - Campo "action" es OBLIGATORIO: "NUEVO" | "CONTINUAR" | "AJUSTAR" | "SUSPENDER".
-           - Si action es "SUSPENDER", el sistema lo tacha y, si es por riesgo, LO PINTA DE ROJO.
         4. patientInstructions: Instrucciones narrativas.
 
         SALIDA ESPERADA (JSON Schema Strict):
@@ -324,7 +325,7 @@ export const GeminiMedicalService = {
       const rawText = await generateWithFailover(prompt, true);
       const parsedData = JSON.parse(cleanJSON(rawText));
 
-      console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10 + Liability Shield + Intuitive Core).");
+      console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10 + Liability Shield + Specialist Hardening).");
       return parsedData as GeminiResponse;
 
     } catch (error: any) {
