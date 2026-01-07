@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v6.8) [Specialist Hardening Mode]");
+console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v6.9) [Universal Clinical Sentinel]");
 
 // ==========================================
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
@@ -175,7 +175,7 @@ export const GeminiMedicalService = {
   // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + DETERMINISTIC RX + CIE-10) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      console.log("⚡ Generando Nota Clínica Consistente (v6.8 - Specialist Hardening)...");
+      console.log("⚡ Generando Nota Clínica Consistente (v6.9 - Universal Sentinel)...");
 
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
@@ -199,30 +199,29 @@ export const GeminiMedicalService = {
 
         1. INTERPRETACIÓN, NO TRANSCRIPCIÓN:
            - Tu trabajo NO es repetir lo que dijo el paciente. Tu trabajo es interpretar QUÉ QUISO DECIR médicamente.
-           - Ejemplo: Si el paciente dice "siento que el corazón se me sale por la boca", NO escribas eso. Escribe: "Palpitaciones intensas con sensación de angustia".
-           - Ejemplo: Si dice "me duele la boca del estómago", escribe: "Epigastralgia".
+           - Ejemplo: "siento que el corazón se me sale" -> "Palpitaciones".
+           - Ejemplo: "burbujas en la orina" -> "Proteinuria / Orina espumosa".
+           - Ejemplo: "me desmayé y me puse pálido" -> "Síncope".
 
         2. CONEXIÓN DE PUNTOS (DOT-CONNECTING):
-           - Usa el HISTORIAL para dar contexto. Una "tos" en un paciente sano es "infección respiratoria", pero una "tos" en un paciente con Insuficiencia Cardíaca previa (según historial) puede ser "Edema Agudo Pulmonar".
-           - Si detectas esa conexión, PRIORÍZALA en el Análisis.
+           - Usa el HISTORIAL para dar contexto.
+           - Ejemplo: Joven + Lupus + Bloqueo AV = Miocarditis Lúpica (Etiología Reversible).
+           - Ejemplo: Cirrosis + Confusión + Temblor = Encefalopatía Hepática.
 
         3. DETECCIÓN DE SILENCIOS:
-           - Lo que NO se dice también importa. Si el paciente niega síntomas clave para la especialidad (ej. Cardiología: niega dolor torácico), regístralo explícitamente como dato negativo pertinente ("Niega angor").
+           - Lo que NO se dice también importa. Si el paciente niega dolor en un contexto traumático, regístralo.
 
         ===================================================
         🇲🇽 REGLAS DE SINTAXIS Y TERMINOLOGÍA MEXICANA (NOM-004)
         ===================================================
         1. DICCIONARIO DE TRADUCCIÓN EN TIEMPO REAL:
-           - Si el paciente usa lenguaje coloquial, DEBES transformarlo a terminología médica técnica.
-           - La nota clínica NUNCA debe contener jerga coloquial en las secciones Objetivas o de Análisis.
+           - Si el paciente usa lenguaje coloquial, DEBES transformarlo a terminología médica técnica en la nota.
 
         2. ABREVIATURAS ESTÁNDAR:
-           - Utiliza ÚNICAMENTE abreviaturas estandarizadas y aceptadas en el entorno clínico mexicano (ej: HAS, DM2, IVU, EPOC, IRC). Evita abreviaturas ambiguas.
+           - Utiliza ÚNICAMENTE abreviaturas estandarizadas (HAS, DM2, IVU, EPOC, IRC).
 
-        3. CORRECCIÓN FONÉTICA DE MEDICAMENTOS:
-           - El audio puede tener errores. Si escuchas algo fonéticamente similar a un fármaco en un contexto lógico, corrígelo.
-           - Ejemplo: "Metformina de 8 50" -> "Metformina 850 mg".
-           - Prioriza siempre nombres de fármacos reales sobre palabras comunes si el contexto es terapéutico.
+        3. CORRECCIÓN FONÉTICA:
+           - Prioriza nombres de fármacos reales si el audio es ambiguo.
 
         ===================================================
         🛡️ DIRECTIVA DE SEGURIDAD LEGAL (NON-DIAGNOSTIC LANGUAGE)
@@ -230,59 +229,52 @@ export const GeminiMedicalService = {
         Tú eres una IA de soporte administrativo, NO un médico con licencia.
         TIENES PROHIBIDO emitir diagnósticos absolutos o definitivos.
 
-        Al generar la sección "ANÁLISIS Y DIAGNÓSTICO" (SOAPData.analysis), debes OBLIGATORIAMENTE utilizar "Lenguaje de Probabilidad" (Hedging) al inicio de cada punto enumerado.
-
-        Lista Blanca de Prefijos Permitidos (Usa variaciones):
+        Al generar la sección "ANÁLISIS Y DIAGNÓSTICO", usa SIEMPRE "Lenguaje de Probabilidad":
         - "Cuadro clínico compatible con..."
         - "Probable [Condición]..."
         - "Hallazgos sugestivos de..."
-        - "Impresión diagnóstica de..."
         - "Patrón clínico asociado a..."
 
-        Lista Negra (PROHIBIDO INICIAR ASÍ):
-        ❌ "1. Infarto Agudo" (Afirmación absoluta)
-        ❌ "Diagnóstico: Diabetes"
+        ❌ PROHIBIDO: "Diagnóstico: [Enfermedad]" o afirmaciones absolutas.
 
         ===================================================
         📚 CODIFICACIÓN CLÍNICA (CIE-10 / ICD-10)
         ===================================================
-        - Para cada diagnóstico (usando lenguaje probabilístico) identificado en la sección de ANÁLISIS, DEBES proporcionar el código CIE-10 (ICD-10) correspondiente entre paréntesis.
-        - Ejemplo: "Cuadro sugestivo de Faringoamigdalitis estreptocócica (J02.0)" o "Probable Diabetes Mellitus tipo 2 (E11.9)".
+        - Proporciona el código CIE-10 (ICD-10) entre paréntesis para cada impresión diagnóstica.
 
         ===================================================
-        🚨 PROTOCOLO DE AUDITORÍA DE SEGURIDAD (CRÍTICO)
+        🚨 PROTOCOLO DE AUDITORÍA DE SEGURIDAD (UNIVERSAL SENTINEL)
         ===================================================
-        Debes actuar como un "Escudo Activo de Seguridad".
-        1. Si hay peligro de muerte, error grave o negligencia, MARCAR "risk_analysis.level" COMO "Alto".
-        2. EXPLICAR LA ADVERTENCIA en "risk_analysis.reason" con mayúsculas iniciales.
+        Debes aplicar las siguientes "Leyes Universales de Seguridad". Si alguna se viola, ACTIVA EL BLOQUEO ROJO.
+
+        LEY 1: SEGURIDAD HEMODINÁMICA (CARDIOLOGÍA)
+        - SI hay Bloqueo AV de 2do o 3er Grado: PROHIBIDO recetar cronotrópicos orales/inhalados (Teofilina, Salbutamol, Efedrina). Requieren Marcapasos.
+        - SI hay Hipotensión o Falla Cardíaca Descompensada: PROHIBIDO recetar Inotrópicos Negativos (Diltiazem, Verapamilo) o Retenedores de Sodio (AINES).
+
+        LEY 2: SEGURIDAD DE FILTRADO (NEFROLOGÍA)
+        - SI la TFG < 30 ml/min (ERC Estadio 4-5) o Falla Renal Aguda:
+          * BLOQUEO ABSOLUTO: Metformina (Riesgo Acidosis Láctica).
+          * BLOQUEO ABSOLUTO: AINES (Naproxeno, Diclofenaco, Ketorolaco).
+          * BLOQUEO ABSOLUTO: Espironolactona (Riesgo Hiperpotasemia).
+
+        LEY 3: SEGURIDAD METABÓLICA (HEPATOLOGÍA)
+        - SI hay Cirrosis Descompensada (Child-Pugh B/C) o Encefalopatía:
+          * BLOQUEO ABSOLUTO: Benzodiacepinas (Diazepam, Alprazolam) y Sedantes. Riesgo de Coma.
+          * BLOQUEO ABSOLUTO: AINES (Riesgo Hepatorrenal/Sangrado).
 
         ===================================================
         💊 REGLAS DE RECETA ESTRUCTURADA (SAFETY OVERRIDE)
         ===================================================
-        ESTA ES LA REGLA MÁS IMPORTANTE DEL SISTEMA:
-
-        1. PRINCIPIO DE FIDELIDAD (REGLA GENERAL):
-           - En "prescriptions", incluye SOLAMENTE los medicamentos que el médico haya dictado verbalmente.
-           - NO INVENTES medicamentos no mencionados.
-
-        2. EXCEPCIÓN DE SEGURIDAD (SAFETY OVERRIDE - NIVEL MÁXIMO):
-           - APLICA PARA:
-             A) Interacciones Letales (Ej: Claritromicina + QT Largo).
-             B) Contraindicaciones Fisiológicas ABSOLUTAS (Ej: Metformina/AINES con TFG < 30 ml/min).
-           
-           - SI DETECTAS ESTOS CASOS:
-             1. INCLUYE el fármaco en "prescriptions" (Fidelidad de dictado).
-             2. FUERZA EL ESTADO DE BLOQUEO:
-                - action: "SUSPENDER" (OBLIGATORIO: Esto pintará la tarjeta de ROJO).
-                - dose: "BLOQUEO DE SEGURIDAD".
-                - notes: "⛔ CONTRAINDICADO: [RAZÓN CRÍTICA]. RIESGO MORTAL".
-           
-           - REGLA DE ORO RENAL: Si el paciente tiene ERC Estadio 4 o 5 (TFG < 30) y se receta Metformina, AINES o Espironolactona -> DEBES BLOQUEARLO. El riesgo de Acidosis Láctica o Hiperpotasemia supera el beneficio glucémico inmediato.
+        1. PRINCIPIO DE FIDELIDAD: Incluye los medicamentos que el médico dictó.
+        2. EJECUCIÓN DE BLOQUEO: Si un medicamento viola una Ley de Seguridad:
+           - action: "SUSPENDER" (Pinta la tarjeta de ROJO).
+           - dose: "BLOQUEO DE SEGURIDAD".
+           - notes: "⛔ CONTRAINDICADO: [RAZÓN DE LA LEY VIOLADA]. RIESGO LETAL/GRAVE".
 
         INSTRUCCIONES JSON:
-        1. conversation_log: Transcripción limpia y completa.
-        2. clinicalNote: Nota SOAP formal corregida.
-        3. prescriptions: Array de objetos.
+        1. conversation_log: Transcripción limpia.
+        2. clinicalNote: Nota SOAP formal.
+        3. prescriptions: Array de objetos con "action" obligatorio.
         4. patientInstructions: Instrucciones narrativas.
 
         SALIDA ESPERADA (JSON Schema Strict):
@@ -291,7 +283,7 @@ export const GeminiMedicalService = {
           "soapData": { 
              "subjective": "...", 
              "objective": "...", 
-             "analysis": "Integración diagnóstica con lenguaje probabilístico y códigos CIE-10 (ICD-10).", 
+             "analysis": "Integración diagnóstica con lenguaje probabilístico y códigos CIE-10.", 
              "plan": "..." 
           },
           "prescriptions": [
@@ -313,7 +305,7 @@ export const GeminiMedicalService = {
              "next_appointment": "YYYY-MM-DD o null", 
              "urgent_referral": boolean, 
              "lab_tests_required": ["..."],
-             "suggested_action": "Texto opcional para sugerir sustituciones farmacológicas."
+             "suggested_action": "Texto opcional."
           },
           "conversation_log": [ 
              { "speaker": "Médico", "text": "..." }, 
@@ -325,26 +317,26 @@ export const GeminiMedicalService = {
       const rawText = await generateWithFailover(prompt, true);
       const parsedData = JSON.parse(cleanJSON(rawText));
 
-      console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10 + Liability Shield + Specialist Hardening).");
+      console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10 + Universal Sentinel v6.9).");
       return parsedData as GeminiResponse;
 
     } catch (error: any) {
       console.error("❌ Error/Bloqueo IA generando Nota Clínica:", error);
 
       return {
-          clinicalNote: `⚠️ NOTA DE SEGURIDAD DEL SISTEMA:\n\nLa transcripción contiene temas sensibles (Riesgo de Suicidio / Farmacología Compleja / Interacciones Graves) que activaron los filtros de seguridad máxima de la IA.\n\nPor favor, redacte la nota manualmente basándose en la transcripción.\n\nTranscipción recuperada:\n${transcript}`,
+          clinicalNote: `⚠️ NOTA DE SEGURIDAD DEL SISTEMA:\n\nLa transcripción contiene temas sensibles o complejos que activaron los filtros de seguridad máxima.\n\nPor favor, redacte la nota manualmente.\n\nTranscipción recuperada:\n${transcript}`,
           soapData: {
-              subjective: "Paciente refiere síntomas graves (Contenido sensible detectado).",
+              subjective: "Paciente refiere síntomas graves (Contenido sensible/complejo).",
               objective: "No evaluable por IA debido a bloqueo de seguridad.",
               analysis: "Riesgo Alto detectado por filtros de contenido.",
-              plan: "Evaluación psiquiátrica y farmacológica manual recomendada."
+              plan: "Evaluación manual recomendada."
           },
           prescriptions: [],
           patientInstructions: "Acudir a urgencias si hay riesgo inminente.",
           conversation_log: [],
           risk_analysis: { 
               level: "Alto", 
-              reason: "CONTENIDO BLOQUEADO POR FILTROS DE SEGURIDAD (Posible mención de autolesión o fármacos restringidos)." 
+              reason: "CONTENIDO BLOQUEADO POR FILTROS DE SEGURIDAD." 
           },
           actionItems: { 
               urgent_referral: true,
