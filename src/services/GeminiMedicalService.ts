@@ -130,27 +130,41 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 export const GeminiMedicalService = {
 
   // --- NUEVA FUNCIÓN: VITAL SNAPSHOT (TARJETA AMARILLA) ---
-  // ACTUALIZADO: AHORA RECIBE ESPECIALIDAD PARA FILTRADO CONTEXTUAL
+  // ACTUALIZADO: Prompt con inyección de especialidad para corregir Inercia de Contexto
   async generateVitalSnapshot(historyJSON: string, specialty: string = "Medicina General"): Promise<PatientInsight | null> {
     try {
-        console.log(`⚡ Generando Vital Snapshot para especialidad: ${specialty}...`);
+        console.log(`⚡ Generando Vital Snapshot (Enfoque: ${specialty})...`);
         
-        // USO DE LA NUEVA ARQUITECTURA "GEMINI PROXY" PARA SNAPSHOTS
-        // Llamamos directamente a la función backend con la acción específica
-        const { data, error } = await supabase.functions.invoke('gemini-proxy', {
-            body: { 
-                action: 'generate_vital_snapshot',
-                payload: {
-                    historyJSON,
-                    specialty
-                }
+        const prompt = `
+            ACTÚA COMO: Asistente Clínico de Triaje Avanzado ESPECIALISTA EN ${specialty.toUpperCase()}.
+            TU OBJETIVO: Leer el historial del paciente y extraer 3 puntos clave para que el médico los vea EN MENOS DE 5 SEGUNDOS.
+            
+            LENTE CLÍNICO: Eres ${specialty}. Filtra el ruido. 
+            - Si el historial tiene datos de otras áreas (ej. Psiquiatría) que NO afectan tu área, ignóralos o resúmelos al mínimo.
+            - Si hay interacciones farmacológicas o riesgos fisiológicos que afecten a ${specialty}, DESTÁCALOS CON PRIORIDAD ALTA.
+
+            INPUT (HISTORIAL):
+            "${historyJSON}"
+
+            TAREA DE EXTRACCIÓN (NO RESUMIR, EXTRAER):
+            1. EL GANCHO (evolution): ¿Por qué es relevante este paciente para ${specialty} hoy? (Ej: "Control TA", "Seguimiento fractura").
+            2. RIESGOS ACTIVOS (risk_flags): Alergias graves, contraindicaciones o alertas críticas para ${specialty}.
+            3. PENDIENTES (pending_actions): ¿Quedó algo pendiente?
+
+            FORMATO DE SALIDA (JSON STRICTO - PatientInsight):
+            {
+                "evolution": "Texto corto del motivo/gancho (Máx 15 palabras)",
+                "medication_audit": "Auditoría rápida de fármacos (Ej: 'Suspendió AINES por gastritis')",
+                "risk_flags": ["Riesgo 1", "Riesgo 2"],
+                "pending_actions": ["Pendiente 1", "Pendiente 2"]
             }
-        });
 
-        if (error) throw error;
-        if (!data || !data.data) throw new Error("Respuesta vacía del servidor");
+            NOTA: Si el historial está vacío o es ilegible, devuelve arrays vacíos y "Sin datos previos" en evolución.
+        `;
 
-        return data.data as PatientInsight;
+        const rawText = await generateWithFailover(prompt, true);
+        const parsed = JSON.parse(cleanJSON(rawText));
+        return parsed as PatientInsight;
 
     } catch (e) {
         console.error("❌ Error generando Vital Snapshot:", e);

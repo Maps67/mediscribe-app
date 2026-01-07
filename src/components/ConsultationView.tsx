@@ -368,35 +368,47 @@ const ConsultationView: React.FC = () => {
                 const hasDynamicData = !!lastConsultationData;
                 const hasInsurance = !!lastInsuranceData;
 
-                if (hasStaticData || hasDynamicData || hasInsurance) {
-                      setActiveMedicalContext({
-                        history: cleanHistory || "No registrados",
-                        allergies: cleanAllergies || "No registradas",
-                        lastConsultation: lastConsultationData,
-                        insurance: lastInsuranceData
-                      });
-                }
+                // FIX: Permitimos que se setee el contexto incluso si es vacío para desbloquear el snapshot
+                setActiveMedicalContext({
+                    history: cleanHistory || "No registrados",
+                    allergies: cleanAllergies || "No registradas",
+                    lastConsultation: lastConsultationData,
+                    insurance: lastInsuranceData
+                });
 
             } catch (e) {
                 console.log("Error leyendo contexto médico:", e);
+                // Fallback de seguridad
+                setActiveMedicalContext({
+                    history: "No disponible (Error de carga)",
+                    allergies: "No disponibles",
+                    lastConsultation: undefined
+                });
             }
         }
     };
     fetchMedicalContext();
   }, [selectedPatient]);
 
-  // --- EFECTO PARA VITAL SNAPSHOT (ACTUALIZADO: FUSIONA HISTORIAL + ÚLTIMA CONSULTA) ---
+  // --- EFECTO PARA VITAL SNAPSHOT (ACTUALIZADO: FAIL-SAFE) ---
   useEffect(() => {
-    // Solo disparamos si tenemos paciente y el contexto médico ya cargó (para tener la última consulta)
-    if (selectedPatient && !(selectedPatient as any).isTemporary && activeMedicalContext) {
+    // Solo disparamos si tenemos paciente y NO es temporal
+    if (selectedPatient && !(selectedPatient as any).isTemporary) {
+        
+        // Si el contexto aún es null, mostramos loading y esperamos
+        if (!activeMedicalContext) {
+            setLoadingSnapshot(true);
+            return; 
+        }
+
         setLoadingSnapshot(true);
-        setIsMobileSnapshotVisible(true); // Auto-expandir al cargar nuevos datos
+        setIsMobileSnapshotVisible(true); // Auto-expandir al cargar
         
         // 1. Obtener Historial Estático
         const rawHistory = selectedPatient.history || '';
         const historyStr = typeof rawHistory === 'string' ? rawHistory : JSON.stringify(rawHistory);
         
-        // 2. Obtener Resumen Dinámico de Última Consulta (Aquí estaba la pieza faltante)
+        // 2. Obtener Resumen Dinámico de Última Consulta
         let lastConsultationContext = "";
         if (activeMedicalContext.lastConsultation) {
             lastConsultationContext = `
@@ -415,24 +427,33 @@ const ConsultationView: React.FC = () => {
             ${lastConsultationContext}
         `;
 
-        // 4. Llamada al Servicio (ACTUALIZADO: PASAMOS ESPECIALIDAD)
+        // 4. Llamada al Servicio (ACTUALIZADO: PASAMOS ESPECIALIDAD CON FAIL-SAFE)
         GeminiMedicalService.generateVitalSnapshot(fullContextForSnapshot, selectedSpecialty)
-            .then(data => setVitalSnapshot(data))
+            .then(data => {
+                if (data) {
+                    setVitalSnapshot(data);
+                } else {
+                    throw new Error("Datos nulos recibidos");
+                }
+            })
             .catch(err => {
                 console.error("Error generando Vital Snapshot:", err);
-                setVitalSnapshot(null);
+                // FAIL-SAFE: No ocultamos la tarjeta, mostramos estado de error visual
+                setVitalSnapshot({
+                    evolution: "⚠️ No se pudo generar el análisis.",
+                    medication_audit: "Error de conexión con el motor de IA.",
+                    risk_flags: ["Verifique su conexión a internet"],
+                    pending_actions: []
+                });
             })
             .finally(() => setLoadingSnapshot(false));
             
-    } else if (selectedPatient && !(selectedPatient as any).isTemporary && !activeMedicalContext) {
-        // Si hay paciente pero el contexto aun carga, mostramos loading
-        setLoadingSnapshot(true);
     } else {
         // Si no hay paciente o es temporal
         setVitalSnapshot(null);
         setLoadingSnapshot(false);
     }
-  }, [selectedPatient?.id, activeMedicalContext, selectedSpecialty]); // Agregamos selectedSpecialty
+  }, [selectedPatient?.id, activeMedicalContext, selectedSpecialty]); 
 
   useEffect(() => {
     if (selectedPatient) {
