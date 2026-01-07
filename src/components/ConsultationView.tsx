@@ -1552,19 +1552,24 @@ const ConsultationView: React.FC = () => {
                                       <p className="text-sm text-slate-400 italic text-center py-4">No se detectaron medicamentos en la transcripción.</p>
                                   ) : (
                                       <div className="space-y-3">
-                                          {editablePrescriptions.map((med, idx) => (
-                                              <div key={idx} className="flex gap-2 items-start p-3 bg-slate-50 dark:bg-slate-800/50 rounded-lg border border-slate-100 dark:border-slate-700 group">
+                                          {editablePrescriptions.map((med, idx) => {
+                                              const isBlocked = med.action === 'SUSPENDER' || (med.dose && med.dose.includes('BLOQUEO'));
+                                              return (
+                                              <div key={idx} className={`flex gap-2 items-start p-3 rounded-lg border group transition-all ${isBlocked ? 'bg-red-50 border-red-200 dark:bg-red-900/10 dark:border-red-800' : 'bg-slate-50 border-slate-100 dark:bg-slate-800/50 dark:border-slate-700'}`}>
                                                   <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                      <input className="font-bold bg-transparent outline-none text-slate-800 dark:text-white border-b border-transparent focus:border-indigo-300 transition-colors" value={med.drug} onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} placeholder="Nombre del medicamento" />
-                                                      <input className="text-sm bg-transparent outline-none text-slate-600 dark:text-slate-300 border-b border-transparent focus:border-indigo-300 transition-colors" value={med.dose} onChange={e=>handleUpdateMedication(idx,'dose',e.target.value)} placeholder="Dosis" />
+                                                      <div className="relative">
+                                                          <input className={`w-full font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors ${isBlocked ? 'text-red-800 dark:text-red-200' : 'text-slate-800 dark:text-white'}`} value={med.drug} onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} placeholder="Nombre del medicamento" />
+                                                          {isBlocked && <div className="absolute right-0 top-1/2 -translate-y-1/2 text-red-500 animate-pulse"><AlertTriangle size={16}/></div>}
+                                                      </div>
+                                                      <input className={`text-sm bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors ${isBlocked ? 'text-red-600 font-bold uppercase tracking-wider' : 'text-slate-600 dark:text-slate-300'}`} value={med.dose} onChange={e=>handleUpdateMedication(idx,'dose',e.target.value)} placeholder="Dosis" />
                                                       <div className="col-span-2 flex gap-2 text-xs">
-                                                          <input className="flex-1 bg-transparent outline-none text-slate-500 border-b border-transparent focus:border-indigo-300 transition-colors" value={med.frequency} onChange={e=>handleUpdateMedication(idx,'frequency',e.target.value)} placeholder="Frecuencia" />
-                                                          <input className="flex-1 bg-transparent outline-none text-slate-500 border-b border-transparent focus:border-indigo-300 transition-colors" value={med.duration} onChange={e=>handleUpdateMedication(idx,'duration',e.target.value)} placeholder="Duración" />
+                                                          <input className={`flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors ${isBlocked ? 'text-red-400' : 'text-slate-500'}`} value={med.frequency} onChange={e=>handleUpdateMedication(idx,'frequency',e.target.value)} placeholder="Frecuencia" />
+                                                          <input className={`flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors ${isBlocked ? 'text-red-400' : 'text-slate-500'}`} value={med.duration} onChange={e=>handleUpdateMedication(idx,'duration',e.target.value)} placeholder="Duración" />
                                                       </div>
                                                   </div>
-                                                  <button onClick={()=>handleRemoveMedication(idx)} className="text-slate-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity"><X size={16}/></button>
+                                                  <button onClick={()=>handleRemoveMedication(idx)} className={`opacity-0 group-hover:opacity-100 transition-opacity ${isBlocked ? 'text-red-400 hover:text-red-700' : 'text-slate-300 hover:text-red-500'}`}><X size={16}/></button>
                                               </div>
-                                          ))}
+                                          )})}
                                       </div>
                                   )}
                               </div>
