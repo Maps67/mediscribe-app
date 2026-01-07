@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-STABLE DEPLOY: Deterministic Rx Action Protocol (v6.2) [Few-Shot Logic + Mexican Compliance]");
+console.log("🚀 V-STABLE DEPLOY: Deterministic Rx Action Protocol (v6.3) [Strict Audit Mode]");
 
 // ==========================================
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
@@ -175,7 +175,7 @@ export const GeminiMedicalService = {
   // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + DETERMINISTIC RX + CIE-10) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      console.log("⚡ Generando Nota Clínica Consistente (v6.1)...");
+      console.log("⚡ Generando Nota Clínica Consistente (v6.3 - Audit Mode)...");
 
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
@@ -231,24 +231,26 @@ export const GeminiMedicalService = {
         - NUNCA emitas un diagnóstico definitivo como autoridad final.
 
         ===================================================
-        💊 REGLAS DE RECETA ESTRUCTURADA (ESTRICTO v6.0)
+        💊 REGLAS DE RECETA ESTRUCTURADA (FIDELIDAD TOTAL)
         ===================================================
-        Para evitar alucinaciones o inconsistencias, debes clasificar CADA medicamento mencionado en una de estas acciones:
-        
-        - "NUEVO": Medicamento que se recera por primera vez hoy.
-        - "CONTINUAR": Medicamento previo que el paciente debe seguir tomando igual.
-        - "AJUSTAR": Medicamento previo con cambio de dosis.
-        - "SUSPENDER": Medicamento que el paciente DEBE DEJAR DE TOMAR (Esto es vital para la seguridad).
+        IMPORTANTE: TU TAREA ES TRANSCRIBIR LA VOLUNTAD DEL MÉDICO, NO CORREGIRLA SILENCIOSAMENTE.
 
-        ⚠️ REGLA DE ORO DE CONSISTENCIA: 
-        Si decides suspender un medicamento (ej. Insulina en hipoglucemia, Antibiótico en interacción), **DEBES INCLUIRLO EN EL JSON** con la acción "SUSPENDER" y en notas poner "SUSPENDIDO". 
-        NO lo omitas. Queremos ver explícitamente qué se canceló en la lista de medicamentos.
+        1. PRINCIPIO DE EVIDENCIA:
+           - En el array "prescriptions", incluye SOLAMENTE los medicamentos que el médico haya dictado verbalmente de forma explícita.
+           - PROHIBIDO agregar medicamentos que "tú crees que faltan" (ej: NO agregues antibióticos si el médico solo recetó analgésicos, aunque el diagnóstico sea infección).
+
+        2. AUDITORÍA FARMACOLÓGICA Y SUGERENCIAS:
+           - Si el médico receta algo PELIGROSO (Ej: Claritromicina en paciente con QT Largo):
+             A) Mantén la transcripción fiel en "prescriptions" (Lo que dijo el médico).
+             B) Activa el campo "risk_analysis" con nivel "Alto".
+             C) En "actionItems", agrega explícitamente una sugerencia de sustitución: "SUGERENCIA DE SEGURIDAD: Sustituir [Fármaco A] por [Fármaco B] debido a [Razón]".
+           - NUNCA reemplaces el medicamento en la lista final sin que el médico lo haya verbalizado.
 
         INSTRUCCIONES JSON:
         
         1. conversation_log: Transcripción limpia y completa.
         2. clinicalNote: Nota SOAP formal corregida.
-        3. prescriptions: Array de objetos.
+        3. prescriptions: Array de objetos (LO QUE SE DIJO).
            - Campo "action" es OBLIGATORIO: "NUEVO" | "CONTINUAR" | "AJUSTAR" | "SUSPENDER".
            - Si action es "SUSPENDER", pon en "dose" la palabra "SUSPENDER" y en duration "INMEDIATO".
         4. patientInstructions: Instrucciones narrativas.
@@ -259,7 +261,7 @@ export const GeminiMedicalService = {
           "soapData": { 
              "subjective": "...", 
              "objective": "...", 
-             "analysis": "Integración diagnóstica usando lenguaje de probabilidad. IMPORTANTE: Incluye el código CIE-10 (ICD-10) entre paréntesis para cada diagnóstico principal.", 
+             "analysis": "Integración diagnóstica con lenguaje probabilístico y códigos CIE-10 (ICD-10).", 
              "plan": "..." 
           },
           "prescriptions": [
@@ -280,7 +282,8 @@ export const GeminiMedicalService = {
           "actionItems": { 
              "next_appointment": "YYYY-MM-DD o null", 
              "urgent_referral": boolean, 
-             "lab_tests_required": ["..."] 
+             "lab_tests_required": ["..."],
+             "suggested_action": "Texto opcional para sugerir sustituciones farmacológicas (Ej: 'Sustituir X por Y')."
           },
           "conversation_log": [ 
              { "speaker": "Médico", "text": "..." }, 
