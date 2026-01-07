@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.0) [Omni-Sentinel Active]");
+console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.1) [Surgical Lock Active]");
 
 // ==========================================
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
@@ -114,6 +114,11 @@ const getSpecialtyPromptConfig = (specialty: string) => {
         role: "Cirujano Plástico Certificado y Auditor de Seguridad",
         focus: "Técnica quirúrgica, tiempos de recuperación, cicatrización y PREVENCIÓN DE TROMBOEMBOLISMO.",
         bias: "Extremadamente cauteloso con la seguridad del paciente (Score de Caprini)."
+    },
+    "Cirugía General": {
+        role: "Cirujano General Certificado",
+        focus: "Patología quirúrgica, abdomen agudo, pared abdominal, trauma y sepsis.",
+        bias: "Prioriza la decisión quirúrgica y la seguridad preoperatoria (Ayuno/Hemostasia)."
     }
   };
 
@@ -175,7 +180,7 @@ export const GeminiMedicalService = {
   // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + DETERMINISTIC RX + CIE-10) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      console.log("⚡ Generando Nota Clínica Consistente (v7.0 - Omni-Sentinel)...");
+      console.log("⚡ Generando Nota Clínica Consistente (v7.1 - Surgical Lock)...");
 
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
@@ -195,13 +200,12 @@ export const GeminiMedicalService = {
         ===================================================
         🧠 MOTOR DE INTUICIÓN CLÍNICA (RAZONAMIENTO EXPERTO)
         ===================================================
-        Para este caso, aplica estos 3 principios de "Intuición Médica" para lograr la definición más natural posible:
+        Para este caso, aplica estos 3 principios de "Intuición Médica":
 
         1. INTERPRETACIÓN, NO TRANSCRIPCIÓN:
-           - Tu trabajo NO es repetir lo que dijo el paciente. Tu trabajo es interpretar QUÉ QUISO DECIR médicamente.
+           - Tu trabajo NO es repetir lo que dijo el paciente. Interpreta QUÉ QUISO DECIR médicamente.
            - Ejemplo: "siento que el corazón se me sale" -> "Palpitaciones".
            - Ejemplo: "burbujas en la orina" -> "Proteinuria".
-           - Ejemplo: "me desmayé y me puse pálido" -> "Síncope".
 
         2. CONEXIÓN DE PUNTOS (DOT-CONNECTING):
            - Usa el HISTORIAL para dar contexto.
@@ -215,11 +219,9 @@ export const GeminiMedicalService = {
         🇲🇽 REGLAS DE SINTAXIS Y TERMINOLOGÍA MEXICANA (NOM-004)
         ===================================================
         1. DICCIONARIO DE TRADUCCIÓN EN TIEMPO REAL:
-           - Si el paciente usa lenguaje coloquial, DEBES transformarlo a terminología médica técnica en la nota.
-
+           - Si el paciente usa lenguaje coloquial, DEBES transformarlo a terminología médica técnica.
         2. ABREVIATURAS ESTÁNDAR:
            - Utiliza ÚNICAMENTE abreviaturas estandarizadas (HAS, DM2, IVU, EPOC, IRC).
-
         3. CORRECCIÓN FONÉTICA:
            - Prioriza nombres de fármacos reales si el audio es ambiguo.
 
@@ -243,9 +245,9 @@ export const GeminiMedicalService = {
         - Proporciona el código CIE-10 (ICD-10) entre paréntesis para cada impresión diagnóstica.
 
         ===================================================
-        🚨 PROTOCOLO DE AUDITORÍA DE SEGURIDAD (OMNI-SENTINEL)
+        🚨 PROTOCOLO DE AUDITORÍA DE SEGURIDAD (OMNI-SENTINEL v7.1)
         ===================================================
-        Debes aplicar las siguientes "5 Leyes Universales de Seguridad". Si alguna se viola, ACTIVA EL BLOQUEO ROJO.
+        Debes aplicar las siguientes "6 Leyes Universales de Seguridad". Si alguna se viola, ACTIVA EL BLOQUEO ROJO.
 
         LEY 1: SEGURIDAD HEMODINÁMICA (CARDIOLOGÍA)
         - SI hay Bloqueo AV de 2do/3er Grado: BLOQUEO ABSOLUTO a cronotrópicos orales/inhalados (Teofilina, Salbutamol).
@@ -266,6 +268,11 @@ export const GeminiMedicalService = {
 
         LEY 5: SEGURIDAD INMUNOLÓGICA (ALERGIAS)
         - REVISA el campo "Historial" o "Alergias". SI hay alergia documentada (ej. Penicilina) y se receta un fármaco de esa familia (ej. Amoxicilina): BLOQUEO ABSOLUTO.
+
+        LEY 6: SEGURIDAD QUIRÚRGICA (PRE-OPERATORIA)
+        - SI se indica "Cirugía de Urgencia", "Quirófano Inmediato" o "Ayuno":
+          * BLOQUEO ABSOLUTO: Antiagregantes (Aspirina, Clopidogrel) y Anticoagulantes (Riesgo de sangrado).
+          * BLOQUEO ABSOLUTO: Alimentos o fármacos orales no esenciales (Riesgo de broncoaspiración).
 
         ===================================================
         💊 REGLAS DE RECETA ESTRUCTURADA (SAFETY OVERRIDE)
@@ -322,7 +329,7 @@ export const GeminiMedicalService = {
       const rawText = await generateWithFailover(prompt, true);
       const parsedData = JSON.parse(cleanJSON(rawText));
 
-      console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10 + Omni-Sentinel v7.0).");
+      console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10 + Omni-Sentinel v7.1).");
       return parsedData as GeminiResponse;
 
     } catch (error: any) {
