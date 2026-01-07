@@ -1,7 +1,7 @@
 import { supabase } from '../lib/supabase';
 import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage } from '../types';
 
-console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v6.5) [Active Blockade System]");
+console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v6.6) [Liability Shield Active]");
 
 // ==========================================
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
@@ -159,7 +159,7 @@ export const GeminiMedicalService = {
                 "pending_actions": ["Pendiente 1", "Pendiente 2"]
             }
 
-            NOTA: Si el historial está vacío o es ilegible, devuelve arrays vacíos y "Sin datos previos" en evolución.
+            NOTAS: Si el historial está vacío o es ilegible, devuelve arrays vacíos y "Sin datos previos" en evolución.
         `;
 
         const rawText = await generateWithFailover(prompt, true);
@@ -175,7 +175,7 @@ export const GeminiMedicalService = {
   // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + DETERMINISTIC RX + CIE-10) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
     try {
-      console.log("⚡ Generando Nota Clínica Consistente (v6.5 - Safety Override)...");
+      console.log("⚡ Generando Nota Clínica Consistente (v6.6 - Liability Shield)...");
 
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
@@ -208,10 +208,29 @@ export const GeminiMedicalService = {
            - Prioriza siempre nombres de fármacos reales sobre palabras comunes si el contexto es terapéutico.
 
         ===================================================
+        🛡️ DIRECTIVA DE SEGURIDAD LEGAL (NON-DIAGNOSTIC LANGUAGE)
+        ===================================================
+        Tú eres una IA de soporte administrativo, NO un médico con licencia.
+        TIENES PROHIBIDO emitir diagnósticos absolutos o definitivos.
+
+        Al generar la sección "ANÁLISIS Y DIAGNÓSTICO" (SOAPData.analysis), debes OBLIGATORIAMENTE utilizar "Lenguaje de Probabilidad" (Hedging) al inicio de cada punto enumerado.
+
+        Lista Blanca de Prefijos Permitidos (Usa variaciones):
+        - "Cuadro clínico compatible con..."
+        - "Probable [Condición]..."
+        - "Hallazgos sugestivos de..."
+        - "Impresión diagnóstica de..."
+        - "Patrón clínico asociado a..."
+
+        Lista Negra (PROHIBIDO INICIAR ASÍ):
+        ❌ "1. Infarto Agudo" (Afirmación absoluta)
+        ❌ "Diagnóstico: Diabetes"
+
+        ===================================================
         📚 CODIFICACIÓN CLÍNICA (CIE-10 / ICD-10)
         ===================================================
-        - Para cada diagnóstico principal identificado en la sección de ANÁLISIS, DEBES proporcionar el código CIE-10 (ICD-10) correspondiente entre paréntesis.
-        - Ejemplo: "Faringoamigdalitis estreptocócica (J02.0)" o "Diabetes Mellitus tipo 2 sin complicaciones (E11.9)".
+        - Para cada diagnóstico (usando lenguaje probabilístico) identificado en la sección de ANÁLISIS, DEBES proporcionar el código CIE-10 (ICD-10) correspondiente entre paréntesis.
+        - Ejemplo: "Cuadro sugestivo de Faringoamigdalitis estreptocócica (J02.0)" o "Probable Diabetes Mellitus tipo 2 (E11.9)".
 
         ===================================================
         🚨 PROTOCOLO DE AUDITORÍA DE SEGURIDAD (CRÍTICO)
@@ -288,7 +307,7 @@ export const GeminiMedicalService = {
       const rawText = await generateWithFailover(prompt, true);
       const parsedData = JSON.parse(cleanJSON(rawText));
 
-      console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10).");
+      console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10 + Liability Shield).");
       return parsedData as GeminiResponse;
 
     } catch (error: any) {
