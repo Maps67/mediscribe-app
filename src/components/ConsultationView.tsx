@@ -5,7 +5,8 @@ import {
   ArrowLeft, WifiOff, Save, Share2, Download, Paperclip, 
   Clock, UserCircle, Brain, FileSignature, Keyboard, Quote, 
   ChevronDown, ChevronUp, Sparkles, PenLine, UserPlus, 
-  ShieldCheck, AlertCircle, RefreshCw, Pill, Plus, Building2
+  ShieldCheck, AlertCircle, RefreshCw, Pill, Plus, Building2,
+  Activity, ClipboardList // <--- FIX: Iconos agregados para evitar el crash
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
