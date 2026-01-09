@@ -1,5 +1,36 @@
 import { supabase } from '../lib/supabase';
-import { GeminiResponse, PatientInsight, MedicationItem, FollowUpMessage, ClinicalInsight } from '../types';
+// Importamos los tipos definidos en la arquitectura v5.2
+import { 
+  GeminiResponse, 
+  PatientInsight, 
+  SOAPData, 
+  ChatMessage 
+} from '../types'; // 
+
+// Definición extendida para manejo de recetas internas sin romper la interfaz base
+export interface MedicationItem {
+  drug: string;
+  details?: string;
+  dose: string;
+  frequency: string;
+  duration: string;
+  notes?: string;
+  action: 'NUEVO' | 'CONTINUAR' | 'AJUSTAR' | 'SUSPENDER';
+}
+
+export interface ClinicalInsight {
+  id: string;
+  type: 'guide' | 'alert' | 'treatment' | 'info';
+  title: string;
+  content: string;
+  reference: string;
+  url: string;
+}
+
+export interface FollowUpMessage {
+  day: number;
+  message: string;
+}
 
 console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.1) [Surgical Lock Active]");
 
@@ -7,7 +38,10 @@ console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.1) [Surgical Loc
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
 // ==========================================
 
-const cleanJSON = (text: string) => {
+/**
+ * Limpia bloques de código Markdown (```json) para asegurar parsing correcto.
+ */
+const cleanJSON = (text: string): string => {
   try {
     if (typeof text !== 'string') return text;
     let clean = text.replace(/```json/g, '').replace(/```/g, '');
@@ -16,6 +50,7 @@ const cleanJSON = (text: string) => {
     const firstBracket = clean.indexOf('[');
     const lastBracket = clean.lastIndexOf(']');
 
+    // Detectar si es Objeto o Array y cortar lo que sobre
     if (firstCurly !== -1 && lastCurly !== -1 && (firstCurly < firstBracket || firstBracket === -1)) {
       clean = clean.substring(firstCurly, lastCurly + 1);
     } else if (firstBracket !== -1 && lastBracket !== -1) {
@@ -29,7 +64,7 @@ const cleanJSON = (text: string) => {
 
 /**
  * MOTOR DE CONEXIÓN SEGURO (SUPABASE EDGE)
- * Reemplaza la conexión local insegura. Ahora delega la ejecución a la nube.
+ * Ejecuta la IA en servidor seguro para evitar exponer keys y manejar timeouts.
  */
 async function generateWithFailover(prompt: string, jsonMode: boolean = false, useTools: boolean = false): Promise<string> {
   console.log("🛡️ Iniciando transmisión segura a Supabase Edge Function...");
@@ -56,7 +91,6 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false, u
       throw new Error('La Edge Function no devolvió texto válido.');
     }
 
-    // Aseguramos que devolvemos un string para evitar errores de .replace posterior
     return String(data.text);
 
   } catch (err: any) {
@@ -67,6 +101,7 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false, u
 
 /**
  * MOTOR DE PERFILES (PERSONALIDAD CLÍNICA)
+ * Ajusta el sesgo de la IA según la especialidad del médico.
  */
 const getSpecialtyPromptConfig = (specialty: string) => {
   const configs: Record<string, any> = {
@@ -109,16 +144,6 @@ const getSpecialtyPromptConfig = (specialty: string) => {
         role: "Endocrinólogo Experto",
         focus: "Metabolismo, control glucémico, tiroides, ejes hormonales.",
         bias: "Prioriza el control metabólico estricto y detección de crisis (CAD, Estado Hiperosmolar)."
-    },
-    "Cirugía Plástica y Reconstructiva": {
-        role: "Cirujano Plástico Certificado y Auditor de Seguridad",
-        focus: "Técnica quirúrgica, tiempos de recuperación, cicatrización y PREVENCIÓN DE TROMBOEMBOLISMO.",
-        bias: "Extremadamente cauteloso con la seguridad del paciente (Score de Caprini)."
-    },
-    "Cirugía General": {
-        role: "Cirujano General Certificado",
-        focus: "Patología quirúrgica, abdomen agudo, pared abdominal, trauma y sepsis.",
-        bias: "Prioriza la decisión quirúrgica y la seguridad preoperatoria (Ayuno/Hemostasia)."
     }
   };
 
@@ -135,7 +160,7 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 export const GeminiMedicalService = {
 
   // --- NUEVA FUNCIÓN: VITAL SNAPSHOT (TARJETA AMARILLA) ---
-  // ACTUALIZADO: Prompt con inyección de especialidad para corregir Inercia de Contexto
+  // Ideal para Lazy Registration [cite: 3]
   async generateVitalSnapshot(historyJSON: string, specialty: string = "Medicina General"): Promise<PatientInsight | null> {
     try {
         console.log(`⚡ Generando Vital Snapshot (Enfoque: ${specialty})...`);
@@ -145,7 +170,7 @@ export const GeminiMedicalService = {
             TU OBJETIVO: Leer el historial del paciente y extraer 3 puntos clave para que el médico los vea EN MENOS DE 5 SEGUNDOS.
             
             LENTE CLÍNICO: Eres ${specialty}. Filtra el ruido. 
-            - Si el historial tiene datos de otras áreas (ej. Psiquiatría) que NO afectan tu área, ignóralos o resúmelos al mínimo.
+            - Si el historial tiene datos de otras áreas que NO afectan tu área, ignóralos o resúmelos al mínimo.
             - Si hay interacciones farmacológicas o riesgos fisiológicos que afecten a ${specialty}, DESTÁCALOS CON PRIORIDAD ALTA.
 
             INPUT (HISTORIAL):
@@ -169,7 +194,7 @@ export const GeminiMedicalService = {
 
         const rawText = await generateWithFailover(prompt, true);
         const parsed = JSON.parse(cleanJSON(rawText));
-        return parsed as PatientInsight;
+        return parsed as PatientInsight; // [cite: 10]
 
     } catch (e) {
         console.error("❌ Error generando Vital Snapshot:", e);
@@ -177,8 +202,8 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + DETERMINISTIC RX + CIE-10) ---
-  async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse> {
+  // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + CIE-10) ---
+  async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = ""): Promise<GeminiResponse & { prescriptions?: MedicationItem[] }> {
     try {
       console.log("⚡ Generando Nota Clínica Consistente (v7.1 - Surgical Lock)...");
 
@@ -203,91 +228,56 @@ export const GeminiMedicalService = {
         Para este caso, aplica estos 3 principios de "Intuición Médica":
 
         1. INTERPRETACIÓN, NO TRANSCRIPCIÓN:
-           - Tu trabajo NO es repetir lo que dijo el paciente. Interpreta QUÉ QUISO DECIR médicamente.
+           - Interpreta QUÉ QUISO DECIR médicamente.
            - Ejemplo: "siento que el corazón se me sale" -> "Palpitaciones".
-           - Ejemplo: "burbujas en la orina" -> "Proteinuria".
 
         2. CONEXIÓN DE PUNTOS (DOT-CONNECTING):
            - Usa el HISTORIAL para dar contexto.
-           - Ejemplo: Joven + Lupus + Bloqueo AV = Miocarditis Lúpica.
            - Ejemplo: Cirrosis + Confusión = Encefalopatía Hepática.
 
         3. DETECCIÓN DE SILENCIOS:
-           - Lo que NO se dice también importa. Si el paciente niega síntomas clave, regístralo.
+           - Si el paciente niega síntomas clave, regístralo.
 
         ===================================================
         🇲🇽 REGLAS DE SINTAXIS Y TERMINOLOGÍA MEXICANA (NOM-004)
         ===================================================
-        1. DICCIONARIO DE TRADUCCIÓN EN TIEMPO REAL:
-           - Si el paciente usa lenguaje coloquial, DEBES transformarlo a terminología médica técnica.
-        2. ABREVIATURAS ESTÁNDAR:
-           - Utiliza ÚNICAMENTE abreviaturas estandarizadas (HAS, DM2, IVU, EPOC, IRC).
-        3. CORRECCIÓN FONÉTICA:
-           - Prioriza nombres de fármacos reales si el audio es ambiguo.
+        1. DICCIONARIO: Transforma lenguaje coloquial a terminología técnica.
+        2. ABREVIATURAS: Usa ÚNICAMENTE estándar (HAS, DM2, IVU, EPOC).
+        3. FONÉTICA: Prioriza nombres de fármacos reales.
 
         ===================================================
         🛡️ DIRECTIVA DE SEGURIDAD LEGAL (NON-DIAGNOSTIC LANGUAGE)
         ===================================================
-        Tú eres una IA de soporte administrativo, NO un médico con licencia.
-        TIENES PROHIBIDO emitir diagnósticos absolutos o definitivos.
-
-        Al generar la sección "ANÁLISIS Y DIAGNÓSTICO", usa SIEMPRE "Lenguaje de Probabilidad":
+        TIENES PROHIBIDO emitir diagnósticos absolutos. Usa SIEMPRE "Lenguaje de Probabilidad":
         - "Cuadro clínico compatible con..."
         - "Probable [Condición]..."
-        - "Hallazgos sugestivos de..."
-        - "Patrón clínico asociado a..."
-
-        ❌ PROHIBIDO: "Diagnóstico: [Enfermedad]" o afirmaciones absolutas.
+        - ❌ PROHIBIDO: "Diagnóstico: [Enfermedad]" o afirmaciones absolutas.
 
         ===================================================
         📚 CODIFICACIÓN CLÍNICA (CIE-10 / ICD-10)
         ===================================================
-        - Proporciona el código CIE-10 (ICD-10) entre paréntesis para cada impresión diagnóstica.
+        - Proporciona el código CIE-10 entre paréntesis para cada impresión diagnóstica.
 
         ===================================================
         🚨 PROTOCOLO DE AUDITORÍA DE SEGURIDAD (OMNI-SENTINEL v7.1)
         ===================================================
-        Debes aplicar las siguientes "6 Leyes Universales de Seguridad". Si alguna se viola, ACTIVA EL BLOQUEO ROJO.
+        Aplica las "6 Leyes Universales de Seguridad". Si se violan, ACTIVA BLOQUEO.
 
-        LEY 1: SEGURIDAD HEMODINÁMICA (CARDIOLOGÍA)
-        - SI hay Bloqueo AV de 2do/3er Grado: BLOQUEO ABSOLUTO a cronotrópicos orales/inhalados (Teofilina, Salbutamol).
-        - SI hay Hipotensión o Falla Cardíaca Descompensada (FEVI < 40%): BLOQUEO ABSOLUTO a Inotrópicos Negativos (Diltiazem, Verapamilo) y AINES.
-
-        LEY 2: SEGURIDAD DE FILTRADO (NEFROLOGÍA)
-        - SI la TFG < 30 ml/min (ERC Estadio 4-5) o Falla Renal Aguda:
-          * BLOQUEO ABSOLUTO: Metformina, AINES (Naproxeno, Diclofenaco), Espironolactona.
-
-        LEY 3: SEGURIDAD METABÓLICA (HEPATOLOGÍA)
-        - SI hay Cirrosis Descompensada (Child-Pugh B/C) o Encefalopatía:
-          * BLOQUEO ABSOLUTO: Benzodiacepinas (Diazepam) y AINES.
-
-        LEY 4: SEGURIDAD DE POBLACIONES VULNERABLES (OBSTETRICIA/PEDIATRÍA)
-        - SI la paciente está EMBARAZADA: BLOQUEO ABSOLUTO a Categoría X/D FDA (Isotretinoína, Warfarina, IECA/ARA-II, Quinolonas).
-        - SI el paciente es PEDIÁTRICO (< 12 años): 
-          * BLOQUEO ABSOLUTO: Aspirina (Riesgo Reye), Tetraciclinas (Dientes), Quinolonas (Cartílago).
-
-        LEY 5: SEGURIDAD INMUNOLÓGICA (ALERGIAS)
-        - REVISA el campo "Historial" o "Alergias". SI hay alergia documentada (ej. Penicilina) y se receta un fármaco de esa familia (ej. Amoxicilina): BLOQUEO ABSOLUTO.
-
-        LEY 6: SEGURIDAD QUIRÚRGICA (PRE-OPERATORIA)
-        - SI se indica "Cirugía de Urgencia", "Quirófano Inmediato" o "Ayuno":
-          * BLOQUEO ABSOLUTO: Antiagregantes (Aspirina, Clopidogrel) y Anticoagulantes (Riesgo de sangrado).
-          * BLOQUEO ABSOLUTO: Alimentos o fármacos orales no esenciales (Riesgo de broncoaspiración).
+        LEY 1 (CARDIOLOGÍA): Bloqueo AV -> NO cronotrópicos. Hipotensión/FEVI baja -> NO Inotrópicos Negativos/AINES.
+        LEY 2 (NEFROLOGÍA): TFG < 30 -> NO Metformina/AINES/Espironolactona.
+        LEY 3 (HEPATOLOGÍA): Cirrosis Descompensada -> NO Benzos/AINES.
+        LEY 4 (VULNERABLES): Embarazo -> NO Cat X/D. Pediatría -> NO Aspirina/Tetraciclinas/Quinolonas.
+        LEY 5 (ALERGIAS): SI hay alergia documentada, BLOQUEO ABSOLUTO familia relacionada.
+        LEY 6 (QUIRÚRGICA): Urgencia/Ayuno -> NO Orales/Anticoagulantes.
 
         ===================================================
         💊 REGLAS DE RECETA ESTRUCTURADA (SAFETY OVERRIDE)
         ===================================================
-        1. PRINCIPIO DE FIDELIDAD: Incluye los medicamentos que el médico dictó.
-        2. EJECUCIÓN DE BLOQUEO: Si un medicamento viola una Ley de Seguridad:
-           - action: "SUSPENDER" (Pinta la tarjeta de ROJO).
-           - dose: "BLOQUEO DE SEGURIDAD".
-           - notes: "⛔ CONTRAINDICADO: [RAZÓN DE LA LEY VIOLADA]. RIESGO LETAL/GRAVE".
-
-        INSTRUCCIONES JSON:
-        1. conversation_log: Transcripción limpia.
-        2. clinicalNote: Nota SOAP formal.
-        3. prescriptions: Array de objetos con "action" obligatorio.
-        4. patientInstructions: Instrucciones narrativas.
+        1. Incluye los medicamentos dictados.
+        2. Si viola una Ley: 
+           - action: "SUSPENDER"
+           - dose: "BLOQUEO DE SEGURIDAD"
+           - notes: "⛔ CONTRAINDICADO: [RAZÓN]. RIESGO LETAL/GRAVE".
 
         SALIDA ESPERADA (JSON Schema Strict):
         {
@@ -316,8 +306,7 @@ export const GeminiMedicalService = {
           "actionItems": { 
              "next_appointment": "YYYY-MM-DD o null", 
              "urgent_referral": boolean, 
-             "lab_tests_required": ["..."],
-             "suggested_action": "Texto opcional."
+             "lab_tests_required": ["..."]
           },
           "conversation_log": [ 
              { "speaker": "Médico", "text": "..." }, 
@@ -330,11 +319,12 @@ export const GeminiMedicalService = {
       const parsedData = JSON.parse(cleanJSON(rawText));
 
       console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10 + Omni-Sentinel v7.1).");
-      return parsedData as GeminiResponse;
+      return parsedData as GeminiResponse & { prescriptions: MedicationItem[] }; // Casting extendido [cite: 7]
 
     } catch (error: any) {
       console.error("❌ Error/Bloqueo IA generando Nota Clínica:", error);
 
+      // Fallback seguro compatible con GeminiResponse
       return {
           clinicalNote: `⚠️ NOTA DE SEGURIDAD DEL SISTEMA:\n\nLa transcripción contiene temas sensibles o complejos que activaron los filtros de seguridad máxima.\n\nPor favor, redacte la nota manualmente.\n\nTranscipción recuperada:\n${transcript}`,
           soapData: {
@@ -343,7 +333,6 @@ export const GeminiMedicalService = {
               analysis: "Riesgo Alto detectado por filtros de contenido.",
               plan: "Evaluación manual recomendada."
           },
-          prescriptions: [],
           patientInstructions: "Acudir a urgencias si hay riesgo inminente.",
           conversation_log: [],
           risk_analysis: { 
@@ -353,7 +342,9 @@ export const GeminiMedicalService = {
           actionItems: { 
               urgent_referral: true,
               lab_tests_required: []
-          }
+          },
+          // @ts-ignore: Propiedad extendida para UI
+          prescriptions: []
       };
     }
   },
@@ -403,11 +394,10 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- C. EXTRACCIÓN MEDICAMENTOS (FEW-SHOT PROMPTING PARA ALTA PRECISIÓN) ---
+  // --- C. EXTRACCIÓN MEDICAMENTOS (FEW-SHOT PROMPTING) ---
   async extractMedications(text: string): Promise<MedicationItem[]> {
     if (!text) return [];
     try {
-      // PROMPT "FEW-SHOT" (CON EJEMPLOS) para forzar a la IA a entender lenguaje natural
       const prompt = `
         TU TAREA: Extraer medicamentos de este texto médico y devolverlos en un ARRAY JSON.
         
@@ -418,19 +408,12 @@ export const GeminiMedicalService = {
         2. Entrada: "Suspender el Naproxeno inmediatamente."
            Salida: [{"drug": "Naproxeno", "details": "", "frequency": "", "duration": "INMEDIATO", "notes": "Suspensión indicada", "action": "SUSPENDER"}]
 
-        3. Entrada: "Paracetamol 1g IV ahora."
-           Salida: [{"drug": "Paracetamol", "details": "1g", "frequency": "Dosis única", "duration": "", "notes": "Vía IV", "action": "NUEVO"}]
-
-        4. Entrada: "Agrega Metformina de 850."
-           Salida: [{"drug": "Metformina", "details": "850mg", "frequency": "", "duration": "", "notes": "", "action": "NUEVO"}]
-
         ---
         AHORA ANALIZA ESTE TEXTO REAL:
         "${text.replace(/"/g, "'")}"
         
         REGLAS:
         - Extrae TODO lo que parezca un medicamento.
-        - Si falta frecuencia o duración, pon "".
         - Action por defecto: "NUEVO".
         - RESPONDE SOLO CON EL JSON ARRAY.
       `;
@@ -484,14 +467,12 @@ export const GeminiMedicalService = {
             INSTRUCCIONES DE RESPUESTA:
             1. Responde siempre en español profesional.
             2. Usa **negritas** para términos médicos y fármacos.
-            3. Si la respuesta es larga, usa listas con viñetas.
-            4. Si citas guías clínicas o dosis, menciona la fuente.
-            5. Responde con TEXTO NATURAL (Markdown), NO envíes objetos JSON.
+            3. Si citas guías clínicas o dosis, menciona la fuente.
+            4. Responde con TEXTO NATURAL (Markdown), NO envíes objetos JSON.
         `;
         
         const response = await generateWithFailover(prompt, false, true); // useTools = true
         
-        // Blindaje final: Si por algún motivo la respuesta es vacía o no es string, manejamos el error
         if (!response || typeof response !== 'string') {
           throw new Error("Respuesta de IA no válida");
         }
@@ -504,8 +485,7 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- G. NUEVO: INSIGHTS CLÍNICOS CONTEXTUALES (SIDEBAR V5.10) ---
-  // --- ACTUALIZACIÓN PRO: SMART CITATION HIERARCHY ---
+  // --- G. INSIGHTS CLÍNICOS CONTEXTUALES (SMART CITATION) ---
   async generateClinicalInsights(noteContent: string, specialty: string = "Medicina General"): Promise<ClinicalInsight[]> {
     try {
         console.log("🔎 Generando Insights Clínicos Pasivos (Modo Smart Citation)...");
@@ -518,42 +498,33 @@ export const GeminiMedicalService = {
 
             REGLAS DE SEGURIDAD (STRICT):
             1. NO diagnostiques. NO sugieras tratamientos definitivos. Solo sugiere LITERATURA o GUÍAS.
-            2. La información debe ser "Nice to know" (Informativa), no crítica.
-            3. Si no hay nada relevante que agregar, devuelve un array vacío.
+            2. La información debe ser "Nice to know" (Informativa).
             
             REGLAS DE CITAS Y ENLACES (JERARQUÍA INTELIGENTE):
-            INTENTA en este orden de prioridad para el campo "url":
-            
-            PRIORIDAD 1 (GOLD STANDARD): Si conoces el DOI (Digital Object Identifier) o el link de PubMed, ÚSALO.
-               - Ejemplo: "https://doi.org/10.1056/NEJMoa2022483"
-               - Ejemplo: "https://pubmed.ncbi.nlm.nih.gov/324123/"
-            
-            PRIORIDAD 2 (SITIOS OFICIALES): Links estables de organizaciones (WHO, CDC, CENETEC, AHA).
-               - Ejemplo: "https://www.cenetec-difusion.com/CMGPC/GPC-IMSS-000-12/ER.pdf"
-            
-            PRIORIDAD 3 (FALLBACK SEGURO): SOLO si no tienes un link directo confiable, genera una búsqueda de Google.
-               - Formato: "https://www.google.com/search?q=" + [Nombre Exacto de la Guía + Año]
+            PRIORIDAD 1 (GOLD STANDARD): DOI o PubMed.
+            PRIORIDAD 2 (SITIOS OFICIALES): Links estables (WHO, CDC, CENETEC, AHA).
+            PRIORIDAD 3 (FALLBACK): Búsqueda Google "Nombre Guía + Año".
 
             FORMATO JSON ARRAY (ClinicalInsight):
             [
                 {
                     "id": "unique_id",
                     "type": "guide" | "alert" | "treatment" | "info",
-                    "title": "Título corto (ej: Guía GPC-2024)",
-                    "content": "Resumen de por qué es relevante (máx 20 palabras)",
-                    "reference": "Nombre de la Fuente (Autor, Año)",
-                    "url": "URL según la jerarquía anterior"
+                    "title": "Título corto",
+                    "content": "Resumen breve",
+                    "reference": "Fuente (Autor, Año)",
+                    "url": "URL"
                 }
             ]
         `;
 
-        const rawText = await generateWithFailover(prompt, true, true); // useTools=true
+        const rawText = await generateWithFailover(prompt, true, true);
         const res = JSON.parse(cleanJSON(rawText));
         return Array.isArray(res) ? res : [];
 
     } catch (e) {
         console.warn("⚠️ Error generando insights clínicos (No crítico):", e);
-        return []; // Fallo silencioso, no rompe la UI
+        return [];
     }
   },
 
