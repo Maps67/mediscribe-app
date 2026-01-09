@@ -28,7 +28,8 @@ import { VitalSnapshotCard } from './VitalSnapshotCard';
 import { SpecialtyVault } from './SpecialtyVault';
 import { ConsultationSidebar } from './ConsultationSidebar';
 import { ContextualInsights } from './ContextualInsights'; 
-import { PatientBriefing } from '../components/Consultation/PatientBriefing'; // <--- MODIFICACIÓN: Importación del Briefing
+// CORRECCIÓN DE RUTA: Al estar en la misma carpeta components
+import { PatientBriefing } from './Consultation/PatientBriefing'; 
 
 type TabType = 'record' | 'patient' | 'chat' | 'insurance';
 
@@ -578,13 +579,30 @@ const ConsultationView: React.FC = () => {
       setShowBriefing(true);
   };
 
-  // --- CALLBACK CUANDO EL MÉDICO CIERRA EL BRIEFING ---
+  // --- CALLBACK CUANDO EL MÉDICO CIERRA EL BRIEFING (LÓGICA HÍBRIDA) ---
   const handleBriefingComplete = (context: string) => {
-      setManualContext(context);
-      setShowBriefing(false);
+      setManualContext(context); // 1. Siempre guardamos para la IA (Memoria Virtual)
+      setShowBriefing(false);    // 2. Cerramos el modal
       
-      if (context) {
-          toast.success("Contexto inicial guardado. La IA lo usará al generar.");
+      // LÓGICA DE VISUALIZACIÓN HÍBRIDA
+      // Detectamos si es paciente nuevo/temporal O si el snapshot actual está vacío/genérico
+      const isNewOrEmpty = (selectedPatient as any).isTemporary || 
+                           !selectedPatient?.history || 
+                           (vitalSnapshot?.evolution && vitalSnapshot.evolution.includes("Sin datos previos"));
+
+      // Si es nuevo y escribió algo, actualizamos el Vital Snapshot visualmente
+      if (isNewOrEmpty && context.trim().length > 0) {
+          setVitalSnapshot({
+              evolution: `📝 CONTEXTO INICIAL (MÉDICO):\n"${context}"`, // Mostramos lo que escribió
+              risk_flags: ["Paciente Nuevo - Valoración Inicial"],
+              pending_actions: ["Realizar historia clínica completa"],
+              medication_audit: "Pendiente de registro en nota"
+          });
+          toast.success("Contexto inicial cargado en panel visual.");
+      } 
+      // Si ya tiene historial, NO tocamos el Vital Snapshot (se queda el histórico)
+      else if (context) {
+          toast.success("Contexto guardado en memoria para la IA.");
       }
   };
 
@@ -1137,7 +1155,7 @@ const ConsultationView: React.FC = () => {
           {/* COLUMNA CENTRAL: Nota / Recetas */}
           <div className="flex-1 flex flex-col bg-slate-100 dark:bg-slate-950 border-l dark:border-slate-800 min-w-0 relative">
                 
-                {/* --- MODIFICACIÓN: RENDERIZADO DEL PATIENT BRIEFING (PASE DE VISITA) --- */}
+                {/* --- RENDERIZADO DEL PATIENT BRIEFING (PASE DE VISITA) --- */}
                 {showBriefing && selectedPatient && (
                     <PatientBriefing 
                         patient={selectedPatient}
