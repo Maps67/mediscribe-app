@@ -32,7 +32,7 @@ export interface FollowUpMessage {
   message: string;
 }
 
-console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.2 - SOFIA PATCH) [Surgical Lock Active]");
+console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.3 - FORENSIC AUDIT) [Surgical Lock Active]");
 
 // ==========================================
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
@@ -159,32 +159,37 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- NUEVA FUNCIÓN: VITAL SNAPSHOT (TARJETA AMARILLA) ---
-  // Ideal para Lazy Registration
+  // --- NUEVA FUNCIÓN: VITAL SNAPSHOT (MODO FORENSE / ANTI-ALUCINACIÓN) ---
+  // Actualizado para respetar bloqueos históricos al importar pacientes
   async generateVitalSnapshot(historyJSON: string, specialty: string = "Medicina General"): Promise<PatientInsight | null> {
     try {
-        console.log(`⚡ Generando Vital Snapshot (Enfoque: ${specialty})...`);
+        console.log(`⚡ Generando Vital Snapshot Forense (Enfoque: ${specialty})...`);
         
         const prompt = `
-            ACTÚA COMO: Asistente Clínico de Triaje Avanzado ESPECIALISTA EN ${specialty.toUpperCase()}.
-            TU OBJETIVO: Leer el historial del paciente y extraer 3 puntos clave para que el médico los vea EN MENOS DE 5 SEGUNDOS.
+            ACTÚA COMO: Auditor Médico Forense y Asistente de Triaje.
+            TU OBJETIVO: Extraer la "Verdad Histórica" del paciente basada ÚNICAMENTE en la evidencia escrita.
             
-            LENTE CLÍNICO: Eres ${specialty}. Filtra el ruido. 
-            - Si el historial tiene datos de otras áreas que NO afectan tu área, ignóralos o resúmelos al mínimo.
-            - Si hay interacciones farmacológicas o riesgos fisiológicos que afecten a ${specialty}, DESTÁCALOS CON PRIORIDAD ALTA.
-
-            INPUT (HISTORIAL):
+            LENTE CLÍNICO: Eres ${specialty}.
+            
+            INPUT (HISTORIAL CRUDO):
             "${historyJSON}"
 
-            TAREA DE EXTRACCIÓN (NO RESUMIR, EXTRAER):
-            1. EL GANCHO (evolution): ¿Por qué es relevante este paciente para ${specialty} hoy? (Ej: "Control TA", "Seguimiento fractura").
-            2. RIESGOS ACTIVOS (risk_flags): Alergias graves, contraindicaciones o alertas críticas para ${specialty}.
-            3. PENDIENTES (pending_actions): ¿Quedó algo pendiente?
+            REGLAS DE AUDITORÍA FORENSE (ANTI-ALUCINACIÓN):
+            1. LITERALIDAD ABSOLUTA: Si el historial dice "Tratamiento bloqueado" o "No se administró", DEBES reportar eso. 
+               ❌ PROHIBIDO asumir que se dio tratamiento estándar (ej: Insulina en CAD) si el texto no confirma explícitamente la administración ("Se administró", "Pasó bolo").
+               ✅ Si hay duda, asume que NO se trató.
+            
+            2. DETECCIÓN DE BLOQUEOS: Busca activamente palabras clave: "SUSPENDIDO", "BLOQUEADO", "CONTRAINDICADO", "OMITIDO". Si aparecen, son la prioridad #1 del resumen.
+
+            TAREA DE EXTRACCIÓN:
+            1. EL GANCHO (evolution): Motivo real de la visita actual o estado heredado.
+            2. RIESGOS ACTIVOS (risk_flags): Alertas de seguridad vigentes (ej: "Hipopotasemia persistente").
+            3. AUDITORÍA (medication_audit): Estado REAL de los fármacos. Si hubo bloqueo previo, REPÍTELO: "Insulina BLOQUEADA en visita anterior por K+ bajo".
 
             FORMATO DE SALIDA (JSON STRICTO - PatientInsight):
             {
-                "evolution": "Texto corto del motivo/gancho (Máx 15 palabras)",
-                "medication_audit": "Auditoría rápida de fármacos (Ej: 'Suspendió AINES por gastritis')",
+                "evolution": "Resumen narrativo estricto.",
+                "medication_audit": "Estado real de fármacos (Citar bloqueos si existen).",
                 "risk_flags": ["Riesgo 1", "Riesgo 2"],
                 "pending_actions": ["Pendiente 1", "Pendiente 2"]
             }
@@ -202,7 +207,7 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + CIE-10) ---
+  // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + CIE-10 + SOFIA PATCH) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = "", manualContext: string = ""): Promise<GeminiResponse & { prescriptions?: MedicationItem[] }> {
     try {
       console.log("⚡ Generando Nota Clínica Consistente (v7.2 - Sofia Patch)...");
@@ -338,7 +343,7 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- B. BALANCE 360 (IA MEJORADA v5.5) ---
+  // --- B. BALANCE 360 (MODO COMPARATIVO LITERAL) ---
   async generatePatient360Analysis(patientName: string, historySummary: string, consultations: string[]): Promise<PatientInsight> {
     try {
       const contextText = consultations.length > 0 
@@ -346,8 +351,8 @@ export const GeminiMedicalService = {
           : "Sin historial previo en plataforma (Primera Vez).";
 
       const prompt = `
-          ACTÚA COMO: Auditor Médico Clínico y Farmacólogo Experto.
-          OBJETIVO: Generar un "Balance 360" comparativo para detectar evolución y riesgos.
+          ACTÚA COMO: Auditor de Seguridad Clínica.
+          OBJETIVO: Validar la congruencia del historial y detectar iatrogenia o falta de tratamiento.
 
           PACIENTE: "${patientName}"
           ANTECEDENTES BASE: ${historySummary || "No registrado"}
@@ -355,18 +360,22 @@ export const GeminiMedicalService = {
           HISTORIAL DE CONSULTAS (Analiza tendencias):
           ${contextText}
 
-          INSTRUCCIONES ESTRICTAS DE ANÁLISIS:
-          1. EVOLUCIÓN: Compara la consulta más antigua con la más reciente. ¿El paciente está MEJOR, PEOR o IGUAL?
-          2. FARMACIA: Detecta cambios de medicación.
-          3. BANDERAS ROJAS: Busca síntomas de alarma o interacciones graves.
-          4. PENDIENTES: Lista estudios solicitados previamente.
+          REGLA DE ORO "HECHOS vs SUPOSICIONES":
+          - Diferencia entre un "Plan" (lo que se quería hacer) y una "Ejecución" (lo que realmente pasó).
+          - Si una nota anterior dice "Se planea insulina" pero luego dice "Cancelado por seguridad", el estado actual es SIN INSULINA.
+          - Si detectas valores críticos (ej: Glucosa > 500) sin registro explícito de medicación administrada, reporta: "Posible falta de tratamiento efectivo".
+
+          INSTRUCCIONES DE ANÁLISIS:
+          1. EVOLUCIÓN: Tendencia objetiva basada en datos (Labs/Vitales).
+          2. FARMACIA: ¿Qué fármacos están CONFIRMADOS como activos?
+          3. BANDERAS ROJAS: Discrepancias graves o riesgos no resueltos.
 
           FORMATO DE SALIDA JSON (PatientInsight):
           {
-            "evolution": "Texto narrativo comparativo. Usa emojis (📈, 📉, 🟢, 🔴).",
-            "medication_audit": "Análisis de cambios en recetas.",
-            "risk_flags": ["🚩 Alerta Clínica 1"],
-            "pending_actions": ["◻️ Pendiente 1"]
+            "evolution": "Texto narrativo forense.",
+            "medication_audit": "Auditoría de hechos.",
+            "risk_flags": ["Alertas de seguridad"],
+            "pending_actions": ["Pendientes"]
           }
       `;
 
@@ -375,8 +384,8 @@ export const GeminiMedicalService = {
     } catch (e) {
       console.warn("Error generando insights 360:", e);
       return { 
-        evolution: "No hay suficientes datos para generar tendencia evolutiva.", 
-        medication_audit: "Sin auditoría disponible.", 
+        evolution: "No hay suficientes datos.", 
+        medication_audit: "Sin auditoría.", 
         risk_flags: [], 
         pending_actions: [] 
       };
