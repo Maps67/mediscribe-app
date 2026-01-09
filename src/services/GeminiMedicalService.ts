@@ -32,7 +32,7 @@ export interface FollowUpMessage {
   message: string;
 }
 
-console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.3 - FORENSIC AUDIT) [Surgical Lock Active]");
+console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.4 - NO INTERFERENCE PATCH) [Surgical Lock Active]");
 
 // ==========================================
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
@@ -159,42 +159,45 @@ const getSpecialtyPromptConfig = (specialty: string) => {
 // ==========================================
 export const GeminiMedicalService = {
 
-  // --- NUEVA FUNCIÓN: VITAL SNAPSHOT (MODO FORENSE / ANTI-ALUCINACIÓN) ---
-  // Actualizado para respetar bloqueos históricos al importar pacientes
+  // --- NUEVA FUNCIÓN: VITAL SNAPSHOT (MODO FORENSE / NO INTERFERENCIA) ---
+  // Actualizado v7.4: Prohibido aplicar bloqueos retroactivos a acciones ya ejecutadas.
   async generateVitalSnapshot(historyJSON: string, specialty: string = "Medicina General"): Promise<PatientInsight | null> {
     try {
         console.log(`⚡ Generando Vital Snapshot Forense (Enfoque: ${specialty})...`);
         
         const prompt = `
-            ACTÚA COMO: Auditor Médico Forense y Asistente de Triaje.
-            TU OBJETIVO: Extraer la "Verdad Histórica" del paciente basada ÚNICAMENTE en la evidencia escrita.
+            ACTÚA COMO: Auditor Médico Forense Neutral.
+            TU OBJETIVO: Reportar los HECHOS históricos tal como ocurrieron, sin juzgarlos ni corregirlos retroactivamente.
             
             LENTE CLÍNICO: Eres ${specialty}.
             
             INPUT (HISTORIAL CRUDO):
             "${historyJSON}"
 
-            REGLAS DE AUDITORÍA FORENSE (ANTI-ALUCINACIÓN):
-            1. LITERALIDAD ABSOLUTA: Si el historial dice "Tratamiento bloqueado" o "No se administró", DEBES reportar eso. 
-               ❌ PROHIBIDO asumir que se dio tratamiento estándar (ej: Insulina en CAD) si el texto no confirma explícitamente la administración ("Se administró", "Pasó bolo").
-               ✅ Si hay duda, asume que NO se trató.
-            
-            2. DETECCIÓN DE BLOQUEOS: Busca activamente palabras clave: "SUSPENDIDO", "BLOQUEADO", "CONTRAINDICADO", "OMITIDO". Si aparecen, son la prioridad #1 del resumen.
+            REGLAS DE AUDITORÍA FORENSE v2 (ANTI-CORRECCIÓN):
+            1. VERDAD HISTÓRICA vs SEGURIDAD ACTUAL:
+               - Si el historial dice que se administró un medicamento (ej: "Nitroglicerina ordenada"), TU DEBES REPORTAR QUE SE ADMINISTRÓ.
+               - NO puedes cambiar el pasado. Si la acción fue peligrosa (ej: Nitro en IAM Inferior), repórtala como: "Administración de [Droga] (ALERTA: POSIBLE IATROGENIA/RIESGO)".
+               - ❌ PROHIBIDO reportar como "BLOQUEADO" algo que el texto dice que SÍ se hizo. Solo reporta "BLOQUEADO" si el texto original dice explícitamente "Suspendido" o "No administrado".
+
+            2. DETECCIÓN DE ESTADO:
+               - "Ordenada/En proceso" = ACTIVO (Aunque sea peligroso).
+               - "Suspendida/Cancelada" = INACTIVO.
 
             TAREA DE EXTRACCIÓN:
-            1. EL GANCHO (evolution): Motivo real de la visita actual o estado heredado.
-            2. RIESGOS ACTIVOS (risk_flags): Alertas de seguridad vigentes (ej: "Hipopotasemia persistente").
-            3. AUDITORÍA (medication_audit): Estado REAL de los fármacos. Si hubo bloqueo previo, REPÍTELO: "Insulina BLOQUEADA en visita anterior por K+ bajo".
+            1. EL GANCHO (evolution): Motivo real de la visita actual.
+            2. RIESGOS ACTIVOS (risk_flags): Consecuencias de las acciones previas (ej: "Riesgo de hipotensión por uso de nitratos en IAM Inferior").
+            3. AUDITORÍA (medication_audit): Estado REAL. Ej: "Nitroglicerina administrada según registro previo (Precaución: IAM Inferior)".
 
             FORMATO DE SALIDA (JSON STRICTO - PatientInsight):
             {
                 "evolution": "Resumen narrativo estricto.",
-                "medication_audit": "Estado real de fármacos (Citar bloqueos si existen).",
+                "medication_audit": "Estado real de fármacos basado en hechos, no en protocolos ideales.",
                 "risk_flags": ["Riesgo 1", "Riesgo 2"],
                 "pending_actions": ["Pendiente 1", "Pendiente 2"]
             }
 
-            NOTAS: Si el historial está vacío o es ilegible, devuelve arrays vacíos y "Sin datos previos" en evolución.
+            NOTAS: Si el historial está vacío o es ilegible, devuelve arrays vacíos.
         `;
 
         const rawText = await generateWithFailover(prompt, true);
