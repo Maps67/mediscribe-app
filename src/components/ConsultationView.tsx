@@ -1354,7 +1354,7 @@ const ConsultationView: React.FC = () => {
 
           {/* TERCERA COLUMNA: CHAT FIJO (Visible solo en Escritorio LG+) */}
           {generatedNote && (
-            <div className="hidden lg:flex w-96 border-l dark:border-slate-800 flex-col bg-white dark:bg-slate-900">
+            <div className="hidden lg:flex lg:w-[30%] border-l dark:border-slate-800 flex-col bg-white dark:bg-slate-900">
                  <div className="p-4 border-b dark:border-slate-800 font-bold flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50">
                      <MessageSquare size={16} className="text-brand-teal"/> Asistente Médico IA
                  </div>
