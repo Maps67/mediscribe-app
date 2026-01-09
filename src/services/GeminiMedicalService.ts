@@ -32,7 +32,7 @@ export interface FollowUpMessage {
   message: string;
 }
 
-console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.1) [Surgical Lock Active]");
+console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.2 - SOFIA PATCH) [Surgical Lock Active]");
 
 // ==========================================
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
@@ -143,7 +143,7 @@ const getSpecialtyPromptConfig = (specialty: string) => {
     "Endocrinología": {
         role: "Endocrinólogo Experto",
         focus: "Metabolismo, control glucémico, tiroides, ejes hormonales.",
-        bias: "Prioriza el control metabólico estricto y detección de crisis (CAD, Estado Hiperosmolar)."
+        bias: "Prioriza el control metabólico estricto. ALERTA MÁXIMA: Potasio en CAD/EHH. NO iniciar insulina si K < 3.3."
     }
   };
 
@@ -205,7 +205,7 @@ export const GeminiMedicalService = {
   // --- A. NOTA CLÍNICA (ANTI-CRASH + SAFETY AUDIT + LEGAL SAFE + CIE-10) ---
   async generateClinicalNote(transcript: string, specialty: string = "Medicina General", patientHistory: string = "", manualContext: string = ""): Promise<GeminiResponse & { prescriptions?: MedicationItem[] }> {
     try {
-      console.log("⚡ Generando Nota Clínica Consistente (v7.1 - Surgical Lock)...");
+      console.log("⚡ Generando Nota Clínica Consistente (v7.2 - Sofia Patch)...");
 
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
@@ -226,45 +226,27 @@ export const GeminiMedicalService = {
         "${manualContext || 'No proporcionado. Basarse enteramente en la transcripción.'}"
 
         ===================================================
-        🧠 MOTOR DE INTUICIÓN CLÍNICA (RAZONAMIENTO EXPERTO)
+        🧠 MOTOR DE INTUICIÓN CLÍNICA (DATA SUPREMACY)
         ===================================================
-        Para este caso, aplica estos 3 principios de "Intuición Médica":
+        1. JERARQUÍA DE DATOS: Los valores de laboratorio (K+, Na+, Glucosa, pH) detectados en el audio o contexto TIENEN VETO sobre las órdenes verbales.
+           - Ejemplo: Si el médico dice "Poner insulina" PERO el audio menciona "Potasio 2.8", TU OBLIGACIÓN ES BLOQUEAR LA INSULINA.
+        
+        2. INTERPRETACIÓN: Interpreta QUÉ QUISO DECIR médicamente.
+           IMPORTANTE: Si el "CONTEXTO MÉDICO INICIAL" contiene datos clave, ÚSALO como verdad absoluta.
 
-        1. INTERPRETACIÓN, NO TRANSCRIPCIÓN:
-           - Interpreta QUÉ QUISO DECIR médicamente.
-           - Ejemplo: "siento que el corazón se me sale" -> "Palpitaciones".
-
-        2. CONEXIÓN DE PUNTOS (DOT-CONNECTING):
-           - Usa el HISTORIAL para dar contexto.
-           - Ejemplo: Cirrosis + Confusión = Encefalopatía Hepática.
-
-        3. DETECCIÓN DE SILENCIOS:
-           - Si el paciente niega síntomas clave, regístralo.
+        3. CONEXIÓN DE PUNTOS: Usa el HISTORIAL para dar contexto.
 
         ===================================================
-        🇲🇽 REGLAS DE SINTAXIS Y TERMINOLOGÍA MEXICANA (NOM-004)
-        ===================================================
-        1. DICCIONARIO: Transforma lenguaje coloquial a terminología técnica.
-        2. ABREVIATURAS: Usa ÚNICAMENTE estándar (HAS, DM2, IVU, EPOC).
-        3. FONÉTICA: Prioriza nombres de fármacos reales.
-
-        ===================================================
-        🛡️ DIRECTIVA DE SEGURIDAD LEGAL (NON-DIAGNOSTIC LANGUAGE)
+        🛡️ DIRECTIVA DE SEGURIDAD LEGAL
         ===================================================
         TIENES PROHIBIDO emitir diagnósticos absolutos. Usa SIEMPRE "Lenguaje de Probabilidad":
         - "Cuadro clínico compatible con..."
-        - "Probable [Condición]..."
         - ❌ PROHIBIDO: "Diagnóstico: [Enfermedad]" o afirmaciones absolutas.
 
         ===================================================
-        📚 CODIFICACIÓN CLÍNICA (CIE-10 / ICD-10)
+        🚨 PROTOCOLO DE AUDITORÍA DE SEGURIDAD (OMNI-SENTINEL v7.2 - SOFIA PATCH)
         ===================================================
-        - Proporciona el código CIE-10 entre paréntesis para cada impresión diagnóstica.
-
-        ===================================================
-        🚨 PROTOCOLO DE AUDITORÍA DE SEGURIDAD (OMNI-SENTINEL v7.1)
-        ===================================================
-        Aplica las "6 Leyes Universales de Seguridad". Si se violan, ACTIVA BLOQUEO.
+        Aplica las "7 Leyes Universales de Seguridad". Si se violan, ACTIVA BLOQUEO INMEDIATO.
 
         LEY 1 (CARDIOLOGÍA): Bloqueo AV -> NO cronotrópicos. Hipotensión/FEVI baja -> NO Inotrópicos Negativos/AINES.
         LEY 2 (NEFROLOGÍA): TFG < 30 -> NO Metformina/AINES/Espironolactona.
@@ -272,15 +254,19 @@ export const GeminiMedicalService = {
         LEY 4 (VULNERABLES): Embarazo -> NO Cat X/D. Pediatría -> NO Aspirina/Tetraciclinas/Quinolonas.
         LEY 5 (ALERGIAS): SI hay alergia documentada, BLOQUEO ABSOLUTO familia relacionada.
         LEY 6 (QUIRÚRGICA): Urgencia/Ayuno -> NO Orales/Anticoagulantes.
+        LEY 7 (METABÓLICA/CRÍTICA - CASO SOFIA): En Cetoacidosis (CAD) o Estado Hiperosmolar:
+            - SI K+ < 3.3 mEq/L -> PROHIBIDO INSULINA. Prioridad ABSOLUTA: Reponer Potasio.
+            - Riesgo: Arritmia ventricular letal / Paro cardíaco.
+            - Acción: Generar bloqueo en receta y alerta roja en análisis.
 
         ===================================================
         💊 REGLAS DE RECETA ESTRUCTURADA (SAFETY OVERRIDE)
         ===================================================
         1. Incluye los medicamentos dictados.
-        2. Si viola una Ley: 
+        2. SI VIOLA UNA LEY (Especialmente LEY 7): 
            - action: "SUSPENDER"
            - dose: "BLOQUEO DE SEGURIDAD"
-           - notes: "⛔ CONTRAINDICADO: [RAZÓN]. RIESGO LETAL/GRAVE".
+           - notes: "⛔ CONTRAINDICADO (LEY [X]): [RAZÓN CRÍTICA]. RIESGO LETAL/GRAVE".
 
         SALIDA ESPERADA (JSON Schema Strict):
         {
@@ -321,7 +307,7 @@ export const GeminiMedicalService = {
       const rawText = await generateWithFailover(prompt, true);
       const parsedData = JSON.parse(cleanJSON(rawText));
 
-      console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10 + Omni-Sentinel v7.1).");
+      console.log("✅ Nota estructurada generada con éxito (vía Secure Cloud + CIE-10 + Omni-Sentinel v7.2).");
       return parsedData as GeminiResponse & { prescriptions: MedicationItem[] };
 
     } catch (error: any) {
