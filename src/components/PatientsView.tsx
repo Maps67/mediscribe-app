@@ -11,7 +11,7 @@ import QuickRxModal from './QuickRxModal';
 import FormattedText from './FormattedText'; 
 import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
-import MedicalRecordPDF from './MedicalRecordPDF'; // <-- NUEVA IMPORTACIÓN OBLIGATORIA
+import MedicalRecordPDF from './MedicalRecordPDF'; 
 import ClinicalHistoryPDF from './ClinicalHistoryPDF'; 
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { PatientWizard } from './PatientWizard';
@@ -91,7 +91,7 @@ const PatientsView: React.FC = () => {
       .from('patients')
       .select('*')
       .eq('doctor_id', user.id)
-      .order('created_at', { ascending: false });
+      .order('name', { ascending: true }); // <-- CAMBIO APLICADO: ORDEN A-Z
 
     if (error) { 
       console.error("Error fetching patients:", error); 
