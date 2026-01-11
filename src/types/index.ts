@@ -13,6 +13,7 @@ export interface DoctorProfile {
   address: string | null;
   logo_url: string | null;
   signature_url: string | null;
+  qr_code_url?: string | null; // <--- NUEVO CAMPO AGREGADO (QR INDEPENDIENTE)
   website_url?: string | null;
   updated_at?: string | null; // Mantenido del viejo
 }
@@ -66,10 +67,10 @@ export type SOAPData = SoapData;
 // --- MEDICAMENTOS (RECETA BLINDADA) ---
 // Aquí fusionamos: 'id' (viejo) + 'dose' (nuevo)
 export interface MedicationItem {
-  id?: string;         // Legacy DB
-  drug: string;        // Nombre
-  dose?: string;       // <--- NUEVO CRÍTICO
-  details?: string;    // Descripción general
+  id?: string;        // Legacy DB
+  drug: string;       // Nombre
+  dose?: string;      // <--- NUEVO CRÍTICO
+  details?: string;   // Descripción general
   frequency?: string;
   duration?: string;
   notes?: string;

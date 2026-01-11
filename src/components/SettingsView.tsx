@@ -1,11 +1,10 @@
 import React, { useState, useEffect } from 'react';
-import { Save, User, Stethoscope, Hash, Phone, MapPin, BookOpen, Upload, Image as ImageIcon, PenTool, Globe, Download, FileSpreadsheet, ShieldCheck, Database } from 'lucide-react';
+import { Save, User, Stethoscope, Hash, Phone, MapPin, BookOpen, Download, FileSpreadsheet, ShieldCheck, Database, QrCode, PenTool, Image as ImageIcon } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { MedicalDataService } from '../services/MedicalDataService';
 import { toast } from 'sonner';
-import PatientImporter from './PatientImporter';
-// IMPORTACIÓN CRÍTICA: Traemos el componente de planes corregido
-import { SubscriptionPlans } from '../components/SubscriptionPlans'; // CORRECCIÓN: Ruta relativa ajustada
+import PatientImporter from './PatientImporter'; // Asegúrate de que esta ruta sea correcta según tu estructura
+import { ImageUploader } from '../components/ui/ImageUploader'; // IMPORTACIÓN DEL NUEVO COMPONENTE
 
 // LISTA MAESTRA DE ESPECIALIDADES (NORMALIZACIÓN)
 const SPECIALTIES = [
@@ -20,22 +19,22 @@ const SPECIALTIES = [
 const SettingsView: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [uploading, setUploading] = useState(false);
   const [downloading, setDownloading] = useState(false); 
   const [showImporter, setShowImporter] = useState(false);
   
-  // Campos del formulario
+  // Campos del formulario (Datos Texto)
   const [fullName, setFullName] = useState('');
   const [specialty, setSpecialty] = useState('Medicina General');
   const [license, setLicense] = useState('');
   const [phone, setPhone] = useState('');
-  
-  // Campos NOM-004
   const [university, setUniversity] = useState('');
   const [address, setAddress] = useState('');
+  const [websiteUrl, setWebsiteUrl] = useState('');
+
+  // Campos de Activos Visuales (Imágenes)
   const [logoUrl, setLogoUrl] = useState('');
   const [signatureUrl, setSignatureUrl] = useState('');
-  const [websiteUrl, setWebsiteUrl] = useState('');
+  const [qrCodeUrl, setQrCodeUrl] = useState(''); // <--- NUEVO ESTADO PARA QR
 
   useEffect(() => {
     getProfile();
@@ -47,7 +46,7 @@ const SettingsView: React.FC = () => {
       if (!user) return;
 
       const { data } = await supabase
-        .from('profiles')
+        .from('profiles') // Asegúrate de que tu tabla se llame 'profiles' o 'doctors'
         .select('*')
         .eq('id', user.id)
         .single();
@@ -59,53 +58,62 @@ const SettingsView: React.FC = () => {
         setPhone(data.phone || '');
         setUniversity(data.university || '');
         setAddress(data.address || '');
+        setWebsiteUrl(data.website_url || '');
+        
+        // Carga de imágenes
         setLogoUrl(data.logo_url || '');
         setSignatureUrl(data.signature_url || '');
-        setWebsiteUrl(data.website_url || '');
+        setQrCodeUrl(data.qr_code_url || ''); // <--- CARGA DEL QR DESDE DB
       }
     } catch (error) {
       console.error('Error cargando perfil:', error);
+      toast.error("Error al cargar datos del perfil");
     } finally {
       setLoading(false);
     }
   };
 
-  const uploadImage = async (event: React.ChangeEvent<HTMLInputElement>, type: 'logo' | 'signature') => {
+  // --- LÓGICA DE SUBIDA MODULAR (Adapta tu lógica original al nuevo componente) ---
+  const handleSmartUpload = async (file: File, type: 'logo' | 'signature' | 'qr') => {
     try {
-      setUploading(true);
-      const file = event.target.files?.[0];
-      if (!file) return;
-
       const { data: { user } } = await supabase.auth.getUser();
-      if (!user) throw new Error("No usuario");
+      if (!user) throw new Error("No hay sesión de usuario");
 
+      // 1. Definir ruta y nombre de archivo único para evitar caché
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
 
+      // 2. Subir a Supabase Storage (Bucket: 'clinic-assets')
       const { error: uploadError } = await supabase.storage
         .from('clinic-assets')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
+      // 3. Obtener URL Pública
       const { data: { publicUrl } } = supabase.storage
         .from('clinic-assets')
         .getPublicUrl(fileName);
 
+      // 4. Actualizar Estado Local
       if (type === 'logo') setLogoUrl(publicUrl);
-      else setSignatureUrl(publicUrl);
+      else if (type === 'signature') setSignatureUrl(publicUrl);
+      else if (type === 'qr') setQrCodeUrl(publicUrl);
+
+      // 5. (OPCIONAL) Guardar URL en BD inmediatamente para persistencia rápida
+      // Esto asegura que si recargan la página sin dar "Guardar Cambios", la imagen no se pierda visualmente,
+      // aunque lo ideal es dar "Guardar Cambios" para confirmar todo.
       
-      toast.success("Imagen subida correctamente");
+      toast.success("Imagen cargada. Recuerde 'Guardar Cambios' para confirmar.");
 
     } catch (error) {
-      toast.error("Error subiendo imagen.");
-    } finally {
-      setUploading(false);
+      console.error(`Error subiendo ${type}:`, error);
+      toast.error("Error al subir la imagen. Verifique su conexión.");
     }
   };
 
-  const updateProfile = async (e: React.FormEvent) => {
-    e.preventDefault();
+  const updateProfile = async (e?: React.FormEvent) => {
+    if (e) e.preventDefault();
     setSaving(true);
     try {
       const { data: { user } } = await supabase.auth.getUser();
@@ -119,9 +127,10 @@ const SettingsView: React.FC = () => {
         phone,
         university,
         address,
+        website_url: websiteUrl,
         logo_url: logoUrl,
         signature_url: signatureUrl,
-        website_url: websiteUrl,
+        qr_code_url: qrCodeUrl, // <--- GUARDADO DEL QR EN DB
         updated_at: new Date(),
       };
 
@@ -130,6 +139,7 @@ const SettingsView: React.FC = () => {
       
       toast.success("Perfil actualizado correctamente");
     } catch (error) {
+      console.error(error);
       toast.error("Error al guardar perfil.");
     } finally {
       setSaving(false);
@@ -158,22 +168,21 @@ const SettingsView: React.FC = () => {
   if (loading) return <div className="p-10 text-center text-slate-400">Cargando perfil...</div>;
 
   return (
-    <div className="p-6 max-w-5xl mx-auto pb-24 relative">
+    <div className="p-6 max-w-6xl mx-auto pb-24 relative">
 
       {/* --- INTEGRACIÓN DEL IMPORTADOR --- */}
       {showImporter && (
           <PatientImporter 
-            onComplete={() => {
-                // Callback opcional tras completar la importación
-            }} 
+            onComplete={() => {}} 
             onClose={() => setShowImporter(false)}
           />
       )}
 
+      {/* CABECERA */}
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Configuración</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">Datos del consultorio y cuenta.</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Datos del consultorio, identidad y activos digitales.</p>
           </div>
           
           <div className="flex gap-2">
@@ -181,8 +190,7 @@ const SettingsView: React.FC = () => {
                 onClick={() => setShowImporter(true)}
                 className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition-colors text-sm font-bold"
             >
-                <Database size={16}/>
-                Importar Pacientes
+                <Database size={16}/> Importar Pacientes
             </button>
 
             <button 
@@ -196,10 +204,12 @@ const SettingsView: React.FC = () => {
           </div>
       </div>
       
-      <form onSubmit={updateProfile} className="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-10">
+      <form onSubmit={updateProfile} className="grid grid-cols-1 lg:grid-cols-3 gap-8 mb-10">
         
-        {/* COLUMNA 1: DATOS TEXTO */}
+        {/* COLUMNA IZQUIERDA: FORMULARIOS DE TEXTO (span-2) */}
         <div className="lg:col-span-2 space-y-6">
+            
+            {/* 1. Identidad Profesional */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                     <User size={18} className="text-brand-teal"/> Identidad Profesional
@@ -243,14 +253,15 @@ const SettingsView: React.FC = () => {
                 </div>
             </div>
 
+            {/* 2. Contacto */}
             <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                    <MapPin size={18} className="text-brand-teal"/> Contacto y Web
+                    <MapPin size={18} className="text-brand-teal"/> Contacto y Ubicación
                 </div>
                 <div className="p-6 space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Teléfono Consultorio</label>
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Teléfono</label>
                             <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-brand-teal">
                                 <Phone size={16} className="text-slate-400 mr-2"/>
                                 <input type="text" value={phone} onChange={e => setPhone(e.target.value)} className="w-full py-3 outline-none bg-transparent dark:text-white" placeholder="55 1234 5678" />
@@ -258,106 +269,84 @@ const SettingsView: React.FC = () => {
                         </div>
                         
                         <div>
-                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Tarjeta Digital / Web</label>
+                            <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Sitio Web (Opcional)</label>
                             <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-brand-teal">
-                                <Globe size={16} className="text-slate-400 mr-2"/>
+                                <BookOpen size={16} className="text-slate-400 mr-2"/>
                                 <input type="url" value={websiteUrl} onChange={e => setWebsiteUrl(e.target.value)} className="w-full py-3 outline-none bg-transparent dark:text-white" placeholder="https://misitio.com" />
                             </div>
                         </div>
                     </div>
-
                     <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Dirección Completa</label>
-                        <textarea rows={3} value={address} onChange={e => setAddress(e.target.value)} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none resize-none dark:bg-slate-900 dark:text-white" placeholder="Calle, Número, Colonia..." />
+                        <textarea rows={3} value={address} onChange={e => setAddress(e.target.value)} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none resize-none dark:bg-slate-900 dark:text-white" placeholder="Calle, Número, Colonia, CP..." />
                     </div>
+                </div>
+            </div>
+
+            {/* Privacidad */}
+            <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/50 rounded-xl flex gap-3 items-start">
+                <ShieldCheck className="text-amber-600 shrink-0" size={20} />
+                <div>
+                    <p className="text-sm font-bold text-amber-800 dark:text-amber-200">Privacidad y Seguridad de Datos</p>
+                    <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
+                        Sus datos están protegidos. Puede descargar una copia de seguridad completa (CSV) usando el botón "Descargar Mis Datos".
+                    </p>
                 </div>
             </div>
         </div>
 
-        {/* COLUMNA 2: IMÁGENES */}
+        {/* COLUMNA DERECHA: ACTIVOS VISUALES (Uploaders Modulares) */}
         <div className="space-y-6">
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                    <ImageIcon size={18} className="text-brand-teal"/> Logo Clínica
-                </div>
-                <div className="p-6 flex flex-col items-center text-center">
-                    <div className="w-32 h-32 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg flex items-center justify-center mb-4 overflow-hidden bg-slate-50 dark:bg-slate-900 relative group">
-                        {logoUrl ? (
-                            <img src={logoUrl} alt="Logo" className="w-full h-full object-contain" />
-                        ) : (
-                            <ImageIcon className="text-slate-300" size={40} />
-                        )}
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                            <span className="text-white text-xs font-bold">Cambiar</span>
-                        </div>
-                        <input 
-                            type="file" 
-                            accept="image/*"
-                            onChange={(e) => uploadImage(e, 'logo')}
-                            disabled={uploading}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                        />
-                    </div>
-                    <p className="text-xs text-slate-500">PNG Transparente recomendado.</p>
-                </div>
-            </div>
+            <h3 className="text-sm font-bold text-slate-500 dark:text-slate-400 uppercase tracking-wider mb-2">Activos Digitales</h3>
+            
+            {/* 1. LOGO */}
+            <ImageUploader 
+                label="Logo Clínica"
+                imageSrc={logoUrl}
+                onUpload={(file) => handleSmartUpload(file, 'logo')}
+                helperText="Recomendado: PNG Transparente"
+                icon={<ImageIcon size={18} className="text-brand-teal"/>}
+            />
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
-                <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
-                    <PenTool size={18} className="text-brand-teal"/> Firma Digital
-                </div>
-                <div className="p-6 flex flex-col items-center text-center">
-                    <div className="w-48 h-24 border-2 border-dashed border-slate-300 dark:border-slate-600 rounded-lg flex items-center justify-center mb-4 overflow-hidden bg-slate-50 dark:bg-slate-900 relative group">
-                        {signatureUrl ? (
-                            <img src={signatureUrl} alt="Firma" className="w-full h-full object-contain" />
-                        ) : (
-                            <span className="text-slate-400 text-xs italic">Subir firma</span>
-                        )}
-                        <div className="absolute inset-0 bg-black/50 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity cursor-pointer">
-                            <span className="text-white text-xs font-bold">Subir</span>
-                        </div>
-                        <input 
-                            type="file" 
-                            accept="image/*"
-                            onChange={(e) => uploadImage(e, 'signature')}
-                            disabled={uploading}
-                            className="absolute inset-0 w-full h-full opacity-0 cursor-pointer" 
-                        />
-                    </div>
-                    <p className="text-xs text-slate-500">Foto de firma en hoja blanca.</p>
-                </div>
-            </div>
+            {/* 2. FIRMA (Formato Ancho) */}
+            <ImageUploader 
+                label="Firma Digital"
+                imageSrc={signatureUrl}
+                onUpload={(file) => handleSmartUpload(file, 'signature')}
+                helperText="Firma en tinta negra sobre papel blanco."
+                aspectRatio="wide"
+                icon={<PenTool size={18} className="text-brand-teal"/>}
+            />
+
+            {/* 3. CÓDIGO QR (NUEVO) */}
+            <ImageUploader 
+                label="Código QR Receta"
+                imageSrc={qrCodeUrl}
+                onUpload={(file) => handleSmartUpload(file, 'qr')}
+                helperText="Suba su QR de Cédula o SAT para la receta."
+                aspectRatio="square"
+                icon={<QrCode size={18} className="text-brand-teal"/>}
+            />
 
             <button 
-              type="submit" 
-              disabled={saving || uploading}
-              className="w-full bg-slate-900 dark:bg-slate-700 text-white py-4 rounded-xl font-bold shadow-lg hover:bg-slate-800 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
+                type="submit" 
+                disabled={saving}
+                className="w-full mt-4 bg-slate-900 hover:bg-slate-800 text-white py-4 rounded-xl font-bold shadow-lg transition-all flex items-center justify-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {saving ? 'Guardando...' : <><Save size={20} /> Guardar Cambios</>}
+                {saving ? (
+                    <>
+                        <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white"></div>
+                        Guardando...
+                    </>
+                ) : (
+                    <>
+                        <Save size={20} /> Guardar Cambios
+                    </>
+                )}
             </button>
         </div>
 
       </form>
-      
-      {/* --- INYECCIÓN DE PLANES DE SUSCRIPCIÓN (OCULTO POR AHORA) --- */}
-      {/* <div className="mb-10">
-        <h3 className="text-xl font-bold text-slate-800 dark:text-white mb-4 flex items-center gap-2">
-            <ShieldCheck className="text-brand-teal"/> Mi Suscripción
-        </h3>
-        <SubscriptionPlans />
-      </div>
-      */}
-      {/* ------------------------------------------------------------- */}
-      
-      <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/50 rounded-xl flex gap-3 items-start">
-         <ShieldCheck className="text-amber-600 shrink-0" size={20} />
-         <div>
-             <p className="text-sm font-bold text-amber-800 dark:text-amber-200">Privacidad y Seguridad de Datos</p>
-             <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                 Sus datos están protegidos y son 100% de su propiedad. Puede descargar una copia de seguridad completa en formato Excel (.csv) cuando lo desee usando el botón de "Descargar Mis Datos" arriba.
-             </p>
-         </div>
-      </div>
     </div>
   );
 };
