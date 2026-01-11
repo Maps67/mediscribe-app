@@ -110,6 +110,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
           address={doctorProfile.address}
           logoUrl={doctorProfile.logo_url}
           signatureUrl={doctorProfile.signature_url}
+          qrCodeUrl={doctorProfile.qr_code_url} // <--- ¡AQUÍ ESTÁ LA CORRECCIÓN!
           patientName={patientName}
           date={new Date().toLocaleDateString()}
           medications={medications}
@@ -118,6 +119,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
       ).toBlob();
       window.open(URL.createObjectURL(blob), '_blank');
     } catch (e) {
+      console.error(e); // Added console error for debugging
       toast.error("Error generando PDF");
     }
   };
@@ -151,7 +153,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
           
           {/* --- ZONA PRINCIPAL: DICTADO Y EDICIÓN --- */}
           <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border-2 border-slate-200 dark:border-slate-800 shadow-sm mb-6 relative transition-all focus-within:border-teal-500 ring-offset-2">
-             
+              
              {/* Barra de Herramientas del Editor */}
              <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800 pb-2">
                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
@@ -171,11 +173,11 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
              {/* ÁREA DE TEXTO ENORME PARA EDITAR */}
              <div className="relative">
                 <textarea
-                    value={rawText}
-                    onChange={(e) => setRawText(e.target.value)}
-                    placeholder='Presione el micrófono y dicte: "Paracetamol 500mg cada 8 horas por 3 días..."'
-                    className="w-full bg-transparent text-lg text-slate-700 dark:text-slate-200 font-medium outline-none resize-none min-h-[100px] leading-relaxed placeholder:text-slate-300"
-                    autoFocus
+                   value={rawText}
+                   onChange={(e) => setRawText(e.target.value)}
+                   placeholder='Presione el micrófono y dicte: "Paracetamol 500mg cada 8 horas por 3 días..."'
+                   className="w-full bg-transparent text-lg text-slate-700 dark:text-slate-200 font-medium outline-none resize-none min-h-[100px] leading-relaxed placeholder:text-slate-300"
+                   autoFocus
                 />
                 
                 {/* Botón Flotante de Micrófono (Dentro del área) */}
@@ -191,12 +193,12 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
              {/* Botón de Acción Principal */}
              <div className="mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button 
-                    onClick={handleExtractFromText}
-                    disabled={isProcessingAI || !rawText.trim()}
-                    className="w-full py-3 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                   onClick={handleExtractFromText}
+                   disabled={isProcessingAI || !rawText.trim()}
+                   className="w-full py-3 bg-slate-800 dark:bg-slate-700 hover:bg-slate-900 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                    {isProcessingAI ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18} className="text-yellow-400"/>}
-                    {isProcessingAI ? "IA Analizando..." : "Generar Receta Estructurada"}
+                   {isProcessingAI ? <Loader2 size={18} className="animate-spin"/> : <Sparkles size={18} className="text-yellow-400"/>}
+                   {isProcessingAI ? "IA Analizando..." : "Generar Receta Estructurada"}
                 </button>
              </div>
           </div>
