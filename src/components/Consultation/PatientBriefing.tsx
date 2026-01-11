@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { Activity, AlertTriangle, CheckCircle, Clock, Edit3, FileText, Shield, X, Calendar, ChevronDown, ChevronUp } from 'lucide-react';
 import { Patient, PatientInsight } from '../../types';
-import { supabase } from '../../lib/supabase'; // Aseguramos la importación del cliente
+import { supabase } from '../../lib/supabase'; // Asegúrate que esta ruta sea correcta según tu proyecto
 
 interface Props {
   patient: Patient;
@@ -62,28 +62,41 @@ export const PatientBriefing: React.FC<Props> = ({ patient, lastInsight, onCompl
     onComplete(manualContext);
   };
 
-  // --- FUNCIÓN DE CURACIÓN DE CONTENIDO (FIX "IMPORTACIÓN") ---
+  // --- FUNCIÓN DE MINERÍA DE DATOS (FIX VISUALIZACIÓN) ---
+  // Esta función recupera la capacidad de leer formatos antiguos
   const getDisplayContent = (consultation: any) => {
       const summary = consultation.summary || "";
+      // Detectamos si es un título genérico de importación
       const isGenericTitle = summary.includes("Importación de Datos") || summary.includes("Excel");
       
-      // Si el título es genérico, intentamos buscar "oro" en otros campos
       if (isGenericTitle) {
-          // 1. Intentar sacar nota clínica del JSON de IA (Migración Legacy)
+          // ESTRATEGIA 1: Buscar en ai_analysis_data (Donde suelen migrarse los JSONs)
           if (consultation.ai_analysis_data) {
               const aiData = typeof consultation.ai_analysis_data === 'string' 
                   ? JSON.parse(consultation.ai_analysis_data) 
                   : consultation.ai_analysis_data;
                   
+              // Prioridad a notas clínicas explícitas
               if (aiData.clinicalNote) return aiData.clinicalNote;
+              if (aiData.legacyNote) return aiData.legacyNote; // Soporte Legacy explícito
+              if (aiData.resumen_clinico) return aiData.resumen_clinico; // Soporte Excel
+              
+              // Si es estructura SOAP, la reconstruimos
               if (aiData.soapData) {
                   return `S: ${aiData.soapData.subjective}\nO: ${aiData.soapData.objective}\nA: ${aiData.soapData.analysis}\nP: ${aiData.soapData.plan}`;
               }
           }
-          // 2. Si no hay JSON, retornamos el summary original pero avisando
+          
+          // ESTRATEGIA 2: Buscar si el transcript tiene la nota cruda (común en migraciones rápidas)
+          if (consultation.transcript && consultation.transcript.length > 50 && consultation.transcript !== 'N/A') {
+              return consultation.transcript;
+          }
+
+          // Si falla todo, mostramos el summary original pero sabemos que es genérico
           return summary; 
       }
       
+      // Si no es genérico, es un registro nuevo y correcto
       return summary;
   };
 
