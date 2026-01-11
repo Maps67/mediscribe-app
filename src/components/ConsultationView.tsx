@@ -866,6 +866,7 @@ const ConsultationView: React.FC = () => {
                 address={doctorProfile.address || ""}
                 logoUrl={doctorProfile.logo_url} 
                 signatureUrl={doctorProfile.signature_url} 
+                qrCodeUrl={doctorProfile.qr_code_url} // <--- AQUI ESTA LA CORRECCION
                 patientName={selectedPatient.name}
                 patientAge={ageDisplay} 
                 date={new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
