@@ -13,29 +13,29 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2, 
     borderBottomColor: '#0d9488', 
     paddingBottom: 10,
-    alignItems: 'flex-start' // Alineación superior para que logo y texto empiecen igual
+    alignItems: 'flex-start' 
   },
   logoSection: { 
-    width: '20%', 
+    width: '25%', // Aumentado ligeramente de 20% a 25% para dar espacio al QR más grande
     marginRight: 10, 
-    flexDirection: 'column', // Apilar Logo y QR verticalmente
-    alignItems: 'center',    // Centrar imágenes en su columna
+    flexDirection: 'column', 
+    alignItems: 'center',    
     justifyContent: 'flex-start' 
   },
   logo: { 
     width: 60, 
     height: 60, 
     objectFit: 'contain',
-    marginBottom: 5 
+    marginBottom: 8 // Un poco más de espacio entre logo y QR
   },
-  // Estilo específico para QR en el header
+  // --- CAMBIO DE TAMAÑO AQUÍ ---
   qrCodeHeader: {
-    width: 50,
-    height: 50,
+    width: 85,  // Antes 50
+    height: 85, // Antes 50
     objectFit: 'contain'
   },
   
-  doctorInfo: { width: '80%', justifyContent: 'center' },
+  doctorInfo: { width: '75%', justifyContent: 'center' }, // Ajustado para compensar el logoSection
   doctorName: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#0d9488', marginBottom: 2, textTransform: 'uppercase' },
   specialty: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#555', marginBottom: 2, textTransform: 'uppercase' },
   detailsLegal: { fontSize: 8, color: '#444', marginBottom: 1 },
@@ -75,7 +75,7 @@ const styles = StyleSheet.create({
   signatureImage: { width: 100, height: 40, objectFit: 'contain', marginBottom: 5 },
   signatureLine: { width: '100%', borderTopWidth: 1, borderTopColor: '#333', marginTop: 5 },
   
-  // Legal (Izquierda) - YA NO CONTIENE EL QR
+  // Legal (Izquierda)
   legalTextContainer: { width: '55%', flexDirection: 'column', justifyContent: 'flex-end' }, 
   legalText: { fontSize: 6, color: '#888', marginTop: 2, textAlign: 'left', lineHeight: 1.3 },
 });
@@ -161,7 +161,7 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
              {/* 1. Logo del Médico */}
              {isValidUrl(logoUrl) && <Image src={logoUrl!} style={styles.logo} />}
              
-             {/* 2. QR Code (Ahora aquí arriba, debajo del logo si existe) */}
+             {/* 2. QR Code (Aumentado de tamaño) */}
              {isValidUrl(qrCodeUrl) && (
                  <Image src={qrCodeUrl!} style={styles.qrCodeHeader} />
              )}
@@ -207,16 +207,18 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
               </View>
           )}
 
+          {/* === LOGICA DE RENDERIZADO HÍBRIDA === */}
           {hasStructuredData ? (
              <View style={{ width: '100%' }}> 
                  
-                 {/* A. MEDICAMENTOS */}
+                 {/* A. MEDICAMENTOS (Usando la lista SEGURA) */}
                  {safePrescriptions && safePrescriptions.length > 0 && (
                     <View style={{ marginBottom: 10 }}>
                         <Text style={styles.rxHeader}>MEDICAMENTOS</Text>
                         {safePrescriptions.map((med, i) => (
                             <View key={i} style={styles.medicationContainer}>
                                 <Text style={styles.medName}>
+                                    {/* i + 1 renumera automáticamente, sin saltos */}
                                     {i + 1}. {med.drug} <Text style={{fontSize: 10, fontFamily: 'Helvetica', color: '#333'}}>— {med.dose}</Text>
                                 </Text>
                                 <Text style={styles.medInstructions}>
@@ -241,6 +243,7 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
                  )}
              </View>
           ) : (
+             // C. FALLBACK
              <View>
                  {formatContent(content || '')}
              </View>
@@ -251,7 +254,7 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
         {/* PIE DE PÁGINA */}
         <View style={styles.footer}>
           
-          {/* IZQUIERDA: AVISO LEGAL (Ya sin QR) */}
+          {/* IZQUIERDA: AVISO LEGAL */}
           <View style={styles.legalTextContainer}>
              <Text style={{fontSize: 7, fontFamily: 'Helvetica-Bold', marginBottom: 2}}>AVISO LEGAL:</Text>
              <Text style={styles.legalText}>
