@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import Papa from 'papaparse';
 import { supabase } from '../lib/supabase';
-import { Download, X, FileSpreadsheet, Loader2, ShieldCheck, CheckCircle } from 'lucide-react';
+import { Download, X, FileSpreadsheet, Loader2, ShieldCheck } from 'lucide-react';
 import { toast } from 'sonner';
 
 export default function DataExportModal({ onClose }: { onClose: () => void }) {
@@ -41,9 +41,8 @@ export default function DataExportModal({ onClose }: { onClose: () => void }) {
 
       setProgress(`Procesando ${patients.length} registros...`);
 
-      // 3. Aplanar datos para formato Excel/CSV
+      // 3. Aplanar datos (Mapeo estricto para el Importador)
       const csvData = patients.map(p => {
-        // Calculamos la última consulta si existe
         const lastConsultation = p.consultations && p.consultations.length > 0
           ? new Date(p.consultations[p.consultations.length - 1].created_at).toLocaleDateString()
           : 'Sin historial';
@@ -52,26 +51,32 @@ export default function DataExportModal({ onClose }: { onClose: () => void }) {
           "ID Sistema": p.id,
           "Nombre Completo": p.name,
           "Teléfono": p.phone || "N/A",
-          "Email": p.email || "N/A",
+          "Email": p.email || "",
           "Género": p.gender || "N/A",
-          "Fecha Nacimiento": p.birth_date || "N/A",
+          "Fecha Nacimiento": p.birth_date || "",
           "Fecha Registro": new Date(p.created_at || '').toLocaleDateString(),
           "Última Consulta": lastConsultation
         };
       });
 
-      // 4. Generar y Descargar CSV
-      const csvString = Papa.unparse(csvData);
-      const blob = new Blob([csvString], { type: 'text/csv;charset=utf-8;' });
+      // 4. Generar CSV BLINDADO (UTF-8 BOM + Comas forzadas)
+      const csvString = Papa.unparse(csvData, {
+          quotes: true,       // Envolver todo en comillas para evitar errores con comas internas
+          delimiter: ",",     // Forzar coma estándar
+      });
+
+      // Agregar BOM (\uFEFF) para que Excel reconozca UTF-8 (Acentos)
+      const blob = new Blob(["\uFEFF" + csvString], { type: 'text/csv;charset=utf-8;' });
+      
       const url = URL.createObjectURL(blob);
       const link = document.createElement('a');
       link.href = url;
-      link.setAttribute('download', `Pacientes_VitalScribe_${new Date().toISOString().split('T')[0]}.csv`);
+      link.setAttribute('download', `VitalScribe_Backup_${new Date().toISOString().split('T')[0]}.csv`);
       document.body.appendChild(link);
       link.click();
       document.body.removeChild(link);
 
-      toast.success("Base de datos exportada exitosamente");
+      toast.success("Base de datos exportada (Formato Universal v2)");
       onClose();
 
     } catch (err: any) {
@@ -99,8 +104,8 @@ export default function DataExportModal({ onClose }: { onClose: () => void }) {
           <div className="bg-blue-50 text-blue-900 border border-blue-200 p-4 rounded-lg flex gap-3">
             <ShieldCheck className="h-5 w-5 text-blue-600 shrink-0" />
             <div className="text-xs">
-              <span className="font-bold block mb-1">Backup Seguro</span>
-              Se generará un archivo CSV compatible con Excel que contiene toda tu lista de pacientes y sus datos de contacto.
+              <span className="font-bold block mb-1">Backup Universal v2</span>
+              Genera un archivo CSV estandarizado (UTF-8 con BOM) compatible con Excel y con el Importador Inteligente.
             </div>
           </div>
 
