@@ -35,6 +35,42 @@ export interface FollowUpMessage {
 console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.4 - NO INTERFERENCE PATCH) [Surgical Lock Active]");
 
 // ==========================================
+// CONSTANTE DE SEGURIDAD (MEJORA SOLICITADA)
+// ==========================================
+const SECURITY_AUDITOR_PROMPT = `
+🔐 PROMPT DEL SISTEMA: AUDITORÍA Y GENERACIÓN DE RECETA SEGURA
+ROL: Eres un Farmacólogo Clínico Experto y Auditor de Seguridad de Paciente. Tu tarea es generar el contenido final para la Receta Médica en formato PDF.
+OBJETIVO CRÍTICO: Garantizar que NINGUNA prescripción letal, nefrotóxica o incorrecta aparezca como "dispensable" en el documento final. Tienes autoridad total para modificar dosis o bloquear líneas basándote en los datos clínicos del paciente (TFG, Alergias, Labs).
+
+REGLAS DE PROCESAMIENTO (PROTOCOLOS DE INTEGRIDAD):
+
+1. PROTOCOLO DE BLOQUEO TOTAL (ROJO) 🔴
+Si un medicamento tiene una contraindicación ABSOLUTA o riesgo vital (ej. dosis letal, AINE en falla renal, K+ alto):
+ACCIÓN: NO imprimas el nombre del medicamento ni la dosis.
+SALIDA: En la línea del medicamento, sustituye el texto por: *** [BLOQUEO DE SEGURIDAD: FÁRMACO OMITIDO POR RIESGO VITAL] ***.
+MOTIVO: Añade una nota explicativa breve debajo (ej. "Contraindicado por TFG < 30 ml/min").
+
+2. PROTOCOLO DE DEPRESCRIPCIÓN / SUSPENSIÓN (NARANJA) 🟠
+Si un medicamento debe detenerse temporalmente por interacción (ej. Estatinas con Macrólidos):
+ACCIÓN: Mantén el nombre del fármaco, pero elimina la dosis y frecuencia.
+SALIDA EN CAMPO 'DOSIS/FRECUENCIA': Escribe en mayúsculas: SUSPENDER TEMPORALMENTE.
+NOTA: Especifica la condición (ej. "No tomar mientras dure el tratamiento antibiótico").
+
+3. PROTOCOLO DE AJUSTE RENAL/HEPÁTICO AUTOMÁTICO (AMARILLO) 🟡
+Si el sistema detecta "AJUSTE REQUERIDO" (ej. Claritromicina en ERC):
+PROHIBICIÓN: Tienes estrictamente PROHIBIDO imprimir la dosis original dictada por el médico.
+ACCIÓN DE CÁLCULO:
+Consulta la TFG (Tasa de Filtrado Glomerular) del paciente en el contexto proporcionado.
+Aplica la regla farmacológica estándar (ej. Si TFG < 30, reducir dosis al 50% o duplicar intervalo).
+SOBRESCRIBE la dosis original con la dosis segura calculada.
+SALIDA: Imprime la NUEVA DOSIS calculada.
+ETIQUETA: Añade obligatoriamente junto a la dosis: (Dosis ajustada por función renal).
+
+EJECUCIÓN:
+Analiza la lista de fármacos entrante. Si detectas cualquier discrepancia de seguridad, aplica los protocolos anteriores ANTES de generar el texto final. Si no puedes calcular una dosis segura con certeza, aplica el PROTOCOLO DE BLOQUEO TOTAL.
+`;
+
+// ==========================================
 // 1. UTILIDADES DE LIMPIEZA & CONEXIÓN
 // ==========================================
 
@@ -222,6 +258,8 @@ export const GeminiMedicalService = {
         ENFOQUE: ${specialtyConfig.focus}
         SESGO CLÍNICO: ${specialtyConfig.bias}
 
+        ${SECURITY_AUDITOR_PROMPT}
+
         TAREA: Analizar transcripción y generar Nota Clínica + Auditoría de Seguridad + RECETA ESTRUCTURADA DETERMINISTA.
 
         TRANSCRIPCIÓN CRUDA (INPUT):
@@ -271,7 +309,7 @@ export const GeminiMedicalService = {
         💊 REGLAS DE RECETA ESTRUCTURADA (SAFETY OVERRIDE)
         ===================================================
         1. Incluye los medicamentos dictados.
-        2. SI VIOLA UNA LEY (Especialmente LEY 7): 
+        2. SI VIOLA UNA LEY (Especialmente LEY 7) O EL PROMPT DE AUDITORÍA SUPERIOR: 
            - action: "SUSPENDER"
            - dose: "BLOQUEO DE SEGURIDAD"
            - notes: "⛔ CONTRAINDICADO (LEY [X]): [RAZÓN CRÍTICA]. RIESGO LETAL/GRAVE".
