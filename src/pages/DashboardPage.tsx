@@ -28,6 +28,17 @@ import { QuickDocModal } from '../components/QuickDocModal';
 import { ImpactMetrics } from '../components/ImpactMetrics';
 import SmartBriefingWidget from '../components/SmartBriefingWidget'; 
 
+// --- UTILS: Limpieza agresiva de Markdown para voz ---
+const cleanMarkdown = (text: string): string => {
+    if (!text) return "";
+    return text
+        .replace(/[*_#`~]/g, '') // Elimina asteriscos, guiones bajos, hashtags, tildes de código
+        .replace(/^\s*[-•]\s+/gm, '') // Elimina viñetas de lista al inicio
+        .replace(/\[.*?\]/g, '') // Elimina referencias tipo [1]
+        .replace(/\n\s*\n/g, '\n') // Elimina saltos de línea dobles
+        .trim();
+};
+
 // --- Interfaces ---
 interface DashboardAppointment {
   id: string; title: string; start_time: string; status: string;
@@ -75,14 +86,14 @@ const AtomicClock = ({ location }: { location: string }) => {
     );
 };
 
-// --- Assistant Modal REFORZADO (Limpieza Texto + Anti-Freeze + Timeout) ---
+// --- Assistant Modal REFORZADO (Limpieza Extrema + Anti-Doble Click) ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'answering'>('idle');
   const [aiResponse, setAiResponse] = useState<AgentResponse | null>(null);
   const [medicalAnswer, setMedicalAnswer] = useState<string | null>(null);
-  const [isExecuting, setIsExecuting] = useState(false); // Anti-doble click
+  const [isExecuting, setIsExecuting] = useState(false); 
   
   const navigate = useNavigate(); 
   
@@ -118,7 +129,7 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
       stopListening();
       setStatus('processing');
 
-      // Timeout de seguridad: Si Gemini tarda más de 12s, libera la UI.
+      // Timeout de seguridad
       const timeoutPromise = new Promise((_, reject) => 
           setTimeout(() => reject(new Error("Tiempo agotado")), 12000)
       );
@@ -134,8 +145,8 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                      transcript
                  );
                  
-                 // Limpieza de Markdown para que no lea asteriscos
-                 const cleanAnswer = rawAnswer.replace(/\*/g, '').replace(/__/g, '').replace(/#/g, '').trim();
+                 // 🧹 LIMPIEZA DE FORMATO AGRESIVA
+                 const cleanAnswer = cleanMarkdown(rawAnswer);
                  
                  setMedicalAnswer(cleanAnswer);
                  setAiResponse({ 
@@ -409,7 +420,7 @@ const Dashboard: React.FC = () => {
   const [systemStatus, setSystemStatus] = useState(true); 
   
   // --- CONTROL DE ESTADO DE CARGA (ANTI-FLICKER) ---
-  const [isLoading, setIsLoading] = useState(true); // Inicia en true
+  const [isLoading, setIsLoading] = useState(true); 
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
@@ -427,47 +438,57 @@ const Dashboard: React.FC = () => {
 
   const fetchData = useCallback(async () => {
       try {
-          setIsLoading(true); // Activa skeleton al recargar
+          setIsLoading(true);
+          
+          // --- SOLUCIÓN: RETARDO ARTIFICIAL PARA VER EL SKELETON ---
+          // Forzamos que la carga dure mínimo 1.5 segundos para evitar el parpadeo
+          const minLoadTime = new Promise(resolve => setTimeout(resolve, 1500));
+          
+          const dataFetch = (async () => {
+              const { data: { user } } = await supabase.auth.getUser();
+              if (!user) { setSystemStatus(false); return; }
+              setSystemStatus(true);
+              const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+              setDoctorProfile(profile);
+              
+              const todayStart = startOfDay(new Date()); 
+              const nextWeekEnd = endOfDay(addDays(new Date(), 7));
+              
+              const { data: aptsData } = await supabase.from('appointments').select(`id, title, start_time, status, patient:patients (id, name, history)`).eq('doctor_id', user.id).gte('start_time', todayStart.toISOString()).lte('start_time', nextWeekEnd.toISOString()).neq('status', 'cancelled').neq('status', 'completed').order('start_time', { ascending: true }).limit(10);
+              
+              if (aptsData) {
+                  const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
+                      id: item.id, title: item.title, start_time: item.start_time, status: item.status, patient: item.patient, criticalAlert: null 
+                  }));
+                  setAppointments(formattedApts);
+              }
 
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) { setSystemStatus(false); return; }
-          setSystemStatus(true);
-          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-          setDoctorProfile(profile);
-          
-          const todayStart = startOfDay(new Date()); 
-          const nextWeekEnd = endOfDay(addDays(new Date(), 7));
-          
-          const { data: aptsData } = await supabase.from('appointments').select(`id, title, start_time, status, patient:patients (id, name, history)`).eq('doctor_id', user.id).gte('start_time', todayStart.toISOString()).lte('start_time', nextWeekEnd.toISOString()).neq('status', 'cancelled').neq('status', 'completed').order('start_time', { ascending: true }).limit(10);
-          
-          if (aptsData) {
-              const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
-                  id: item.id, title: item.title, start_time: item.start_time, status: item.status, patient: item.patient, criticalAlert: null 
-              }));
-              setAppointments(formattedApts);
-          }
+              const { count: completedCount } = await supabase
+                  .from('appointments')
+                  .select('*', { count: 'exact', head: true })
+                  .eq('doctor_id', user.id)
+                  .eq('status', 'completed')
+                  .gte('start_time', todayStart.toISOString())
+                  .lte('start_time', endOfDay(new Date()).toISOString());
+              
+              setCompletedTodayCount(completedCount || 0);
 
-          const { count: completedCount } = await supabase
-              .from('appointments')
-              .select('*', { count: 'exact', head: true })
-              .eq('doctor_id', user.id)
-              .eq('status', 'completed')
-              .gte('start_time', todayStart.toISOString())
-              .lte('start_time', endOfDay(new Date()).toISOString());
-          
-          setCompletedTodayCount(completedCount || 0);
+              const radar: PendingItem[] = [];
+              const { data: openConsults } = await supabase.from('consultations').select('id, created_at, patient_name').eq('doctor_id', user.id).eq('status', 'in_progress').limit(3);
+              if (openConsults) { openConsults.forEach(c => radar.push({ id: c.id, type: 'note', title: 'Nota Incompleta', subtitle: `${c.patient_name || 'Sin nombre'} • ${format(parseISO(c.created_at), 'dd/MM')}`, date: c.created_at })); }
+              const { data: lostApts } = await supabase.from('appointments').select('id, title, start_time').eq('doctor_id', user.id).eq('status', 'scheduled').lt('start_time', new Date().toISOString()).limit(3);
+              if (lostApts) { lostApts.forEach(a => radar.push({ id: a.id, type: 'appt', title: 'Cita por Cerrar', subtitle: `${a.title} • ${format(parseISO(a.start_time), 'dd/MM HH:mm')}`, date: a.start_time })); }
+              setPendingItems(radar);
+          })();
 
-          const radar: PendingItem[] = [];
-          const { data: openConsults } = await supabase.from('consultations').select('id, created_at, patient_name').eq('doctor_id', user.id).eq('status', 'in_progress').limit(3);
-          if (openConsults) { openConsults.forEach(c => radar.push({ id: c.id, type: 'note', title: 'Nota Incompleta', subtitle: `${c.patient_name || 'Sin nombre'} • ${format(parseISO(c.created_at), 'dd/MM')}`, date: c.created_at })); }
-          const { data: lostApts } = await supabase.from('appointments').select('id, title, start_time').eq('doctor_id', user.id).eq('status', 'scheduled').lt('start_time', new Date().toISOString()).limit(3);
-          if (lostApts) { lostApts.forEach(a => radar.push({ id: a.id, type: 'appt', title: 'Cita por Cerrar', subtitle: `${a.title} • ${format(parseISO(a.start_time), 'dd/MM HH:mm')}`, date: a.start_time })); }
-          setPendingItems(radar);
+          // Esperamos a que ambas promesas (datos y tiempo mínimo) terminen
+          await Promise.all([dataFetch, minLoadTime]);
+
       } catch (e) { 
           setSystemStatus(false); 
           console.error(e); 
       } finally {
-          setIsLoading(false); // Apaga el skeleton cuando termina
+          setIsLoading(false); // Ahora sí apagamos la carga
       }
   }, []);
 
@@ -542,7 +563,7 @@ const Dashboard: React.FC = () => {
             weather={weather} 
             systemStatus={systemStatus} 
             onOpenAssistant={() => setIsAssistantOpen(true)}
-            isLoading={isLoading} // <--- SE PASA EL ESTADO DE CARGA
+            isLoading={isLoading} // <--- SE PASA EL ESTADO DE CARGA CONTROLADO
             insights={{
                nextTime: nextPatient ? format(parseISO(nextPatient.start_time), 'h:mm a') : null,
                pending: pendingItems.length,
