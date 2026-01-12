@@ -17,7 +17,7 @@ import { toast } from 'sonner';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
 import { AgentResponse } from '../services/GeminiAgent';
-import { GeminiMedicalService } from '../services/GeminiMedicalService'; // IMPORTACIÓN DEL NÚCLEO
+import { GeminiMedicalService } from '../services/GeminiMedicalService'; 
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
@@ -26,7 +26,6 @@ import { MedicalCalculators } from '../components/MedicalCalculators';
 import { QuickDocModal } from '../components/QuickDocModal';
 
 import { ImpactMetrics } from '../components/ImpactMetrics';
-// Importación del Widget Inteligente (Pilar 3)
 import SmartBriefingWidget from '../components/SmartBriefingWidget'; 
 
 // --- Interfaces ---
@@ -76,13 +75,14 @@ const AtomicClock = ({ location }: { location: string }) => {
     );
 };
 
-// --- Assistant Modal REFORZADO (Opción B - Conectado & Tipado Corregido) ---
+// --- Assistant Modal REFORZADO (Limpieza de Texto + Anti-Doble Click) ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'answering'>('idle');
   const [aiResponse, setAiResponse] = useState<AgentResponse | null>(null);
   const [medicalAnswer, setMedicalAnswer] = useState<string | null>(null);
+  const [isExecuting, setIsExecuting] = useState(false); // Anti-doble click
   
   const navigate = useNavigate(); 
   
@@ -104,13 +104,14 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
           startListening();
           setAiResponse(null);
           setMedicalAnswer(null);
+          setIsExecuting(false);
       } else {
           stopListening();
           window.speechSynthesis.cancel();
       }
   }, [isOpen]);
 
-  // PROCESADOR INTELIGENTE (Conectado a GeminiMedicalService)
+  // PROCESADOR INTELIGENTE
   const processIntent = async () => {
       if (!transcript) return;
       stopListening();
@@ -118,19 +119,20 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
 
       try {
           const lowerText = transcript.toLowerCase();
-          
-          // DETECCIÓN DE CONTEXTO MÉDICO
           const isMedical = lowerText.includes('dosis') || lowerText.includes('tratamiento') || lowerText.includes('qué es') || lowerText.includes('protocolo') || lowerText.includes('interacción') || lowerText.includes('signos');
 
           if (isMedical) {
-             // 🛡️ CONEXIÓN SEGURA AL NÚCLEO
-             const answer = await GeminiMedicalService.chatWithContext(
+             const rawAnswer = await GeminiMedicalService.chatWithContext(
                  "Contexto: El médico está en el Dashboard principal. Pregunta general rápida.", 
                  transcript
              );
              
-             setMedicalAnswer(answer);
-             // FIX: Agregamos originalText y confidence para satisfacer TypeScript
+             // 🧹 LIMPIEZA DE FORMATO (Markdown Killer)
+             // Elimina asteriscos, guiones bajos dobles y hashtags para lectura limpia
+             const cleanAnswer = rawAnswer.replace(/\*/g, '').replace(/__/g, '').replace(/#/g, '').trim();
+             
+             setMedicalAnswer(cleanAnswer);
+             
              setAiResponse({ 
                  intent: 'MEDICAL_QUERY', 
                  data: {}, 
@@ -139,10 +141,9 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
                  confidence: 1.0 
              });
              setStatus('answering');
-             speakResponse(answer); 
+             speakResponse(cleanAnswer); 
 
           } else if (lowerText.includes('cita') || lowerText.includes('agendar')) {
-             // FIX: Agregamos originalText y confidence
              setAiResponse({ 
                  intent: 'CREATE_APPOINTMENT', 
                  data: { patientName: "Paciente Nuevo (Voz)", start_time: new Date().toISOString() }, 
@@ -152,7 +153,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
              });
              setStatus('answering');
           } else {
-             // FIX: Agregamos originalText y confidence
              setAiResponse({ 
                  intent: 'NAVIGATION', 
                  data: { destination: transcript }, 
@@ -171,12 +171,14 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
   };
 
   const handleExecuteAction = async () => {
-    if (!aiResponse) return;
+    if (!aiResponse || isExecuting) return; // Bloqueo si ya está ejecutando
     
     if (aiResponse.intent === 'MEDICAL_QUERY') {
         onClose();
         return;
     }
+
+    setIsExecuting(true); // Activar bloqueo
 
     switch (aiResponse.intent) {
       case 'CREATE_APPOINTMENT':
@@ -200,7 +202,10 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
             toast.success("✅ Cita agendada con éxito");
             onActionComplete();
             onClose();
-        } catch(e) { toast.error("Error al guardar cita"); }
+        } catch(e) { 
+            toast.error("Error al guardar cita"); 
+            setIsExecuting(false); // Liberar si falla
+        }
         break;
 
       case 'NAVIGATION':
@@ -212,6 +217,9 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
         else navigate('/');
         toast.success(`Navegando...`);
         break;
+        
+      default:
+        setIsExecuting(false);
     }
   };
   
@@ -278,13 +286,17 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete }: { isOpen: boolean
               )}
 
               <div className="flex gap-3">
-                <button onClick={() => { setStatus('idle'); resetTranscript(); setAiResponse(null); }} className="flex-1 py-3.5 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">
+                <button onClick={() => { setStatus('idle'); resetTranscript(); setAiResponse(null); setIsExecuting(false); }} className="flex-1 py-3.5 text-slate-500 font-bold hover:bg-slate-100 rounded-xl transition-colors">
                     Nueva Consulta
                 </button>
                 
                 {aiResponse.intent !== 'MEDICAL_QUERY' && (
-                    <button onClick={handleExecuteAction} className="flex-1 py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 active:scale-95 flex items-center justify-center gap-2">
-                        Ejecutar
+                    <button 
+                        onClick={handleExecuteAction} 
+                        disabled={isExecuting}
+                        className={`flex-1 py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg hover:bg-indigo-700 active:scale-95 flex items-center justify-center gap-2 ${isExecuting ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    >
+                        {isExecuting ? <Loader2 className="animate-spin" size={18}/> : 'Ejecutar'}
                     </button>
                 )}
                 
@@ -521,7 +533,6 @@ const Dashboard: React.FC = () => {
 
       <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-[1600px] mx-auto w-full">
          
-         {/* WIDGET INTELIGENTE (Pilar 3 - Integrado) */}
          <SmartBriefingWidget 
             greeting={dynamicGreeting.greeting} 
             weather={weather} 
