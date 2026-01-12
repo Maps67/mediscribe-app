@@ -1421,8 +1421,19 @@ const ConsultationView: React.FC = () => {
                                                     <div className="space-y-3">
                                                         {editablePrescriptions.map((med, idx) => {
                                                             // Lógica de detección de riesgo (Visual en UI)
-                                                            const isRisky = generatedNote?.risk_analysis?.level === 'Alto' && 
-                                                                            generatedNote.risk_analysis.reason.toLowerCase().includes(med.drug.toLowerCase().split(' ')[0]);
+                                                            // Se normaliza para evitar errores por mayúsculas/minúsculas o acentos
+                                                            const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                            
+                                                            let isRisky = false;
+                                                            if (generatedNote?.risk_analysis?.level === 'Alto') {
+                                                                const reason = normalize(generatedNote.risk_analysis.reason);
+                                                                const drugName = normalize(med.drug);
+                                                                // Primera palabra (ej. "Celecoxib")
+                                                                if (reason.includes(drugName.split(' ')[0])) isRisky = true;
+                                                                // Contenido en paréntesis (ej. "Celebrex")
+                                                                const match = med.drug.match(/\(([^)]+)\)/);
+                                                                if (match && reason.includes(normalize(match[1]))) isRisky = true;
+                                                            }
 
                                                             // Lógica existente de bloqueo manual
                                                             const isManualBlocked = (med as any).action === 'SUSPENDER' || (med.dose && med.dose.includes('BLOQUEO'));
@@ -1444,7 +1455,7 @@ const ConsultationView: React.FC = () => {
                                                                             placeholder="Nombre del medicamento" 
                                                                         />
                                                                         {showDanger && (
-                                                                            <div className="absolute right-0 top-1/2 -translate-y-1/2 text-red-500 animate-pulse" title="Alerta de Seguridad">
+                                                                            <div className="absolute right-0 top-1/2 -translate-y-1/2 text-red-500 animate-pulse" title="Alerta de Seguridad: Riesgo detectado">
                                                                                 <AlertCircle size={16}/>
                                                                             </div>
                                                                         )}
