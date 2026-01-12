@@ -111,9 +111,10 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
   documentTitle = "RECETA MÉDICA" 
 }) => {
 
-  // --- 1. LÓGICA DE FILTRADO DE SEGURIDAD (MEJORADA) ---
+  // --- 1. LÓGICA DE FILTRADO DE SEGURIDAD (MEJORADA Y ESTRICTA) ---
   const isRiskyMedication = (medName: string) => {
-    if (!riskAnalysis || riskAnalysis.level !== 'Alto') return false;
+    // CORRECCIÓN: Si hay un motivo de riesgo, se evalúa SIEMPRE, sin importar el nivel.
+    if (!riskAnalysis || !riskAnalysis.reason) return false;
     
     // Normalización agresiva para comparación
     const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
@@ -126,7 +127,6 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
     if (reason.includes(drugFirstWord)) return true;
 
     // 2. Coincidencia de contenido entre paréntesis (Nombre comercial)
-    // Ejemplo: "Celecoxib (Celebrex)" -> Busca "Celebrex"
     const parentheticalMatch = medName.match(/\(([^)]+)\)/);
     if (parentheticalMatch) {
         const brandName = normalize(parentheticalMatch[1]);
@@ -137,7 +137,7 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
   };
 
   const safePrescriptions = prescriptions?.filter(med => {
-    // A) Filtro Automático por IA (Riesgo Alto)
+    // A) Filtro Automático por IA (Cualquier nivel de riesgo si hay coincidencia de texto)
     if (isRiskyMedication(med.drug)) return false;
 
     // B) Filtro Manual (Bloqueo explícito en texto)
@@ -227,20 +227,20 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
         <View style={styles.rxSection}>
           <Text style={styles.docTitle}>{documentTitle}</Text>
           
-          {/* ADVERTENCIA DE SEGURIDAD (Siempre visible si hay riesgo alto) */}
-          {riskAnalysis && riskAnalysis.level === 'Alto' && (
+          {/* ADVERTENCIA DE SEGURIDAD (Visible si hay riesgo Medio o Alto) */}
+          {riskAnalysis && (riskAnalysis.level === 'Alto' || riskAnalysis.level === 'Medio') && (
               <View style={styles.warningBox}>
-                  <Text style={styles.warningTitle}>*** ADVERTENCIA DE SEGURIDAD CLÍNICA ***</Text>
+                  <Text style={styles.warningTitle}>*** ADVERTENCIA DE SEGURIDAD CLÍNICA ({riskAnalysis.level?.toUpperCase()}) ***</Text>
                   <Text style={styles.warningText}>MOTIVO: {riskAnalysis.reason?.toUpperCase()}</Text>
                   <Text style={{ fontSize: 8, color: '#991b1b', fontStyle: 'italic', marginTop: 4 }}>
-                    * Se han omitido de esta receta los medicamentos que presentan interacciones graves detectadas.
+                    * Se han omitido de esta receta los medicamentos que presentan interacciones detectadas.
                   </Text>
               </View>
           )}
 
           {hasStructuredData ? (
              <View style={{ width: '100%' }}> 
-                 {safePrescriptions && safePrescriptions.length > 0 && (
+                 {safePrescriptions && safePrescriptions.length > 0 ? (
                     <View style={{ marginBottom: 10 }}>
                         <Text style={styles.rxHeader}>MEDICAMENTOS</Text>
                         {safePrescriptions.map((med, i) => (
@@ -259,6 +259,11 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
                             </View>
                         ))}
                     </View>
+                 ) : (
+                    // Mensaje si TODO fue filtrado
+                    <Text style={{fontSize: 10, color: '#666', fontStyle: 'italic', marginVertical: 10, textAlign: 'center'}}>
+                        (No hay medicamentos activos para imprimir debido a restricciones de seguridad clínica)
+                    </Text>
                  )}
 
                  {instructions && instructions.trim().length > 0 && (

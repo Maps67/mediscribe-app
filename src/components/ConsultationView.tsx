@@ -1425,11 +1425,15 @@ const ConsultationView: React.FC = () => {
                                                             const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
                                                             
                                                             let isRisky = false;
-                                                            if (generatedNote?.risk_analysis?.level === 'Alto') {
+                                                            // CORRECCIÓN: Se evalúa riesgo si el nivel es Alto O Medio, o simplemente si existe una razón de riesgo.
+                                                            // Antes fallaba porque solo miraba 'Alto'.
+                                                            if (generatedNote?.risk_analysis?.reason) {
                                                                 const reason = normalize(generatedNote.risk_analysis.reason);
                                                                 const drugName = normalize(med.drug);
+                                                                
                                                                 // Primera palabra (ej. "Celecoxib")
                                                                 if (reason.includes(drugName.split(' ')[0])) isRisky = true;
+                                                                
                                                                 // Contenido en paréntesis (ej. "Celebrex")
                                                                 const match = med.drug.match(/\(([^)]+)\)/);
                                                                 if (match && reason.includes(normalize(match[1]))) isRisky = true;
