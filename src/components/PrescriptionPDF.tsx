@@ -16,7 +16,7 @@ const styles = StyleSheet.create({
     alignItems: 'flex-start' 
   },
   logoSection: { 
-    width: '25%', // Aumentado ligeramente de 20% a 25% para dar espacio al QR más grande
+    width: '25%', 
     marginRight: 10, 
     flexDirection: 'column', 
     alignItems: 'center',    
@@ -26,16 +26,15 @@ const styles = StyleSheet.create({
     width: 60, 
     height: 60, 
     objectFit: 'contain',
-    marginBottom: 8 // Un poco más de espacio entre logo y QR
+    marginBottom: 8 
   },
-  // --- CAMBIO DE TAMAÑO AQUÍ ---
   qrCodeHeader: {
-    width: 85,  // Antes 50
-    height: 85, // Antes 50
+    width: 85,
+    height: 85,
     objectFit: 'contain'
   },
   
-  doctorInfo: { width: '75%', justifyContent: 'center' }, // Ajustado para compensar el logoSection
+  doctorInfo: { width: '75%', justifyContent: 'center' }, 
   doctorName: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#0d9488', marginBottom: 2, textTransform: 'uppercase' },
   specialty: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#555', marginBottom: 2, textTransform: 'uppercase' },
   detailsLegal: { fontSize: 8, color: '#444', marginBottom: 1 },
@@ -46,7 +45,8 @@ const styles = StyleSheet.create({
   value: { fontFamily: 'Helvetica', color: '#333', fontSize: 9 },
   
   // Cuerpo del documento
-  rxSection: { flex: 1, paddingVertical: 10 },
+  // CORRECCIÓN APLICADA: Eliminado 'flex: 1' para permitir flujo natural
+  rxSection: { paddingVertical: 10, minHeight: 100 }, 
   docTitle: { fontSize: 16, fontFamily: 'Helvetica-Bold', color: '#0d9488', textAlign: 'center', marginBottom: 20, textTransform: 'uppercase', letterSpacing: 1, textDecoration: 'underline' },
   
   // Contenido
@@ -68,7 +68,7 @@ const styles = StyleSheet.create({
   sectionTitle: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#0f766e', marginBottom: 2, textTransform: 'uppercase' },
   
   // Pie de página
-  footer: { marginTop: 30, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#ddd', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
+  footer: { marginTop: 40, paddingTop: 10, borderTopWidth: 1, borderTopColor: '#ddd', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end' },
   
   // Firma (Derecha)
   signatureSection: { alignItems: 'center', width: '40%' },
@@ -271,7 +271,8 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
                  <Image src={signatureUrl!} style={styles.signatureImage} />
              ) : <View style={{height: 40}} />}
              <View style={styles.signatureLine} />
-             <Text style={{fontSize: 9, marginTop: 4, fontFamily: 'Helvetica-Bold'}}>{finalDoctorName}</Text>
+             {/* CORRECCIÓN DE SINTAXIS AQUÍ */}
+             <Text style={{ fontSize: 9, marginTop: 4, fontFamily: 'Helvetica-Bold' }}>{finalDoctorName}</Text>
              <Text style={{fontSize: 7, marginTop: 1}}>Céd. Prof. {license}</Text>
           </View>
         </View>
