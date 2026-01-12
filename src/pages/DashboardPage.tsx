@@ -7,7 +7,7 @@ import {
   Clock, UserPlus, Activity, Search, ArrowRight,
   CalendarX, Repeat, Ban, PlayCircle, PenLine, Calculator, Sparkles,
   BarChart3, FileSignature, Microscope, StickyNote, FileCheck, Printer,
-  Sunrise, Sunset, MoonStar, Send
+  Sunrise, Sunset, MoonStar, Send, Trash2, CalendarClock // <--- [NUEVO] Icono para reprogramar
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays, isPast } from 'date-fns';
@@ -32,10 +32,10 @@ import SmartBriefingWidget from '../components/SmartBriefingWidget';
 const cleanMarkdown = (text: string): string => {
     if (!text) return "";
     return text
-        .replace(/[*_#`~]/g, '') // Elimina asteriscos, guiones bajos, hashtags, tildes de código
-        .replace(/^\s*[-•]\s+/gm, '') // Elimina viñetas de lista al inicio
-        .replace(/\[.*?\]/g, '') // Elimina referencias tipo [1]
-        .replace(/\n\s*\n/g, '\n') // Elimina saltos de línea dobles
+        .replace(/[*_#`~]/g, '') 
+        .replace(/^\s*[-•]\s+/gm, '') 
+        .replace(/\[.*?\]/g, '') 
+        .replace(/\n\s*\n/g, '\n') 
         .trim();
 };
 
@@ -95,16 +95,13 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   const [medicalAnswer, setMedicalAnswer] = useState<string | null>(null);
   const [isExecuting, setIsExecuting] = useState(false); 
   
-  // --- MEJORA AUDIO: Estado para la voz seleccionada ---
   const [preferredVoice, setPreferredVoice] = useState<SpeechSynthesisVoice | null>(null);
 
   const navigate = useNavigate(); 
   
-  // --- MEJORA AUDIO: Selector Inteligente de Voz ---
   useEffect(() => {
       const loadVoices = () => {
           const voices = window.speechSynthesis.getVoices();
-          // Algoritmo de Preferencia: Voces "Mejoradas" (Google/Microsoft) > Estándar
           const bestVoice = voices.find(v => v.lang.includes('es') && v.name.includes('Google')) ||
                             voices.find(v => v.lang.includes('es') && v.name.includes('Microsoft')) ||
                             voices.find(v => v.lang.includes('es'));
@@ -123,9 +120,7 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
           window.speechSynthesis.cancel();
           const utterance = new SpeechSynthesisUtterance(text);
           utterance.lang = 'es-MX';
-          
-          // --- MEJORA AUDIO: Ajuste de Prosodia ---
-          utterance.rate = 0.9; // Cadencia más pausada y humana (vs 1.0 robótico)
+          utterance.rate = 0.9; 
           utterance.pitch = 1.0; 
 
           if (preferredVoice) {
@@ -194,7 +189,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
 
               } else if (lowerText.includes('cita') || lowerText.includes('agendar')) {
                   
-                  // --- FIX CRÍTICO: EXTRACCIÓN DE NOMBRE CON IA ---
                   const extractionPrompt = `Analiza la instrucción: "${textToProcess}". Extrae el nombre del paciente si se menciona. Si no hay nombre, responde "Paciente Nuevo". Responde SOLO con el nombre, sin puntos ni texto extra.`;
                   
                   let extractedName = "Paciente Nuevo";
@@ -235,7 +229,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
       }
   };
 
-  // --- LÓGICA DE PRE-REGISTRO ATÓMICO ---
   const handleExecuteAction = async () => {
     if (!aiResponse || isExecuting) return; 
     
@@ -258,7 +251,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
             const detectedName = aiResponse.data.patientName || "Paciente Nuevo (Voz)";
             let finalPatientId = null;
 
-            // 1. PRE-REGISTRO
             const { data: existingPatient } = await supabase
                 .from('patients')
                 .select('id')
@@ -269,7 +261,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
             if (existingPatient) {
                 finalPatientId = existingPatient.id;
             } else {
-                // 2. MATERIALIZACIÓN
                 const { data: newPatient, error: createError } = await supabase
                     .from('patients')
                     .insert({
@@ -288,7 +279,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
                 finalPatientId = newPatient.id;
             }
 
-            // 3. AGENDAMIENTO VINCULADO
             const { error } = await supabase.from('appointments').insert({
                 doctor_id: user.id,
                 patient_id: finalPatientId, 
@@ -504,19 +494,21 @@ const Dashboard: React.FC = () => {
   const [locationName, setLocationName] = useState('Localizando...');
   const [systemStatus, setSystemStatus] = useState(true); 
   
-  // --- CONTROL DE ESTADO DE CARGA (ANTI-FLICKER) ---
   const [isLoading, setIsLoading] = useState(true); 
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
-  const [initialAssistantQuery, setInitialAssistantQuery] = useState<string | null>(null); // State para pasar texto al asistente
+  const [initialAssistantQuery, setInitialAssistantQuery] = useState<string | null>(null);
 
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [docType, setDocType] = useState<'justificante' | 'certificado' | 'receta'>('justificante');
   const [toolsTab, setToolsTab] = useState<'notes' | 'calc'>('notes');
   
-  // Estado para la "Omni-Bar"
   const [searchInput, setSearchInput] = useState('');
+
+  // --- [NUEVO] ESTADOS PARA RECALENDARIZACIÓN ---
+  const [rescheduleTarget, setRescheduleTarget] = useState<{id: string, title: string} | null>(null);
+  const [newDateInput, setNewDateInput] = useState('');
 
   const formattedDocName = useMemo(() => {
     if (!doctorProfile?.full_name) return '';
@@ -526,12 +518,10 @@ const Dashboard: React.FC = () => {
 
   const dynamicGreeting = useMemo(() => getTimeOfDayGreeting(formattedDocName || ''), [formattedDocName]);
 
-  // MODIFICADO: Acepta isBackgroundRefresh para polling silencioso
   const fetchData = useCallback(async (isBackgroundRefresh = false) => {
       try {
           if (!isBackgroundRefresh) setIsLoading(true);
           
-          // Solo esperamos el tiempo artificial si es carga inicial (visible)
           const minLoadTime = !isBackgroundRefresh ? new Promise(resolve => setTimeout(resolve, 1500)) : Promise.resolve();
           
           const dataFetch = (async () => {
@@ -596,11 +586,10 @@ const Dashboard: React.FC = () => {
     const cachedLocation = localStorage.getItem('last_known_location');
     if (cachedLocation) { setLocationName(cachedLocation); }
 
-    // Implementación de Polling Inteligente (2 min)
+    // Polling Inteligente (2 min)
     const pollingInterval = setInterval(() => {
-        // Solo actualizar si la pestaña es visible para ahorrar recursos
         if (document.visibilityState === 'visible') {
-            fetchData(true); // Actualización silenciosa
+            fetchData(true); 
         }
     }, 120000);
 
@@ -617,7 +606,6 @@ const Dashboard: React.FC = () => {
             await updateWeather(latitude, longitude);
             const weatherInterval = setInterval(() => { updateWeather(latitude, longitude); }, 30 * 60 * 1000); 
             
-            // Limpieza dentro del scope de geo
             return () => clearInterval(weatherInterval);
         }, () => { if(!cachedLocation) setLocationName("Ubicación n/a"); });
     }
@@ -637,6 +625,73 @@ const Dashboard: React.FC = () => {
       navigate('/consultation', { state: { patientData, linkedAppointmentId: apt.id } });
   };
 
+  const handleCancelAppointment = async (e: React.MouseEvent, aptId: string) => {
+      e.stopPropagation(); // Evitar que se abra la consulta al hacer clic en borrar
+      
+      if (!confirm("¿Desea cancelar esta cita? El registro se ocultará de la agenda.")) return;
+
+      const toastId = toast.loading("Actualizando agenda...");
+      try {
+          const { error } = await supabase
+              .from('appointments')
+              .update({ status: 'cancelled' })
+              .eq('id', aptId);
+
+          if (error) throw error;
+
+          // Actualización optimista del estado local (Inmediata)
+          setAppointments(prev => prev.filter(a => a.id !== aptId));
+          toast.success("Cita cancelada correctamente", { id: toastId });
+          
+          // Recalcular métricas en segundo plano
+          fetchData(true);
+
+      } catch (err) {
+          console.error("Error cancelando cita:", err);
+          toast.error("Error al cancelar cita", { id: toastId });
+      }
+  };
+
+  // --- [NUEVO] FUNCIONES PARA RECALENDARIZAR ---
+  const openRescheduleModal = (e: React.MouseEvent, apt: DashboardAppointment) => {
+      e.stopPropagation();
+      setRescheduleTarget({ id: apt.id, title: apt.title });
+      
+      // Convertir hora de cita a formato local para input (datetime-local)
+      // Truco: restar offset para que toISOString no convierta a UTC visual
+      const currentIso = new Date(apt.start_time);
+      const localIso = new Date(currentIso.getTime() - (currentIso.getTimezoneOffset() * 60000))
+                        .toISOString()
+                        .slice(0, 16); // Formato YYYY-MM-DDTHH:mm
+      setNewDateInput(localIso);
+  };
+
+  const confirmReschedule = async () => {
+      if (!rescheduleTarget || !newDateInput) return;
+      
+      const toastId = toast.loading("Moviendo cita...");
+      try {
+          // Convertir input local de vuelta a ISO UTC
+          const newDate = new Date(newDateInput).toISOString();
+          
+          const { error } = await supabase
+              .from('appointments')
+              .update({ start_time: newDate })
+              .eq('id', rescheduleTarget.id);
+
+          if (error) throw error;
+          
+          toast.success(`Cita movida correctamente`, { id: toastId });
+          setRescheduleTarget(null);
+          // Recargar datos para reordenar la lista
+          fetchData(); 
+
+      } catch (err) {
+          console.error("Error moviendo cita:", err);
+          toast.error("Error al mover cita", { id: toastId });
+      }
+  };
+
   const handleRadarClick = (item: PendingItem) => {
       if (item.type === 'note') {
           navigate('/consultation', { state: { consultationId: item.id, isResume: true } });
@@ -646,7 +701,6 @@ const Dashboard: React.FC = () => {
       }
   };
   
-  // --- HANDLE SEARCH / QUESTION ---
   const handleSearchSubmit = (e?: React.FormEvent) => {
       if(e) e.preventDefault();
       if(!searchInput.trim()) return;
@@ -683,8 +737,6 @@ const Dashboard: React.FC = () => {
             }}
          />
 
-         {/* --- BARRA DE INTELIGENCIA CLÍNICA (OMNI-BAR) --- */}
-         {/* Se ha reinsertado esta sección que estaba ausente */}
          <div className="mb-8 relative z-20 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
             <form onSubmit={handleSearchSubmit}>
                 <div className="bg-white dark:bg-slate-900 rounded-2xl p-2 shadow-lg shadow-indigo-100/50 dark:shadow-none border border-indigo-50 dark:border-slate-800 flex items-center gap-2 group focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
@@ -714,7 +766,6 @@ const Dashboard: React.FC = () => {
                 </div>
             </form>
          </div>
-         {/* ------------------------------------------------ */}
 
          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
              
@@ -754,11 +805,31 @@ const Dashboard: React.FC = () => {
                             <div className="space-y-4">
                                 {Object.entries(groupedAppointments).slice(0, 1).map(([day, apts]) => (
                                     apts.slice(0,3).map(apt => (
-                                        <div key={apt.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer group" onClick={() => handleStartConsultation(apt)}>
+                                        <div key={apt.id} className="flex items-center gap-4 p-3 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-xl transition-colors cursor-pointer group relative" onClick={() => handleStartConsultation(apt)}>
                                             <div className="font-bold text-slate-500 text-xs w-10 text-right">{format(parseISO(apt.start_time), 'HH:mm')}</div>
                                             <div className="w-1 h-8 bg-indigo-200 rounded-full group-hover:bg-indigo-500 transition-colors"></div>
                                             <div className="flex-1"><p className="font-bold text-slate-800 dark:text-white text-sm truncate">{apt.title}</p></div>
-                                            <ChevronRight size={16} className="text-slate-300"/>
+                                            
+                                            {/* --- [NUEVO] GRUPO DE BOTONES DE ACCIÓN --- */}
+                                            <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                {/* Botón Reprogramar (Azul) */}
+                                                <button 
+                                                    onClick={(e) => openRescheduleModal(e, apt)}
+                                                    className="p-1.5 text-indigo-300 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all"
+                                                    title="Reprogramar"
+                                                >
+                                                    <CalendarClock size={16} />
+                                                </button>
+                                                {/* Botón Cancelar (Rojo) */}
+                                                <button 
+                                                    onClick={(e) => handleCancelAppointment(e, apt.id)}
+                                                    className="p-1.5 text-slate-300 hover:text-red-500 hover:bg-red-50 rounded-full transition-all"
+                                                    title="Cancelar"
+                                                >
+                                                    <Trash2 size={16} />
+                                                </button>
+                                                <ChevronRight size={16} className="text-slate-300"/>
+                                            </div>
                                         </div>
                                     ))
                                 ))}
@@ -803,8 +874,39 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
+      {/* --- [NUEVO] MICRO-MODAL RECALENDARIZACIÓN --- */}
+      {rescheduleTarget && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 backdrop-blur-sm p-4 animate-in fade-in">
+            <div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-2xl w-full max-w-sm border border-indigo-100 dark:border-slate-800">
+                <h3 className="font-bold text-lg mb-2 dark:text-white">Reprogramar Cita</h3>
+                <p className="text-sm text-slate-500 mb-4">Paciente: {rescheduleTarget.title}</p>
+                
+                <input 
+                    type="datetime-local" 
+                    className="w-full p-3 border rounded-xl bg-slate-50 dark:bg-slate-800 dark:text-white dark:border-slate-700 outline-none focus:ring-2 focus:ring-indigo-500 mb-6"
+                    value={newDateInput}
+                    onChange={(e) => setNewDateInput(e.target.value)}
+                />
+                
+                <div className="flex justify-end gap-2">
+                    <button 
+                        onClick={() => setRescheduleTarget(null)} 
+                        className="px-4 py-2 text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg text-sm font-bold"
+                    >
+                        Cancelar
+                    </button>
+                    <button 
+                        onClick={confirmReschedule} 
+                        className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm font-bold hover:bg-indigo-700"
+                    >
+                        Confirmar Cambio
+                    </button>
+                </div>
+            </div>
+        </div>
+      )}
+
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile} defaultType={docType} />
-      {/* Se pasa initialQuery para que si el doctor escribió, el asistente procese automáticamente */}
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} initialQuery={initialAssistantQuery} />
     </div>
   );
