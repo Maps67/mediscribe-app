@@ -190,6 +190,22 @@ const getSpecialtyPromptConfig = (specialty: string) => {
         role: "Endocrinólogo Experto",
         focus: "Metabolismo, control glucémico, tiroides, ejes hormonales.",
         bias: "Prioriza el control metabólico estricto. ALERTA MÁXIMA: Potasio en CAD/EHH. NO iniciar insulina si K < 3.3."
+    },
+    // --- NUEVAS ESPECIALIDADES (VITALSCRIBE v5.4 EXPANSION) ---
+    "Neurología": {
+      role: "Neurólogo Clínico",
+      focus: "Exploración neurológica, pares craneales, reflejos, estado mental, lateralización y ventana terapéutica.",
+      bias: "Prioriza la localización de la lesión (Topodiagnóstico). ALERTA MÁXIMA en signos meníngeos o déficit focal agudo."
+    },
+    "Cirugía General": {
+      role: "Cirujano General Certificado",
+      focus: "Abdomen agudo, técnica quirúrgica, cicatrización, manejo de heridas, drenajes y complicaciones postoperatorias.",
+      bias: "Enfoque resolutivo. Ante duda diagnóstica, prioriza descartar urgencia quirúrgica. Clasifica riesgo preoperatorio."
+    },
+    "Medicina Interna": {
+      role: "Médico Internista",
+      focus: "Diagnóstico diferencial complejo, integración multisistémica, enfermedades crónicas descompensadas y medio interno.",
+      bias: "Razonamiento deductivo profundo. Evita la visión de túnel. Busca la causa raíz sistémica detrás del síntoma."
     }
   };
 
