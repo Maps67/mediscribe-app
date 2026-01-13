@@ -198,6 +198,10 @@ const ConsultationView: React.FC = () => {
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
 
+  // --- MODIFICACIÓN 1: Memoria de referencia para el "Copiloto Silencioso" ---
+  // Esto evita que busquemos lo mismo dos veces si el médico no ha cambiado nada importante.
+  const lastAnalyzedRef = useRef<string>("");
+
   useEffect(() => {
     const handleOnline = () => { 
         setIsOnline(true); 
@@ -218,28 +222,57 @@ const ConsultationView: React.FC = () => {
     };
   }, []);
 
+  // --- MODIFICACIÓN 2: Efecto de Sincronización con "Pausa Inteligente" (Debounce) ---
   useEffect(() => {
-    if (generatedNote && (generatedNote.soapData || generatedNote.clinicalNote)) {
-        const noteContent = generatedNote.soapData 
-            ? `Diagnóstico: ${generatedNote.soapData.analysis}\nPlan: ${generatedNote.soapData.plan}`
-            : generatedNote.clinicalNote;
-
-        setLoadingClinicalInsights(true);
-        
-        GeminiMedicalService.generateClinicalInsights(noteContent, selectedSpecialty)
-            .then(insights => {
-                setClinicalInsights(insights);
-            })
-            .catch(err => {
-                console.warn("Fallo silencioso en Insights:", err);
-            })
-            .finally(() => {
-                setLoadingClinicalInsights(false);
-            });
-    } else {
+    // 1. Si no hay nota, limpiamos sugerencias y salimos.
+    if (!generatedNote || (!generatedNote.soapData && !generatedNote.clinicalNote)) {
         setClinicalInsights([]);
+        return;
     }
-  }, [generatedNote]);
+
+    // 2. Construimos el contenido actual que el sistema debe "leer".
+    const currentContent = generatedNote.soapData 
+        ? `${generatedNote.soapData.subjective} \n ${generatedNote.soapData.analysis} \n ${generatedNote.soapData.plan}`
+        : generatedNote.clinicalNote || "";
+
+    // 3. Verificamos si realmente cambió algo significativo respecto a la última vez que "miramos".
+    // Esto ahorra recursos y evita parpadeos.
+    if (currentContent.trim() === lastAnalyzedRef.current.trim()) {
+        return;
+    }
+
+    // 4. CONFIGURACIÓN DE LA PAUSA INTELIGENTE (3 Segundos)
+    const debounceTimer = setTimeout(() => {
+        // Solo buscamos sugerencias si hay suficiente texto (evitar búsquedas por una sola letra)
+        if (currentContent.length > 20) {
+            setLoadingClinicalInsights(true);
+            lastAnalyzedRef.current = currentContent; // Actualizamos la memoria: "Ya leí esto"
+
+            // 5. Llamada asíncrona al servicio (Lectura externa)
+            GeminiMedicalService.generateClinicalInsights(currentContent, selectedSpecialty)
+                .then(insights => {
+                    // Solo actualizamos si obtuvimos algo útil
+                    if (insights && insights.length > 0) {
+                        setClinicalInsights(insights);
+                        // Feedback sutil (opcional, para que sepa que se actualizó)
+                        // toast.success("Sugerencias actualizadas", { icon: <Sparkles size={16}/> });
+                    }
+                })
+                .catch(err => {
+                    console.warn("Silent Insight Error:", err);
+                    // No mostramos error al usuario para no interrumpir su flujo (Silent Fail)
+                })
+                .finally(() => {
+                    setLoadingClinicalInsights(false);
+                });
+        }
+    }, 3000); // <--- TIEMPO DE ESPERA: 3000ms (3 segundos)
+
+    // 6. Limpieza: Si el médico escribe antes de los 3 segundos, cancelamos el timer anterior.
+    // Esto es lo que logra el efecto "Espera a que termine de escribir".
+    return () => clearTimeout(debounceTimer);
+
+  }, [generatedNote, selectedSpecialty]); // Se ejecuta cada vez que generatedNote cambia (escribe)
 
   useEffect(() => {
     let mounted = true;
@@ -1216,7 +1249,7 @@ const ConsultationView: React.FC = () => {
             <div className="flex-1 overflow-y-auto mb-4 pr-2 custom-scrollbar">
                 {chatMessages.map((m,i)=>(
                     <div key={i} className={`p-3 mb-3 rounded-2xl max-w-[85%] text-sm shadow-sm ${m.role==='user'?'bg-brand-teal text-white self-end ml-auto rounded-tr-none':'bg-slate-100 dark:bg-slate-800 dark:text-slate-200 self-start mr-auto rounded-tl-none'}`}>
-                                            <FormattedText content={m.text} />
+                                                        <FormattedText content={m.text} />
                     </div>
                 ))}
                 <div ref={chatEndRef}/>
@@ -1370,10 +1403,10 @@ const ConsultationView: React.FC = () => {
                                                                     ? 'bg-blue-50 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100 rounded-tr-none' 
                                                                     : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 rounded-tl-none'
                                                                 }`}>
-                                                                    <span className={`text-[10px] font-bold block mb-1 uppercase opacity-70 ${line.speaker === 'Médico' ? 'text-right' : 'text-left'}`}>
-                                                                        {line.speaker}
-                                                                    </span>
-                                                                    {line.text}
+                                                                        <span className={`text-[10px] font-bold block mb-1 uppercase opacity-70 ${line.speaker === 'Médico' ? 'text-right' : 'text-left'}`}>
+                                                                            {line.speaker}
+                                                                        </span>
+                                                                        {line.text}
                                                                 </div>
                                                             </div>
                                                         ))}
