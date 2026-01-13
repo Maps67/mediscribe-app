@@ -5,6 +5,8 @@ import {
 } from 'lucide-react';
 import { Patient, PatientInsight } from '../types';
 import { VitalSnapshotCard } from './VitalSnapshotCard';
+// 1. IMPORTAMOS EL COMPONENTE NUEVO
+import { SpecialtyVault } from './SpecialtyVault';
 
 interface PatientSidebarProps {
   patients: any[];
@@ -35,8 +37,6 @@ interface PatientSidebarProps {
   isLoadingInsights: boolean;
 }
 
-// Usamos React.memo para que este componente NO se renderice 
-// cada vez que escribes una letra en el dictado.
 export const PatientSidebar = React.memo(({
   patients,
   selectedPatient,
@@ -68,9 +68,9 @@ export const PatientSidebar = React.memo(({
   }, [patients, searchTerm]);
 
   return (
-    <div className={`w-full md:w-1/4 p-4 flex flex-col gap-2 border-r dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden`}>
+    <div className={`w-full md:w-1/4 p-4 flex flex-col gap-2 border-r dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden h-full`}>
         {/* HEADER */}
-        <div className="flex justify-between items-center">
+        <div className="flex justify-between items-center shrink-0">
             <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
                 Consulta IA
                 <button onClick={onOpenAttachments} className="p-2 ml-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full text-slate-500 dark:text-slate-300 transition-colors" title="Ver archivos adjuntos"><Paperclip size={18} /></button>
@@ -82,7 +82,7 @@ export const PatientSidebar = React.memo(({
         </div>
 
         {/* SELECTOR DE ESPECIALIDAD */}
-        <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
+        <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800 shrink-0">
             <div className="flex justify-between items-center mb-1">
                 <label className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase flex gap-1"><Stethoscope size={14}/> Especialidad</label>
             </div>
@@ -92,7 +92,7 @@ export const PatientSidebar = React.memo(({
         </div>
 
         {/* BUSCADOR DE PACIENTES */}
-        <div className="relative z-10">
+        <div className="relative z-10 shrink-0">
             <div className="flex items-center border rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
                 <Search className="text-slate-400 mr-2" size={18}/><input placeholder="Buscar paciente..." className="w-full bg-transparent outline-none dark:text-white text-sm" value={selectedPatient?selectedPatient.name:searchTerm} onChange={(e)=>{setSearchTerm(e.target.value); if(selectedPatient) onSelectPatient(null);}}/>
                 {selectedPatient && <button onClick={()=>{onSelectPatient(null); setSearchTerm('')}}><X size={16}/></button>}
@@ -115,42 +115,55 @@ export const PatientSidebar = React.memo(({
             )}
         </div>
 
-        {/* VITAL SNAPSHOT CARD */}
-        <div className="w-full transition-all duration-300 ease-in-out">
-            {vitalSnapshot && (
-               <div className="md:hidden flex justify-between items-center mb-2 px-1">
-                   <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                       <Activity size={12}/> Contexto Vital
-                   </span>
-                   <button onClick={() => setIsMobileSnapshotVisible(!isMobileSnapshotVisible)} className="p-1 bg-slate-200 rounded text-slate-600 dark:bg-slate-700 dark:text-slate-300">
-                       {isMobileSnapshotVisible ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
-                   </button>
-               </div>
+        {/* SCROLLABLE CONTENT AREA */}
+        <div className="flex-1 overflow-y-auto custom-scrollbar flex flex-col gap-2">
+            
+            {/* VITAL SNAPSHOT CARD */}
+            <div className="w-full transition-all duration-300 ease-in-out">
+                {vitalSnapshot && (
+                   <div className="md:hidden flex justify-between items-center mb-2 px-1">
+                       <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                           <Activity size={12}/> Contexto Vital
+                       </span>
+                       <button onClick={() => setIsMobileSnapshotVisible(!isMobileSnapshotVisible)} className="p-1 bg-slate-200 rounded text-slate-600 dark:bg-slate-700 dark:text-slate-300">
+                           {isMobileSnapshotVisible ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
+                       </button>
+                   </div>
+                )}
+
+                <div className={`${!isMobileSnapshotVisible ? 'hidden' : 'block'} md:block md:max-h-none max-h-[55vh]`}>
+                    <VitalSnapshotCard insight={vitalSnapshot} isLoading={loadingSnapshot} />
+                    {vitalSnapshot && (
+                        <button onClick={()=>setIsMobileSnapshotVisible(false)} className="md:hidden w-full mt-2 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2">
+                            <ChevronUp size={12}/> Ocultar
+                        </button>
+                    )}
+                </div>
+            </div>
+
+            {/* 2. AQUÍ INTEGRAMOS LA BÓVEDA DE ESPECIALIDAD */}
+            {selectedPatient && !(selectedPatient as any).isTemporary && (
+                <div className="mt-2">
+                    <SpecialtyVault 
+                        patientId={selectedPatient.id} 
+                        specialty={selectedSpecialty} 
+                    />
+                </div>
             )}
 
-            <div className={`${!isMobileSnapshotVisible ? 'hidden' : 'block'} md:block md:max-h-none max-h-[55vh] overflow-y-auto custom-scrollbar`}>
-                <VitalSnapshotCard insight={vitalSnapshot} isLoading={loadingSnapshot} />
-                {vitalSnapshot && (
-                    <button onClick={()=>setIsMobileSnapshotVisible(false)} className="md:hidden w-full mt-2 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2">
-                        <ChevronUp size={12}/> Ocultar
-                    </button>
-                )}
-            </div>
         </div>
 
-        {/* Aquí iría la lógica de la "Tarjeta Amarilla" (Antecedentes Activos) - Resumida para brevedad */}
-        {/* ... (Podemos mover la lógica de la tarjeta amarilla aquí también si quieres) ... */}
-
-        {/* BOTÓN ANÁLISIS 360 */}
+        {/* BOTÓN ANÁLISIS 360 - Footer Fijo */}
         {selectedPatient && !(selectedPatient as any).isTemporary && (
-            <button 
-                onClick={onLoadInsights} 
-                disabled={isLoadingInsights}
-                className="w-full mt-auto py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 group z-20 shrink-0"
-            >
-                {/* Íconos y texto igual que antes */}
-                <span>Análisis Clínico 360°</span>
-            </button>
+            <div className="mt-auto pt-2 shrink-0">
+                <button 
+                    onClick={onLoadInsights} 
+                    disabled={isLoadingInsights}
+                    className="w-full py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 group"
+                >
+                    <span>Análisis Clínico 360°</span>
+                </button>
+            </div>
         )}
     </div>
   );

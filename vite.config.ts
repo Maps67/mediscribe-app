@@ -8,15 +8,24 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // ESTRATEGIA SIMPLE: Actualización automática sin complicaciones
-      registerType: 'autoUpdate',
+      // CAMBIO CRÍTICO: 'prompt' permite que tu componente ReloadPrompt controle la actualización.
+      // 'autoUpdate' entraba en conflicto con tu botón.
+      registerType: 'prompt', 
       
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       
-      // ELIMINAMOS "WORKBOX": Dejamos que Vite use la configuración estándar de Google
+      // CONFIGURACIÓN AVANZADA DE WORKBOX
+      // Esto asegura que la caché vieja se destruya correctamente
+      workbox: {
+        cleanupOutdatedCaches: true,
+        clientsClaim: true,
+        skipWaiting: false, // IMPORTANTE: False para que espere a que el usuario pulse el botón
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+      },
+
       manifest: {
         name: 'VitalScribe AI',
-        short_name: 'VitalScribe', // Nombre corto actualizado para Home Screen
+        short_name: 'VitalScribe',
         description: 'Asistente Médico Inteligente',
         theme_color: '#0d9488',
         background_color: '#0f172a',
@@ -39,9 +48,9 @@ export default defineConfig({
           }
         ]
       },
-      // ACTIVAR MODO DEBUG (Para que si falla, nos diga por qué en la consola)
       devOptions: {
-        enabled: true
+        enabled: true,
+        type: 'module', // A veces necesario en dev
       }
     })
   ],
@@ -50,7 +59,6 @@ export default defineConfig({
       "@": path.resolve(__dirname, "./src"),
     },
   },
-  // MANTENEMOS TU ESTRATEGIA DE BUILD (Esto no afecta la instalación y es bueno para velocidad)
   build: {
     outDir: 'dist',
     sourcemap: false,

@@ -1,6 +1,8 @@
 import React, { useMemo, useEffect, useState } from 'react';
 import { X, AlertTriangle, Activity, Calendar, FileText, User, ShieldAlert, Clock, Loader2, ChevronDown, ChevronUp } from 'lucide-react';
 import { supabase } from '../lib/supabase';
+// 1. IMPORTAMOS LA BÓVEDA
+import { SpecialtyVault } from './SpecialtyVault';
 
 // --- TIPOS ---
 interface Patient {
@@ -22,42 +24,77 @@ interface Consultation {
 interface PatientDashboardProps {
   patient: Patient;
   onClose: () => void;
+  // La prop 'specialty' opcional por si viene del padre, sino la buscamos nosotros
+  specialty?: string; 
 }
 
-export default function PatientDashboard({ patient, onClose }: PatientDashboardProps) {
+export default function PatientDashboard({ patient, onClose, specialty: propSpecialty }: PatientDashboardProps) {
   const [historyTimeline, setHistoryTimeline] = useState<Consultation[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  
+  // ESTADO NUEVO: Especialidad Autodetectada
+  const [detectedSpecialty, setDetectedSpecialty] = useState<string>(propSpecialty || 'Default');
   
   // Estado para manejar qué tarjetas están expandidas (Set de IDs)
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
 
-  // --- 1. CARGA DE DATOS ---
+  // --- 1. CARGA DE DATOS Y PERFIL MÉDICO ---
   useEffect(() => {
     let mounted = true;
 
-    const fetchHistory = async () => {
+    const loadData = async () => {
       setIsLoading(true);
       try {
-        const { data, error } = await supabase
+        // A. CARGAR HISTORIAL DEL PACIENTE
+        const historyPromise = supabase
           .from('consultations')
           .select('id, created_at, summary, transcript')
           .eq('patient_id', patient.id)
           .order('created_at', { ascending: false });
 
-        if (error) throw error;
-        if (mounted && data) {
-          setHistoryTimeline(data);
+        // B. DETECTAR ESPECIALIDAD DEL MÉDICO (Si no se pasó por props)
+        // Esto hace que el color rojo/violeta aparezca automáticamente
+        let specialtyPromise = Promise.resolve(null);
+        if (!propSpecialty) {
+            const { data: { user } } = await supabase.auth.getUser();
+            if (user) {
+                // Buscamos en la tabla 'profiles' o 'doctors' según tu arquitectura
+                specialtyPromise = supabase
+                    .from('profiles') // Asegúrate que esta tabla tenga la columna 'specialty'
+                    .select('specialty')
+                    .eq('id', user.id)
+                    .single() as any;
+            }
         }
+
+        // Ejecutar ambas consultas en paralelo para velocidad
+        const [historyResult, specialtyResult] = await Promise.all([historyPromise, specialtyPromise]);
+
+        if (historyResult.error) throw historyResult.error;
+
+        if (mounted) {
+            // Setear Historial
+            if (historyResult.data) {
+                setHistoryTimeline(historyResult.data);
+            }
+            
+            // Setear Especialidad Detectada
+            if (specialtyResult && specialtyResult.data) {
+                console.log("Especialidad detectada:", specialtyResult.data.specialty);
+                setDetectedSpecialty(specialtyResult.data.specialty);
+            }
+        }
+
       } catch (err) {
-        console.error("Error cargando historial:", err);
+        console.error("Error cargando datos del dashboard:", err);
       } finally {
         if (mounted) setIsLoading(false);
       }
     };
 
-    fetchHistory();
+    loadData();
     return () => { mounted = false; };
-  }, [patient.id]);
+  }, [patient.id, propSpecialty]);
 
   // --- 2. INTELIGENCIA CLÍNICA ---
   const riskAnalysis = useMemo(() => {
@@ -148,6 +185,15 @@ export default function PatientDashboard({ patient, onClose }: PatientDashboardP
 
         {/* CONTENIDO (TIMELINE) */}
         <div className="flex-1 overflow-y-auto p-6 bg-slate-50/50 dark:bg-slate-950">
+          
+          {/* 3. AQUÍ INSERTAMOS LA BÓVEDA CON LA ESPECIALIDAD REAL */}
+          {/* Usamos 'detectedSpecialty' que viene de la base de datos */}
+          <div className="mb-8">
+            <SpecialtyVault 
+              patientId={patient.id} 
+              specialty={detectedSpecialty} 
+            />
+          </div>
           
           <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-6 flex items-center gap-2">
             <Clock size={14}/> Línea de Tiempo ({historyTimeline.length} eventos)

@@ -1,40 +1,38 @@
-# CONFIGURACIÓN MAESTRA DE NETLIFY (V4.0)
+# netlify.toml
+# CONFIGURACIÓN DE CACHÉ PARA PWA - VITALSCRIBE
 
 [build]
-  command = "npm run build"
   publish = "dist"
+  command = "npm run build"
 
-# --- SECCIÓN CRÍTICA PWA (Excepciones) ---
-# Obliga a Netlify a entregar el Service Worker y el Manifiesto tal cual son.
-# Si esto falta, Netlify los redirige al index.html y la instalación falla.
+# 1. El Service Worker NO debe cachearse NUNCA.
+# El navegador debe preguntar siempre al servidor si hay una versión nueva.
+[[headers]]
+  for = "/sw.js"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
 
-[[redirects]]
-  from = "/sw.js"
-  to = "/sw.js"
-  status = 200
-  force = true
+# 2. El manifiesto tampoco debe cachearse.
+[[headers]]
+  for = "/manifest.webmanifest"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
 
-[[redirects]]
-  from = "/manifest.webmanifest"
-  to = "/manifest.webmanifest"
-  status = 200
-  force = true
+# 3. El index.html es la entrada. Si se cachea, el usuario nunca verá los nuevos JS.
+[[headers]]
+  for = "/index.html"
+  [headers.values]
+    Cache-Control = "public, max-age=0, must-revalidate"
 
-# --- SECCIÓN SPA (React Router) ---
-# Cualquier otra ruta (ej: /pacientes) carga la app.
+# 4. Los archivos de assets (JS/CSS con hash) SÍ pueden cachearse para siempre (Inmutables)
+# Vite les pone nombres únicos (index-XyZ.js), así que es seguro.
+[[headers]]
+  for = "/assets/*"
+  [headers.values]
+    Cache-Control = "public, max-age=31536000, immutable"
+
+# Regla para SPA (Single Page Application) - Redirigir todo al index.html
 [[redirects]]
   from = "/*"
   to = "/index.html"
   status = 200
-
-# --- SECCIÓN CACHÉ (Actualizaciones) ---
-# Evita que el navegador guarde versiones viejas del instalador.
-[[headers]]
-  for = "/sw.js"
-  [headers.values]
-    Cache-Control = "no-cache"
-
-[[headers]]
-  for = "/manifest.webmanifest"
-  [headers.values]
-    Cache-Control = "no-cache"
