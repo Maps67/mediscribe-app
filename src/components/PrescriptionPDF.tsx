@@ -14,14 +14,14 @@ const styles = StyleSheet.create({
     borderBottomWidth: 2, 
     borderBottomColor: '#0d9488', 
     paddingBottom: 10,
-    alignItems: 'center', // Centrado vertical para armonía
-    justifyContent: 'space-between', // Distribución a los extremos
+    alignItems: 'center', 
+    justifyContent: 'space-between', 
     flexShrink: 0 
   },
 
-  // 1. SECCIÓN LOGO (IZQUIERDA)
+  // 1. SECCIÓN LOGO
   logoSection: { 
-    width: 80, // Ancho fijo para reservar espacio
+    width: 80, 
     height: 60,
     justifyContent: 'center',
     alignItems: 'flex-start'
@@ -32,27 +32,27 @@ const styles = StyleSheet.create({
     objectFit: 'contain'
   },
 
-  // 2. SECCIÓN INFO MÉDICO (CENTRO)
+  // 2. SECCIÓN INFO MÉDICO
   doctorInfo: { 
-    flexGrow: 1, // Ocupa el espacio central sobrante
+    flexGrow: 1, 
     paddingHorizontal: 10,
-    alignItems: 'center', // Centrar texto horizontalmente
+    alignItems: 'center', 
     justifyContent: 'center'
   }, 
   doctorName: { fontSize: 14, fontFamily: 'Helvetica-Bold', color: '#0d9488', marginBottom: 2, textTransform: 'uppercase', textAlign: 'center' },
   specialty: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#555', marginBottom: 2, textTransform: 'uppercase', textAlign: 'center' },
   detailsLegal: { fontSize: 8, color: '#444', marginBottom: 1, textAlign: 'center' },
 
-  // 3. SECCIÓN QR (DERECHA)
+  // 3. SECCIÓN QR
   qrSection: {
-    width: 80, // Ancho fijo simétrico al logo
+    width: 80, 
     height: 60,
     justifyContent: 'center',
-    alignItems: 'flex-end' // Alinear el QR a la derecha absoluta
+    alignItems: 'flex-end' 
   },
   qrCodeHeader: {
-    width: 60, // Tamaño ajustado para balance visual con el logo
-    height: 60,
+    width: 60, 
+    height: 60, 
     objectFit: 'contain'
   },
   
@@ -74,25 +74,21 @@ const styles = StyleSheet.create({
   medInstructions: { fontSize: 10, fontStyle: 'italic', color: '#444' },
   rxHeader: { fontSize: 12, fontFamily: 'Helvetica-Bold', color: '#0f766e', marginTop: 15, marginBottom: 8, textTransform: 'uppercase', borderBottomWidth: 1, borderBottomColor: '#0f766e' },
 
-  // Advertencias
-  warningBox: { padding: 10, backgroundColor: '#fee2e2', border: '1px solid #ef4444', borderRadius: 4, marginBottom: 15 },
-  warningTitle: { fontSize: 10, fontFamily: 'Helvetica-Bold', color: '#b91c1c', marginBottom: 4, textAlign: 'center', textTransform: 'uppercase' },
-  warningText: { fontSize: 9, color: '#7f1d1d', textAlign: 'justify' },
+  // NOTA: Se eliminaron los estilos de warningBox para limpiar la UI del paciente
 
   // Secciones SOAP
   sectionBlock: { marginBottom: 10 },
   sectionTitle: { fontSize: 9, fontFamily: 'Helvetica-Bold', color: '#0f766e', marginBottom: 2, textTransform: 'uppercase' },
   
   // Pie de página
-  // FIX: flexShrink: 0 asegura que el footer nunca se comprima
   footer: { paddingTop: 10, borderTopWidth: 1, borderTopColor: '#ddd', flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', flexShrink: 0 },
   
-  // Firma (Derecha)
+  // Firma
   signatureSection: { alignItems: 'center', width: '40%' },
   signatureImage: { width: 100, height: 40, objectFit: 'contain', marginBottom: 5 },
   signatureLine: { width: '100%', borderTopWidth: 1, borderTopColor: '#333', marginTop: 5 },
   
-  // Legal (Izquierda)
+  // Legal
   legalTextContainer: { width: '55%', flexDirection: 'column', justifyContent: 'flex-end' }, 
   legalText: { fontSize: 6, color: '#888', marginTop: 2, textAlign: 'left', lineHeight: 1.3 },
 });
@@ -126,36 +122,30 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
   documentTitle = "RECETA MÉDICA" 
 }) => {
 
-  // --- 1. LÓGICA DE FILTRADO DE SEGURIDAD (MEJORADA Y ESTRICTA) ---
+  // --- LÓGICA DE FILTRADO DE SEGURIDAD (Mantiene la protección técnica) ---
   const isRiskyMedication = (medName: string) => {
-    // CORRECCIÓN: Si hay un motivo de riesgo, se evalúa SIEMPRE, sin importar el nivel.
     if (!riskAnalysis || !riskAnalysis.reason) return false;
-    
-    // Normalización agresiva para comparación
     const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
-    
     const reason = normalize(riskAnalysis.reason);
     const drugFull = normalize(medName);
     
-    // 1. Coincidencia de la primera palabra (Nombre genérico usualmente)
+    // Filtro por nombre genérico o comercial
     const drugFirstWord = drugFull.split(' ')[0];
     if (reason.includes(drugFirstWord)) return true;
-
-    // 2. Coincidencia de contenido entre paréntesis (Nombre comercial)
+    
     const parentheticalMatch = medName.match(/\(([^)]+)\)/);
     if (parentheticalMatch) {
         const brandName = normalize(parentheticalMatch[1]);
         if (reason.includes(brandName)) return true;
     }
-
     return false;
   };
 
   const safePrescriptions = prescriptions?.filter(med => {
-    // A) Filtro Automático por IA (Cualquier nivel de riesgo si hay coincidencia de texto)
+    // Si la IA detecta riesgo, lo filtramos silenciosamente de la receta impresa
     if (isRiskyMedication(med.drug)) return false;
 
-    // B) Filtro Manual (Bloqueo explícito en texto)
+    // Filtros manuales de seguridad
     const fullText = (med.drug + " " + (med.notes || "")).toUpperCase();
     const isManualBlocked = 
       fullText.includes("BLOQUEO DE SEGURIDAD") ||
@@ -165,6 +155,10 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
 
     return !isManualBlocked; 
   });
+
+  // --- LÓGICA DE DETECCIÓN DE FILTRADO ---
+  // Detectamos si se ocultó algo para poner una nota discreta al final
+  const hiddenCount = (prescriptions?.length || 0) - (safePrescriptions?.length || 0);
 
   const formatContent = (text: string) => {
     if (!text) return null;
@@ -193,22 +187,18 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
   };
   const finalDoctorName = formatDoctorName(doctorName);
   const isValidUrl = (url?: string) => url && (url.startsWith('http://') || url.startsWith('https://') || url.startsWith('data:image'));
-
   const hasStructuredData = (safePrescriptions && safePrescriptions.length > 0) || (instructions && instructions.trim().length > 0);
 
   return (
     <Document>
       <Page size="LETTER" style={styles.page}>
         
-        {/* ENCABEZADO REESTRUCTURADO */}
+        {/* ENCABEZADO */}
         <View style={styles.header}>
-          
-          {/* 1. IZQUIERDA: LOGO CLÍNICA */}
           <View style={styles.logoSection}>
              {isValidUrl(logoUrl) && <Image src={logoUrl!} style={styles.logo} />}
           </View>
 
-          {/* 2. CENTRO: INFORMACIÓN DEL MÉDICO */}
           <View style={styles.doctorInfo}>
             <Text style={styles.doctorName}>{finalDoctorName}</Text>
             <Text style={styles.specialty}>{specialty}</Text>
@@ -217,13 +207,11 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
             <Text style={styles.detailsLegal}>{address} {phone ? `| Tel: ${phone}` : ''}</Text>
           </View>
 
-          {/* 3. DERECHA: CÓDIGO QR */}
           <View style={styles.qrSection}>
              {isValidUrl(qrCodeUrl) && (
                  <Image src={qrCodeUrl!} style={styles.qrCodeHeader} />
              )}
           </View>
-
         </View>
 
         {/* BARRA DE DATOS */}
@@ -250,16 +238,10 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
         <View style={styles.rxSection}>
           <Text style={styles.docTitle}>{documentTitle}</Text>
           
-          {/* ADVERTENCIA DE SEGURIDAD (Visible si hay riesgo Medio o Alto) */}
-          {riskAnalysis && (riskAnalysis.level === 'Alto' || riskAnalysis.level === 'Medio') && (
-              <View style={styles.warningBox}>
-                  <Text style={styles.warningTitle}>*** ADVERTENCIA DE SEGURIDAD CLÍNICA ({riskAnalysis.level?.toUpperCase()}) ***</Text>
-                  <Text style={styles.warningText}>MOTIVO: {riskAnalysis.reason?.toUpperCase()}</Text>
-                  <Text style={{ fontSize: 8, color: '#991b1b', fontStyle: 'italic', marginTop: 4 }}>
-                    * Se han omitido de esta receta los medicamentos que presentan interacciones detectadas.
-                  </Text>
-              </View>
-          )}
+          {/* 🛑 CAMBIO DE SEGURIDAD (VITALSCRIBE v8.0)
+              Se ha eliminado el bloque rojo de "ADVERTENCIA" para no alarmar al paciente.
+              El filtrado de medicamentos riesgosos ocurre internamente en "safePrescriptions".
+          */}
 
           {hasStructuredData ? (
              <View style={{ width: '100%' }}> 
@@ -283,9 +265,15 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
                         ))}
                     </View>
                  ) : (
-                    // Mensaje si TODO fue filtrado
                     <Text style={{fontSize: 10, color: '#666', fontStyle: 'italic', marginVertical: 10, textAlign: 'center'}}>
-                        (No hay medicamentos activos para imprimir debido a restricciones de seguridad clínica)
+                        (Sin medicamentos prescritos en esta nota)
+                    </Text>
+                 )}
+                 
+                 {/* Nota discreta si hubo filtrado de seguridad */}
+                 {hiddenCount > 0 && (
+                    <Text style={{fontSize: 7, color: '#999', fontStyle: 'italic', textAlign: 'center', marginBottom: 10}}>
+                        * {hiddenCount} ítem(s) omitido(s) por protocolo de seguridad clínica. Consulte a su médico.
                     </Text>
                  )}
 
@@ -303,13 +291,11 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
           )}
         </View>
 
-        {/* --- EL TRUCO MAESTRO: ESPACIADOR FLEXIBLE --- */}
+        {/* ESPACIADOR FLEXIBLE */}
         <View style={{ flex: 1 }} />
 
-        {/* PIE DE PÁGINA (Siempre al fondo) */}
+        {/* PIE DE PÁGINA */}
         <View style={styles.footer} wrap={false}>
-          
-          {/* IZQUIERDA: AVISO LEGAL */}
           <View style={styles.legalTextContainer}>
              <Text style={{fontSize: 7, fontFamily: 'Helvetica-Bold', marginBottom: 2}}>AVISO LEGAL:</Text>
              <Text style={styles.legalText}>
@@ -320,7 +306,6 @@ const PrescriptionPDF: React.FC<PrescriptionPDFProps> = ({
              </Text>
           </View>
           
-          {/* DERECHA: FIRMA */}
           <View style={styles.signatureSection}>
              {isValidUrl(signatureUrl) ? (
                  <Image src={signatureUrl!} style={styles.signatureImage} />
