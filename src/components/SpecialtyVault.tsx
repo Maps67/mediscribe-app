@@ -2,14 +2,12 @@ import React, { useState, useEffect, useRef } from 'react';
 import { 
   Upload, FileText, Video, Box, 
   Trash2, Eye, AlertTriangle, 
-  Database, ShieldCheck, File, RefreshCw, X, Download 
+  Database, ShieldCheck, File, RefreshCw, X, Download, Loader2
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { toast } from 'sonner';
-// Importamos la configuración externa para mantener el componente limpio
 import { SPECIALTY_CONFIG } from '../data/specialtyConfig';
 
-// Definición de Tipos Locales para el Módulo
 interface SpecialtyDocument {
   id: string;
   created_at: string;
@@ -22,22 +20,23 @@ interface SpecialtyDocument {
 
 interface SpecialtyVaultProps {
   patientId: string;
-  specialty: string; // La especialidad del médico logueado
+  specialty: string; 
 }
 
 export const SpecialtyVault: React.FC<SpecialtyVaultProps> = ({ patientId, specialty }) => {
   const [documents, setDocuments] = useState<SpecialtyDocument[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  
+  // ESTADO NUEVO: Control de descarga segura
+  const [isDownloading, setIsDownloading] = useState(false);
+
   const [selectedTag, setSelectedTag] = useState('');
   
-  // ESTADO NUEVO: Control del Visor Seguro (Blindaje Visual)
   const [viewerData, setViewerData] = useState<{url: string, type: string, name: string} | null>(null);
   
   const fileInputRef = useRef<HTMLInputElement>(null);
 
-  // Normalizar especialidad para coincidir con la config externa
-  // Busca coincidencia parcial (ej. "Cardiólogo" -> match "Cardiología")
   const normalizedSpecialty = Object.keys(SPECIALTY_CONFIG).find(key => 
     specialty.toLowerCase().includes(key.toLowerCase().split(' ')[0])
   ) || 'default';
@@ -82,7 +81,6 @@ export const SpecialtyVault: React.FC<SpecialtyVaultProps> = ({ patientId, speci
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error('Usuario no autenticado');
 
-      // 1. Subir al Storage (Bucket: specialty-files)
       const fileExt = file.name.split('.').pop();
       const fileName = `${patientId}/${Date.now()}_${Math.random().toString(36).substring(7)}.${fileExt}`;
       
@@ -92,7 +90,6 @@ export const SpecialtyVault: React.FC<SpecialtyVaultProps> = ({ patientId, speci
 
       if (uploadError) throw uploadError;
 
-      // 2. Registrar metadatos en Base de Datos
       const { error: dbError } = await supabase
         .from('specialty_documents')
         .insert({
@@ -108,8 +105,8 @@ export const SpecialtyVault: React.FC<SpecialtyVaultProps> = ({ patientId, speci
       if (dbError) throw dbError;
 
       toast.success('Documento especializado archivado correctamente', { id: toastId });
-      fetchDocuments(); // Recargar lista
-      setSelectedTag(''); // Reset
+      fetchDocuments(); 
+      setSelectedTag(''); 
       if (fileInputRef.current) fileInputRef.current.value = '';
 
     } catch (error: any) {
@@ -124,14 +121,12 @@ export const SpecialtyVault: React.FC<SpecialtyVaultProps> = ({ patientId, speci
     if (!confirm('¿Está seguro de eliminar este documento clínico permanentemente?')) return;
 
     try {
-      // 1. Borrar de Storage
       const { error: storageError } = await supabase.storage
         .from('specialty-files')
         .remove([filePath]);
       
       if (storageError) throw storageError;
 
-      // 2. Borrar de BD
       const { error: dbError } = await supabase
         .from('specialty_documents')
         .delete()
@@ -162,13 +157,12 @@ export const SpecialtyVault: React.FC<SpecialtyVaultProps> = ({ patientId, speci
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
-  // MODIFICADO: En lugar de window.open, abrimos el modal interno
   const handleViewDocument = async (doc: SpecialtyDocument) => {
     const toastId = toast.loading('Desencriptando documento...');
     try {
         const { data, error } = await supabase.storage
             .from('specialty-files')
-            .createSignedUrl(doc.file_path, 60 * 60); // 1 hora de validez
+            .createSignedUrl(doc.file_path, 60 * 60); 
 
         if (error) throw error;
         if (data?.signedUrl) {
@@ -181,6 +175,37 @@ export const SpecialtyVault: React.FC<SpecialtyVaultProps> = ({ patientId, speci
         }
     } catch (e) {
         toast.error("Error al recuperar el documento", { id: toastId });
+    }
+  };
+
+  // NUEVA LÓGICA: Descarga invisible (BLOB)
+  const handleSecureDownload = async (url: string, filename: string) => {
+    setIsDownloading(true);
+    try {
+        // 1. Fetch del archivo como BLOB (Binary Large Object)
+        const response = await fetch(url);
+        const blob = await response.blob();
+        
+        // 2. Crear URL temporal local
+        const blobUrl = window.URL.createObjectURL(blob);
+        
+        // 3. Crear enlace invisible y forzar clic
+        const link = document.createElement('a');
+        link.href = blobUrl;
+        // Asignamos un nombre limpio al archivo descargado
+        link.download = `VitalScribe_${filename.replace(/\s+/g, '_')}.pdf`; 
+        document.body.appendChild(link);
+        link.click();
+        
+        // 4. Limpieza
+        document.body.removeChild(link);
+        window.URL.revokeObjectURL(blobUrl);
+        toast.success("Descarga iniciada");
+    } catch (error) {
+        console.error("Error descarga blob:", error);
+        toast.error("Error en la descarga segura");
+    } finally {
+        setIsDownloading(false);
     }
   };
 
@@ -313,15 +338,18 @@ export const SpecialtyVault: React.FC<SpecialtyVaultProps> = ({ patientId, speci
                             </div>
                         </div>
                         <div className="flex gap-2">
-                            <a 
-                                href={viewerData.url} 
-                                download 
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="p-2 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold"
+                            {/* BOTÓN DE DESCARGA MODIFICADO - Sin href, con onClick */}
+                            <button 
+                                onClick={() => handleSecureDownload(viewerData.url, viewerData.name)}
+                                disabled={isDownloading}
+                                className="p-2 hover:bg-slate-200 text-slate-600 rounded-lg transition-colors flex items-center gap-2 text-xs font-bold disabled:opacity-50"
                             >
-                                <Download size={18} /> <span className="hidden sm:inline">Descargar Original</span>
-                            </a>
+                                {isDownloading ? <Loader2 size={18} className="animate-spin"/> : <Download size={18} />} 
+                                <span className="hidden sm:inline">
+                                    {isDownloading ? 'Guardando...' : 'Descargar Original'}
+                                </span>
+                            </button>
+                            
                             <button 
                                 onClick={() => setViewerData(null)}
                                 className="p-2 hover:bg-red-100 text-slate-400 hover:text-red-600 rounded-lg transition-colors"
@@ -349,14 +377,12 @@ export const SpecialtyVault: React.FC<SpecialtyVaultProps> = ({ patientId, speci
                             <div className="text-center p-8 bg-white rounded-xl shadow-sm">
                                 <FileText size={48} className="mx-auto text-slate-300 mb-4" />
                                 <p className="text-slate-600 font-medium">Este formato de archivo no tiene previsualización directa.</p>
-                                <a 
-                                    href={viewerData.url} 
-                                    className="text-brand-teal hover:underline text-sm mt-2 block"
-                                    target="_blank"
-                                    rel="noopener noreferrer"
+                                <button 
+                                    onClick={() => handleSecureDownload(viewerData.url, viewerData.name)}
+                                    className="text-brand-teal hover:underline text-sm mt-2 block mx-auto font-bold"
                                 >
                                     Descargar para ver
-                                </a>
+                                </button>
                             </div>
                         )}
                     </div>
