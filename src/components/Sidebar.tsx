@@ -2,7 +2,8 @@ import React, { useEffect, useState } from 'react';
 import { NavLink, useNavigate } from 'react-router-dom'; 
 import { 
   LayoutDashboard, Stethoscope, Users, Briefcase, LogOut, X, 
-  Settings, Download, Share, Calendar, Moon, Sun, Presentation
+  Settings, Download, Share, Calendar, Moon, Sun, Presentation,
+  ShieldCheck // <--- Importamos el icono de escudo para privacidad
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
@@ -86,7 +87,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
             </NavLink>
           ))}
 
-          {/* LINK A LA PRESENTACIÓN CORPORATIVA */}
           <NavLink 
             to="/presentacion" 
             onClick={onClose} 
@@ -96,7 +96,6 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
             <span>Protocolo VitalScribe</span>
           </NavLink>
 
-          {/* ZONA DE TOGGLES E INSTALACIÓN */}
           <div className="pt-4 mt-2 border-t border-slate-100 dark:border-slate-800">
             <button onClick={toggleTheme} className="w-full flex items-center space-x-3 px-4 py-3 rounded-xl transition-colors duration-200 text-slate-500 dark:text-slate-400 hover:bg-slate-50 dark:hover:bg-slate-800 font-medium">
               {theme === 'light' ? <Moon size={20} /> : <Sun size={20} />}
@@ -112,24 +111,15 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
                   <Download size={20} />
                   <span className="font-bold">Instalar App</span>
                 </button>
-                
-                {showIOSInstructions && (
-                  <div className="mt-3 p-3 bg-slate-100 dark:bg-slate-800 rounded-lg text-xs text-slate-600 dark:text-slate-300 border border-slate-200 dark:border-slate-700 animate-fade-in-up">
-                    <p className="font-bold mb-2">Para instalar en iPhone:</p>
-                    <div className="flex items-center gap-2 mb-1">1. Toca <Share size={12} className="text-blue-500"/> Compartir.</div>
-                    <div>2. Selecciona <strong>"Agregar a Inicio"</strong>.</div>
-                  </div>
-                )}
               </div>
             )}
           </div>
         </nav>
 
-        {/* MODIFICACIÓN AQUÍ: Se agregó "md:mt-auto" para fijar al fondo en PC */}
         <div className="p-4 border-t border-slate-100 dark:border-slate-800 shrink-0 bg-white dark:bg-slate-900 z-10 md:mt-auto">
-          <div className="flex items-center p-3 mb-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700">
-              <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900 flex items-center justify-center text-brand-teal font-bold text-xs shrink-0">
-                {profile.name.substring(0, 2).toUpperCase()}
+          <div className="flex items-center p-3 mb-2 rounded-lg bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 shadow-sm">
+              <div className="w-8 h-8 rounded-full bg-teal-100 dark:bg-teal-900 flex items-center justify-center text-brand-teal font-bold text-xs shrink-0 uppercase">
+                {profile.name.substring(0, 2)}
               </div>
               <div className="ml-3 overflow-hidden">
                   <p className="text-sm font-medium text-slate-700 dark:text-slate-200 truncate">{profile.name}</p>
@@ -142,12 +132,25 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
             <span>Cerrar Sesión</span>
           </button>
 
-          <div className="mt-4 text-[10px] text-slate-400 text-center leading-tight opacity-70 hover:opacity-100 transition-opacity">
-            <p className="font-bold">Clasificación: Asistente de Transcripción</p>
-            <p className="text-[9px] mt-0.5 opacity-80">No sustituye al Expediente Legal (NOM-024)</p>
-            <NavLink to="/terms" className="underline hover:text-brand-teal mt-1 block">
+          {/* CUMPLIMIENTO LEGAL ACTUALIZADO v5.4 */}
+          <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-800/50 text-[10px] text-slate-400 text-center leading-tight">
+            <div className="flex flex-col gap-1 px-2">
+              <NavLink 
+                to="/privacy" 
+                className="flex items-center justify-center gap-1.5 py-1 px-3 rounded-md bg-slate-50 dark:bg-slate-800/50 text-slate-500 hover:text-teal-600 dark:hover:text-teal-400 transition-colors"
+              >
+                <ShieldCheck size={12} />
+                <span>Aviso de Privacidad (AES-256)</span>
+              </NavLink>
+              
+              <NavLink 
+                to="/terms" 
+                className="hover:text-brand-teal mt-1 transition-colors"
+              >
                 Términos y Responsabilidad
-            </NavLink>
+              </NavLink>
+            </div>
+            <p className="text-[8px] mt-2 opacity-60">v5.4 • Protocolo Omni-Sentinel</p>
           </div>
         </div>
       </aside>

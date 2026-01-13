@@ -1,12 +1,12 @@
 import React from 'react';
 import { useNavigate } from 'react-router-dom';
-import { ChevronLeft, Shield, Lock, FileText } from 'lucide-react';
+import { ChevronLeft, Shield, Lock, FileText, Database, cpu } from 'lucide-react';
 
 const PrivacyPolicy: React.FC = () => {
   const navigate = useNavigate();
 
   return (
-    <div className="p-4 lg:p-8 max-w-4xl mx-auto animate-fade-in-up font-sans">
+    <div className="p-4 lg:p-8 max-w-4xl mx-auto animate-fade-in-up font-sans bg-slate-50 min-h-screen">
       <button 
         onClick={() => navigate(-1)} 
         className="flex items-center gap-2 text-slate-500 hover:text-slate-800 mb-6 transition-colors font-medium"
@@ -14,54 +14,87 @@ const PrivacyPolicy: React.FC = () => {
         <ChevronLeft size={20} /> Volver
       </button>
 
-      <div className="bg-white rounded-2xl shadow-sm border border-slate-200 overflow-hidden">
+      <div className="bg-white rounded-3xl shadow-xl border border-slate-200 overflow-hidden">
         
-        <div className="bg-slate-50 p-8 border-b border-slate-100">
-            <div className="flex items-center gap-4 mb-2">
-                <div className="p-3 bg-white rounded-xl shadow-sm text-teal-600">
-                    <Shield size={32} />
-                </div>
-                <div>
-                    <h1 className="text-2xl font-bold text-slate-800">Aviso de Privacidad Simplificado</h1>
-                    <p className="text-slate-500 text-sm">Última actualización: Noviembre 2025</p>
-                </div>
+        {/* HEADER DE SEGURIDAD */}
+        <div className="bg-slate-900 p-10 text-white relative overflow-hidden">
+          <div className="absolute top-0 right-0 w-64 h-64 bg-teal-500/10 rounded-full -mr-20 -mt-20 blur-3xl"></div>
+          <div className="flex items-center gap-6 relative z-10">
+            <div className="p-4 bg-teal-500 rounded-2xl shadow-lg">
+              <Shield size={40} className="text-white" />
             </div>
+            <div>
+              <h1 className="text-3xl font-bold tracking-tight">Aviso de Privacidad Integral</h1>
+              <p className="text-teal-400 font-mono text-sm mt-1 uppercase tracking-widest">Protocolo Omni-Sentinel v5.4</p>
+              <p className="text-slate-400 text-xs mt-2 italic">Certificación de Blindaje Técnico: Enero 2026</p>
+            </div>
+          </div>
         </div>
 
-        <div className="p-8 text-slate-700 leading-relaxed space-y-6">
+        <div className="p-8 md:p-12 text-slate-700 leading-relaxed space-y-8">
+          
+          <div className="p-6 bg-sky-50 rounded-2xl border border-sky-100">
             <p className="text-lg font-medium text-slate-800">
-                <strong>PixelArte Studio</strong>, con domicilio en México, es el responsable del uso y protección de sus datos personales.
+              <strong>VitalScribe AI</strong>, desarrollado por PixelArte Studio, actúa como encargado del tratamiento de datos bajo los más altos estándares de <strong>Soberanía Tecnológica</strong>. El Médico Usuario mantiene la propiedad absoluta y responsabilidad legal del expediente clínico.
             </p>
+          </div>
 
-            <div>
-                <h3 className="flex items-center gap-2 text-slate-800 font-bold text-lg mb-3">
-                    <FileText size={20} className="text-teal-600"/> 1. Finalidades del Tratamiento (NOM-004)
-                </h3>
-                <p className="mb-2">
-                    Los datos personales y <strong>datos personales sensibles (referentes al estado de salud)</strong> que recabamos a través de la plataforma <strong>VitalScribe AI</strong>, son utilizados para:
-                </p>
-                <ul className="list-disc pl-5 space-y-2 bg-slate-50 p-4 rounded-lg border border-slate-100">
-                    <li>Gestión de agenda médica y administración de expedientes clínicos conforme a la <strong>NOM-004-SSA3-2012</strong>.</li>
-                    <li>Generación automatizada de notas clínicas y recetas mediante Inteligencia Artificial.</li>
-                    <li>Almacenamiento seguro, encriptado y confidencial de su historial médico y el de sus pacientes.</li>
-                </ul>
+          {/* SECCIÓN 1: CIFRADO Y DATOS */}
+          <div>
+            <h3 className="flex items-center gap-3 text-slate-900 font-bold text-xl mb-4">
+              <Lock size={24} className="text-teal-600"/> 1. Blindaje de Datos (Cifrado Grado Bancario)
+            </h3>
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm space-y-4">
+              <p>
+                Implementamos cifrado <strong>AES-256</strong> para proteger la información sensible tanto en reposo como en tránsito.
+              </p>
+              <ul className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <li className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl">
+                  <span className="text-teal-500 font-bold">●</span>
+                  <span className="text-sm"><strong>Supabase Security:</strong> Aislamiento por Row Level Security (RLS) que impide accesos no autorizados a nivel motor de base de datos.</span>
+                </li>
+                <li className="flex items-start gap-3 p-3 bg-slate-50 rounded-xl">
+                  <span className="text-teal-500 font-bold">●</span>
+                  <span className="text-sm"><strong>Inmutabilidad:</strong> Bitácoras forenses que registran cada interacción, garantizando la integridad legal NOM-004.</span>
+                </li>
+              </ul>
             </div>
+          </div>
 
-            <div>
-                <h3 className="flex items-center gap-2 text-slate-800 font-bold text-lg mb-3">
-                    <Lock size={20} className="text-teal-600"/> 2. Seguridad y Derechos ARCO
-                </h3>
-                <p>
-                    La información está protegida con <strong>Seguridad a Nivel de Fila (RLS)</strong>. El Médico Usuario es el <strong>Responsable del Expediente Clínico</strong> ante sus pacientes. Para ejercer sus derechos ARCO (Acceso, Rectificación, Cancelación y Oposición), por favor contactar a: <a href="mailto:contacto@pixelartestudio.art" className="text-teal-600 hover:underline font-bold">contacto@pixelartestudio.art</a>
-                </p>
+          {/* SECCIÓN 2: PROCESAMIENTO IA */}
+          <div>
+            <h3 className="flex items-center gap-3 text-slate-900 font-bold text-xl mb-4">
+              <Database size={24} className="text-teal-600"/> 2. Procesamiento de IA Privado
+            </h3>
+            <p className="mb-4">
+              La generación de notas clínicas y análisis de riesgo se realiza bajo el protocolo <strong>Vertex AI Secure Node</strong>.
+            </p>
+            <div className="bg-teal-50 p-6 rounded-2xl border border-teal-100 text-teal-900 text-sm">
+              <strong>GARANTÍA DE CONFIDENCIALIDAD:</strong> Sus datos y los de sus pacientes <strong>NO</strong> se utilizan para el entrenamiento de modelos de inteligencia artificial públicos. El procesamiento es efímero y cifrado.
             </div>
+          </div>
+
+          {/* SECCIÓN 3: DERECHOS ARCO */}
+          <div>
+            <h3 className="flex items-center gap-3 text-slate-900 font-bold text-xl mb-4">
+              <FileText size={24} className="text-teal-600"/> 3. Gestión y Derechos ARCO
+            </h3>
+            <p>
+              Usted posee soberanía total sobre sus datos médicos. Puede realizar exportaciones masivas en formatos abiertos (.xlsx, .json) en cualquier momento. Para ejercer derechos ARCO, contacte a: 
+              <a href="mailto:contacto@pixelartestudio.art" className="ml-2 text-teal-600 hover:text-teal-700 font-bold underline transition-colors">contacto@pixelartestudio.art</a>
+            </p>
+          </div>
         </div>
 
-        <div className="bg-slate-900 text-slate-400 p-8 text-center text-xs mt-4">
-            <p className="mb-2">
-                © {new Date().getFullYear()} <span className="text-white font-bold">VitalScribe AI</span>. Desarrollado por PixelArte Studio.
-            </p>
-            <p>Todos los derechos reservados. v2.4 Golden.</p>
+        {/* FOOTER */}
+        <div className="bg-slate-900 text-slate-500 p-10 text-center text-xs">
+          <div className="flex justify-center gap-8 mb-6 grayscale opacity-50">
+            {/* Espacio para logos de certificaciones o Supabase/Google Cloud */}
+          </div>
+          <p className="mb-2">
+            © {new Date().getFullYear()} <span className="text-white font-bold">VitalScribe AI</span>. Infraestructura Blindada v5.4.
+          </p>
+          <p className="tracking-widest uppercase">Seguridad Clínica | Soberanía de Datos | Cumplimiento NOM-004</p>
         </div>
 
       </div>
