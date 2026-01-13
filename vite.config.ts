@@ -8,19 +8,21 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // CAMBIO CRÍTICO: 'prompt' permite que tu componente ReloadPrompt controle la actualización.
-      // 'autoUpdate' entraba en conflicto con tu botón.
+      // ESTRATEGIA PROMPT: Tu componente ReloadPrompt tendrá el control
       registerType: 'prompt', 
       
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       
-      // CONFIGURACIÓN AVANZADA DE WORKBOX
-      // Esto asegura que la caché vieja se destruya correctamente
+      // CONFIGURACIÓN WORKBOX + FIX DE TAMAÑO
       workbox: {
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        skipWaiting: false, // IMPORTANTE: False para que espere a que el usuario pulse el botón
-        globPatterns: ['**/*.{js,css,html,ico,png,svg}']
+        skipWaiting: false, // Mantiene el control en el usuario
+        globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
+        
+        // --- LA SOLUCIÓN AL ERROR DEL BUILD ---
+        // Aumentamos el límite de 2MB a 10MB para que pasen tus imágenes
+        maximumFileSizeToCacheInBytes: 10 * 1024 * 1024 
       },
 
       manifest: {
@@ -50,7 +52,7 @@ export default defineConfig({
       },
       devOptions: {
         enabled: true,
-        type: 'module', // A veces necesario en dev
+        type: 'module',
       }
     })
   ],
