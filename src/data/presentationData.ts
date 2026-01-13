@@ -1,149 +1,177 @@
-// Importamos las interfaces desde donde las tengas definidas (ej. ../types/presentation o en el mismo archivo si es un archivo único)
 import { SlideData } from '../types/presentation'; 
 
 export const presentationData: SlideData[] = [
   // SLIDE 1: PORTADA
   {
-    id: "slide1",
+    id: "intro",
     type: "hero",
-    title: "IA Clínica Contextual",
-    subtitle: "Protocolo de Investigación:",
-    content: "Informe sobre la Arquitectura de Inteligencia Adaptativa y Blindaje Legal para el Mercado Mexicano (v5.2).",
-    meta: { gradient: "from-sky-500 to-indigo-600" }
+    title: "VitalScribe AI v5.4",
+    subtitle: "Protocolo Omni-Sentinel:",
+    content: "Certificación de Arquitectura CDSS (Clinical Decision Support System) y Blindaje Legal Activo para el Mercado Mexicano.",
+    image: "/img/slides/hero_shield.png", 
+    meta: { gradient: "from-teal-600 to-slate-900" }
   },
   
-  // SLIDE 2: EL PROBLEMA (CRISIS)
+  // SLIDE 2: EL PROBLEMA (Riesgo Legal y Clínico)
   {
-    id: "slide2",
+    id: "problem",
     type: "split",
-    title: "La Crisis de 'Inercia Clínica'",
+    title: "La Crisis de Seguridad Clínica",
     content: [
-      "Fatiga de Decisión: Los ECE actuales son pasivos y obligan al médico a recordar todo el historial de memoria.",
-      "Arranque en Frío: El médico tarda 3-5 min en 'reconstruir' mentalmente al paciente antes de saludar.",
-      "Ceguera de Especialidad: Los sistemas genéricos no filtran ruido clínico irrelevante.",
-      "Riesgo Legal: La prisa lleva a notas escuetas que incumplen la NOM-004."
+      "Fatiga de Alertas: Los ECE actuales son pasivos; no detienen el error, solo lo documentan.",
+      "Arranque en Frío (Riesgo): 5 minutos perdidos 'reconstruyendo' al paciente mentalmente aumentan la probabilidad de omisión.",
+      "Vulnerabilidad Legal: Notas escuetas por prisa que violan la NOM-004 y dejan indefenso al médico.",
+      "Fuga de Datos: Sistemas web estándar sin aislamiento real entre consultorios."
     ],
-    image: "/img/doctor-stress.png"
+    image: "/img/slides/doctor_risk.png"
   },
 
-  // SLIDE 3: LA SOLUCIÓN (OPERATIVA)
+  // SLIDE 3: LA SOLUCIÓN (Active Safety Firewall)
   {
-    id: "slide3",
+    id: "solution",
     type: "split",
-    title: "Inteligencia Operativa v5.2",
+    title: "Inteligencia Operativa v5.4",
     content: [
-      "Infraestructura Viva: No es un chatbot, es un sistema que protege tu práctica en tiempo real.",
-      "UX Móvil Blindada: Estrategia de contención visual para operar con una mano sin perder contexto.",
-      "Protocolo Fail-Safe: Si la IA falla o la red cae, la interfaz no colapsa. Continuidad garantizada."
+      "No es un Chatbot, es un Firewall: El sistema posee autoridad de bloqueo ante interacciones medicamentosas graves.",
+      "UX de Contención Visual: Diseño que prioriza alertas de 'Semáforo Rojo' antes de permitir la prescripción.",
+      "Protocolo Fail-Safe: Si la red cae, el 'Core' local mantiene la encriptación y el guardado. Continuidad operativa absoluta."
     ],
-    image: "/img/interface.png"
+    image: "/img/slides/firewall_ui.png"
   },
 
-  // SLIDE 4: MOTOR HÍBRIDO
+  // SLIDE 4: MOTOR HÍBRIDO (El Cerebro)
   {
-    id: "slide4",
+    id: "engine",
     type: "grid",
-    title: "Motor Híbrido: Velocidad + Razonamiento",
-    content: "Arquitectura de doble capa utilizando Gemini Flash 2.0 para inmediatez y modelos Pro para profundidad.",
+    title: "Motor de Validación Cruzada",
+    content: "Arquitectura de doble capa: Gemini 1.5 Pro (Razonamiento) + Motor de Reglas Rígidas (Seguridad).",
     items: [
-      { iconName: "Mic", title: "1. Escucha Activa", text: "Captura de voz de alta fidelidad con Wake Lock y reconexión automática." },
-      { iconName: "Brain", title: "2. Inferencia Contextual", text: "Procesa audio + historial previo simultáneamente. No alucina datos, los correlaciona." },
-      { iconName: "FileText", title: "3. Estructura Legal", text: "Entrega JSON estricto: Notas SOAP, Recetas separadas y Auditoría en < 3 seg." }
+      { iconName: "Mic", title: "1. Escucha Activa & Sucia", text: "Filtra ruido ambiental y separa interlocutores. Wake Lock activo para sesiones de +40min." },
+      { iconName: "Shield", title: "2. Triangulación de Seguridad", text: "Cruza orden verbal vs. TFG (Fisiológico) vs. Alergias (Histórico) en <200ms." },
+      { iconName: "FileText", title: "3. Salida Estructurada", text: "Genera JSON estricto. La nota no es texto plano, es data auditable." }
     ]
   },
 
-  // SLIDE 5: FEATURES v5.2 (ACTUALIZADO CON RAG)
+  // SLIDE 5: FEATURES v5.4 (CORREGIDO: GRID 3x2 SIMÉTRICO)
   {
-    id: "slide5",
+    id: "features",
     type: "grid",
-    title: "Capacidades de la Versión 5.2",
-    content: "Nuevas herramientas de inteligencia adaptativa y soporte clínico.",
+    title: "Ecosistema Omni-Sentinel",
+    content: "Seis pilares de defensa activa integrados en el flujo clínico.",
     items: [
-      { iconName: "Activity", title: "Vital Snapshot", text: "Elimina el 'arranque en frío'. Tarjeta amarilla que resume alertas y pendientes en 5 segundos." },
-      { iconName: "Eye", title: "Lente de Especialidad", text: "Inteligencia Adaptativa. Filtra datos irrelevantes según tu especialidad (ej. Cardio vs Psique)." },
-      { iconName: "Pill", title: "Recetas Deterministas", text: "Seguridad total. Clasifica acciones obligatorias: NUEVO, CONTINUAR, SUSPENDER y AJUSTAR." },
-      { iconName: "Library", title: "Evidencia Clínica (RAG)", text: "Tu copiloto clínico. Sugiere activamente Guías de Práctica Clínica (CENETEC) y bibliografía en tiempo real." }
+      // FILA 1
+      { 
+        iconName: "Activity", 
+        title: "Vital Snapshot 360°", 
+        text: "Análisis inmediato al abrir expediente: Evolución, Banderas Rojas y Auditoría Farmacológica en <3 segundos." 
+      },
+      { 
+        iconName: "Users", 
+        title: "Citizen Language Patch", 
+        text: "Traducción empática simultánea. Genera instrucciones legibles para el paciente mientras crea la nota técnica." 
+      },
+      { 
+        iconName: "Lock", 
+        title: "Recetas Deterministas", 
+        text: "Sanitización automática de documentos. Expurga fármacos de alto riesgo en la impresión al paciente." 
+      },
+      // FILA 2 (Nuevos elementos para eliminar el espacio en blanco)
+      { 
+        iconName: "Library", 
+        title: "RAG Híbrido", 
+        text: "Memoria Clínica Profunda. El sistema 'recuerda' antecedentes de hace 5 años para sugerir diagnósticos complejos." 
+      },
+      { 
+        iconName: "ShieldCheck", 
+        title: "Blindaje RLS Nativo", 
+        text: "Aislamiento Forense. Bloqueo a nivel motor de base de datos; es imposible acceder a pacientes ajenos." 
+      },
+      { 
+        iconName: "WifiOff", 
+        title: "Core Offline-First", 
+        text: "Resiliencia Total. La encriptación funciona sin internet (zonas rurales/sótanos) y sincroniza al volver." 
+      }
     ]
   },
 
   // SLIDE 6: MATRIZ DE IMPACTO
   {
-    id: "slide6",
+    id: "impact",
     type: "grid",
     title: "Matriz de Impacto Operativo",
-    content: "Transformamos la fricción administrativa en fluidez clínica.",
+    content: "De la burocracia defensiva a la medicina de precisión.",
     items: [
       { 
         iconName: "AlertTriangle", 
         title: "Práctica Convencional", 
-        text: "Registro lento obligatorio antes de atender. Notas 'Copy-Paste' con alto riesgo legal." 
+        text: "Registro reactivo. El médico escribe para defenderse, perdiendo contacto visual. Error humano latente." 
       },
       { 
         iconName: "Zap", 
-        title: "Con VitalScribe v5.2", 
-        text: "Lazy Registration (atiende primero, registra después). Notas dinámicas generadas desde cero." 
+        title: "Con VitalScribe v5.4", 
+        text: "Lazy Registration & Protección Activa. La IA sugiere, el médico valida, el sistema bloquea el peligro." 
       }
     ]
   },
 
-  // SLIDE 7: ARQUITECTURA TÉCNICA
+  // SLIDE 7: ARQUITECTURA TÉCNICA (El Blindaje)
   {
-    id: "slide7",
+    id: "tech",
     type: "split",
-    title: "Soberanía Tecnológica",
+    title: "Soberanía Tecnológica & RLS",
     content: [
-      "Supabase Edge Functions: Procesamiento seguro en la nube. Tus llaves API nunca tocan el dispositivo.",
-      "Row Level Security (RLS): Aislamiento total de datos a nivel base de datos.",
-      "Offline-First Real: Funciona en zonas rurales o sótanos de hospital sin señal."
+      "Row Level Security (RLS): Aislamiento criptográfico a nivel motor de base de datos. Matemáticamente imposible ver pacientes ajenos.",
+      "Supabase Edge Functions: La lógica crítica corre en entorno seguro, nunca en el dispositivo cliente.",
+      "Offline-First Real: Arquitectura PWA militarizada para operar en zonas rurales sin comprometer datos."
     ],
-    image: "/img/security.png"
+    image: "/img/slides/db_lock.png"
   },
 
-  // SLIDE 8: REGULACIONES
+  // SLIDE 8: REGULACIONES (Legal)
   {
-    id: "slide8",
+    id: "legal",
     type: "grid",
-    title: "Blindaje Regulatorio Mexicano",
-    content: "Cumplimiento normativo automático integrado en el flujo.",
+    title: "Blindaje Regulatorio (NOM-004)",
+    content: "Cumplimiento normativo forzoso por diseño.",
     items: [
-      { iconName: "Scale", title: "NOM-004-SSA3", text: "Estructura SOAP obligatoria y validación de campos críticos antes de guardar." },
-      { iconName: "Network", title: "CIE-10 Automático", text: "Codificación diagnóstica internacional automática para reportes." },
-      { iconName: "Lock", title: "Consentimiento Digital", text: "Módulo de Consentimiento Informado integrado para protección legal." }
+      { iconName: "Scale", title: "Integridad SOAP", text: "Valida campos subjetivos y objetivos antes de permitir el cierre de nota." },
+      { iconName: "Fingerprint", title: "Firma Forense", text: "Bitácora inmutable. Las correcciones manuales quedan registradas como la 'verdad jurídica'." },
+      { iconName: "FileCheck", title: "Consentimiento Digital", text: "Módulo integrado de firma de consentimiento informado." }
     ]
   },
 
-  // SLIDE 9: GESTIÓN DE SEGUROS
+  // SLIDE 9: GESTIÓN DE SEGUROS (CORREGIDO: Disponibilidad de formatos)
   {
-    id: "slide9",
+    id: "insurance",
     type: "split",
-    title: "Central de Trámites Médicos",
+    title: "Interoperabilidad Financiera",
     content: [
-      "Adiós a la Burocracia: VitalScribe entiende que la medicina privada depende de los seguros.",
-      "Formatos Oficiales: GNP, AXA, MetLife pre-llenados con la información de la consulta.",
-      "Memoria de Siniestros: Rastrea números de póliza y siniestro automáticamente entre citas."
+      "Codificación CIE-10 Automática: El sistema traduce 'dolor de panza' a 'R10.4' para evitar rechazos de aseguradoras.",
+      "Formatos Oficiales Digitalizados: Biblioteca de formatos (GNP, AXA, MetLife) disponibles para que el médico vacíe los datos reales de la nota en tiempo real.",
+      "Memoria de Siniestros: Rastreo automático de números de póliza entre sesiones."
     ],
-    image: "/img/interface.png" // Placeholder
+    image: "/img/slides/insurance_form.png"
   },
 
-  // SLIDE 10: FINANCIERO Y LEGAL
+  // SLIDE 10: RENTABILIDAD
   {
-    id: "slide10",
+    id: "financial",
     type: "grid",
-    title: "Rentabilidad y Protección",
-    content: "Herramientas de negocio para la práctica privada moderna.",
+    title: "Gestión de Práctica Privada",
+    content: "Herramientas de negocio para la sustentabilidad del consultorio.",
     items: [
-      { iconName: "Calculator", title: "Calculadora de Honorarios", text: "Desglose automático para equipos quirúrgicos. Claridad total en cobros Tabulador vs. Privado." },
-      { iconName: "ShieldCheck", title: "Evidencia Histórica", text: "Registro inmutable de la evolución. Tu mejor defensa ante disputas de aseguradoras por 'preexistencias'." }
+      { iconName: "Calculator", title: "Calculadora Quirúrgica", text: "Desglose automático de honorarios para equipos médicos. Transparencia total." },
+      { iconName: "Database", title: "Soberanía de Datos", text: "Exportación masiva (JSON/Excel). El expediente es propiedad del médico, no de la plataforma." }
     ]
   },
 
   // SLIDE 11: CIERRE
   {
-    id: "slide11",
+    id: "closing",
     type: "hero",
-    title: "Curar sin distracciones.",
-    subtitle: "La Evolución Necesaria",
-    content: "VitalScribe AI devuelve al médico su propósito principal. Bienvenido al futuro.",
-    meta: { gradient: "from-sky-500 to-indigo-600" }
+    title: "Medicina Protegida.",
+    subtitle: "El Estándar v5.4",
+    content: "VitalScribe AI no solo documenta; defiende su criterio y protege a su paciente.",
+    meta: { gradient: "from-teal-600 to-blue-900" }
   }
 ];
