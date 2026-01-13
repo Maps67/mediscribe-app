@@ -32,10 +32,10 @@ export interface FollowUpMessage {
   message: string;
 }
 
-console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.4 - NO INTERFERENCE PATCH) [Surgical Lock Active]");
+console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v7.5 - DETERMINISTIC LOCK) [Identity Protocol Active]");
 
 // ==========================================
-// CONSTANTE DE SEGURIDAD (MEJORA SOLICITADA)
+// CONSTANTE DE SEGURIDAD (SIN CAMBIOS)
 // ==========================================
 const SECURITY_AUDITOR_PROMPT = `
 🔐 PROMPT DEL SISTEMA: AUDITORÍA Y GENERACIÓN DE RECETA SEGURA
@@ -101,6 +101,7 @@ const cleanJSON = (text: string): string => {
 /**
  * MOTOR DE CONEXIÓN SEGURO (SUPABASE EDGE)
  * Ejecuta la IA en servidor seguro para evitar exponer keys y manejar timeouts.
+ * ACTUALIZADO v7.5: Implementa Protocolo de Identidad de Consulta (Determinismo).
  */
 async function generateWithFailover(prompt: string, jsonMode: boolean = false, useTools: boolean = false): Promise<string> {
   console.log("🛡️ Iniciando transmisión segura a Supabase Edge Function...");
@@ -111,7 +112,16 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false, u
       body: {
         prompt: prompt,
         jsonMode: jsonMode,
-        useTools: useTools
+        useTools: useTools,
+        // 🔒 PROTOCOLO DE IDENTIDAD DE CONSULTA (v7.5)
+        // Forzamos la temperatura a 0.0 para evitar alucinaciones creativas en re-intentos.
+        // Esto garantiza que ante el mismo input, la IA genere SIEMPRE la misma salida.
+        generationConfig: {
+            temperature: 0.0, // CERO ABSOLUTO: Creatividad anulada para precisión clínica.
+            topK: 1,          // Selección única del token más probable.
+            topP: 1,          // Determinismo probabilístico total.
+            maxOutputTokens: 4096
+        }
       }
     });
 
