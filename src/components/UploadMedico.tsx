@@ -24,6 +24,18 @@ export const UploadMedico: React.FC<UploadMedicoProps> = ({ preSelectedPatient, 
   const [patientsFound, setPatientsFound] = useState<Patient[]>([]);
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(preSelectedPatient || null);
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
+  const [currentDoctorId, setCurrentDoctorId] = useState<string | null>(null);
+
+  // Inicialización: Obtener ID del Doctor actual para operaciones seguras (RLS)
+  useEffect(() => {
+    const fetchUser = async () => {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (user) {
+        setCurrentDoctorId(user.id);
+      }
+    };
+    fetchUser();
+  }, []);
 
   // Sincronizar si cambia el paciente preseleccionado (ej. navegando en consultas)
   useEffect(() => {
@@ -49,9 +61,15 @@ export const UploadMedico: React.FC<UploadMedicoProps> = ({ preSelectedPatient, 
 
   const handleCreatePatient = async () => {
     if (!searchTerm) return;
+    if (!currentDoctorId) {
+      toast.error("Error de sesión: No se identificó al médico.");
+      return;
+    }
+
     setIsCreatingPatient(true);
     try {
-      const newPatient = await PatientService.createQuickPatient(searchTerm);
+      // Se pasa el ID del doctor explícitamente para cumplir RLS
+      const newPatient = await PatientService.createQuickPatient(searchTerm, currentDoctorId);
       if (newPatient) {
         setSelectedPatient(newPatient);
         setPatientsFound([]);
@@ -114,7 +132,7 @@ export const UploadMedico: React.FC<UploadMedicoProps> = ({ preSelectedPatient, 
       toast.error(error.message || "Error al subir archivo");
     } finally {
       setUploading(false);
-      event.target.value = ''; 
+      event.target.value = '';
     }
   };
 
@@ -141,8 +159,8 @@ export const UploadMedico: React.FC<UploadMedicoProps> = ({ preSelectedPatient, 
               {searchTerm && (
                 <div className="absolute top-full left-0 w-full bg-white dark:bg-slate-800 shadow-xl rounded-b-lg border dark:border-slate-700 z-20 max-h-48 overflow-y-auto mt-1">
                   {patientsFound.map(p => (
-                    <div 
-                      key={p.id} 
+                    <div
+                      key={p.id}
                       onClick={() => { setSelectedPatient(p); setSearchTerm(p.name); }}
                       className="p-3 hover:bg-teal-50 dark:hover:bg-slate-700 cursor-pointer text-sm flex items-center gap-2"
                     >
@@ -154,7 +172,7 @@ export const UploadMedico: React.FC<UploadMedicoProps> = ({ preSelectedPatient, 
                   ))}
                   
                   {/* Opción Crear Nuevo */}
-                  <div 
+                  <div
                     onClick={handleCreatePatient}
                     className="p-3 bg-blue-50 hover:bg-blue-100 dark:bg-blue-900/20 dark:hover:bg-blue-900/40 cursor-pointer text-sm text-blue-700 dark:text-blue-300 flex items-center gap-2 border-t dark:border-slate-700"
                   >
@@ -187,7 +205,7 @@ export const UploadMedico: React.FC<UploadMedicoProps> = ({ preSelectedPatient, 
       {/* 2. ZONA DE SUBIDA */}
       <div className="relative">
         <label className={`flex flex-col items-center justify-center w-full h-32 border-2 border-dashed rounded-xl cursor-pointer transition-all ${
-          !selectedPatient ? 'opacity-50 cursor-not-allowed bg-slate-100 border-slate-300' : 
+          !selectedPatient ? 'opacity-50 cursor-not-allowed bg-slate-100 border-slate-300' :
           uploading ? 'bg-slate-50 border-slate-300' : 'border-brand-teal bg-teal-50/30 hover:bg-teal-50 dark:hover:bg-teal-900/10'
         }`}>
           <div className="flex flex-col items-center justify-center pt-5 pb-6">
@@ -203,9 +221,9 @@ export const UploadMedico: React.FC<UploadMedicoProps> = ({ preSelectedPatient, 
               </>
             )}
           </div>
-          <input 
-            type="file" 
-            className="hidden" 
+          <input
+            type="file"
+            className="hidden"
             onChange={handleFileChange}
             disabled={uploading || !selectedPatient}
             accept="image/*,application/pdf"

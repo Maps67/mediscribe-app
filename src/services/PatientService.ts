@@ -25,12 +25,18 @@ export const PatientService = {
   /**
    * Crea un paciente nuevo rápidamente solo con el nombre.
    * Supabase genera el UUID automáticamente.
-   * NOTA: Este método es para registros rápidos manuales, no valida duplicados estrictos.
+   * ACTUALIZADO (Protocolo Blindaje): Exige doctorId para cumplir RLS.
    */
-  async createQuickPatient(name: string): Promise<Patient | null> {
+  async createQuickPatient(name: string, doctorId: string): Promise<Patient | null> {
+    if (!doctorId) throw new Error("ID de médico requerido para crear paciente.");
+
     const { data, error } = await supabase
       .from('patients')
-      .insert([{ name: name }])
+      .insert([{ 
+        name: name,
+        doctor_id: doctorId,
+        isTemporary: true // Bandera para indicar registro rápido/incompleto
+      }])
       .select()
       .single();
 
