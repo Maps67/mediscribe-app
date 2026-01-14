@@ -158,36 +158,19 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
       stopListening();
       setStatus('processing');
 
+      // Aumentado el timeout para consultas RAG complejas
       const timeoutPromise = new Promise((_, reject) => 
-          setTimeout(() => reject(new Error("Tiempo agotado")), 12000)
+          setTimeout(() => reject(new Error("Tiempo agotado")), 15000)
       );
 
       try {
           const executeLogic = async () => {
               const lowerText = textToProcess.toLowerCase();
               
-              const isMedical = lowerText.includes('dosis') || lowerText.includes('tratamiento') || lowerText.includes('qué es') || lowerText.includes('protocolo') || lowerText.includes('interacción') || lowerText.includes('signos') || lowerText.includes('síntomas') || lowerText.includes('diagnóstico');
-
-              if (isMedical) {
-                  const rawAnswer = await GeminiMedicalService.chatWithContext(
-                      "Contexto: El médico está en el Dashboard principal. Pregunta general rápida.", 
-                      textToProcess
-                  );
-                  
-                  const cleanAnswer = cleanMarkdown(rawAnswer);
-                  
-                  setMedicalAnswer(cleanAnswer);
-                  setAiResponse({ 
-                      intent: 'MEDICAL_QUERY', 
-                      data: {}, 
-                      message: 'Consulta Clínica',
-                      originalText: textToProcess, 
-                      confidence: 1.0 
-                  });
-                  setStatus('answering');
-                  if(!manualText) speakResponse(cleanAnswer); 
-
-              } else if (lowerText.includes('cita') || lowerText.includes('agendar')) {
+              // --- LÓGICA REVISADA: Prioridad a Comandos, Fallback a Clínica ---
+              
+              // 1. Detección de Agendamiento
+              if (lowerText.includes('cita') || lowerText.includes('agendar') || lowerText.includes('programar')) {
                   
                   const extractionPrompt = `Analiza la instrucción: "${textToProcess}". Extrae el nombre del paciente si se menciona. Si no hay nombre, responde "Paciente Nuevo". Responde SOLO con el nombre, sin puntos ni texto extra.`;
                   
@@ -208,7 +191,9 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
                   });
                   setStatus('answering');
 
-              } else {
+              // 2. Detección de Navegación Explícita
+              } else if (lowerText.includes('ir a') || lowerText.includes('navegar') || lowerText.includes('abrir') || lowerText.includes('ver pantalla')) {
+                  
                   setAiResponse({ 
                       intent: 'NAVIGATION', 
                       data: { destination: textToProcess }, 
@@ -217,6 +202,28 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
                       confidence: 1.0
                   });
                   setStatus('answering');
+
+              // 3. FALLBACK CLINICO (CORRECCIÓN CRÍTICA):
+              // Si no es comando de sistema, se asume consulta médica (Trimebutina, Dosis, Colitis, etc.)
+              } else {
+                  
+                  const rawAnswer = await GeminiMedicalService.chatWithContext(
+                      "Contexto: El médico está en el Dashboard principal. Eres un Copiloto Clínico Senior. Responde directo, conciso y basado en evidencia.", 
+                      textToProcess
+                  );
+                  
+                  const cleanAnswer = cleanMarkdown(rawAnswer);
+                  
+                  setMedicalAnswer(cleanAnswer);
+                  setAiResponse({ 
+                      intent: 'MEDICAL_QUERY', 
+                      data: {}, 
+                      message: 'Consulta Clínica',
+                      originalText: textToProcess, 
+                      confidence: 1.0 
+                  });
+                  setStatus('answering');
+                  if(!manualText) speakResponse(cleanAnswer); 
               }
           };
 
@@ -224,7 +231,7 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
 
       } catch (error) {
           console.error("Error en Asistente:", error);
-          toast.error("El asistente no respondió a tiempo.");
+          toast.error("El asistente no respondió a tiempo o hubo un error.");
           setStatus('idle');
       }
   };
