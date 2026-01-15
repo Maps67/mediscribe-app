@@ -27,14 +27,13 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
   // Estado para el formulario manual inferior
   const [newMed, setNewMed] = useState({ drug: '', details: '', frequency: '', duration: '', notes: '' });
 
-  // Hook de voz
+  // Hook de voz (Se mantiene la lógica para evitar errores de referencia, pero se oculta la UI)
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   
   // Referencia para evitar bucles de actualización
   const lastTranscriptRef = useRef('');
 
   // 1. SINCRONIZACIÓN EN TIEMPO REAL BLINDADA
-  // Evita borrar texto manual si el transcript llega vacío o es ruido
   useEffect(() => {
     if (isListening && transcript !== lastTranscriptRef.current) {
       if (transcript.trim().length > 0) {
@@ -61,7 +60,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
 
   const handleExtractFromText = async () => {
     if (!rawText.trim()) {
-      toast.error("El cuadro de texto está vacío. Dicte o escriba algo.");
+      toast.error("El cuadro de texto está vacío. Escriba las indicaciones.");
       return;
     }
     
@@ -69,22 +68,17 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
     const loadingToast = toast.loading("Analizando estructura clínica...");
 
     try {
-      // Enviamos el texto al servicio
       console.log("📤 Enviando texto a IA:", rawText);
       let extractedMeds: any = await GeminiMedicalService.extractMedications(rawText);
       
       console.log("📥 Respuesta cruda IA:", extractedMeds);
 
-      // --- CAPA DE BLINDAJE DE DATOS (AUDITORÍA) ---
-      // Si el servicio devuelve un string en lugar de array (error común de LLMs), intentamos repararlo.
+      // --- CAPA DE BLINDAJE DE DATOS ---
       if (typeof extractedMeds === 'string') {
-          console.warn("⚠️ IA devolvió String en lugar de Array. Intentando reparación automática...");
           try {
-              // Limpiar bloques de código Markdown si existen
               const cleaned = extractedMeds.replace(/```json/g, '').replace(/```/g, '').trim();
               extractedMeds = JSON.parse(cleaned);
           } catch (parseError) {
-              console.error("❌ Error fatal parseando respuesta IA:", parseError);
               toast.error("Error de formato en la respuesta de la IA.");
               setIsProcessingAI(false);
               toast.dismiss(loadingToast);
@@ -92,9 +86,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
           }
       }
 
-      // Validación final de estructura
       if (Array.isArray(extractedMeds) && extractedMeds.length > 0) {
-        // Mapeo seguro para garantizar que coincida con MedicationItem
         const safeMeds: MedicationItem[] = extractedMeds.map((m: any) => ({
             drug: m.drug || m.name || m.medicamento || "Desconocido",
             details: m.details || m.concentration || "",
@@ -107,11 +99,9 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
         setMedications(prev => [...prev, ...safeMeds]);
         toast.success(`${safeMeds.length} medicamentos procesados correctamente.`);
       } else {
-        console.warn("⚠️ Array vacío recibido.");
-        toast.warning("No se detectaron medicamentos. Verifique que el texto contenga fármacos, dosis y frecuencias.");
+        toast.warning("No se detectaron medicamentos estructurados.");
       }
     } catch (error) {
-      console.error("❌ Error crítico en QuickRx:", error);
       toast.error("Error de conexión con el motor de IA.");
     } finally {
       setIsProcessingAI(false);
@@ -120,11 +110,11 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
   };
 
   const handleMicToggle = () => {
+    // Función desactivada visualmente, pero mantenida para integridad estructural
     if (isListening) {
       stopListening();
-      // Al parar, NO procesamos automáticamente. Dejamos que el médico revise el texto.
     } else {
-      setRawText(''); // Limpiamos para nueva grabación
+      setRawText('');
       resetTranscript();
       startListening();
     }
@@ -177,7 +167,6 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
       ).toBlob();
       window.open(URL.createObjectURL(blob), '_blank');
     } catch (e) {
-      console.error(e);
       toast.error("Error generando PDF");
     } finally {
         toast.dismiss(loadingToast);
@@ -212,14 +201,15 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
         {/* BODY */}
         <div className="p-6 overflow-y-auto flex-1 bg-slate-50 dark:bg-slate-950">
           
-          {/* --- ZONA PRINCIPAL: DICTADO Y EDICIÓN --- */}
+          {/* --- ZONA PRINCIPAL: EDICIÓN MANUAL (MICROFONO OCULTO) --- */}
           <div className="bg-white dark:bg-slate-900 p-5 rounded-2xl border-2 border-slate-200 dark:border-slate-800 shadow-sm mb-6 relative transition-all focus-within:border-teal-500 ring-offset-2">
               
              {/* Barra de Herramientas del Editor */}
              <div className="flex items-center justify-between mb-3 border-b border-slate-100 dark:border-slate-800 pb-2">
                 <label className="text-xs font-bold text-slate-500 uppercase flex items-center gap-2">
                    <Edit3 size={14} className="text-teal-600"/> 
-                   {isListening ? 'Escuchando...' : 'Dictado / Texto Libre'}
+                   {/* MODIFICACIÓN: Texto estático para ocultar estado de escucha */}
+                   Texto de la Receta / Indicaciones
                 </label>
                 
                 <div className="flex gap-2">
@@ -231,24 +221,24 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
                 </div>
              </div>
 
-             {/* ÁREA DE TEXTO ENORME PARA EDITAR */}
+             {/* ÁREA DE TEXTO PARA EDITAR */}
              <div className="relative">
                 <textarea
                    value={rawText}
                    onChange={(e) => setRawText(e.target.value)}
-                   placeholder='Presione el micrófono y dicte: "Paracetamol 500mg una tableta cada 8 horas por 3 días..."'
+                   placeholder='Escriba aquí los medicamentos e indicaciones: "Paracetamol 500mg una tableta cada 8 horas por 3 días..."'
                    className="w-full bg-transparent text-lg text-slate-700 dark:text-slate-200 font-medium outline-none resize-none min-h-[120px] leading-relaxed placeholder:text-slate-300 custom-scrollbar"
                    autoFocus
                 />
                 
-                {/* Botón Flotante de Micrófono (Dentro del área) */}
-                <button 
+                {/* MODIFICACIÓN: El botón de micrófono ha sido ocultado para evitar fallas de dictado */}
+                {/* <button 
                    onClick={handleMicToggle}
                    className={`absolute bottom-0 right-0 p-3 rounded-full shadow-lg transition-all transform hover:scale-110 z-10 ${isListening ? 'bg-red-500 text-white animate-pulse ring-4 ring-red-200' : 'bg-teal-600 text-white hover:bg-teal-700'}`}
-                   title={isListening ? "Detener grabación" : "Iniciar dictado"}
                 >
                    {isListening ? <StopCircle size={24} /> : <Mic size={24} />}
-                </button>
+                </button> 
+                */}
              </div>
 
              {/* Botón de Acción Principal */}
@@ -280,7 +270,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
                 <div className="text-center py-8 border border-dashed border-slate-300 dark:border-slate-700 rounded-xl bg-slate-50/50 flex flex-col items-center gap-2">
                     <AlertTriangle size={24} className="text-slate-300"/>
                     <p className="text-slate-400 text-sm">La lista está vacía.</p>
-                    <p className="text-slate-300 text-xs">Dicte arriba y presione "Generar" o agregue manualmente.</p>
+                    <p className="text-slate-300 text-xs">Escriba arriba y presione "Generar" o agregue manualmente.</p>
                 </div>
                 ) : (
                 medications.map((med, idx) => (
@@ -311,7 +301,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, initialTra
             </div>
           </div>
 
-          {/* FORMULARIO MANUAL (SECUNDARIO) */}
+          {/* FORMULARIO MANUAL */}
           <details className="group bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden">
             <summary className="p-4 cursor-pointer font-bold text-sm text-slate-600 dark:text-slate-300 flex items-center justify-between hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors select-none">
                 <span>¿Agregar manualmente?</span>
