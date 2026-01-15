@@ -1284,7 +1284,7 @@ const ConsultationView: React.FC = () => {
           "Recomiendo ajustar la dosis de **Metformina**.
           
           Consideraciones:
-          - Vigilar función renal.
+          - Vigilarlos función renal.
           - Riesgo de acidosis láctica."
           `;
           
@@ -1320,7 +1320,7 @@ const ConsultationView: React.FC = () => {
             <div className="flex-1 overflow-y-auto mb-4 pr-2 custom-scrollbar">
                 {chatMessages.map((m,i)=>(
                     <div key={i} className={`p-3 mb-3 rounded-2xl max-w-[85%] text-sm shadow-sm ${m.role==='user'?'bg-brand-teal text-white self-end ml-auto rounded-tr-none':'bg-slate-100 dark:bg-slate-800 dark:text-slate-200 self-start mr-auto rounded-tl-none'}`}>
-                                                        <FormattedText content={m.text} />
+                                                                                                        <FormattedText content={m.text} />
                     </div>
                 ))}
                 <div ref={chatEndRef}/>
@@ -1336,7 +1336,7 @@ const ConsultationView: React.FC = () => {
   
   // [NUEVO] Lógica de visualización del Botón Quirúrgico
   const isSurgicalSpecialty = selectedSpecialty?.toLowerCase().includes('cirug') || 
-                              doctorProfile?.specialty?.toLowerCase().includes('cirug');
+                                doctorProfile?.specialty?.toLowerCase().includes('cirug');
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-slate-100 dark:bg-slate-950 relative">
@@ -1762,8 +1762,15 @@ const ConsultationView: React.FC = () => {
                                 )}
 
                                 {activeTab==='chat' && (
-                                    <div className="lg:hidden h-full">
+                                    /* --- MODIFICACIÓN QUIRÚRGICA: Habilitar Sugerencias en Móvil --- */
+                                    <div className="lg:hidden h-full flex flex-col gap-2 overflow-hidden">
+                                        <ContextualInsights 
+                                            insights={clinicalInsights} 
+                                            isLoading={loadingClinicalInsights} 
+                                        />
+                                        <div className="flex-1 overflow-hidden">
                                             {renderChatContent()}
+                                        </div>
                                     </div>
                                 )}
 
@@ -1793,8 +1800,8 @@ const ConsultationView: React.FC = () => {
                  
                  <div className="flex-shrink-0">
                     <ContextualInsights 
-                       insights={clinicalInsights} 
-                       isLoading={loadingClinicalInsights} 
+                        insights={clinicalInsights} 
+                        isLoading={loadingClinicalInsights} 
                     />
                  </div>
 
