@@ -705,4 +705,5 @@ export const GeminiMedicalService = {
   async generatePatientInsights(p: string, h: string, c: string[]): Promise<any> { return this.generatePatient360Analysis(p, h, c); },
   async generateQuickRxJSON(t: string, p: string): Promise<MedicationItem[]> { return this.extractMedications(t); },
   async generatePrescriptionOnly(t: string): Promise<string> { return "Use extractMedications."; }
-};
+  }; //
+  

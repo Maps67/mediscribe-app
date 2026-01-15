@@ -74,6 +74,7 @@ export interface MedicationItem {
   frequency?: string;
   duration?: string;
   notes?: string;
+  // 👇 AGREGA ESTA LÍNEA EXACTAMENTE ASÍ:
 }
 
 // --- RESPUESTA IA GENERAL (V5.0) ---
