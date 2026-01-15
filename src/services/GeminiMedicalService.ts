@@ -620,25 +620,41 @@ export const GeminiMedicalService = {
 
   // --- H. MOTOR RAG (RETRIEVAL-AUGMENTED GENERATION) ---
   // Este módulo busca los datos REALES antes de dejar que la IA hable.
-  // [NEW] Implementación para Fase 1: Conexión a Base de Datos
+  // [MODIFICADO] Búsqueda Flexible "Divide y Vencerás" (Anti-Rigidez)
   async getPatientClinicalContext(patientNameQuery: string): Promise<string> {
     try {
-      console.log(`🕵️ RAG SYSTEM: Buscando expediente de "${patientNameQuery}"...`);
+      console.log(`🕵️ RAG SYSTEM: Buscando expediente de "${patientNameQuery}" (Modo Flexible)...`);
 
-      // 1. BÚSQUEDA DE PACIENTE (Seguridad RLS activa por defecto en Supabase)
-      const { data: patients, error } = await supabase
+      // 1. ESTRATEGIA "DIVIDE Y VENCERÁS":
+      // Separa el nombre en palabras clave para que "Ricardo Montemayor" encuentre a "Ricardo Alfonzo Montemayor"
+      // Se ignoran palabras de 1 letra o espacios vacíos.
+      const searchTerms = patientNameQuery.trim().split(/\s+/).filter(t => t.length > 1);
+
+      if (searchTerms.length === 0) {
+         return "SISTEMA: No se proporcionó un nombre válido para buscar.";
+      }
+
+      // 2. CONSTRUCCIÓN DE CONSULTA DINÁMICA
+      let query = supabase
         .from('patients')
-        .select('id, name, history, created_at')
-        .ilike('name', `%${patientNameQuery}%`)
-        .limit(1);
+        .select('id, name, history, created_at');
+
+      // Agregamos un filtro ILIKE por cada término (Lógica AND implícita al encadenar)
+      // Esto significa que el registro debe contener "Palabra1" Y "Palabra2" en cualquier parte del nombre.
+      searchTerms.forEach(term => {
+        query = query.ilike('name', `%${term}%`);
+      });
+
+      // Ejecutamos con límite de 1 resultado (el más relevante o primero encontrado)
+      const { data: patients, error } = await query.limit(1);
 
       if (error || !patients || patients.length === 0) {
-        return "SISTEMA: No se encontró ningún paciente con ese nombre en la base de datos real. La IA debe informar esto al usuario.";
+        return `SISTEMA: No se encontró ningún paciente que coincida con los términos: "${searchTerms.join(' + ')}" en la base de datos real.`;
       }
 
       const patient = patients[0];
 
-      // 2. EXTRACCIÓN QUIRÚRGICA DE DATOS (Historia + Últimas consultas)
+      // 3. EXTRACCIÓN QUIRÚRGICA DE DATOS (Historia + Últimas consultas)
       // Buscamos las últimas 3 consultas para tener contexto reciente (Dosis vigentes)
       const { data: appointments } = await supabase
         .from('appointments')
@@ -648,7 +664,7 @@ export const GeminiMedicalService = {
         .order('start_time', { ascending: false })
         .limit(3);
 
-      // 3. CONSTRUCCIÓN DEL CONTEXTO BLINDADO
+      // 4. CONSTRUCCIÓN DEL CONTEXTO BLINDADO
       // Aquí sanitizamos los datos para la IA
       let context = `--- EXPEDIENTE OFICIAL (CONFIDENCIAL) ---\n`;
       context += `PACIENTE: ${patient.name}\n`;
