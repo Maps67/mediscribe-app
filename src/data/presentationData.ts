@@ -1,184 +1,131 @@
 import { SlideData } from '../types/presentation'; 
 
 export const presentationData: SlideData[] = [
-  // SLIDE 1: PORTADA (HERO)
-  // Actualización: Elevación de versión y definición de "Sistema Operativo".
+  // SLIDE 1: PORTADA (HERO) - Actualizado a v8.0
   {
     id: "intro",
     type: "hero",
-    title: "VitalScribe AI v7.9",
+    title: "VitalScribe AI v8.0",
     subtitle: "Arquitectura Omni-Sentinel:",
-    content: "Más que un expediente: Un Sistema Operativo Clínico con Firewall Farmacológico Activo y Blindaje Legal (NOM-004/HIPAA).",
+    content: "Sistema Operativo Clínico de Alta Precisión (CDSS). Eficiencia Administrativa + Seguridad Activa + Blindaje Legal.",
     image: "https://images.unsplash.com/photo-1550751827-4bd374c3f58b?auto=format&fit=crop&q=80&w=2070", 
     meta: { gradient: "from-teal-600 to-slate-900" }
   },
   
-  // SLIDE 2: EL PROBLEMA (SPLIT)
-  // Actualización: Enfoque en el "Doble Riesgo" (Clínico + Legal) detectado en las pruebas.
+  // SLIDE 2: GESTIÓN OPERATIVA (GRID) - ¡NUEVO! (Cubre Pilar 1)
+  {
+    id: "operational",
+    type: "grid",
+    title: "Pilar 1: Gestión Operativa",
+    content: "Control total del flujo de trabajo, desde la recepción hasta el expediente.",
+    items: [
+      { iconName: "Calendar", title: "Agenda Inteligente", text: "Gestión de citas Drag & Drop y admisión rápida con 'Lazy Registration' para pacientes nuevos." },
+      { iconName: "Users", title: "Identidad Profesional", text: "Configuración de perfil, firma digital y carga de logotipos para personalización total." },
+      { iconName: "Layers", title: "Selector de Especialidad", text: "Modificador de 'Lente Clínico'. Ajusta la prioridad de la IA (ej. Cardio vs. Urgencias)." },
+      { iconName: "FileText", title: "Gestión de Archivos", text: "Carga y visualización de estudios externos (PDF/DICOM) vinculados al timeline." }
+    ]
+  },
+
+  // SLIDE 3: PROBLEMA (SPLIT)
   {
     id: "problem",
     type: "split",
     title: "La Trampa de la Doble Mortalidad",
     content: [
-      "Ceguera Cognitiva: Bajo presión, el médico omite contraindicaciones cruzadas (ej. Renal + AINEs), causando iatrogenia.",
-      "Arranque en Frío: 5 minutos perdidos 'reconstruyendo' al paciente mentalmente aumentan la probabilidad de error diagnóstico.",
-      "Indefensión Jurídica: Notas incompletas que no cumplen la NOM-004, dejando al profesional expuesto ante COFEPRIS y demandas.",
-      "Fuga de Datos Cruzada: Sistemas web tradicionales sin aislamiento real (RLS) entre consultorios."
+      "Ceguera Cognitiva: La fatiga provoca omisiones en contraindicaciones cruzadas (ej. Renal + AINEs).",
+      "Arranque en Frío: Perder tiempo 'reconstruyendo' mentalmente al paciente aumenta el error diagnóstico.",
+      "Indefensión Jurídica: Notas que no cumplen NOM-004 dejan al médico expuesto ante COFEPRIS.",
+      "Fuga de Datos: Sistemas web estándar sin aislamiento real (RLS) entre consultorios."
     ],
     image: "https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&q=80&w=2032"
   },
 
-  // SLIDE 3: LA SOLUCIÓN (SPLIT)
-  // Actualización: Concepto de "Poder de Veto" y seguridad activa.
+  // SLIDE 4: SOLUCIÓN (SPLIT) - Actualizado con Escudo Visual
   {
     id: "solution",
     type: "split",
     title: "Firewall Clínico Activo",
     content: [
-      "Autoridad de Bloqueo: El sistema no solo sugiere; veta activamente prescripciones letales (Triangulación: Fisiológica, Absoluta e Histórica).",
-      "UX de Contención Visual: Diseño de 'Semáforo Clínico' que intercepta el error humano antes de que llegue a la receta.",
-      "Protocolo Fail-Safe: Arquitectura resiliente que protege la encriptación y el guardado incluso ante fallas de red crítica."
+      "Autoridad de Bloqueo: El sistema veta visualmente prescripciones peligrosas (Triangulación de Seguridad).",
+      "Escudo de Seguridad Visual: Ícono centinela en la UI que certifica protocolos activos en tiempo real.",
+      "Protocolo Fail-Safe: Arquitectura resiliente que protege la encriptación incluso sin internet."
     ],
     image: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=2070"
   },
 
-  // SLIDE 4: MOTOR HÍBRIDO (GRID)
-  // Actualización: Inclusión del NLP de alta entropía (Prueba "Don Ramiro").
+  // SLIDE 5: MOTOR IA (GRID) - Actualizado con Sidekick y Balance 360 (Cubre Pilar 2)
   {
     id: "engine",
     type: "grid",
-    title: "Motor de Validación Cruzada",
-    content: "Inteligencia Artificial con RAG Híbrido + Reglas de Seguridad Rígidas.",
+    title: "Pilar 2: Core de Inteligencia",
+    content: "Más que transcripción: Un copiloto que analiza, sugiere y protege.",
     items: [
-      { iconName: "Mic", title: "1. Escucha de Alta Entropía", text: "Procesamiento de 'Diálogo Sucio'. Filtra ruido, separa interlocutores y extrae datos numéricos dispersos en sesiones de +40min." },
-      { iconName: "Shield", title: "2. Triangulación en <200ms", text: "Auditoría en tiempo real: Cruza Orden Verbal vs. Tasa de Filtrado Glomerular vs. Alergias Históricas." },
-      { iconName: "FileText", title: "3. Salida Forense", text: "Generación de JSON estricto. La nota no es texto plano, es data estructurada y auditable legalmente." }
+      { iconName: "Activity", title: "Vital Snapshot & Balance 360°", text: "Síntesis inmediata de antecedentes y signos vitales para una visión holística antes de diagnosticar." },
+      { iconName: "MessageSquare", title: "Chat Sidekick IA", text: "Interrogatorio activo al expediente. Pregunta '¿Cuándo receté antibiótico?' sin salir de la nota." },
+      { iconName: "Lightbulb", title: "Sugerencias Contextuales", text: "Tarjetas flotantes con Guías de Práctica Clínica y alertas sanitarias según la patología detectada." },
+      { iconName: "Mic", title: "Escucha de Alta Entropía", text: "Procesamiento de audio robusto. Filtra ruido y separa interlocutores en sesiones largas." }
     ]
   },
 
-  // SLIDE 5: FEATURES (GRID)
-  // Actualización: Alineación con el Manifiesto v2026.
+  // SLIDE 6: RECETAS (GRID) - Actualizado con COFEPRIS y Sanitización
   {
-    id: "features",
+    id: "prescriptions",
     type: "grid",
-    title: "Ecosistema Omni-Sentinel",
-    content: "Seis pilares de defensa activa validados en pruebas de estrés clínico.",
+    title: "Motor de Recetas Seguro",
+    content: "Cumplimiento normativo estricto y seguridad del paciente.",
     items: [
-      { 
-        iconName: "Activity", 
-        title: "Vital Snapshot", 
-        text: "Fin del arranque en frío. Tarjeta visual inmediata con Banderas Rojas y Alertas de Pendientes al abrir el expediente." 
-      },
-      { 
-        iconName: "Users", 
-        title: "Citizen Language Patch", 
-        text: "Humanización automática. Traduce términos técnicos (ej. 'Ortopnea') a lenguaje coloquial ('Falta de aire al acostarse') para el paciente." 
-      },
-      { 
-        iconName: "Lock", 
-        title: "Sanitización Documental", 
-        text: "Seguridad de Salida. El PDF para el paciente expurga automáticamente fármacos bloqueados o de uso intrahospitalario para evitar confusiones." 
-      },
-      { 
-        iconName: "Library", 
-        title: "Lógica de 2do Orden", 
-        text: "Razonamiento Clínico Avanzado. Entiende temporalidad, prioriza síntomas graves sobre signos engañosos y maneja ambigüedad." 
-      },
-      { 
-        iconName: "ShieldCheck", 
-        title: "Blindaje RLS (SQL)", 
-        text: "Aislamiento Matemático. Row Level Security nativo en base de datos; hace técnicamente imposible el acceso cruzado a expedientes." 
-      },
-      { 
-        iconName: "WifiOff", 
-        title: "Core Offline-First", 
-        text: "Soberanía Operativa. Funcionalidad total en zonas rurales o sótanos hospitalarios, con sincronización encriptada posterior." 
-      }
+      { iconName: "FileCheck", title: "COFEPRIS Compliant", text: "Cumple Art. 28-30 RIS: Cédulas, Institución, Domicilio y Firma Digitalizada." },
+      { iconName: "Shield", title: "Sanitización Documental", text: "Expurga automáticamente fármacos bloqueados o de uso intrahospitalario del PDF del paciente." },
+      { iconName: "Eye", title: "Clasificación Semántica", text: "Distinción visual clara: INICIO, CONTINUAR, SUSPENDER." }
     ]
   },
 
-  // SLIDE 6: IMPACTO (GRID)
-  {
-    id: "impact",
-    type: "grid",
-    title: "Matriz de Impacto Operativo",
-    content: "Transformando la consulta: De la defensa burocrática a la precisión clínica.",
-    items: [
-      { 
-        iconName: "AlertTriangle", 
-        title: "Riesgo Tradicional", 
-        text: "Medicina defensiva reactiva. El médico escribe mirando la pantalla, perdiendo conexión humana y dejando brechas de seguridad." 
-      },
-      { 
-        iconName: "Zap", 
-        title: "Estándar VitalScribe", 
-        text: "Lazy Registration & Protección Proactiva. La IA sugiere, el médico valida, el sistema bloquea el peligro mortal." 
-      }
-    ]
-  },
-
-  // SLIDE 7: ARQUITECTURA TÉCNICA (SPLIT)
-  // Actualización: Especificaciones de seguridad y base de datos.
+  // SLIDE 7: INFRAESTRUCTURA (SPLIT) - (Cubre Pilar 3)
   {
     id: "tech",
     type: "split",
-    title: "Soberanía de Datos & HIPAA",
+    title: "Pilar 3: Infraestructura & Blindaje",
     content: [
-      "Encriptación AES-256 (Grado Bancario): Protección total de notas y diagnósticos en reposo y tránsito. Cumplimiento estricto de estándares de privacidad en salud.",
-      "Row Level Security (RLS): Implementación de seguridad a nivel del motor SQL. Garantiza que solo el propietario de la llave criptográfica (UID) pueda leer los registros.",
-      "Vertex AI Secure Node: Procesamiento de inferencia en entorno aislado. Los datos clínicos nunca se usan para re-entrenar modelos públicos."
+      "Encriptación AES-256: Protección grado bancario para datos en reposo y tránsito.",
+      "Row Level Security (RLS): Aislamiento matemático en base de datos. Acceso imposible sin UID autorizado.",
+      "Core Offline-First: Operatividad total sin conexión a internet con sincronización segura posterior."
     ],
     image: "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&q=80&w=2070"
   },
 
-  // SLIDE 8: LEGAL (GRID)
-  // Actualización: Mención del Disclaimer visual y Firma Forense.
+  // SLIDE 8: LEGAL (GRID) - Actualizado con Disclaimer
   {
     id: "legal",
     type: "grid",
     title: "Blindaje Regulatorio (NOM-004)",
-    content: "Cumplimiento normativo integrado en la UX.",
+    content: "Cumplimiento normativo integrado en la experiencia de usuario.",
     items: [
-      { iconName: "Scale", title: "Integridad SOAP", text: "Validación estructural de campos obligatorios antes del cierre, asegurando calidad legal." },
-      { iconName: "Fingerprint", title: "Bitácora Inmutable", text: "Registro forense (Append-only). Las correcciones del médico se guardan como la verdad jurídica final." },
-      { iconName: "FileCheck", title: "Consentimiento Activo", text: "UI diseñada con 'Liability Disclaimer' visible y vinculante en cada validación de nota." }
+      { iconName: "Fingerprint", title: "Bitácora Forense", text: "Registro inmutable (Append-only). Las correcciones se añaden, no sobrescriben." },
+      { iconName: "Scale", title: "Disclaimer de Responsabilidad", text: "Texto legal vinculado al botón de guardado (SaMD Compliance)." },
+      { iconName: "FileText", title: "Redacción SOAP Legal", text: "Estructuración automática válida para auditorías y peritajes." }
     ]
   },
 
-  // SLIDE 9: SEGUROS (SPLIT)
-  // Actualización: Corrección sobre la biblioteca de formatos (no pre-llenado mágico, sino gestión centralizada).
+  // SLIDE 9: INTEROPERABILIDAD (SPLIT) - (Cubre Pilar 4)
   {
     id: "insurance",
     type: "split",
-    title: "Interoperabilidad Administrativa",
+    title: "Pilar 4: Valor & Seguros",
     content: [
-      "Codificación CIE-10 Embebida: Traducción automática de síntomas a códigos internacionales (ej. 'Dolor de panza' -> 'R10.4') para mesas de control.",
-      "Gestión Centralizada de Formatos: Biblioteca digital integrada (GNP, AXA, MetLife) lista para llenado y resguardo directo en el expediente.",
-      "Memoria de Siniestros: Persistencia inteligente de datos de póliza y siniestro entre consultas consecutivas."
+      "Codificación CIE-10 Embebida: Traducción automática de síntomas a códigos para mesas de control.",
+      "Biblioteca de Formatos: Repositorio centralizado (GNP, AXA, MetLife) para llenado directo.",
+      "Soberanía de Datos: Exportación masiva (CSV/JSON) y descarga de Expediente Legal completo en PDF."
     ],
     image: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=2000"
   },
 
-  // SLIDE 10: RENTABILIDAD (GRID)
-  {
-    id: "financial",
-    type: "grid",
-    title: "Gestión de Práctica Privada",
-    content: "Herramientas para la sustentabilidad del negocio médico.",
-    items: [
-      { iconName: "Calculator", title: "Calculadora Quirúrgica", text: "Transparencia total en el desglose de honorarios para equipos médicos y pacientes." },
-      { iconName: "ShieldCheck", title: "Evidencia Histórica", text: "Soberanía de datos con exportación masiva. Tu mejor defensa ante disputas de aseguradoras por preexistencias." }
-    ]
-  },
-
-  // SLIDE 11: CIERRE (HERO)
-  // Actualización: Cierre con la nueva filosofía de "Sistema Operativo".
+  // SLIDE 10: CIERRE (HERO)
   {
     id: "closing",
     type: "hero",
     title: "Medicina de Alta Precisión.",
-    subtitle: "VitalScribe AI v7.9",
-    content: "El primer Sistema Operativo Clínico que entiende, protege y defiende su criterio médico.",
+    subtitle: "VitalScribe AI v8.0",
+    content: "El único Sistema Operativo que entiende, protege y defiende su criterio médico.",
     image: "https://images.unsplash.com/photo-1622253692010-333f2da6031d?auto=format&fit=crop&q=80&w=1964",
     meta: { gradient: "from-teal-600 to-blue-900" }
   }
