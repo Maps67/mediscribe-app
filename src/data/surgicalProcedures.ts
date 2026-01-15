@@ -52,6 +52,17 @@ export const SURGICAL_CATALOG: SurgicalProcedure[] = [
     description_template: 'Postoperatorio de corrección de hernia hiatal por laparoscopia. El paciente requiere dieta estricta y reposo para evitar recidivas tempranas.',
     care_instructions: 'Dieta líquida/papilla estricta por 2 semanas. No acostarse inmediatamente después de comer. Evitar vómito.'
   },
+  
+  // *** NUEVO PROCEDIMIENTO AGREGADO ***
+  {
+    id: 'cg_pancreatectomia',
+    code: '52.7', 
+    name: 'Pancreatectomía / Cirugía Mayor de Páncreas',
+    category: 'Cirugía General',
+    defaultRecoveryDays: 28, // 4 semanas por complejidad
+    description_template: 'Postoperatorio de intervención quirúrgica mayor hepatopancreatobiliar. Debido a la complejidad de la resección y la reconstrucción del tránsito digestivo, se requiere un periodo extendido de convalecencia, reposo relativo y vigilancia estricta de la función metabólica.',
+    care_instructions: 'Dieta estricta baja en grasas y fraccionada. Monitoreo de glucosa capilar. Mantener herida seca. Acudir a urgencias si hay fiebre, cambio en drenajes o dolor intenso.'
+  },
 
   // --- CIRUGÍA PEDIÁTRICA ---
   {
