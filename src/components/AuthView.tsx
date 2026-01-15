@@ -209,26 +209,60 @@ const AuthView: React.FC<AuthProps> = ({
 
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans">
+      
+      {/* 🛑 SECCIÓN ACTUALIZADA VISUALMENTE 🛑 
+         Mantiene la imagen de fondo pero actualiza textos a v8.0 
+      */}
       <div className="hidden lg:flex lg:w-1/2 bg-slate-900 text-white flex-col justify-center p-12 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-40">
             <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1964&auto=format&fit=crop" className="w-full h-full object-cover grayscale" alt="Medical Tech" />
         </div>
         <div className="absolute inset-0 bg-gradient-to-br from-slate-900 via-slate-900/90 to-teal-900/80 z-10" />
-        <div className="relative z-10 max-w-lg">
-          <div className="flex items-center gap-4 mb-8">
-            <img src="/pwa-192x192.png" alt="Logo VitalScribe" className="w-20 h-20 rounded-2xl bg-white p-1 shadow-lg object-cover" />
-            <h1 className="text-5xl font-bold tracking-tight">VitalScribe AI</h1>
-          </div>
-          <h2 className="text-3xl font-bold mb-4 leading-tight">El asistente clínico inteligente para médicos modernos.</h2>
-          <p className="text-slate-400 text-lg">Automatice sus notas clínicas, gestione su agenda y recupere su tiempo con el poder de la IA.</p>
+        <div className="relative z-10 max-w-lg flex flex-col justify-center h-full">
           
-          <div className="mt-12 flex gap-8">
-            <div className="flex flex-col gap-2"><span className="text-2xl font-bold text-brand-teal">NOM-004</span><span className="text-sm text-slate-400">Compliance</span></div>
-            <div className="flex flex-col gap-2"><span className="text-2xl font-bold text-brand-teal">IA 2.0</span><span className="text-sm text-slate-400">Voz</span></div>
-            <div className="flex flex-col gap-2"><span className="text-2xl font-bold text-brand-teal">100%</span><span className="text-sm text-slate-400">Seguro</span></div>
+          {/* Header / Logo v8.0 */}
+          <div className="flex items-center gap-4 mb-6">
+            <img src="/pwa-192x192.png" alt="Logo VitalScribe" className="w-20 h-20 rounded-2xl bg-white p-1 shadow-lg object-cover" />
+            <div>
+                <h1 className="text-4xl font-bold tracking-tight text-white">VitalScribe AI</h1>
+                <div className="flex items-center gap-2 mt-1">
+                    <span className="px-2 py-0.5 rounded text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">v8.0 Pilot</span>
+                    <span className="px-2 py-0.5 rounded text-xs font-bold bg-slate-700 text-slate-300">NOM-024 Ready</span>
+                </div>
+            </div>
           </div>
+          
+          {/* Mensaje Principal de Seguridad */}
+          <h2 className="text-3xl font-bold mb-4 leading-tight text-white">Su escudo de seguridad clínica y farmacológica.</h2>
+          <p className="text-slate-400 text-lg mb-8">No solo transcribimos: auditamos sus recetas, bloqueamos riesgos vitales y protegemos su práctica médica en tiempo real.</p>
+          
+          {/* Estadísticas / Features */}
+          <div className="flex gap-8 mb-10">
+            <div className="flex flex-col">
+                <span className="text-2xl font-bold text-brand-teal">NOM-024</span>
+                <span className="text-xs uppercase tracking-wider text-slate-500">Compliance</span>
+            </div>
+            <div className="flex flex-col">
+                <span className="text-2xl font-bold text-brand-teal">Motor v8.0</span>
+                <span className="text-xs uppercase tracking-wider text-slate-500">Cognitivo</span>
+            </div>
+            <div className="flex flex-col">
+                <span className="text-2xl font-bold text-brand-teal">100%</span>
+                <span className="text-xs uppercase tracking-wider text-slate-500">Seguro</span>
+            </div>
+          </div>
+
+          {/* Aviso Legal al pie */}
+          <div className="border-t border-slate-700/50 pt-6">
+            <p className="text-[10px] text-slate-500 leading-relaxed text-justify">
+                <strong className="text-slate-400">Aviso Legal:</strong> VitalScribe AI se clasifica como <em>Software de Gestión Administrativa y Documental</em>. 
+                No realiza diagnósticos autónomos. Cumple con la <strong className="text-slate-400">NOM-004-SSA3-2012</strong> para la integración de la Historia Clínica y la <strong className="text-slate-400">NOM-024-SSA3-2012</strong> mediante el uso de estándares de interoperabilidad y seguridad.
+            </p>
+          </div>
+
         </div>
       </div>
+      {/* 🛑 FIN SECCIÓN ACTUALIZADA 🛑 */}
 
       <div className="flex-1 flex items-center justify-center p-6 relative bg-white dark:bg-slate-950">
         <a 
