@@ -6,7 +6,7 @@ import {
   Stethoscope, Trash2, WifiOff, Save, Share2, Download, Printer,
   Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature, Keyboard,
   Quote, AlertTriangle, ChevronDown, ChevronUp, Sparkles, PenLine, UserPlus, ShieldCheck, AlertCircle,
-  Pause, Play, Pill, Plus, Zap, CornerDownLeft, Building2
+  Pause, Play, Pill, Plus, Zap, CornerDownLeft, Building2, Lock
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
@@ -290,7 +290,7 @@ const ConsultationView: React.FC = () => {
                 } else {
                     const tempPatient: any = { 
                         id: 'temp_' + Date.now(), 
-                        name: incomingName,
+                        name: incomingName, 
                         isTemporary: true 
                     };
                     setSelectedPatient(tempPatient);
@@ -310,8 +310,6 @@ const ConsultationView: React.FC = () => {
     loadInitialData();
     return () => { mounted = false; };
   }, [location.state, setTranscript]); 
-
-  // --- cleanHistoryString ELIMINADA DE AQUÍ Y MOVIDA AL SCOPE GLOBAL ---
 
   useEffect(() => {
     const fetchMedicalContext = async () => {
@@ -364,11 +362,6 @@ const ConsultationView: React.FC = () => {
                     }
                 }
 
-                const hasStaticData = (cleanHistory && cleanHistory.length > 2) || (cleanAllergies && cleanAllergies.length > 2);
-                const hasDynamicData = !!lastConsultationData;
-                const hasInsurance = !!lastInsuranceData;
-
-                // FIX: Permitimos que se setee el contexto incluso si es vacío para desbloquear el snapshot
                 setActiveMedicalContext({
                     history: cleanHistory || "No registrados",
                     allergies: cleanAllergies || "No registradas",
@@ -1030,7 +1023,7 @@ const ConsultationView: React.FC = () => {
   const isReadyToGenerate = isOnline && !isListening && !isPaused && !isProcessing && (transcript || segments.length > 0) && !generatedNote;
 
   return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-slate-100 dark:bg-slate-950 relative">
+    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-slate-100 dark:bg-slate-950 relative font-sans">
       
       <div className={`w-full md:w-1/4 p-4 flex flex-col gap-2 border-r dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden ${generatedNote ? 'hidden md:flex' : 'flex'}`}>
         <div className="flex justify-between items-center">
@@ -1044,12 +1037,24 @@ const ConsultationView: React.FC = () => {
             </div>
         </div>
 
-        <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
+        {/* 🛑 ZONA BLINDADA: LOGICA ADAPTATIVA AUTOMÁTICA 🛑 
+            Se reemplazó el selector manual por la insignia de seguridad sincronizada.
+        */}
+        <div className="bg-gradient-to-r from-indigo-50 to-slate-50 dark:from-indigo-900/20 dark:to-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800 shrink-0">
             <div className="flex justify-between items-center mb-1">
-                <label className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase flex gap-1"><Stethoscope size={14}/> Especialidad</label>
+                <label className="text-[10px] font-bold text-slate-400 uppercase flex gap-1 items-center">
+                    <ShieldCheck size={12}/> Perfil Activo
+                </label>
+                <div className="flex items-center gap-1 text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
+                    <Lock size={10} /> Sincronizado
+                </div>
             </div>
-            <select value={selectedSpecialty} onChange={(e)=>setSelectedSpecialty(e.target.value)} className="w-full bg-transparent border-b border-indigo-200 outline-none py-1 text-sm dark:text-white cursor-pointer">{SPECIALTIES.map(s=><option key={s} value={s}>{s}</option>)}</select>
+            <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-sm">
+                <Stethoscope size={16} className="shrink-0"/>
+                <span className="truncate">{selectedSpecialty || "Cargando perfil..."}</span>
+            </div>
         </div>
+
         <div className="relative z-10">
             <div className="flex items-center border rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
                 <Search className="text-slate-400 mr-2" size={18}/><input placeholder="Buscar paciente..." className="w-full bg-transparent outline-none dark:text-white text-sm" value={selectedPatient?selectedPatient.name:searchTerm} onChange={(e)=>{setSearchTerm(e.target.value);setSelectedPatient(null)}}/>
@@ -1077,7 +1082,6 @@ const ConsultationView: React.FC = () => {
         </div>
         
         {/* --- VITAL SNAPSHOT CARD (MODIFICADO PARA UX MÓVIL) --- */}
-        {/* Wrapper con lógica de colapso para móviles para no bloquear la pantalla */}
         <div className="w-full transition-all duration-300 ease-in-out">
             {vitalSnapshot && (
                <div className="md:hidden flex justify-between items-center mb-2 px-1">
@@ -1102,7 +1106,6 @@ const ConsultationView: React.FC = () => {
                     isLoading={loadingSnapshot} 
                 />
                 
-                {/* Botón exclusivo móvil para colapsar y empezar a dictar rápidamente */}
                 {vitalSnapshot && (
                     <button onClick={()=>setIsMobileSnapshotVisible(false)} className="md:hidden w-full mt-2 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2">
                         <ChevronUp size={12}/> Ocultar y Ver Micrófono
@@ -1110,7 +1113,6 @@ const ConsultationView: React.FC = () => {
                 )}
             </div>
             
-            {/* Botón recordatorio si está oculto en móvil */}
             {!isMobileSnapshotVisible && vitalSnapshot && (
                 <button onClick={()=>setIsMobileSnapshotVisible(true)} className="md:hidden w-full mb-2 py-2 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-lg text-xs font-bold border border-indigo-100 dark:border-indigo-800 flex items-center justify-center gap-2 animate-in fade-in">
                     <Activity size={12}/> Ver Análisis 360° (Oculto)
@@ -1123,14 +1125,12 @@ const ConsultationView: React.FC = () => {
                 className="relative z-30 group"
                 onClick={() => setIsMobileContextExpanded(!isMobileContextExpanded)} 
             >
-                {/* --- TARJETA AMARILLA CLÁSICA (RESUMIDA Y LIMPIA) --- */}
                 <div className={`bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800 text-xs shadow-sm cursor-help transition-opacity duration-200 ${isMobileContextExpanded ? 'opacity-0' : 'opacity-100 md:group-hover:opacity-0'}`}>
                     <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-bold border-b border-amber-200 dark:border-amber-800 pb-1">
                         <AlertCircle size={14} />
                         <span>Antecedentes Activos</span>
                     </div>
                     <div className="space-y-2 text-slate-700 dark:text-slate-300">
-                        {/* 1. Alergias (Prioridad Alta) */}
                         {activeMedicalContext.allergies && activeMedicalContext.allergies !== "No registradas" && (
                             <div className="flex items-start gap-1">
                                  <span className="font-bold text-red-600 dark:text-red-400 whitespace-nowrap">⚠️ Alergias:</span>
@@ -1138,7 +1138,6 @@ const ConsultationView: React.FC = () => {
                             </div>
                         )}
 
-                        {/* 2. Historial Patológico */}
                         {activeMedicalContext.history && activeMedicalContext.history !== "No registrados" && (
                             <div>
                                 <span className="font-semibold block text-[10px] uppercase text-amber-600">Patológicos:</span>
@@ -1146,20 +1145,17 @@ const ConsultationView: React.FC = () => {
                             </div>
                         )}
                         
-                        {/* 3. Última Consulta (RESUMIDA) */}
                         {activeMedicalContext.lastConsultation && (
                             <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800/50">
                                  <span className="font-semibold block text-[10px] uppercase text-amber-600 mb-1">
                                     Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
                                  </span>
-                                 {/* TRUNCAMOS EL TEXTO A 2 LÍNEAS PARA EVITAR EL MURO DE TEXTO */}
                                  <p className="italic opacity-80 pl-1 border-l-2 border-amber-300 dark:border-amber-700 line-clamp-2 text-[10px]">
                                     {activeMedicalContext.lastConsultation.summary}
                                  </p>
                             </div>
                         )}
                         
-                        {/* 4. Seguros */}
                         {activeMedicalContext.insurance && (
                             <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800/50">
                                  <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold">
@@ -1171,7 +1167,6 @@ const ConsultationView: React.FC = () => {
                     </div>
                 </div>
 
-                {/* --- DETALLE FLOTANTE (HOVER) SE MANTIENE COMPLETO --- */}
                 <div className={`absolute top-0 left-0 w-full transition-all duration-200 ease-out z-50 pointer-events-none group-hover:pointer-events-auto ${isMobileContextExpanded ? 'opacity-100 visible' : 'opacity-0 invisible md:group-hover:opacity-100 md:group-hover:visible'}`}>
                     <div className="bg-amber-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-amber-300 dark:border-amber-600 text-xs shadow-2xl scale-100 origin-top">
                          <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-bold border-b border-amber-200 dark:border-amber-800 pb-1">
@@ -1195,7 +1190,6 @@ const ConsultationView: React.FC = () => {
                                           Resumen Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
                                      </span>
                                      <div className="p-2 bg-white dark:bg-slate-900 rounded border border-amber-100 dark:border-amber-900/50">
-                                          {/* FIX VISUAL: Aquí limitamos el texto expandido para que no inunde la pantalla si es un transcript */}
                                           <p className="italic opacity-80 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed line-clamp-6 font-light">
                                               {activeMedicalContext.lastConsultation.summary}
                                           </p>
@@ -1617,7 +1611,7 @@ const ConsultationView: React.FC = () => {
                       )}
 
                       {activeTab==='chat' && (
-                          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 animate-fade-in-up">
+                          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm h-full flex flex-col border border-slate-200 dark:border-slate-800 animate-fade-in-up">
                               <div className="flex-1 overflow-y-auto mb-4 pr-2 custom-scrollbar">
                                   {/* AQUÍ ESTÁ EL CAMBIO: Usamos FormattedText en lugar de texto plano */}
                                   {chatMessages.map((m,i)=>(
@@ -1627,7 +1621,7 @@ const ConsultationView: React.FC = () => {
                                   ))}
                                   <div ref={chatEndRef}/>
                               </div>
-                              <form onSubmit={handleChatSend} className="flex gap-2 relative"><input className="flex-1 border dark:border-slate-700 p-4 pr-12 rounded-xl bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal shadow-sm" value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Pregunta al asistente..."/><button disabled={isChatting||!chatInput.trim()} className="absolute right-3 top-1/2 -translate-y-1/2 bg-brand-teal text-white p-2 rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-all hover:scale-105 active:scale-95">{isChatting?<RefreshCw className="animate-spin" size={18}/>:<Send size={18}/>}</button></form>
+                              <form onSubmit={handleChatSend} className="flex gap-2 relative"><input className="flex-1 border border-slate-200 dark:border-slate-700 p-4 pr-12 rounded-xl bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal shadow-sm" value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Pregunta al asistente..."/><button disabled={isChatting||!chatInput.trim()} className="absolute right-3 top-1/2 -translate-y-1/2 bg-brand-teal text-white p-2 rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-all hover:scale-105 active:scale-95">{isChatting?<RefreshCw className="animate-spin" size={18}/>:<Send size={18}/>}</button></form>
                           </div>
                       )}
 
@@ -1651,8 +1645,8 @@ const ConsultationView: React.FC = () => {
       {isAttachmentsOpen && selectedPatient && (
         <div className="fixed inset-0 z-50 flex justify-end">
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={() => setIsAttachmentsOpen(false)} />
-            <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 h-full shadow-2xl p-4 flex flex-col border-l dark:border-slate-800 animate-slide-in-right">
-                <div className="flex justify-between items-center mb-4 pb-2 border-b dark:border-slate-800">
+            <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 h-full shadow-2xl p-4 flex flex-col border-l border-slate-200 dark:border-slate-800 animate-slide-in-right">
+                <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-800">
                     <div><h3 className="font-bold text-lg dark:text-white flex items-center gap-2"><Paperclip size={20} className="text-brand-teal"/> Expediente Digital</h3><p className="text-xs text-slate-500">Paciente: {selectedPatient.name}</p></div>
                     <button onClick={() => setIsAttachmentsOpen(false)} className="p-2 hover:bg-slate-100 dark:bg-slate-800 rounded-full transition-colors"><X size={20} className="text-slate-500"/></button>
                 </div>
@@ -1676,7 +1670,7 @@ const ConsultationView: React.FC = () => {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-sm w-full animate-fade-in-up">
                 <h3 className="font-bold text-lg mb-4 dark:text-white">Agendar Seguimiento</h3>
-                <input type="datetime-local" className="w-full border dark:border-slate-700 p-3 rounded-xl mb-6 bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal" value={nextApptDate} onChange={e=>setNextApptDate(e.target.value)}/>
+                <input type="datetime-local" className="w-full border border-slate-200 dark:border-slate-700 p-3 rounded-xl mb-6 bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal" value={nextApptDate} onChange={e=>setNextApptDate(e.target.value)}/>
                 <div className="flex justify-end gap-3">
                     <button onClick={()=>setIsAppointmentModalOpen(false)} className="text-slate-500 font-medium">Cancelar</button>
                     <button onClick={handleConfirmAppointment} className="bg-brand-teal text-white px-4 py-2 rounded-xl font-bold">Confirmar</button>
