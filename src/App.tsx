@@ -145,6 +145,10 @@ const App: React.FC = () => {
   const handleGlobalLogout = async (name?: string) => {
     setClosingName(name || 'Doctor(a)');
     setIsClosing(true);
+    
+    // NUEVO: Limpiamos la memoria del mensaje al cerrar sesión
+    sessionStorage.removeItem('login_notice_shown'); 
+    
     await new Promise(resolve => setTimeout(resolve, 2000));
     await supabase.auth.signOut();
     setIsClosing(false);
@@ -177,7 +181,8 @@ const App: React.FC = () => {
   if (isUpdatePasswordRoute) {
       return (
         <ThemeProvider>
-            <Toaster position="top-center" richColors />
+            {/* CONFIGURACIÓN CORREGIDA: Bottom-Right */}
+            <Toaster richColors position="bottom-right" />
             <UpdatePassword onSuccess={() => window.location.href = '/'} />
         </ThemeProvider>
       );
@@ -187,7 +192,8 @@ const App: React.FC = () => {
   if (!session) {
     return (
       <ThemeProvider>
-        <Toaster position="top-center" richColors />
+        {/* CONFIGURACIÓN CORREGIDA: Bottom-Right */}
+        <Toaster richColors position="bottom-right" />
         <ReloadPrompt />
         <AuthView onLoginSuccess={() => {}} />
       </ThemeProvider>
@@ -198,7 +204,8 @@ const App: React.FC = () => {
   return (
     <ThemeProvider>
       <BrowserRouter>
-        <Toaster position="top-center" richColors closeButton />
+        {/* CONFIGURACIÓN CORREGIDA: Bottom-Right */}
+        <Toaster richColors position="bottom-right" closeButton />
         <ReloadPrompt />
         <MainLayout session={session} onLogout={handleGlobalLogout} />
       </BrowserRouter>

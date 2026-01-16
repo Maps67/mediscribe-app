@@ -262,22 +262,22 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
           } catch (internalError) {
              // Fallback Logic
              const rawAnswer = await GeminiMedicalService.chatWithContext(
-                  "Contexto: El médico está en el Dashboard principal. Eres un Copiloto Clínico Senior. Responde directo, conciso y basado en evidencia.", 
-                  textToProcess
-              );
-              
-              const cleanAnswer = cleanMarkdown(rawAnswer);
-              
-              setMedicalAnswer(cleanAnswer);
-              setAiResponse({ 
-                  intent: 'MEDICAL_QUERY', 
-                  data: {}, 
-                  message: 'Consulta Clínica',
-                  originalText: textToProcess, 
-                  confidence: 1.0 
-              });
-              setStatus('answering');
-              if(!manualText) speakResponse(cleanAnswer);
+                 "Contexto: El médico está en el Dashboard principal. Eres un Copiloto Clínico Senior. Responde directo, conciso y basado en evidencia.", 
+                 textToProcess
+             );
+             
+             const cleanAnswer = cleanMarkdown(rawAnswer);
+             
+             setMedicalAnswer(cleanAnswer);
+             setAiResponse({ 
+                 intent: 'MEDICAL_QUERY', 
+                 data: {}, 
+                 message: 'Consulta Clínica',
+                 originalText: textToProcess, 
+                 confidence: 1.0 
+             });
+             setStatus('answering');
+             if(!manualText) speakResponse(cleanAnswer);
           }
 
       } catch (error) {
@@ -811,6 +811,34 @@ const Dashboard: React.FC = () => {
   const appointmentsToday = appointments.filter(a => isToday(parseISO(a.start_time))).length;
   const totalDailyLoad = completedTodayCount + appointmentsToday;
 
+  // NUEVO: Mensaje de garantía de privacidad (Cada vez que entra al Dashboard tras Login)
+  useEffect(() => {
+    if (window.innerWidth < 768) return;
+
+    // Usamos una marca temporal en memoria local
+    const hasSeenThisLogin = sessionStorage.getItem('login_notice_shown');
+
+    if (!hasSeenThisLogin) {
+        const timer = setTimeout(() => {
+          toast.message('Garantía de Privacidad VitalScribe', {
+            description: 'En VitalScribe AI, tu privacidad no es negociable. Si decides irte, nuestro sistema garantiza la eliminación absoluta de cada rastro de tus datos al instante. Sin residuos, sin letras chiquitas.',
+            duration: 10000, 
+            icon: '🛡️',
+            style: {
+                backgroundColor: '#eff6ff', 
+                borderColor: '#60a5fa',     
+                borderWidth: '2px',
+                color: '#1e3a8a',
+                borderRadius: '18px',       
+                boxShadow: '0 10px 15px -3px rgba(59, 130, 246, 0.2)' 
+            },
+          });
+          sessionStorage.setItem('login_notice_shown', 'true');
+        }, 1500);
+        return () => clearTimeout(timer);
+    }
+  }, []);
+
   return (
     <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans w-full pb-32 md:pb-8 relative overflow-hidden">
       
@@ -944,20 +972,20 @@ const Dashboard: React.FC = () => {
              <div className="xl:col-span-4 flex flex-col gap-8">
                  {/* IMPLEMENTACIÓN DEL RADAR ACTIVO */}
                  <ActionRadar 
-                    items={pendingItems} 
-                    onItemClick={handleRadarClick}
-                    onCancel={(e, item) => handleCancelAppointment(e, item.id)}
-                    onReschedule={(e, item) => {
-                        // Reconstrucción del objeto para el modal (Adapter)
-                        const realName = item.subtitle.split('•')[0].trim();
-                        const mockApt = { 
-                            id: item.id, 
-                            title: realName, 
-                            start_time: item.date, 
-                            status: 'scheduled' 
-                        } as DashboardAppointment;
-                        openRescheduleModal(e, mockApt);
-                    }}
+                   items={pendingItems} 
+                   onItemClick={handleRadarClick}
+                   onCancel={(e, item) => handleCancelAppointment(e, item.id)}
+                   onReschedule={(e, item) => {
+                       // Reconstrucción del objeto para el modal (Adapter)
+                       const realName = item.subtitle.split('•')[0].trim();
+                       const mockApt = { 
+                           id: item.id, 
+                           title: realName, 
+                           start_time: item.date, 
+                           status: 'scheduled' 
+                       } as DashboardAppointment;
+                       openRescheduleModal(e, mockApt);
+                   }}
                  />
                  
                  <div className="bg-gradient-to-br from-white to-slate-100 dark:from-slate-900 dark:to-slate-900 rounded-[2rem] border border-slate-100 dark:border-slate-800 shadow-xl shadow-slate-200/50 dark:shadow-none flex-1 flex flex-col min-h-[400px]">
