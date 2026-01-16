@@ -19,6 +19,12 @@ export const SPECIALTY_CONFIG: Record<string, SpecialtyConfigItem> = {
     icon: Activity,
     color: 'text-rose-600 bg-rose-50 border-rose-200'
   },
+  'Cirugía Cardiotorácica': {
+    allowedTypes: ['video/mp4', 'application/dicom', 'image/jpeg', 'application/pdf'],
+    labels: ['Angiografía Coronaria', 'Ecocardiograma Transesofágico', 'Tomografía de Tórax', 'Reporte Quirúrgico'],
+    icon: Activity, // Reutilizamos Activity por afinidad cardíaca
+    color: 'text-red-700 bg-red-50 border-red-200'
+  },
   'Neurología': {
     allowedTypes: ['application/pdf', 'video/mp4', 'application/octet-stream'],
     labels: ['Electroencefalograma (EEG)', 'Video Monitoreo', 'Tomografía (Reporte)', 'Resonancia'],
