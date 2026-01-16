@@ -26,7 +26,7 @@ interface UserProfile {
   website_url?: string;
   address?: string;
   university?: string;
-  qr_code_url?: string; // <--- AGREGADO: Para leer el QR de configuración
+  qr_code_url?: string; // Mantenemos el campo del QR configurado
   [key: string]: any;
 }
 
@@ -90,10 +90,11 @@ const DigitalCard: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
-        // Al hacer select('*'), automáticamente traemos qr_code_url si existe en la tabla profiles
+        // Carga del perfil (incluyendo qr_code_url)
         const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         setProfile(profileData || { full_name: 'Doctor', specialty: 'Medicina General' });
 
+        // 1. CONTEO DE PACIENTES (Lógica real mantenida)
         let finalCount = 0;
         const { count: countDoc } = await supabase.from('patients').select('*', { count: 'exact', head: true }).eq('doctor_id', user.id);
         if (countDoc !== null) finalCount = countDoc;
@@ -102,17 +103,23 @@ const DigitalCard: React.FC = () => {
             if (countUser !== null) finalCount = countUser;
         }
 
+        // 2. CÁLCULO DE PROMEDIO DE TIEMPO (CORREGIDO: LÓGICA REAL)
+        // Antes usaba "summary.length", ahora consulta la duración real en appointments
         let calculatedAvg = 0;
-        const { data: consults } = await supabase.from('consultations').select('summary').eq('doctor_id', user.id).limit(50);
-        if (consults && consults.length > 0) {
-            const total = consults.reduce((acc, curr) => acc + (15 + Math.round((curr.summary?.length || 0)/50)), 0);
-            calculatedAvg = Math.round(total / consults.length);
+        
+        const { data: appts } = await supabase
+            .from('appointments')
+            .select('duration_minutes')
+            .eq('doctor_id', user.id)
+            .not('duration_minutes', 'is', null); // Solo citas con duración registrada
+
+        if (appts && appts.length > 0) {
+            // Suma total de minutos reales / cantidad de citas
+            const totalMinutes = appts.reduce((acc, curr) => acc + (curr.duration_minutes || 0), 0);
+            calculatedAvg = Math.round(totalMinutes / appts.length);
         } else {
-             const { data: appts } = await supabase.from('appointments').select('duration_minutes').eq('doctor_id', user.id);
-             if (appts && appts.length > 0) {
-                 const total = appts.reduce((acc, curr) => acc + (curr.duration_minutes || 0), 0);
-                 calculatedAvg = Math.round(total / appts.length);
-             }
+            // Si no hay datos, valor por defecto 0 (o podrías poner 15 como estándar)
+            calculatedAvg = 0; 
         }
         
         setStats({ patientsCount: finalCount, avgDuration: calculatedAvg, loadingStats: false });
@@ -163,7 +170,7 @@ const DigitalCard: React.FC = () => {
       
       <div className="mb-6 flex flex-col md:flex-row md:justify-between md:items-end gap-4">
         <div>
-            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">Hub Profesional <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full uppercase tracking-wider">v2.1</span></h1>
+            <h1 className="text-2xl font-bold text-slate-900 flex items-center gap-2">Hub Profesional <span className="text-xs bg-teal-100 text-teal-700 px-2 py-0.5 rounded-full uppercase tracking-wider">v2.2</span></h1>
             <p className="text-slate-500 text-sm">Panel de control estratégico y herramientas clínicas.</p>
         </div>
         <div className="flex gap-2">
@@ -191,13 +198,8 @@ const DigitalCard: React.FC = () => {
                     
                     {/* ZONA DE QR INTELIGENTE */}
                     <div className="bg-white p-4 rounded-2xl border-2 border-dashed border-slate-200 inline-block mb-6 group-hover:border-teal-400 transition-colors">
-                        {/* LÓGICA: Si existe un QR guardado en configuración (imagen), se muestra ese. Si no, se genera uno nuevo. */}
                         {profile?.qr_code_url ? (
-                            <img 
-                                src={profile.qr_code_url} 
-                                alt="QR Configurado" 
-                                className="w-[120px] h-[120px] object-contain"
-                            />
+                            <img src={profile.qr_code_url} alt="QR Configurado" className="w-[120px] h-[120px] object-contain"/>
                         ) : (
                             <QRCode value={getQRTarget()} size={120} level="M" fgColor="#0f172a"/>
                         )}
