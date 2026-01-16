@@ -64,7 +64,8 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
 
   // Inicialización Segura
   const [formData, setFormData] = useState<WizardData>({
-    name: '', dob: '', age: '', gender: 'Masculino', 
+    name: '', dob: '', age: '', 
+    gender: '', // <--- CAMBIO CLAVE: Inicia vacío para obligar selección
     curp: '', bloodType: '', 
     maritalStatus: 'Soltero/a',
     phone: '', email: '', address: '', occupation: '', emergencyContact: '',
@@ -90,6 +91,8 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
       setFormData(prev => ({
         ...prev,
         ...initialData,
+        // Si ya trae género (edición), lo usamos. Si es nuevo, vacío.
+        gender: initialData.gender || '', 
         // Prioridad: Dato explícito > Dato del JSON > String vacío
         pathological: typeof initialData.pathological === 'string' ? initialData.pathological : (parsedHistory.pathological || ''),
         nonPathological: typeof initialData.nonPathological === 'string' ? initialData.nonPathological : (parsedHistory.nonPathological || ''),
@@ -125,6 +128,8 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
     
     // Validaciones NOM-004 Básicas
     if (!formData.name.trim()) newErrors.name = true;
+    
+    // VALIDACIÓN ESTRICTA DE GÉNERO
     if (!formData.gender) newErrors.gender = true;
     
     // Validación visual
@@ -138,7 +143,6 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
     setIsSaving(true);
     
     // BLINDAJE 2: Empaquetado de Datos Clínicos (JSON History)
-    // Consolidamos los campos sueltos en el objeto 'history' que espera la DB
     const clinicalData = {
       allergies: formData.allergies,
       nonCriticalAllergies: formData.nonCriticalAllergies,
@@ -162,7 +166,6 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
 
     try {
       await onSave(cleanData);
-      // El cierre del modal suele manejarlo el padre tras el éxito
     } catch (e: any) {
       console.error("Error al guardar paciente (Wizard Catch):", e);
       
@@ -256,12 +259,18 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                             </div>
                         </div>
 
-                        {/* Género */}
+                        {/* Género (CORREGIDO PARA OBLIGAR SELECCIÓN) */}
                         <div className="md:col-span-4">
                             <label className={LABEL_CLASS}>Género <span className="text-red-500">*</span></label>
-                            <select className={INPUT_CLASS} value={formData.gender} onChange={(e) => handleChange('gender', e.target.value)}>
-                                <option value="Masculino">Masculino</option>
-                                <option value="Femenino">Femenino</option>
+                            <select 
+                                className={`${INPUT_CLASS} ${!formData.gender ? 'text-slate-400' : ''} ${errors.gender ? INPUT_ERROR_CLASS : ''}`} 
+                                value={formData.gender} 
+                                onChange={(e) => handleChange('gender', e.target.value)}
+                            >
+                                {/* Esta opción está oculta una vez que abres el menú, pero se ve al inicio si está vacío */}
+                                <option value="" disabled hidden>Seleccione...</option>
+                                <option value="Masculino" className="text-slate-700">Masculino</option>
+                                <option value="Femenino" className="text-slate-700">Femenino</option>
                             </select>
                         </div>
 
