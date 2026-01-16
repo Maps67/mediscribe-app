@@ -3,13 +3,15 @@ import {
   Mic, Pause, Play, RefreshCw, Save, WifiOff, Trash2, 
   Stethoscope, Search, X, Calendar, UserPlus, ChevronUp, 
   ChevronDown, Activity, AlertCircle, ShieldCheck, Check, 
-  Sparkles, Paperclip, User, CornerDownLeft, Download, Loader2 
+  Sparkles, Paperclip, User, CornerDownLeft, Download, Loader2,
+  Lock, Microscope // [NUEVOS ICONOS]
 } from 'lucide-react';
 import { VitalSnapshotCard } from './VitalSnapshotCard';
 import { UploadMedico } from './UploadMedico';
 import { SpecialtyVault } from './SpecialtyVault';
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { Patient, PatientInsight, DoctorProfile } from '../types';
+import { toast } from 'sonner';
 
 interface ConsultationSidebarProps {
   isOnline: boolean;
@@ -25,7 +27,6 @@ interface ConsultationSidebarProps {
   setSelectedPatient: (patient: any) => void;
   filteredPatients: any[];
   handleSelectPatient: (patient: any) => void;
-  // CAMBIO CRÍTICO: Renombrado a handleCreatePatient y ahora devuelve Promesa (Async)
   handleCreatePatient: (name: string) => Promise<void>; 
   vitalSnapshot: PatientInsight | null;
   isMobileSnapshotVisible: boolean;
@@ -60,6 +61,9 @@ interface ConsultationSidebarProps {
   setIsAttachmentsOpen: (isOpen: boolean) => void;
   doctorProfile: DoctorProfile | null;
   onDownloadRecord: () => void;
+  
+  // [NUEVO] Prop para disparar la interconsulta desde el selector
+  onTriggerInterconsultation?: (specialty: string) => void;
 }
 
 export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
@@ -76,7 +80,7 @@ export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
   setSelectedPatient,
   filteredPatients,
   handleSelectPatient,
-  handleCreatePatient, // Prop actualizada
+  handleCreatePatient, 
   vitalSnapshot,
   isMobileSnapshotVisible,
   setIsMobileSnapshotVisible,
@@ -104,22 +108,18 @@ export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
   isAttachmentsOpen,
   setIsAttachmentsOpen,
   doctorProfile,
-  onDownloadRecord
+  onDownloadRecord,
+  onTriggerInterconsultation // Recepción de la nueva prop
 }) => {
   const [isMobileContextExpanded, setIsMobileContextExpanded] = useState(false);
-  
-  // NUEVO ESTADO: Control de carga para creación de paciente
   const [isCreatingPatient, setIsCreatingPatient] = useState(false);
 
-  // NUEVA FUNCIÓN: Wrapper para manejar la creación asíncrona
+  // Wrapper para creación asíncrona
   const onTriggerCreatePatient = async () => {
     if (!searchTerm.trim()) return;
     try {
         setIsCreatingPatient(true);
         await handleCreatePatient(searchTerm);
-        // El padre se encarga de seleccionar el paciente y limpiar el search,
-        // o podemos limpiar aquí si es necesario.
-        // setSearchTerm(''); // Opcional, depende de la UX deseada
     } catch (error) {
         console.error("Error creando paciente desde Sidebar:", error);
     } finally {
@@ -127,8 +127,32 @@ export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
     }
   };
 
+  // --- LÓGICA DE BLINDAJE DEL SELECTOR ---
+  const handleSpecialtyChange = (e: React.ChangeEvent<HTMLSelectElement>) => {
+      const newSpecialty = e.target.value;
+      
+      // 1. Verificamos si intenta cambiar a algo que NO es su perfil real
+      if (doctorProfile && newSpecialty !== doctorProfile.specialty) {
+          
+          // BLOQUEO DE ACCIÓN: No actualizamos selectedSpecialty
+          // El selector visualmente se queda (o regresa) a la especialidad del doctor.
+          // Forzamos el valor por si el evento nativo intentó cambiarlo
+          e.target.value = doctorProfile.specialty; 
+
+          // DESVIACIÓN DE FLUJO: Abrimos Interconsulta
+          if (onTriggerInterconsultation) {
+              toast.info(`Abriendo Interconsulta de ${newSpecialty}...`, { icon: <Microscope size={16}/> });
+              onTriggerInterconsultation(newSpecialty);
+          } else {
+              toast.warning("Modo Interconsulta no configurado en esta vista.");
+          }
+      } else {
+          // Si selecciona su propia especialidad (o no hay perfil cargado), comportamiento normal
+          setSelectedSpecialty(newSpecialty);
+      }
+  };
+
   return (
-    // FIX IPAD: overscroll-contain para evitar arrastre de página en Sidebar también
     <div className={`w-full md:w-1/4 p-4 flex flex-col gap-2 border-r dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden overscroll-contain h-full ${generatedNote ? 'hidden md:flex' : 'flex'}`}>
       
       {/* --- HEADER --- */}
@@ -146,13 +170,36 @@ export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
             </div>
           </div>
 
-          <div className="bg-indigo-50 dark:bg-indigo-900/20 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800">
+          {/* --- SELECTOR BLINDADO --- */}
+          <div className="bg-indigo-50 dark:bg-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-slate-700 relative group">
             <div className="flex justify-between items-center mb-1">
-              <label className="text-xs font-bold text-indigo-600 dark:text-indigo-300 uppercase flex gap-1"><Stethoscope size={14}/> Especialidad</label>
+              <label className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 uppercase flex gap-1 items-center">
+                  <ShieldCheck size={12}/> Perfil Activo
+              </label>
+              {/* Indicador Visual de Identidad Verificada */}
+              <div className="flex items-center gap-1 text-[9px] font-bold text-green-600 bg-green-100 dark:bg-green-900/30 px-2 py-0.5 rounded-full">
+                  <Lock size={8} /> VERIFICADO
+              </div>
             </div>
-            <select value={selectedSpecialty} onChange={(e) => setSelectedSpecialty(e.target.value)} className="w-full bg-transparent border-b border-indigo-200 outline-none py-1 text-sm dark:text-white cursor-pointer">
-              {specialties.map(s => <option key={s} value={s}>{s}</option>)}
-            </select>
+            
+            <div className="relative">
+                <select 
+                    value={selectedSpecialty} 
+                    onChange={handleSpecialtyChange} // <--- INTERCEPTOR ACTIVADO
+                    className="w-full bg-transparent border-b border-indigo-200 dark:border-slate-600 outline-none py-1 pl-6 pr-4 text-sm font-bold text-slate-800 dark:text-white cursor-pointer appearance-none hover:text-indigo-600 transition-colors"
+                >
+                  {specialties.map(s => <option key={s} value={s}>{s}</option>)}
+                </select>
+                
+                {/* Iconos Decorativos */}
+                <Stethoscope size={14} className="absolute left-0 top-1/2 -translate-y-1/2 text-indigo-400 pointer-events-none"/>
+                <ChevronDown size={14} className="absolute right-0 top-1/2 -translate-y-1/2 text-slate-400 pointer-events-none"/>
+            </div>
+
+            {/* Tooltip informativo al pasar el mouse (Eliminación de Ambigüedad) */}
+            <div className="absolute top-full left-0 mt-1 w-full bg-slate-800 text-white text-[10px] p-2 rounded shadow-lg opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none z-20">
+                Seleccionar otra especialidad abrirá el modo <strong>Interconsulta</strong> (Solo lectura).
+            </div>
           </div>
 
           <div className="relative z-10">
@@ -165,7 +212,6 @@ export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
                 onChange={(e) => { setSearchTerm(e.target.value); setSelectedPatient(null); }}
               />
               
-              {/* ZONA DE ACCIONES DE PACIENTE */}
               {selectedPatient && (
                 <div className="flex items-center gap-1 ml-1 pl-1 border-l border-slate-300 dark:border-slate-600 shrink-0">
                     <button 
@@ -212,7 +258,6 @@ export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
       </div>
 
       {/* --- AREA CENTRAL (Scrollable) --- */}
-      {/* FIX IPAD: -webkit-overflow-scrolling: touch (via CSS global) y overscroll-behavior */}
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar overscroll-contain flex flex-col gap-2 pr-1">
           {/* Vital Snapshot */}
           <div className="w-full transition-all duration-300 ease-in-out shrink-0">
@@ -242,7 +287,7 @@ export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
             )}
           </div>
 
-          {/* Tarjeta Amarilla (Antecedentes) - VERSIÓN LIMPIA */}
+          {/* Tarjeta Amarilla (Antecedentes) */}
           {activeMedicalContext && !generatedNote && (
             <div className="relative z-30 group shrink-0" onClick={() => setIsMobileContextExpanded(!isMobileContextExpanded)}>
               <div className={`bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800 text-xs shadow-sm cursor-help transition-opacity duration-200 ${isMobileContextExpanded ? 'opacity-0' : 'opacity-100 md:group-hover:opacity-0'}`}>
@@ -268,7 +313,6 @@ export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
                       <span className="font-semibold block text-[10px] uppercase text-amber-600 mb-1">
                           Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
                       </span>
-                      {/* Aquí volvemos a usar el dato directo, ya que la BD fue corregida */}
                       <p className="italic opacity-80 pl-1 border-l-2 border-amber-300 dark:border-amber-700 line-clamp-2 text-[10px]">
                           {activeMedicalContext.lastConsultation.summary}
                       </p>
@@ -312,6 +356,34 @@ export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
                                     <p className="italic opacity-80 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed line-clamp-6 font-light">
                                         {activeMedicalContext.lastConsultation.summary}
                                     </p>
+                                    {activeMedicalContext.lastConsultation.summary.length > 300 && (
+                                        <span className="text-[9px] text-indigo-500 mt-1 block font-bold text-right cursor-pointer">
+                                            Ver detalle completo en Historial...
+                                        </span>
+                                    )}
+                              </div>
+                          </div>
+                      )}
+                      {activeMedicalContext.insurance && (
+                          <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800/50">
+                              <span className="font-bold block text-[10px] uppercase text-emerald-600 mb-1 flex items-center gap-1">
+                                  <ShieldCheck size={12} /> Último Trámite de Seguro Registrado
+                              </span>
+                              <div className="p-2 bg-emerald-50 dark:bg-emerald-900/10 rounded border border-emerald-200 dark:border-emerald-800">
+                                  <div className="grid grid-cols-2 gap-2 text-slate-700 dark:text-slate-300">
+                                      <div>
+                                          <span className="block font-bold text-emerald-700 dark:text-emerald-400">Aseguradora</span>
+                                          {activeMedicalContext.insurance.provider}
+                                      </div>
+                                      <div>
+                                          <span className="block font-bold text-emerald-700 dark:text-emerald-400">Póliza</span>
+                                          {activeMedicalContext.insurance.policyNumber || "No registrada"}
+                                      </div>
+                                      <div className="col-span-2">
+                                          <span className="block font-bold text-emerald-700 dark:text-emerald-400">Fecha Siniestro</span>
+                                          {activeMedicalContext.insurance.accidentDate}
+                                      </div>
+                                  </div>
                               </div>
                           </div>
                       )}

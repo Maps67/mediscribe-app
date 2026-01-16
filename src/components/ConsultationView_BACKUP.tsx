@@ -1,22 +1,23 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { useLocation } from 'react-router-dom';
 import { 
-  Mic, Square, RefreshCw, FileText, Search, X, 
-  MessageSquare, User, Send, Edit2, Check, ArrowLeft, 
-  Stethoscope, Trash2, WifiOff, Save, Share2, Download, Printer,
-  Paperclip, Calendar, Clock, UserCircle, Activity, ClipboardList, Brain, FileSignature, Keyboard,
-  Quote, AlertTriangle, ChevronDown, ChevronUp, Sparkles, PenLine, UserPlus, ShieldCheck, AlertCircle,
-  Pause, Play, Pill, Plus, Zap, CornerDownLeft, Building2, Lock
+  FileText, Search, X, MessageSquare, User, Send, Edit2, 
+  ArrowLeft, WifiOff, Save, Share2, Download, Paperclip, 
+  Clock, UserCircle, Brain, FileSignature, Keyboard, Quote, 
+  ChevronDown, ChevronUp, Sparkles, PenLine, UserPlus, 
+  ShieldCheck, AlertCircle, RefreshCw, Pill, Plus, Building2,
+  Activity, ClipboardList, Scissors // [NUEVO] Icono para Cirugía
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
-import { ChatMessage, GeminiResponse, Patient, DoctorProfile, PatientInsight, MedicationItem } from '../types';
+import { ChatMessage, GeminiResponse, Patient, DoctorProfile, PatientInsight, MedicationItem, ClinicalInsight } from '../types';
 import { supabase } from '../lib/supabase';
 import FormattedText from './FormattedText';
 import { toast } from 'sonner';
 import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
+import MedicalRecordPDF from './MedicalRecordPDF'; 
 import { AppointmentService } from '../services/AppointmentService';
 import QuickRxModal from './QuickRxModal';
 import { DoctorFileGallery } from './DoctorFileGallery';
@@ -25,7 +26,14 @@ import { InsightsPanel } from './InsightsPanel';
 import { RiskBadge } from './RiskBadge';
 import InsurancePanel from './Insurance/InsurancePanel';
 import { VitalSnapshotCard } from './VitalSnapshotCard';
-import { SpecialtyVault } from './SpecialtyVault'; // <--- IMPORTACIÓN NUEVA
+import { SpecialtyVault } from './SpecialtyVault';
+import { ConsultationSidebar } from './ConsultationSidebar';
+import { ContextualInsights } from './ContextualInsights'; 
+// CORRECCIÓN DE RUTA: Al estar en la misma carpeta components
+import { PatientBriefing } from './Consultation/PatientBriefing'; 
+// [NUEVO] Importación del Generador Quirúrgico y PDF
+import SurgicalLeaveGenerator, { GeneratedLeaveData } from './SurgicalLeaveGenerator';
+import SurgicalLeavePDF from './SurgicalLeavePDF';
 
 type TabType = 'record' | 'patient' | 'chat' | 'insurance';
 
@@ -34,9 +42,16 @@ interface EnhancedGeminiResponse extends GeminiResponse {
 }
 
 interface TranscriptSegment {
-    role: 'doctor' | 'patient';
-    text: string;
-    timestamp: number;
+   role: 'doctor' | 'patient';
+   text: string;
+   timestamp: number;
+}
+
+// Estructura para el Snapshot de Seguridad
+interface SessionSnapshot {
+   inputSignature: string;
+   data: EnhancedGeminiResponse;
+   timestamp: number;
 }
 
 const SPECIALTIES = [
@@ -70,19 +85,26 @@ const SPECIALTIES = [
   "Urgencias Médicas"
 ];
 
-// --- FIX CRÍTICO: Función extraída fuera del componente para evitar re-renderizados infinitos ---
+// --- Feature: Folio Controlado (Lista Blanca de Especialidades) ---
+const SPECIALTIES_WITH_CONTROLLED_RX = [
+    'Psiquiatría',
+    'Neurología',
+    'Medicina Interna',
+    'Anestesiología',
+    'Algología',
+    'Cuidados Paliativos',
+    'Oncología Médica',
+    'Cirugía Oncológica'
+];
+
 const cleanHistoryString = (input: any): string => {
       if (!input) return "";
-      
-      // Caso 1: Si Supabase ya nos dio un Objeto (JSONB), lo leemos directo
       if (typeof input === 'object') {
           if (input.clinicalNote && typeof input.clinicalNote === 'string') return input.clinicalNote;
           if (input.legacyNote) return input.legacyNote;
           if (input.resumen_clinico) return input.resumen_clinico;
-          return JSON.stringify(input); // Fallback de seguridad
+          return JSON.stringify(input); 
       }
-
-      // Caso 2: Si es texto, intentamos parsear
       if (typeof input === 'string') {
           const trimmed = input.trim();
           if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
@@ -92,12 +114,11 @@ const cleanHistoryString = (input: any): string => {
                   if (parsed.legacyNote) return parsed.legacyNote;
                   if (parsed.resumen_clinico) return parsed.resumen_clinico;
               } catch (e) {
-                  return input; // Si falla el parseo, devolvemos el texto original
+                  return input; 
               }
           }
           return input;
       }
-      
       return String(input);
 };
 
@@ -129,10 +150,9 @@ const ConsultationView: React.FC = () => {
       insurance?: { provider: string; policyNumber: string; accidentDate: string };
   } | null>(null);
 
-  // --- ESTADOS VITAL SNAPSHOT ---
   const [vitalSnapshot, setVitalSnapshot] = useState<PatientInsight | null>(null);
   const [loadingSnapshot, setLoadingSnapshot] = useState(false);
-  const [isMobileSnapshotVisible, setIsMobileSnapshotVisible] = useState(true); // Estado para UX Móvil
+  const [isMobileSnapshotVisible, setIsMobileSnapshotVisible] = useState(true);
 
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -140,6 +160,9 @@ const ConsultationView: React.FC = () => {
   
   const [generatedNote, setGeneratedNote] = useState<EnhancedGeminiResponse | null>(null);
   
+  // --- NUEVO ESTADO: SNAPSHOT DE SESIÓN (Inmutabilidad) ---
+  const [sessionSnapshot, setSessionSnapshot] = useState<SessionSnapshot | null>(null);
+
   const [consentGiven, setConsentGiven] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('record');
   
@@ -148,6 +171,9 @@ const ConsultationView: React.FC = () => {
   const [editableInstructions, setEditableInstructions] = useState('');
   const [editablePrescriptions, setEditablePrescriptions] = useState<MedicationItem[]>([]);
   const [isEditingInstructions, setIsEditingInstructions] = useState(false);
+
+  // --- Feature: Folio Controlado (Estado Local) ---
+  const [specialFolio, setSpecialFolio] = useState('');
   
   const [insuranceData, setInsuranceData] = useState<{provider: string, policyNumber: string, accidentDate: string} | null>(null);
 
@@ -174,7 +200,17 @@ const ConsultationView: React.FC = () => {
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [activeSpeaker, setActiveSpeaker] = useState<'doctor' | 'patient'>('doctor');
 
-  const [isMobileContextExpanded, setIsMobileContextExpanded] = useState(false);
+  // --- NUEVOS ESTADOS: BRIEFING & MANUAL CONTEXT ---
+  const [clinicalInsights, setClinicalInsights] = useState<ClinicalInsight[]>([]);
+  const [loadingClinicalInsights, setLoadingClinicalInsights] = useState(false);
+  
+  // Estado para controlar el modal de "Pase de Visita"
+  const [showBriefing, setShowBriefing] = useState(false);
+  // Estado para guardar el "Contexto Inicial" escrito por el médico
+  const [manualContext, setManualContext] = useState<string>("");
+
+  // [NUEVO] Estado para el Modal de Incapacidad Quirúrgica
+  const [isSurgicalModalOpen, setIsSurgicalModalOpen] = useState(false);
 
   const startTimeRef = useRef<number>(Date.now());
 
@@ -182,6 +218,10 @@ const ConsultationView: React.FC = () => {
   const transcriptEndRef = useRef<HTMLDivElement>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+
+  // --- MODIFICACIÓN 1: Memoria de referencia para el "Copiloto Silencioso" ---
+  // Esto evita que busquemos lo mismo dos veces si el médico no ha cambiado nada importante.
+  const lastAnalyzedRef = useRef<string>("");
 
   useEffect(() => {
     const handleOnline = () => { 
@@ -202,6 +242,58 @@ const ConsultationView: React.FC = () => {
         window.removeEventListener('offline', handleOffline); 
     };
   }, []);
+
+  // --- MODIFICACIÓN 2: Efecto de Sincronización con "Pausa Inteligente" (Debounce) ---
+  useEffect(() => {
+    // 1. Si no hay nota, limpiamos sugerencias y salimos.
+    if (!generatedNote || (!generatedNote.soapData && !generatedNote.clinicalNote)) {
+        setClinicalInsights([]);
+        return;
+    }
+
+    // 2. Construimos el contenido actual que el sistema debe "leer".
+    const currentContent = generatedNote.soapData 
+        ? `${generatedNote.soapData.subjective} \n ${generatedNote.soapData.analysis} \n ${generatedNote.soapData.plan}`
+        : generatedNote.clinicalNote || "";
+
+    // 3. Verificamos si realmente cambió algo significativo respecto a la última vez que "miramos".
+    // Esto ahorra recursos y evita parpadeos.
+    if (currentContent.trim() === lastAnalyzedRef.current.trim()) {
+        return;
+    }
+
+    // 4. CONFIGURACIÓN DE LA PAUSA INTELIGENTE (3 Segundos)
+    const debounceTimer = setTimeout(() => {
+        // Solo buscamos sugerencias si hay suficiente texto (evitar búsquedas por una sola letra)
+        if (currentContent.length > 20) {
+            setLoadingClinicalInsights(true);
+            lastAnalyzedRef.current = currentContent; // Actualizamos la memoria: "Ya leí esto"
+
+            // 5. Llamada asíncrona al servicio (Lectura externa)
+            GeminiMedicalService.generateClinicalInsights(currentContent, selectedSpecialty)
+                .then(insights => {
+                    // Solo actualizamos si obtuvimos algo útil
+                    if (insights && insights.length > 0) {
+                        setClinicalInsights(insights);
+                        // Feedback sutil (opcional, para que sepa que se actualizó)
+                        // toast.success("Sugerencias actualizadas", { icon: <Sparkles size={16}/> });
+                    }
+                })
+                .catch(err => {
+                    console.warn("Silent Insight Error:", err);
+                    // No mostramos error al usuario para no interrumpir su flujo (Silent Fail)
+                })
+                .finally(() => {
+                    setLoadingClinicalInsights(false);
+                });
+        }
+    }, 3000); // <--- TIEMPO DE ESPERA: 3000ms (3 segundos)
+
+    // 6. Limpieza: Si el médico escribe antes de los 3 segundos, cancelamos el timer anterior.
+    // Esto es lo que logra el efecto "Espera a que termine de escribir".
+    return () => clearTimeout(debounceTimer);
+
+  }, [generatedNote, selectedSpecialty]); // Se ejecuta cada vez que generatedNote cambia (escribe)
 
   useEffect(() => {
     let mounted = true;
@@ -263,13 +355,14 @@ const ConsultationView: React.FC = () => {
                           isTemporary: true, 
                           appointmentId: incoming.appointmentId || incoming.id.replace('ghost_', '')
                       };
-                      setSelectedPatient(tempPatient);
+                      // Se invoca la selección manual para activar el Briefing
+                      handleSelectPatient(tempPatient);
                       if(incoming.appointmentId) setLinkedAppointmentId(incoming.appointmentId);
                       toast.info(`Iniciando consulta para: ${incoming.name}`);
                 } else {
                       const realPatient = loadedPatients.find(p => p.id === incoming.id);
-                      if (realPatient) setSelectedPatient(realPatient);
-                      else setSelectedPatient(incoming); 
+                      if (realPatient) handleSelectPatient(realPatient);
+                      else handleSelectPatient(incoming); 
                       
                       toast.success(`Paciente cargado: ${incoming.name}`);
                 }
@@ -285,16 +378,12 @@ const ConsultationView: React.FC = () => {
                 const existingPatient = loadedPatients.find((p: any) => p.name.toLowerCase() === incomingName.toLowerCase());
 
                 if (existingPatient) {
-                    setSelectedPatient(existingPatient);
+                    handleSelectPatient(existingPatient);
                     toast.success(`Paciente cargado: ${incomingName}`);
                 } else {
-                    const tempPatient: any = { 
-                        id: 'temp_' + Date.now(), 
-                        name: incomingName, 
-                        isTemporary: true 
-                    };
-                    setSelectedPatient(tempPatient);
-                    toast.info(`Consulta libre para: ${incomingName}`);
+                    // Si viene por nombre pero no existe, usamos la nueva lógica
+                    handleCreatePatient(incomingName);
+                    toast.info(`Registrando nuevo paciente: ${incomingName}`);
                 }
                 window.history.replaceState({}, document.title);
             } else {
@@ -336,7 +425,6 @@ const ConsultationView: React.FC = () => {
                 let lastInsuranceData = undefined;
 
                 if (!patientError && patientData) {
-                    // FIX: Damos prioridad a 'history' si existe, ya que ahí guardamos el Excel
                     const rawHistory = patientData.history || patientData.pathological_history;
                     cleanHistory = cleanHistoryString(rawHistory);
                     
@@ -371,7 +459,6 @@ const ConsultationView: React.FC = () => {
 
             } catch (e) {
                 console.log("Error leyendo contexto médico:", e);
-                // Fallback de seguridad
                 setActiveMedicalContext({
                     history: "No disponible (Error de carga)",
                     allergies: "No disponibles",
@@ -383,25 +470,19 @@ const ConsultationView: React.FC = () => {
     fetchMedicalContext();
   }, [selectedPatient]);
 
-  // --- EFECTO PARA VITAL SNAPSHOT (ACTUALIZADO: FAIL-SAFE) ---
   useEffect(() => {
-    // Solo disparamos si tenemos paciente y NO es temporal
     if (selectedPatient && !(selectedPatient as any).isTemporary) {
-        
-        // Si el contexto aún es null, mostramos loading y esperamos
         if (!activeMedicalContext) {
             setLoadingSnapshot(true);
             return; 
         }
 
         setLoadingSnapshot(true);
-        setIsMobileSnapshotVisible(true); // Auto-expandir al cargar
+        setIsMobileSnapshotVisible(true); 
         
-        // 1. Obtener Historial Estático
         const rawHistory = selectedPatient.history || '';
         const historyStr = typeof rawHistory === 'string' ? rawHistory : JSON.stringify(rawHistory);
         
-        // 2. Obtener Resumen Dinámico de Última Consulta
         let lastConsultationContext = "";
         if (activeMedicalContext.lastConsultation) {
             lastConsultationContext = `
@@ -412,7 +493,6 @@ const ConsultationView: React.FC = () => {
             lastConsultationContext = "\n(Sin consultas previas registradas)";
         }
 
-        // 3. Fusionar para la IA
         const fullContextForSnapshot = `
             ANTECEDENTES GENERALES:
             ${historyStr}
@@ -420,7 +500,6 @@ const ConsultationView: React.FC = () => {
             ${lastConsultationContext}
         `;
 
-        // 4. Llamada al Servicio (ACTUALIZADO: PASAMOS ESPECIALIDAD CON FAIL-SAFE)
         GeminiMedicalService.generateVitalSnapshot(fullContextForSnapshot, selectedSpecialty)
             .then(data => {
                 if (data) {
@@ -431,7 +510,6 @@ const ConsultationView: React.FC = () => {
             })
             .catch(err => {
                 console.error("Error generando Vital Snapshot:", err);
-                // FAIL-SAFE: No ocultamos la tarjeta, mostramos estado de error visual
                 setVitalSnapshot({
                     evolution: "⚠️ No se pudo generar el análisis.",
                     medication_audit: "Error de conexión con el motor de IA.",
@@ -442,7 +520,6 @@ const ConsultationView: React.FC = () => {
             .finally(() => setLoadingSnapshot(false));
             
     } else {
-        // Si no hay paciente o es temporal
         setVitalSnapshot(null);
         setLoadingSnapshot(false);
     }
@@ -451,6 +528,9 @@ const ConsultationView: React.FC = () => {
   useEffect(() => {
     if (selectedPatient) {
         setPatientInsights(null);
+        // Feature: Resetear Folio al cambiar paciente
+        setSpecialFolio(''); 
+        
         const isTemp = (selectedPatient as any).isTemporary;
 
         if (!isTemp && transcript && confirm("¿Desea limpiar el dictado anterior para el nuevo paciente?")) {
@@ -458,6 +538,7 @@ const ConsultationView: React.FC = () => {
             setSegments([]);
             if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`);
             setGeneratedNote(null);
+            setSessionSnapshot(null); // Reset Snapshot al cambiar paciente
             setIsRiskExpanded(false);
             startTimeRef.current = Date.now(); 
         } else if (!transcript) {
@@ -504,6 +585,10 @@ const ConsultationView: React.FC = () => {
   };
 
   const handleSelectPatient = async (patient: any) => {
+      // 1. Resetear el contexto manual previo y el Snapshot
+      setManualContext("");
+      setSessionSnapshot(null); // Seguridad: Nuevo paciente = Nueva sesión
+      
       if (patient.isGhost) {
           const tempPatient = {
               ...patient,
@@ -518,7 +603,7 @@ const ConsultationView: React.FC = () => {
       else {
           setSelectedPatient(patient);
           setSearchTerm(''); 
-          setIsMobileSnapshotVisible(true); // Forzar visibilidad al seleccionar
+          setIsMobileSnapshotVisible(true); 
 
           try {
               const loadingHistory = toast.loading("Sincronizando historial...");
@@ -540,18 +625,82 @@ const ConsultationView: React.FC = () => {
               console.error("Error en hidratación:", e);
           }
       }
+      // 2. ACTIVAR EL BRIEFING AUTOMÁTICAMENTE
+      setShowBriefing(true);
   };
 
-  const handleCreateTemporary = (name: string) => {
-      const tempPatient: any = { 
-          id: 'temp_' + Date.now(), 
-          name: name,
-          isTemporary: true 
-      };
-      setSelectedPatient(tempPatient);
-      setSearchTerm('');
-      startTimeRef.current = Date.now(); 
-      toast.info(`Nuevo paciente temporal: ${name}`);
+  // --- NUEVA LÓGICA DE REGISTRO AUTOMÁTICO (JUST-IN-TIME) ---
+  const handleCreatePatient = async (name: string) => {
+    if (!currentUserId) return;
+    
+    // Inserción Inmediata en DB (Persistencia Automática)
+    const { data: newPatient, error } = await supabase.from('patients').insert({
+        name: name,
+        doctor_id: currentUserId,
+        history: JSON.stringify({ created_via: 'dashboard_quick_consult_v7.9' })
+    }).select().single();
+
+    if (error || !newPatient) {
+        toast.error("Error registrando paciente. Intente nuevamente.");
+        return;
+    }
+
+    // Actualizar lista local de pacientes
+    setPatients(prev => [newPatient, ...prev]);
+    
+    // Seleccionar el paciente REAL (ya tiene ID)
+    setSelectedPatient(newPatient);
+    setSearchTerm('');
+    
+    // Resetear estados de sesión
+    setManualContext(""); 
+    setSessionSnapshot(null);
+    startTimeRef.current = Date.now(); 
+    
+    toast.success(`Paciente registrado: ${name}`);
+    
+    // Activar Briefing Inmediatamente
+    setShowBriefing(true);
+  };
+
+  // --- CALLBACK CUANDO EL MÉDICO CIERRA EL BRIEFING (LÓGICA HÍBRIDA CORREGIDA) ---
+  const handleBriefingComplete = (context: string) => {
+      setManualContext(context); // 1. Guardamos en memoria para la IA (Esto aplica a AMBOS casos)
+      setShowBriefing(false);    // 2. Cerramos el modal
+      
+      // Detectamos si es paciente nuevo/temporal O si el snapshot actual está vacío/genérico
+      const isNewOrEmpty = (selectedPatient as any).isTemporary || 
+                           !selectedPatient?.history || 
+                           selectedPatient?.history.length < 20 || // Umbral bajo para considerar "vacío"
+                           (vitalSnapshot?.evolution && vitalSnapshot.evolution.includes("Sin datos previos"));
+
+      // CASO A: PACIENTE NUEVO / VACÍO -> INYECCIÓN VISUAL
+      // Solo aquí sobrescribimos la tarjeta visual para que no se vea vacía.
+      if (isNewOrEmpty && context.trim().length > 0) {
+          // 1. Actualizamos Sidebar Amarillo
+          setActiveMedicalContext(prev => ({
+              history: context, // Aquí sí mostramos lo que acabas de escribir como "Antecedente"
+              allergies: prev?.allergies || "No registradas",
+              lastConsultation: prev?.lastConsultation,
+              insurance: prev?.insurance
+          }));
+
+          // 2. Actualizamos Vital Snapshot (Tarjeta Grande)
+          setVitalSnapshot({
+              evolution: `📝 CONTEXTO INICIAL (MÉDICO):\n"${context}"`,
+              risk_flags: ["Paciente Nuevo - Valoración Inicial"],
+              pending_actions: ["Realizar historia clínica completa"],
+              medication_audit: "Pendiente de registro en nota"
+          });
+          
+          toast.success("Contexto inicial cargado en panel visual.");
+      } 
+      
+      // CASO B: PACIENTE CON HISTORIA -> SOLO CONFIRMACIÓN
+      // No tocamos la tarjeta amarilla para no ocultar sus enfermedades crónicas.
+      else if (context.trim().length > 0) {
+          toast.success("Contexto agregado a la memoria de la IA (Historial visual preservado).");
+      }
   };
 
   const handleToggleRecording = () => {
@@ -584,12 +733,22 @@ const ConsultationView: React.FC = () => {
   };
 
   const handleClearTranscript = () => {
-      if(confirm("¿Borrar borrador permanentemente?")) { 
+      if(confirm("¿Desea restablecer todo? Esto eliminará la nota actual y permitirá generar una nueva valoración.")) { 
           resetTranscript(); 
           setSegments([]);
           if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`); 
           setGeneratedNote(null); 
+          
+          // 🛑 SNAPSHOT RESET: Romper el cristal
+          setSessionSnapshot(null); 
+          setEditableInstructions('');
+          setEditablePrescriptions([]);
+          
+          // Reset Folio
+          setSpecialFolio('');
+
           setIsRiskExpanded(false); 
+          toast.info("Sesión reiniciada. Puede generar una nueva valoración.");
       }
   };
 
@@ -666,6 +825,27 @@ const ConsultationView: React.FC = () => {
     const loadingToast = toast.loading("⚡ Motor Prometheus V10: Analizando audio...");
 
     try {
+      // 🔒 PROTOCOLO DE SNAPSHOT (OPTION B)
+      // Antes de llamar a la IA, verificamos si ya existe una valoración válida para este input.
+      const inputSignature = fullTranscript + (manualContext || ""); // Firma Digital del Input
+      
+      if (sessionSnapshot && sessionSnapshot.inputSignature === inputSignature) {
+          // HIT: El médico intentó regenerar lo mismo. Restauramos el snapshot.
+          toast.dismiss(loadingToast);
+          toast.info("♻️ Recuperando valoración validada (Snapshot de Seguridad).");
+          
+          setGeneratedNote(sessionSnapshot.data);
+          setEditableInstructions(sessionSnapshot.data.patientInstructions || '');
+          setEditablePrescriptions(sessionSnapshot.data.prescriptions || []);
+          
+          if (sessionSnapshot.data.risk_analysis?.level === 'Alto') setIsRiskExpanded(true);
+          else setIsRiskExpanded(false);
+          
+          setActiveTab('record');
+          setIsProcessing(false);
+          return; // 🛑 DETENCIÓN DE TRÁFICO
+      }
+
       let fullMedicalContext = "";
       
       let activeContextString = "";
@@ -682,6 +862,16 @@ const ConsultationView: React.FC = () => {
               ${activeMedicalContext.lastConsultation.summary}
               `;
           }
+      }
+
+      // --- INYECCIÓN DE CONTEXTO MANUAL ---
+      // Si el médico escribió algo en el Briefing, lo agregamos aquí
+      if (manualContext && manualContext.trim().length > 0) {
+          activeContextString += `
+            \n>>> CONTEXTO ACTUAL DEFINIDO POR EL MÉDICO (PRIORIDAD ALTA):
+            El médico indica explícitamente al inicio de la sesión: "${manualContext}".
+            Usa esta información para orientar el subjetivo y el análisis.
+          `;
       }
 
       if (selectedPatient && !(selectedPatient as any).isTemporary) {
@@ -707,10 +897,12 @@ const ConsultationView: React.FC = () => {
           fullMedicalContext = activeContextString;
       }
 
+      // MODIFICACIÓN: Pasamos manualContext como argumento separado (preparando para el cambio en Service)
       const response = await GeminiMedicalService.generateClinicalNote(
           fullTranscript, 
           selectedSpecialty, 
-          fullMedicalContext 
+          fullMedicalContext,
+          manualContext // <--- NUEVO ARGUMENTO
       ) as EnhancedGeminiResponse;
       
       if (!response || (!response.soapData && !response.clinicalNote)) {
@@ -721,6 +913,13 @@ const ConsultationView: React.FC = () => {
       
       setEditableInstructions(response.patientInstructions || '');
       setEditablePrescriptions(response.prescriptions || []);
+      
+      // 💾 GUARDADO DEL SNAPSHOT
+      setSessionSnapshot({
+          inputSignature: inputSignature,
+          data: response,
+          timestamp: Date.now()
+      });
       
       if (response.risk_analysis?.level === 'Alto') {
           setIsRiskExpanded(true);
@@ -751,6 +950,44 @@ const ConsultationView: React.FC = () => {
     } finally { 
         setIsProcessing(false); 
     }
+  };
+
+  // --- [ACTUALIZADO] MANEJADOR DE DATOS QUIRÚRGICOS (VERSIÓN PDF SEPARADO) ---
+  const handleSurgicalData = async (data: GeneratedLeaveData) => {
+      // Validaciones de seguridad
+      if (!doctorProfile || !selectedPatient) {
+        toast.error("Faltan datos del médico o paciente para generar la constancia.");
+        return;
+      }
+
+      const loadingToast = toast.loading("Generando Constancia de Incapacidad...");
+
+      try {
+        // 1. Generar el Blob del PDF
+        const blob = await pdf(
+          <SurgicalLeavePDF 
+            doctor={doctorProfile}
+            patientName={selectedPatient.name}
+            data={data}
+            date={new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
+          />
+        ).toBlob();
+
+        // 2. Crear URL y abrir/descargar
+        const url = URL.createObjectURL(blob);
+        
+        // Opción A: Abrir en nueva pestaña (Mejor para móviles/tablets)
+        window.open(url, '_blank');
+        
+        toast.success("Constancia generada exitosamente.", { icon: <Scissors size={18}/> });
+        setIsSurgicalModalOpen(false);
+
+      } catch (error) {
+        console.error("Error PDF Incapacidad:", error);
+        toast.error("Error al generar el documento PDF.");
+      } finally {
+        toast.dismiss(loadingToast);
+      }
   };
 
   const handleRemoveMedication = (index: number) => {
@@ -801,6 +1038,7 @@ const ConsultationView: React.FC = () => {
                 address={doctorProfile.address || ""}
                 logoUrl={doctorProfile.logo_url} 
                 signatureUrl={doctorProfile.signature_url} 
+                qrCodeUrl={doctorProfile.qr_code_url} // <--- AQUI ESTA LA CORRECCION
                 patientName={selectedPatient.name}
                 patientAge={ageDisplay} 
                 date={new Date().toLocaleDateString('es-MX', { year: 'numeric', month: 'long', day: 'numeric' })}
@@ -808,6 +1046,8 @@ const ConsultationView: React.FC = () => {
                 instructions={editableInstructions}
                 riskAnalysis={generatedNote?.risk_analysis}
                 content={editablePrescriptions.length > 0 ? undefined : legacyContent}
+                // Feature: Pasamos el folio al PDF
+                specialFolio={specialFolio}
             />
         ).toBlob();
       } catch (error) {
@@ -824,6 +1064,58 @@ const ConsultationView: React.FC = () => {
       if(blob) {
           window.open(URL.createObjectURL(blob), '_blank');
       }
+  };
+
+  // --- NUEVA FUNCIÓN: Descarga de Expediente Completo (NOM-004) ---
+  const handleDownloadFullRecord = async () => {
+    // 1. Blindaje contra error de perfil nulo
+    if (!selectedPatient || !doctorProfile) {
+      if (!doctorProfile) toast.error("Error crítico: Perfil médico no cargado. Recargue la página.");
+      else toast.error("Seleccione un paciente primero.");
+      return;
+    }
+
+    const loadingToast = toast.loading("Recopilando historial completo (NOM-004)...");
+
+    try {
+      // 2. Fetch de TODAS las consultas (Acumulación histórica)
+      const { data: fullHistory, error } = await supabase
+        .from('consultations')
+        .select('*')
+        .eq('patient_id', selectedPatient.id)
+        .order('created_at', { ascending: false }); // Del más reciente al más antiguo para orden de lectura
+
+      if (error) throw error;
+
+      // 3. Generación del Blob PDF usando el nuevo componente legal
+      const blob = await pdf(
+        <MedicalRecordPDF 
+          doctor={doctorProfile}
+          patient={selectedPatient}
+          history={fullHistory || []}
+          generatedAt={new Date().toLocaleString()}
+        />
+      ).toBlob();
+
+      // 4. Descarga segura (Evita bloqueo de pop-ups)
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      // Formato de nombre de archivo estandarizado
+      link.download = `EXPEDIENTE_${selectedPatient.name.toUpperCase().replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      URL.revokeObjectURL(url); // Limpieza de memoria
+
+      toast.success("Expediente descargado correctamente.");
+
+    } catch (e: any) {
+      console.error("Error exportando expediente:", e);
+      toast.error("Error al generar expediente: " + e.message);
+    } finally {
+      toast.dismiss(loadingToast);
+    }
   };
   
   const handleShareWhatsApp = async () => { 
@@ -854,17 +1146,8 @@ const ConsultationView: React.FC = () => {
         
         let finalPatientId = selectedPatient.id;
 
-        if ((selectedPatient as any).isTemporary) {
-            const { data: newPatient, error: createError } = await supabase.from('patients').insert({
-                name: selectedPatient.name,
-                doctor_id: user.id,
-                history: JSON.stringify({ created_via: 'dashboard_quick_consult' })
-            }).select().single();
-            
-            if (createError) throw createError;
-            finalPatientId = newPatient.id;
-            toast.success("Paciente registrado automáticamente.");
-        }
+        // YA NO ES NECESARIO CREAR PACIENTE AQUÍ
+        // El paciente ya fue creado en handleCreatePatient (Registro Just-in-Time)
 
         const medsSummary = editablePrescriptions.length > 0 
             ? "\n\nMEDICAMENTOS:\n" + editablePrescriptions.map(m => `- ${m.drug} ${m.dose} (${m.frequency})`).join('\n')
@@ -877,7 +1160,7 @@ const ConsultationView: React.FC = () => {
         if (linkedAppointmentId) {
               await supabase.from('appointments')
                 .update({ 
-                    status: 'completed',
+                    status: 'completed', 
                     patient_id: finalPatientId 
                 })
                 .eq('id', linkedAppointmentId);
@@ -915,6 +1198,10 @@ const ConsultationView: React.FC = () => {
         setSegments([]);
         if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`); 
         setGeneratedNote(null); 
+        
+        // Limpieza de Snapshot tras guardar
+        setSessionSnapshot(null); 
+        
         setEditableInstructions(''); 
         setEditablePrescriptions([]); 
         setInsuranceData(null); 
@@ -923,6 +1210,11 @@ const ConsultationView: React.FC = () => {
         setIsRiskExpanded(false);
         setPatientInsights(null);
         setLinkedAppointmentId(null);
+        setManualContext(""); // Reset contexto
+        
+        // Reset Folio
+        setSpecialFolio('');
+        
         startTimeRef.current = Date.now(); 
 
     } catch (e:any) { 
@@ -992,7 +1284,7 @@ const ConsultationView: React.FC = () => {
           "Recomiendo ajustar la dosis de **Metformina**.
           
           Consideraciones:
-          - Vigilar función renal.
+          - Vigilarlos función renal.
           - Riesgo de acidosis láctica."
           `;
           
@@ -1022,638 +1314,516 @@ const ConsultationView: React.FC = () => {
 
   const isReadyToGenerate = isOnline && !isListening && !isPaused && !isProcessing && (transcript || segments.length > 0) && !generatedNote;
 
-  return (
-    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-slate-100 dark:bg-slate-950 relative font-sans">
-      
-      <div className={`w-full md:w-1/4 p-4 flex flex-col gap-2 border-r dark:border-slate-800 bg-white dark:bg-slate-900 overflow-hidden ${generatedNote ? 'hidden md:flex' : 'flex'}`}>
-        <div className="flex justify-between items-center">
-            <h2 className="text-xl font-bold dark:text-white flex items-center gap-2">
-                Consulta IA
-                <button onClick={() => setIsAttachmentsOpen(true)} className="p-2 ml-1 bg-slate-100 hover:bg-slate-200 dark:bg-slate-800 dark:hover:bg-slate-700 rounded-full text-slate-500 dark:text-slate-300 transition-colors" title="Ver archivos adjuntos"><Paperclip size={18} /></button>
-            </h2>
-            <div className="flex gap-2">
-                {!isOnline && <span className="text-xs bg-red-100 text-red-600 px-2 py-1 rounded font-bold flex items-center gap-1 animate-pulse"><WifiOff size={12}/> Offline</span>}
-                {(transcript || segments.length > 0) && <button onClick={handleClearTranscript} className="text-slate-400 hover:text-red-500"><Trash2 size={18}/></button>}
-            </div>
-        </div>
-
-        {/* 🛑 ZONA BLINDADA: LOGICA ADAPTATIVA AUTOMÁTICA 🛑 
-            Se reemplazó el selector manual por la insignia de seguridad sincronizada.
-        */}
-        <div className="bg-gradient-to-r from-indigo-50 to-slate-50 dark:from-indigo-900/20 dark:to-slate-800 p-3 rounded-lg border border-indigo-100 dark:border-indigo-800 shrink-0">
-            <div className="flex justify-between items-center mb-1">
-                <label className="text-[10px] font-bold text-slate-400 uppercase flex gap-1 items-center">
-                    <ShieldCheck size={12}/> Perfil Activo
-                </label>
-                <div className="flex items-center gap-1 text-[10px] text-green-600 bg-green-50 px-2 py-0.5 rounded-full border border-green-100">
-                    <Lock size={10} /> Sincronizado
-                </div>
-            </div>
-            <div className="flex items-center gap-2 text-indigo-700 dark:text-indigo-300 font-bold text-sm">
-                <Stethoscope size={16} className="shrink-0"/>
-                <span className="truncate">{selectedSpecialty || "Cargando perfil..."}</span>
-            </div>
-        </div>
-
-        <div className="relative z-10">
-            <div className="flex items-center border rounded-lg px-3 py-2 bg-slate-50 dark:bg-slate-800 dark:border-slate-700">
-                <Search className="text-slate-400 mr-2" size={18}/><input placeholder="Buscar paciente..." className="w-full bg-transparent outline-none dark:text-white text-sm" value={selectedPatient?selectedPatient.name:searchTerm} onChange={(e)=>{setSearchTerm(e.target.value);setSelectedPatient(null)}}/>
-                {selectedPatient && <button onClick={()=>{setSelectedPatient(null);setSearchTerm('')}}><X size={16}/></button>}
-            </div>
-            {searchTerm && !selectedPatient && (
-                <div className="absolute top-full left-0 w-full bg-white dark:bg-slate-800 border rounded-b-lg shadow-lg z-40 max-h-48 overflow-y-auto">
-                    {filteredPatients.map(p => (
-                        <div key={p.id} onClick={() => handleSelectPatient(p)} className="p-3 hover:bg-slate-50 dark:hover:bg-slate-700 cursor-pointer border-b dark:border-slate-700 dark:text-white text-sm flex items-center justify-between">
-                            <span>{p.name}</span>
-                            {p.isGhost && <span className="text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full flex items-center gap-1"><Calendar size={10}/> Cita sin registro</span>}
-                        </div>
-                    ))}
-                    {filteredPatients.length === 0 && (
-                        <div 
-                            onClick={() => handleCreateTemporary(searchTerm)} 
-                            className="p-3 hover:bg-teal-50 dark:hover:bg-teal-900/20 cursor-pointer border-b dark:border-slate-700 text-brand-teal font-bold text-sm flex items-center gap-2"
-                        >
-                            <UserPlus size={16}/>
-                            <span>Crear Nuevo: "{searchTerm}"</span>
-                        </div>
-                    )}
-                </div>
-            )}
-        </div>
-        
-        {/* --- VITAL SNAPSHOT CARD (MODIFICADO PARA UX MÓVIL) --- */}
-        <div className="w-full transition-all duration-300 ease-in-out">
-            {vitalSnapshot && (
-               <div className="md:hidden flex justify-between items-center mb-2 px-1">
-                   <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
-                       <Activity size={12}/> Contexto Vital
-                   </span>
-                   <button
-                       onClick={() => setIsMobileSnapshotVisible(!isMobileSnapshotVisible)}
-                       className="p-1 bg-slate-200 rounded text-slate-600 dark:bg-slate-700 dark:text-slate-300"
-                   >
-                       {isMobileSnapshotVisible ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
-                   </button>
-               </div>
-            )}
-
-            <div className={`${!isMobileSnapshotVisible ? 'hidden' : 'block'} md:block md:max-h-none max-h-[55vh] overflow-y-auto custom-scrollbar`}>
-                <VitalSnapshotCard 
-                    insight={vitalSnapshot ? {
-                        ...vitalSnapshot,
-                        pending_actions: vitalSnapshot.pending_actions 
-                    } : null} 
-                    isLoading={loadingSnapshot} 
-                />
-                
-                {vitalSnapshot && (
-                    <button onClick={()=>setIsMobileSnapshotVisible(false)} className="md:hidden w-full mt-2 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2">
-                        <ChevronUp size={12}/> Ocultar y Ver Micrófono
-                    </button>
-                )}
-            </div>
-            
-            {!isMobileSnapshotVisible && vitalSnapshot && (
-                <button onClick={()=>setIsMobileSnapshotVisible(true)} className="md:hidden w-full mb-2 py-2 bg-indigo-50 text-indigo-600 dark:bg-indigo-900/30 dark:text-indigo-300 rounded-lg text-xs font-bold border border-indigo-100 dark:border-indigo-800 flex items-center justify-center gap-2 animate-in fade-in">
-                    <Activity size={12}/> Ver Análisis 360° (Oculto)
-                </button>
-            )}
-        </div>
-
-        {activeMedicalContext && !generatedNote && (
-            <div 
-                className="relative z-30 group"
-                onClick={() => setIsMobileContextExpanded(!isMobileContextExpanded)} 
-            >
-                <div className={`bg-amber-50 dark:bg-amber-900/20 p-3 rounded-lg border border-amber-200 dark:border-amber-800 text-xs shadow-sm cursor-help transition-opacity duration-200 ${isMobileContextExpanded ? 'opacity-0' : 'opacity-100 md:group-hover:opacity-0'}`}>
-                    <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-bold border-b border-amber-200 dark:border-amber-800 pb-1">
-                        <AlertCircle size={14} />
-                        <span>Antecedentes Activos</span>
+  // Render del Componente Chat para reusarlo en Móvil y Escritorio
+  const renderChatContent = () => (
+      <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 animate-fade-in-up">
+            <div className="flex-1 overflow-y-auto mb-4 pr-2 custom-scrollbar">
+                {chatMessages.map((m,i)=>(
+                    <div key={i} className={`p-3 mb-3 rounded-2xl max-w-[85%] text-sm shadow-sm ${m.role==='user'?'bg-brand-teal text-white self-end ml-auto rounded-tr-none':'bg-slate-100 dark:bg-slate-800 dark:text-slate-200 self-start mr-auto rounded-tl-none'}`}>
+                                                                                                        <FormattedText content={m.text} />
                     </div>
-                    <div className="space-y-2 text-slate-700 dark:text-slate-300">
-                        {activeMedicalContext.allergies && activeMedicalContext.allergies !== "No registradas" && (
-                            <div className="flex items-start gap-1">
-                                 <span className="font-bold text-red-600 dark:text-red-400 whitespace-nowrap">⚠️ Alergias:</span>
-                                 <p className="font-medium text-red-700 dark:text-red-300 line-clamp-1">{activeMedicalContext.allergies}</p>
-                            </div>
-                        )}
-
-                        {activeMedicalContext.history && activeMedicalContext.history !== "No registrados" && (
-                            <div>
-                                <span className="font-semibold block text-[10px] uppercase text-amber-600">Patológicos:</span>
-                                <p className="line-clamp-1">{activeMedicalContext.history}</p>
-                            </div>
-                        )}
-                        
-                        {activeMedicalContext.lastConsultation && (
-                            <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800/50">
-                                 <span className="font-semibold block text-[10px] uppercase text-amber-600 mb-1">
-                                    Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
-                                 </span>
-                                 <p className="italic opacity-80 pl-1 border-l-2 border-amber-300 dark:border-amber-700 line-clamp-2 text-[10px]">
-                                    {activeMedicalContext.lastConsultation.summary}
-                                 </p>
-                            </div>
-                        )}
-                        
-                        {activeMedicalContext.insurance && (
-                            <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800/50">
-                                 <div className="flex items-center gap-1 text-[10px] text-emerald-600 font-bold">
-                                    <ShieldCheck size={10} /> 
-                                    <span>{activeMedicalContext.insurance.provider}</span>
-                                 </div>
-                            </div>
-                        )}
-                    </div>
-                </div>
-
-                <div className={`absolute top-0 left-0 w-full transition-all duration-200 ease-out z-50 pointer-events-none group-hover:pointer-events-auto ${isMobileContextExpanded ? 'opacity-100 visible' : 'opacity-0 invisible md:group-hover:opacity-100 md:group-hover:visible'}`}>
-                    <div className="bg-amber-50 dark:bg-slate-800 p-4 rounded-xl border-2 border-amber-300 dark:border-amber-600 text-xs shadow-2xl scale-100 origin-top">
-                         <div className="flex items-center gap-2 mb-2 text-amber-700 dark:text-amber-400 font-bold border-b border-amber-200 dark:border-amber-800 pb-1">
-                            <AlertCircle size={14} />
-                            <span>Antecedentes Activos (Detalle)</span>
-                        </div>
-                        <div className="space-y-3 text-slate-800 dark:text-slate-200 max-h-[300px] overflow-y-auto custom-scrollbar">
-                             <div>
-                                <span className="font-bold block text-[10px] uppercase text-amber-600">Historial (Resumen):</span>
-                                <p className="whitespace-pre-wrap leading-relaxed line-clamp-4 text-xs">{activeMedicalContext.history}</p>
-                            </div>
-                             {activeMedicalContext.allergies && activeMedicalContext.allergies !== "No registradas" && (
-                                <div className="bg-red-50 dark:bg-red-900/20 p-2 rounded border border-red-100 dark:border-red-800">
-                                     <span className="font-bold block text-[10px] uppercase text-red-600">⚠ Alergias Críticas:</span>
-                                     <p className="font-black text-red-700 dark:text-red-300 text-sm">{activeMedicalContext.allergies}</p>
-                                </div>
-                            )}
-                            {activeMedicalContext.lastConsultation && (
-                                <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800/50">
-                                     <span className="font-bold block text-[10px] uppercase text-amber-600 mb-1">
-                                          Resumen Última Visita ({new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}):
-                                     </span>
-                                     <div className="p-2 bg-white dark:bg-slate-900 rounded border border-amber-100 dark:border-amber-900/50">
-                                          <p className="italic opacity-80 text-slate-700 dark:text-slate-300 whitespace-pre-wrap leading-relaxed line-clamp-6 font-light">
-                                              {activeMedicalContext.lastConsultation.summary}
-                                          </p>
-                                          {activeMedicalContext.lastConsultation.summary.length > 300 && (
-                                              <span className="text-[9px] text-indigo-500 mt-1 block font-bold text-right cursor-pointer">
-                                                  Ver detalle completo en Historial...
-                                              </span>
-                                          )}
-                                     </div>
-                                </div>
-                            )}
-
-                            {activeMedicalContext.insurance && (
-                                <div className="mt-2 pt-2 border-t border-amber-200 dark:border-amber-800/50">
-                                     <span className="font-bold block text-[10px] uppercase text-emerald-600 mb-1 flex items-center gap-1">
-                                        <ShieldCheck size={12} /> Último Trámite de Seguro Registrado
-                                     </span>
-                                     <div className="p-2 bg-emerald-50 dark:bg-emerald-900/10 rounded border border-emerald-200 dark:border-emerald-800">
-                                          <div className="grid grid-cols-2 gap-2 text-slate-700 dark:text-slate-300">
-                                              <div>
-                                                  <span className="block font-bold text-emerald-700 dark:text-emerald-400">Aseguradora</span>
-                                                  {activeMedicalContext.insurance.provider}
-                                              </div>
-                                              <div>
-                                                  <span className="block font-bold text-emerald-700 dark:text-emerald-400">Póliza</span>
-                                                  {activeMedicalContext.insurance.policyNumber || "No registrada"}
-                                              </div>
-                                              <div className="col-span-2">
-                                                  <span className="block font-bold text-emerald-700 dark:text-emerald-400">Fecha Siniestro</span>
-                                                  {activeMedicalContext.insurance.accidentDate}
-                                              </div>
-                                          </div>
-                                     </div>
-                                </div>
-                            )}
-                        </div>
-                    </div>
-                </div>
+                ))}
+                <div ref={chatEndRef}/>
             </div>
-        )}
-
-        <div onClick={()=>setConsentGiven(!consentGiven)} className="flex items-center gap-2 p-3 rounded-lg border cursor-pointer select-none dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800"><div className={`w-5 h-5 rounded border flex items-center justify-center ${consentGiven?'bg-green-500 border-green-500 text-white':'bg-white dark:bg-slate-700'}`}>{consentGiven&&<Check size={14}/>}</div><label className="text-xs dark:text-white cursor-pointer">Consentimiento otorgado.</label></div>
-        
-        <div className={`flex-1 flex flex-col p-2 overflow-hidden border rounded-xl bg-slate-50 dark:bg-slate-900/50 dark:border-slate-800 min-h-0`}>
-            {segments.length === 0 ? (
-                <div className="flex-1 flex flex-col items-center justify-center text-slate-400 opacity-50 text-xs">
-                    <MessageSquare size={24} className="mb-2"/>
-                    <p>El historial aparecerá aquí</p>
-                </div>
-            ) : (
-                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2" ref={transcriptEndRef}>
-                    {segments.map((seg, idx) => (
-                        <div key={idx} className={`flex w-full ${seg.role === 'doctor' ? 'justify-end' : 'justify-start'} animate-in slide-in-from-bottom-1`}>
-                            <div className={`max-w-[90%] p-2 rounded-xl text-xs border ${
-                                seg.role === 'doctor' 
-                                ? 'bg-indigo-100 text-indigo-900 border-indigo-200 rounded-tr-none dark:bg-indigo-900/50 dark:text-indigo-100 dark:border-indigo-800' 
-                                : 'bg-white text-slate-700 border-slate-200 rounded-tl-none dark:bg-slate-800 dark:text-slate-300 dark:border-slate-700'
-                            }`}>
-                                <p className="whitespace-pre-wrap">{seg.text}</p>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            )}
-        </div>
-
-        <div className="flex flex-col gap-2 mt-2 h-[260px] md:h-[35%] shrink-0 border-t dark:border-slate-800 pt-2 pb-2">
-            
-            <div className="flex justify-between items-center px-1">
-                <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">Entrada Activa:</span>
-                <div className="flex bg-slate-100 dark:bg-slate-800 p-0.5 rounded-lg border border-slate-200 dark:border-slate-700">
-                    <button 
-                        onClick={() => handleSpeakerSwitch('patient')}
-                        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all flex items-center gap-1 ${activeSpeaker === 'patient' ? 'bg-white dark:bg-slate-700 text-slate-800 dark:text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                    >
-                        <User size={10}/> Paciente
-                    </button>
-                    <button 
-                        onClick={() => handleSpeakerSwitch('doctor')}
-                        className={`px-2 py-1 rounded-md text-[10px] font-bold transition-all flex items-center gap-1 ${activeSpeaker === 'doctor' ? 'bg-indigo-600 text-white shadow-sm' : 'text-slate-400 hover:text-slate-600'}`}
-                    >
-                        <Stethoscope size={10}/> Doctor
-                    </button>
-                </div>
-            </div>
-
-            <div className={`relative border-2 rounded-xl transition-colors bg-white dark:bg-slate-900 overflow-hidden flex-1 ${isListening ? 'border-red-400 shadow-red-100 dark:shadow-none' : 'border-slate-200 dark:border-slate-700'}`}>
-                {isListening && (
-                    <div className="absolute top-2 right-2 flex gap-1">
-                        <span className="w-1.5 h-1.5 bg-red-500 rounded-full animate-pulse"/>
-                        <span className="text-[10px] text-red-500 font-bold">GRABANDO</span>
-                    </div>
-                )}
-                <textarea 
-                    ref={textareaRef}
-                    value={transcript}
-                    onChange={(e) => setTranscript(e.target.value)}
-                    placeholder={isListening ? "Escuchando..." : "Escribe o dicta aquí..."}
-                    className="w-full h-full p-3 bg-transparent resize-none outline-none text-sm dark:text-white"
-                />
-                {transcript && !isListening && (
-                    <button 
-                        onClick={handleManualSend} 
-                        className="absolute bottom-2 right-2 p-1.5 bg-indigo-600 text-white rounded-full shadow-lg hover:bg-indigo-700 transition-colors" 
-                        title="Agregar al historial"
-                    >
-                        <CornerDownLeft size={14}/>
-                    </button>
-                )}
-            </div>
-
-            <div className="flex w-full gap-2 shrink-0">
-                <button 
-                    onClick={handleToggleRecording} 
-                    disabled={!consentGiven || (!isAPISupported && !isListening)} 
-                    className={`flex-1 py-3 rounded-xl font-bold flex justify-center gap-2 text-white shadow-lg text-sm transition-all ${
-                        !isOnline ? 'bg-slate-300 dark:bg-slate-700 cursor-not-allowed text-slate-500' :
-                        isListening ? 'bg-amber-500 hover:bg-amber-600' : 
-                        isPaused ? 'bg-red-600 hover:bg-red-700' : 
-                        'bg-slate-900 hover:bg-slate-800' 
-                    }`}
-                >
-                    {isListening ? (
-                        <><Pause size={16} fill="currentColor"/> Pausar</>
-                    ) : isPaused ? (
-                        <><Play size={16} fill="currentColor"/> Reanudar</>
-                    ) : (
-                        <><Mic size={16}/> Grabar</>
-                    )}
-                </button>
-
-                <button 
-                    onClick={isListening || isPaused ? handleFinishRecording : handleGenerate} 
-                    disabled={(!transcript && segments.length === 0) || isProcessing} 
-                    className={`flex-1 text-white py-3 rounded-xl font-bold shadow-lg flex justify-center gap-2 disabled:opacity-50 text-sm transition-all ${
-                        !isOnline ? 'bg-amber-500 hover:bg-amber-600' : 
-                        (isListening || isPaused) ? 'bg-green-600 hover:bg-green-700' : 
-                        `bg-brand-teal hover:bg-teal-600 ${isReadyToGenerate ? 'animate-pulse ring-2 ring-teal-300 ring-offset-2 shadow-xl shadow-teal-500/40' : ''}`
-                    }`}
-                >
-                    {isProcessing ? <RefreshCw className="animate-spin" size={16}/> : 
-                     (isListening || isPaused) ? <Check size={16}/> : 
-                     (isOnline ? <RefreshCw size={16}/> : <Save size={16}/>)
-                    } 
-                    
-                    {isProcessing ? '...' : 
-                     (isListening || isPaused) ? 'Terminar' : 
-                     (isOnline ? 'Generar' : 'Guardar')
-                    }
-                </button>
-            </div>
-        </div>
-        
-        {selectedPatient && !(selectedPatient as any).isTemporary && (
-            <button 
-                onClick={handleLoadInsights} 
-                disabled={isLoadingInsights}
-                className="w-full mt-2 py-3 bg-gradient-to-r from-indigo-600 to-violet-600 text-white font-bold rounded-xl shadow-lg shadow-indigo-200 dark:shadow-none hover:shadow-xl hover:scale-[1.02] transition-all flex items-center justify-center gap-2 group z-20 shrink-0"
-            >
-                {isLoadingInsights ? <RefreshCw className="animate-spin" size={18}/> : <Sparkles className="text-yellow-300 group-hover:rotate-12 transition-transform" size={18} />}
-                <span>Análisis Clínico 360°</span>
-            </button>
-        )}
-        
+            <form onSubmit={handleChatSend} className="flex gap-2 relative"><input className="flex-1 border dark:border-slate-700 p-4 pr-12 rounded-xl bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal shadow-sm" value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Pregunta al asistente..."/><button disabled={isChatting||!chatInput.trim()} className="absolute right-3 top-1/2 -translate-y-1/2 bg-brand-teal text-white p-2 rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-all hover:scale-105 active:scale-95">{isChatting?<RefreshCw className="animate-spin" size={18}/>:<Send size={18}/>}</button></form>
       </div>
+  );
+
+  // --- Feature: Lógica de visualización del Folio ---
+  const showControlledInput = SPECIALTIES_WITH_CONTROLLED_RX.some(s => 
+      selectedSpecialty?.toLowerCase().includes(s.toLowerCase())
+  );
+  
+  // [NUEVO] Lógica de visualización del Botón Quirúrgico
+  const isSurgicalSpecialty = selectedSpecialty?.toLowerCase().includes('cirug') || 
+                                doctorProfile?.specialty?.toLowerCase().includes('cirug');
+
+  return (
+    <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-slate-100 dark:bg-slate-950 relative">
       
-      <div className={`w-full md:w-3/4 bg-slate-100 dark:bg-slate-950 flex flex-col border-l dark:border-slate-800 ${!generatedNote?'hidden md:flex':'flex h-full'}`}>
-          <div className="flex border-b dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 items-center px-2">
-             <button onClick={()=>setGeneratedNote(null)} className="md:hidden p-4 text-slate-500"><ArrowLeft/></button>
-             {[{id:'record',icon:FileText,l:'EXPEDIENTE CLÍNICO'},{id:'patient',icon:User,l:'PLAN PACIENTE'},{id:'chat',icon:MessageSquare,l:'ASISTENTE'}, {id:'insurance', icon:Building2, l:'SEGUROS'}].map(t=><button key={t.id} onClick={()=>setActiveTab(t.id as TabType)} disabled={!generatedNote&&t.id!=='record'} className={`flex-1 py-4 flex justify-center gap-2 text-sm font-bold border-b-4 transition-colors ${activeTab===t.id?'text-brand-teal border-brand-teal':'text-slate-400 border-transparent hover:text-slate-600'}`}><t.icon size={18} className="shrink-0"/><span className="hidden sm:inline">{t.l}</span></button>)}
-          </div>
+      <ConsultationSidebar 
+        isOnline={isOnline}
+        transcript={transcript}
+        segments={segments}
+        handleClearTranscript={handleClearTranscript}
+        selectedSpecialty={selectedSpecialty}
+        setSelectedSpecialty={setSelectedSpecialty}
+        specialties={SPECIALTIES}
+        searchTerm={searchTerm}
+        setSearchTerm={setSearchTerm}
+        selectedPatient={selectedPatient}
+        setSelectedPatient={setSelectedPatient}
+        filteredPatients={filteredPatients}
+        handleSelectPatient={handleSelectPatient}
+        // CAMBIO CRÍTICO: Pasamos la nueva función asíncrona
+        handleCreatePatient={handleCreatePatient} 
+        vitalSnapshot={vitalSnapshot}
+        isMobileSnapshotVisible={isMobileSnapshotVisible}
+        setIsMobileSnapshotVisible={setIsMobileSnapshotVisible}
+        loadingSnapshot={loadingSnapshot}
+        activeMedicalContext={activeMedicalContext}
+        consentGiven={consentGiven}
+        setConsentGiven={setConsentGiven}
+        isListening={isListening}
+        isPaused={isPaused}
+        isAPISupported={isAPISupported}
+        handleToggleRecording={handleToggleRecording}
+        handleFinishRecording={handleFinishRecording}
+        handleGenerate={handleGenerate}
+        isProcessing={isProcessing}
+        isReadyToGenerate={!!isReadyToGenerate}
+        handleLoadInsights={handleLoadInsights}
+        isLoadingInsights={isLoadingInsights}
+        generatedNote={generatedNote}
+        activeSpeaker={activeSpeaker}
+        handleSpeakerSwitch={handleSpeakerSwitch}
+        handleManualSend={handleManualSend}
+        setTranscript={setTranscript}
+        textareaRef={textareaRef}
+        transcriptEndRef={transcriptEndRef}
+        isAttachmentsOpen={isAttachmentsOpen}
+        setIsAttachmentsOpen={setIsAttachmentsOpen}
+        doctorProfile={doctorProfile}
+        onDownloadRecord={handleDownloadFullRecord} // <-- SE PASA LA FUNCIÓN AL HIJO
+      />
+      
+      {/* Contenedor Flex para la derecha (Contenido Central + Chat) */}
+      <div className={`flex-1 flex w-full md:w-3/4 overflow-hidden ${!generatedNote?'hidden md:flex':'flex'}`}>
           
-          <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100 dark:bg-slate-950">
-              {!generatedNote ? (
-                  <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 opacity-50">
-                      <FileText size={64} strokeWidth={1}/>
-                      <p className="text-lg text-center px-4">Área de Documentación</p>
-                  </div>
-              ) : (
-                  <div className="min-h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative pb-8">
-                        {activeTab==='record' && generatedNote.soapData && (
-                        <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-full h-fit pb-32 animate-fade-in-up relative">
-                            <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex flex-col gap-2">
-                                <div className="flex justify-between items-start">
-                                    <div>
-                                        <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Nota de Evolución</h1>
-                                        <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide">{selectedSpecialty}</p>
+          {/* COLUMNA CENTRAL: Nota / Recetas */}
+          <div className="flex-1 flex flex-col bg-slate-100 dark:bg-slate-950 border-l dark:border-slate-800 min-w-0 relative">
+                
+                {/* --- RENDERIZADO DEL PATIENT BRIEFING (PASE DE VISITA) --- */}
+                {showBriefing && selectedPatient && (
+                    <PatientBriefing 
+                        patient={selectedPatient}
+                        lastInsight={vitalSnapshot} // Usamos el snapshot si ya está disponible
+                        onComplete={handleBriefingComplete}
+                        onCancel={() => setShowBriefing(false)}
+                    />
+                )}
+
+                <div className="flex border-b dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 items-center px-2">
+                    <button onClick={()=>setGeneratedNote(null)} className="md:hidden p-4 text-slate-500"><ArrowLeft/></button>
+                    {[{id:'record',icon:FileText,l:'EXPEDIENTE CLÍNICO'},{id:'patient',icon:User,l:'PLAN PACIENTE'},{id:'chat',icon:MessageSquare,l:'ASISTENTE'}, {id:'insurance', icon:Building2, l:'SEGUROS'}].map(t => {
+                        // FIX: Ocultar pestaña Chat en pantallas grandes (LG) porque ya se muestra en la 3ra columna
+                        const hideOnDesktop = t.id === 'chat' ? 'lg:hidden' : '';
+                        return (
+                            <button key={t.id} onClick={()=>setActiveTab(t.id as TabType)} disabled={!generatedNote&&t.id!=='record'} className={`flex-1 py-4 flex justify-center gap-2 text-sm font-bold border-b-4 transition-colors ${hideOnDesktop} ${activeTab===t.id?'text-brand-teal border-brand-teal':'text-slate-400 border-transparent hover:text-slate-600'}`}>
+                                <t.icon size={18} className="shrink-0"/><span className="hidden sm:inline">{t.l}</span>
+                            </button>
+                        );
+                    })}
+                </div>
+                
+                <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100 dark:bg-slate-950">
+                    {!generatedNote ? (
+                        <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 opacity-50">
+                            <FileText size={64} strokeWidth={1}/>
+                            <p className="text-lg text-center px-4">Área de Documentación</p>
+                        </div>
+                    ) : (
+                        <div className="min-h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative pb-8">
+                                {activeTab==='record' && generatedNote.soapData && (
+                                <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-full h-fit pb-32 animate-fade-in-up relative">
+                                    <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex flex-col gap-2">
+                                            <div className="flex justify-between items-start">
+                                                <div>
+                                                    <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Nota de Evolución</h1>
+                                                    <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide">{selectedSpecialty}</p>
+                                                </div>
+                                                
+                                                <div className="flex flex-col items-end gap-3">
+                                                
+                                                {/* --- BOTÓN DE DESCARGA REDUNDANTE ELIMINADO --- */}
+
+                                                <button 
+                                                    onClick={handleSaveConsultation} 
+                                                    disabled={isSaving} 
+                                                    className="bg-brand-teal text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-teal-600 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>} 
+                                                    Validar y Guardar
+                                                </button>
+
+                                                <div className="flex items-start justify-end gap-1.5 max-w-xs text-right opacity-60 hover:opacity-100 transition-opacity duration-300 group cursor-help">
+                                                    <ShieldCheck className="w-3 h-3 text-slate-400 mt-[2px] flex-shrink-0 group-hover:text-brand-teal" />
+                                                    <p className="text-[10px] leading-3 text-slate-400 group-hover:text-slate-600 transition-colors">
+                                                    <span className="font-semibold text-brand-teal">VitalScribe AI</span> es una herramienta de soporte. La responsabilidad final del diagnóstico, tratamiento y el uso de los formatos administrativos recae exclusivamente en el médico tratante.
+                                                    </p>
+                                                </div>
+                                                </div>
+
+                                            </div>
+
+                                            {generatedNote.risk_analysis && (
+                                            <div className="mt-2">
+                                                <RiskBadge 
+                                                level={generatedNote.risk_analysis.level as "Alto" | "Medio" | "Bajo"} 
+                                                reason={generatedNote.risk_analysis.reason} 
+                                                />
+                                            </div>
+                                            )}
+
+                                            <div className="text-xs font-bold text-slate-800 dark:text-slate-200 self-end">
+                                                {selectedPatient?.name || "Paciente no registrado"}
+                                            </div>
                                     </div>
+
+                                    {generatedNote.conversation_log && generatedNote.conversation_log.length > 0 && (
+                                            <div className="mb-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800">
+                                                <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
+                                                    <Quote size={14} className="text-indigo-500"/> Transcripción Inteligente
+                                                </h4>
+                                                <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
+                                                        {generatedNote.conversation_log.map((line, idx) => (
+                                                            <div key={idx} className={`flex ${line.speaker === 'Médico' ? 'justify-end' : 'justify-start'}`}>
+                                                                <div className={`max-w-[80%] rounded-2xl p-3 text-sm ${
+                                                                    line.speaker === 'Médico' 
+                                                                    ? 'bg-blue-50 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100 rounded-tr-none' 
+                                                                    : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 rounded-tl-none'
+                                                                }`}>
+                                                                                <span className={`text-[10px] font-bold block mb-1 uppercase opacity-70 ${line.speaker === 'Médico' ? 'text-right' : 'text-left'}`}>
+                                                                                    {line.speaker}
+                                                                                </span>
+                                                                                {line.text}
+                                                                </div>
+                                                            </div>
+                                                        ))}
+                                                </div>
+                                            </div>
+                                    )}
                                     
-                                    <div className="flex flex-col items-end gap-3">
-                                      <button 
-                                        onClick={handleSaveConsultation} 
-                                        disabled={isSaving} 
-                                        className="bg-brand-teal text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-teal-600 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                      >
-                                        {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>} 
-                                        Validar y Guardar
-                                      </button>
-
-                                      <div className="flex items-start justify-end gap-1.5 max-w-xs text-right opacity-60 hover:opacity-100 transition-opacity duration-300 group cursor-help">
-                                        <ShieldCheck className="w-3 h-3 text-slate-400 mt-[2px] flex-shrink-0 group-hover:text-brand-teal" />
-                                        <p className="text-[10px] leading-3 text-slate-400 group-hover:text-slate-600 transition-colors">
-                                          <span className="font-semibold text-brand-teal">VitalScribe AI</span> es una herramienta de soporte. La responsabilidad final del diagnóstico, tratamiento y el uso de los formatos administrativos recae exclusivamente en el médico tratante.
-                                        </p>
-                                      </div>
+                                    <div className="space-y-8">
+                                                <div className="group relative">
+                                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Subjetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
+                                                    {editingSection === 'subjective' ? (
+                                                        <textarea 
+                                                            autoFocus
+                                                            onBlur={() => setEditingSection(null)}
+                                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-blue-200 rounded p-1 transition-all" 
+                                                            value={generatedNote.soapData.subjective} 
+                                                            onChange={(e) => handleSoapChange('subjective', e.target.value)} 
+                                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                        />
+                                                    ) : (
+                                                        <div onClick={() => setEditingSection('subjective')} className="cursor-text min-h-[40px] p-1">
+                                                            <FormattedText content={generatedNote.soapData.subjective} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <hr className="border-slate-100 dark:border-slate-800" />
+                                                <div className="group relative">
+                                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ClipboardList size={14} className="text-green-500"/> Objetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
+                                                    {editingSection === 'objective' ? (
+                                                        <textarea 
+                                                            autoFocus
+                                                            onBlur={() => setEditingSection(null)}
+                                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-green-200 rounded p-1 transition-all" 
+                                                            value={generatedNote.soapData.objective} 
+                                                            onChange={(e) => handleSoapChange('objective', e.target.value)} 
+                                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                        />
+                                                    ) : (
+                                                        <div onClick={() => setEditingSection('objective')} className="cursor-text min-h-[40px] p-1">
+                                                            <FormattedText content={generatedNote.soapData.objective} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <hr className="border-slate-100 dark:border-slate-800" />
+                                                <div className="group relative">
+                                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
+                                                    {editingSection === 'analysis' ? (
+                                                        <textarea 
+                                                            autoFocus
+                                                            onBlur={() => setEditingSection(null)}
+                                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-amber-200 rounded p-1 transition-all" 
+                                                            value={generatedNote.soapData.analysis} 
+                                                            onChange={(e) => handleSoapChange('analysis', e.target.value)} 
+                                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                        />
+                                                    ) : (
+                                                        <div onClick={() => setEditingSection('analysis')} className="cursor-text min-h-[40px] p-1">
+                                                            <FormattedText content={generatedNote.soapData.analysis} />
+                                                        </div>
+                                                    )}
+                                                </div>
+                                                <hr className="border-slate-100 dark:border-slate-800" />
+                                                <div className="group relative">
+                                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><FileSignature size={14} className="text-purple-500"/> Plan Médico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
+                                                    {editingSection === 'plan' ? (
+                                                        <textarea 
+                                                            autoFocus
+                                                            onBlur={() => setEditingSection(null)}
+                                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-purple-200 rounded p-1 transition-all" 
+                                                            value={generatedNote.soapData.plan} 
+                                                            onChange={(e) => handleSoapChange('plan', e.target.value)} 
+                                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                        />
+                                                    ) : (
+                                                        <div onClick={() => setEditingSection('plan')} className="cursor-text min-h-[40px] p-1">
+                                                            <FormattedText content={generatedNote.soapData.plan} />
+                                                        </div>
+                                                    )}
+                                                </div>
                                     </div>
-
                                 </div>
-
-                                {generatedNote.risk_analysis && (
-                                  <div className="mt-2">
-                                    <RiskBadge 
-                                      level={generatedNote.risk_analysis.level as "Alto" | "Medio" | "Bajo"} 
-                                      reason={generatedNote.risk_analysis.reason} 
-                                    />
-                                  </div>
                                 )}
 
-                                <div className="text-xs font-bold text-slate-800 dark:text-slate-200 self-end">
-                                    {selectedPatient?.name || "Paciente no registrado"}
-                                </div>
-                            </div>
-
-                            {generatedNote.conversation_log && generatedNote.conversation_log.length > 0 && (
-                                <div className="mb-10 bg-slate-50 dark:bg-slate-800/50 rounded-2xl p-6 border border-slate-100 dark:border-slate-800">
-                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-4 flex items-center gap-2">
-                                        <Quote size={14} className="text-indigo-500"/> Transcripción Inteligente
-                                    </h4>
-                                    <div className="space-y-4 max-h-[300px] overflow-y-auto custom-scrollbar pr-2">
-                                            {generatedNote.conversation_log.map((line, idx) => (
-                                                <div key={idx} className={`flex ${line.speaker === 'Médico' ? 'justify-end' : 'justify-start'}`}>
-                                                    <div className={`max-w-[80%] rounded-2xl p-3 text-sm ${
-                                                        line.speaker === 'Médico' 
-                                                            ? 'bg-blue-50 text-blue-900 dark:bg-blue-900/30 dark:text-blue-100 rounded-tr-none' 
-                                                            : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 rounded-tl-none'
-                                                    }`}>
-                                                        <span className={`text-[10px] font-bold block mb-1 uppercase opacity-70 ${line.speaker === 'Médico' ? 'text-right' : 'text-left'}`}>
-                                                            {line.speaker}
-                                                        </span>
-                                                        {line.text}
-                                                    </div>
-                                                </div>
-                                            ))}
+                                {activeTab==='record' && !generatedNote.soapData && generatedNote.clinicalNote && (
+                                    <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 overflow-hidden">
+                                            <div className="bg-yellow-50 text-yellow-800 p-2 text-sm rounded mb-2 dark:bg-yellow-900/30 dark:text-yellow-200">Formato antiguo.</div>
+                                            <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar"><FormattedText content={generatedNote.clinicalNote}/></div>
+                                            <div className="border-t dark:border-slate-800 pt-4 flex justify-end"><button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-xl font-bold flex gap-2 hover:bg-teal-600 shadow-lg disabled:opacity-70">{isSaving?<RefreshCw className="animate-spin"/>:<Save/>} Guardar</button></div>
                                     </div>
-                                </div>
-                            )}
-                            
-                            <div className="space-y-8">
-                                <div className="group relative">
-                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Subjetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    {editingSection === 'subjective' ? (
-                                        <textarea 
-                                            autoFocus
-                                            onBlur={() => setEditingSection(null)}
-                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-blue-200 rounded p-1 transition-all" 
-                                            value={generatedNote.soapData.subjective} 
-                                            onChange={(e) => handleSoapChange('subjective', e.target.value)} 
-                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                )}
+
+                                {activeTab==='patient' && (
+                                    <div className="flex flex-col h-full gap-4 animate-fade-in-up">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <h3 className="font-bold text-xl dark:text-white">Plan de Tratamiento</h3>
+                                                <div className="flex gap-2">
+                                                    {/* [NUEVO] BOTÓN GENERADOR DE INCAPACIDAD (SOLO CIRUJANOS) */}
+                                                    {isSurgicalSpecialty && (
+                                                        <button 
+                                                            onClick={() => setIsSurgicalModalOpen(true)}
+                                                            className="p-2 bg-indigo-100 text-indigo-600 rounded-lg hover:bg-indigo-200 dark:bg-indigo-900/30 dark:text-indigo-400 flex items-center gap-2"
+                                                            title="Generar Incapacidad Quirúrgica"
+                                                        >
+                                                            <Scissors size={18}/>
+                                                            <span className="text-xs font-bold hidden sm:inline">Incapacidad</span>
+                                                        </button>
+                                                    )}
+
+                                                    <button onClick={handleShareWhatsApp} className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"><Share2 size={18}/></button>
+                                                    <button onClick={handlePrint} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"><Download size={18}/></button>
+                                                </div>
+                                            </div>
+
+                                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
+                                                
+                                                {/* Feature: Header de Receta con Folio Controlado Opcional */}
+                                                <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
+                                                    <div className="flex items-center gap-4 w-full md:w-auto">
+                                                        <h3 className="font-bold text-lg flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
+                                                            <Pill size={20}/> Receta Médica
+                                                        </h3>
+                                                        
+                                                        {/* CANDADO LÓGICO DE SEGURIDAD (Solo especialidades autorizadas) */}
+                                                        {showControlledInput && (
+                                                            <div className="flex-1 md:flex-none animate-fade-in-right">
+                                                                <div className="relative group">
+                                                                    <input 
+                                                                        type="text" 
+                                                                        placeholder="Folio / Código COFEPRIS" 
+                                                                        className="text-xs border-2 border-indigo-100 dark:border-indigo-900/50 bg-indigo-50/50 dark:bg-indigo-900/20 rounded-lg px-3 py-1.5 w-full md:w-56 outline-none focus:border-indigo-500 text-indigo-700 dark:text-indigo-300 font-medium placeholder:text-indigo-300 transition-all"
+                                                                        value={specialFolio}
+                                                                        onChange={(e) => setSpecialFolio(e.target.value)}
+                                                                    />
+                                                                    <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
+                                                                            Solo para Fracción I / II
+                                                                    </div>
+                                                                </div>
+                                                            </div>
+                                                        )}
+                                                    </div>
+
+                                                    <button onClick={handleAddMedication} className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full flex items-center gap-1 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300">
+                                                        <Plus size={12}/> Agregar Fármaco
+                                                    </button>
+                                                </div>
+                                                
+                                                {editablePrescriptions.length === 0 ? (
+                                                    <p className="text-sm text-slate-400 italic text-center py-4">No se detectaron medicamentos en la transcripción.</p>
+                                                ) : (
+                                                    <div className="space-y-3">
+                                                        {editablePrescriptions.map((med, idx) => {
+                                                            const normalize = (str: string) => str.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+                                                            
+                                                            const isManualBlocked = (med as any).action === 'SUSPENDER' || (med.dose && med.dose.includes('BLOQUEO'));
+
+                                                            let isRisky = false;
+                                                            if (!isManualBlocked && generatedNote?.risk_analysis?.reason) {
+                                                                const reason = normalize(generatedNote.risk_analysis.reason);
+                                                                const drugName = normalize(med.drug);
+                                                                
+                                                                const firstWord = drugName.split(' ')[0];
+                                                                const matchParens = med.drug.match(/\(([^)]+)\)/);
+                                                                
+                                                                if (reason.includes(firstWord)) isRisky = true;
+                                                                if (matchParens && reason.includes(normalize(matchParens[1]))) isRisky = true;
+                                                            }
+
+                                                            let containerClasses = "bg-slate-50 border-slate-100 dark:bg-slate-800/50 dark:border-slate-700";
+                                                            let icon = null;
+
+                                                            if (isManualBlocked) {
+                                                                containerClasses = "bg-red-50 border-red-200 dark:bg-red-900/20 dark:border-red-800 ring-1 ring-red-100";
+                                                            } else if (isRisky) {
+                                                                containerClasses = "bg-amber-50 border-amber-200 dark:bg-amber-900/20 dark:border-amber-800";
+                                                            }
+
+                                                            return (
+                                                            <div key={idx} className={`flex gap-3 items-start p-3 rounded-lg border group transition-all duration-200 ${containerClasses}`}>
+                                                                    
+                                                                {isManualBlocked ? (
+                                                                    <div className="flex-1 flex flex-col gap-1">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <ShieldCheck size={16} className="text-red-600 shrink-0" />
+                                                                            <input 
+                                                                                className="font-bold text-red-800 dark:text-red-300 bg-transparent outline-none w-full"
+                                                                                value={med.drug}
+                                                                                readOnly
+                                                                            />
+                                                                        </div>
+                                                                        <div className="text-xs text-red-700 dark:text-red-200 bg-red-100/50 dark:bg-red-900/40 p-2 rounded border border-red-200 dark:border-red-800/50 break-words font-mono">
+                                                                            {med.dose.replace(/\*\*\*/g, '').trim() || "Fármaco bloqueado por protocolo de seguridad."}
+                                                                        </div>
+                                                                    </div>
+                                                                ) : (
+                                                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
+                                                                        <div className="relative">
+                                                                            <input 
+                                                                                className={`w-full font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors ${
+                                                                                    isRisky ? 'text-amber-700 dark:text-amber-400 pr-6' : 'text-slate-800 dark:text-white'
+                                                                                }`} 
+                                                                                value={med.drug} 
+                                                                                onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} 
+                                                                                placeholder="Nombre del medicamento" 
+                                                                            />
+                                                                            {isRisky && (
+                                                                                <div className="absolute right-0 top-1/2 -translate-y-1/2 text-amber-500 cursor-help" title={`Precaución: Posible interacción detectada en análisis clínico.`}>
+                                                                                        <AlertCircle size={16}/>
+                                                                                </div>
+                                                                            )}
+                                                                        </div>
+                                                                        
+                                                                        <input 
+                                                                            className="text-sm bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-600 dark:text-slate-300"
+                                                                            value={med.dose} 
+                                                                            onChange={e=>handleUpdateMedication(idx,'dose',e.target.value)} 
+                                                                            placeholder="Dosis" 
+                                                                        />
+                                                                        
+                                                                        <div className="col-span-2 flex gap-2 text-xs">
+                                                                                <input 
+                                                                                    className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
+                                                                                    value={med.frequency} 
+                                                                                    onChange={e=>handleUpdateMedication(idx,'frequency',e.target.value)} 
+                                                                                    placeholder="Frecuencia" 
+                                                                                />
+                                                                                <input 
+                                                                                    className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
+                                                                                    value={med.duration} 
+                                                                                    onChange={e=>handleUpdateMedication(idx,'duration',e.target.value)} 
+                                                                                    placeholder="Duración" 
+                                                                                />
+                                                                        </div>
+                                                                    </div>
+                                                                )}
+
+                                                                <button 
+                                                                    onClick={()=>handleRemoveMedication(idx)} 
+                                                                    className={`opacity-0 group-hover:opacity-100 transition-opacity p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-700 ${
+                                                                        isManualBlocked ? 'text-red-400' : 'text-slate-400'
+                                                                    }`}
+                                                                    title="Quitar de la lista"
+                                                                >
+                                                                    <X size={16}/>
+                                                                </button>
+                                                            </div>
+                                                            )
+                                                        })}
+                                                    </div>
+                                                )}
+                                            </div>
+
+                                            <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex-1 flex flex-col">
+                                                <div className="flex justify-between items-center mb-4">
+                                                    <h3 className="font-bold text-lg flex items-center gap-2 text-teal-600 dark:text-teal-400">
+                                                        <FileText size={20}/> Indicaciones y Cuidados
+                                                    </h3>
+                                                    <button onClick={()=>setIsEditingInstructions(!isEditingInstructions)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-500 hover:text-teal-600 transition-colors">
+                                                        <Edit2 size={18}/>
+                                                    </button>
+                                                </div>
+                                                <div className="flex-1 overflow-y-auto custom-scrollbar min-h-[200px]">
+                                                    {isEditingInstructions ? (
+                                                        <textarea className="w-full h-full border dark:border-slate-700 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 dark:text-slate-200 resize-none outline-none focus:ring-2 focus:ring-teal-500" value={editableInstructions} onChange={e=>setEditableInstructions(e.target.value)}/>
+                                                    ) : (
+                                                        <div className="prose dark:prose-invert max-w-none text-sm text-slate-700 dark:text-slate-300">
+                                                            <FormattedText content={editableInstructions}/>
+                                                        </div>
+                                                    )}
+                                                </div>
+                                            </div>
+
+                                    </div>
+                                )}
+
+                                {activeTab==='chat' && (
+                                    /* --- MODIFICACIÓN QUIRÚRGICA: Habilitar Sugerencias en Móvil --- */
+                                    <div className="lg:hidden h-full flex flex-col gap-2 overflow-hidden">
+                                        <ContextualInsights 
+                                            insights={clinicalInsights} 
+                                            isLoading={loadingClinicalInsights} 
                                         />
-                                    ) : (
-                                        <div onClick={() => setEditingSection('subjective')} className="cursor-text min-h-[40px] p-1">
-                                            <FormattedText content={generatedNote.soapData.subjective} />
+                                        <div className="flex-1 overflow-hidden">
+                                            {renderChatContent()}
                                         </div>
-                                    )}
-                                </div>
-                                <hr className="border-slate-100 dark:border-slate-800" />
-                                <div className="group relative">
-                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ClipboardList size={14} className="text-green-500"/> Objetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    {editingSection === 'objective' ? (
-                                        <textarea 
-                                            autoFocus
-                                            onBlur={() => setEditingSection(null)}
-                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-green-200 rounded p-1 transition-all" 
-                                            value={generatedNote.soapData.objective} 
-                                            onChange={(e) => handleSoapChange('objective', e.target.value)} 
-                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                        />
-                                    ) : (
-                                        <div onClick={() => setEditingSection('objective')} className="cursor-text min-h-[40px] p-1">
-                                            <FormattedText content={generatedNote.soapData.objective} />
-                                        </div>
-                                    )}
-                                </div>
-                                <hr className="border-slate-100 dark:border-slate-800" />
-                                <div className="group relative">
-                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    {editingSection === 'analysis' ? (
-                                        <textarea 
-                                            autoFocus
-                                            onBlur={() => setEditingSection(null)}
-                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-amber-200 rounded p-1 transition-all" 
-                                            value={generatedNote.soapData.analysis} 
-                                            onChange={(e) => handleSoapChange('analysis', e.target.value)} 
-                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                        />
-                                    ) : (
-                                        <div onClick={() => setEditingSection('analysis')} className="cursor-text min-h-[40px] p-1">
-                                            <FormattedText content={generatedNote.soapData.analysis} />
-                                        </div>
-                                    )}
-                                </div>
-                                <hr className="border-slate-100 dark:border-slate-800" />
-                                <div className="group relative">
-                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><FileSignature size={14} className="text-purple-500"/> Plan Médico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                    {editingSection === 'plan' ? (
-                                        <textarea 
-                                            autoFocus
-                                            onBlur={() => setEditingSection(null)}
-                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-purple-200 rounded p-1 transition-all" 
-                                            value={generatedNote.soapData.plan} 
-                                            onChange={(e) => handleSoapChange('plan', e.target.value)} 
-                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                        />
-                                    ) : (
-                                        <div onClick={() => setEditingSection('plan')} className="cursor-text min-h-[40px] p-1">
-                                            <FormattedText content={generatedNote.soapData.plan} />
-                                        </div>
-                                    )}
-                                </div>
-                            </div>
+                                    </div>
+                                )}
+
+                                {activeTab==='insurance' && generatedNote && (
+                                    <div className="h-full animate-fade-in-up">
+                                            <InsurancePanel 
+                                                patientName={selectedPatient?.name || "Paciente no registrado"}
+                                                diagnosis={generatedNote.soapData?.analysis || generatedNote.clinicalNote || "Diagnóstico pendiente"}
+                                                clinicalSummary={`S: ${generatedNote.soapData?.subjective || ''}\nO: ${generatedNote.soapData?.objective || ''}`}
+                                                icd10={generatedNote.soapData?.analysis?.match(/\(([A-Z][0-9][0-9](\.[0-9])?)\)/)?.[1] || ''}
+                                                onInsuranceDataChange={setInsuranceData}
+                                            />
+                                    </div>
+                                )}
+
                         </div>
-                      )}
-
-                      {activeTab==='record' && !generatedNote.soapData && generatedNote.clinicalNote && (
-                          <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 overflow-hidden">
-                                <div className="bg-yellow-50 text-yellow-800 p-2 text-sm rounded mb-2 dark:bg-yellow-900/30 dark:text-yellow-200">Formato antiguo.</div>
-                              <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar"><FormattedText content={generatedNote.clinicalNote}/></div>
-                              <div className="border-t dark:border-slate-800 pt-4 flex justify-end"><button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-xl font-bold flex gap-2 hover:bg-teal-600 shadow-lg disabled:opacity-70">{isSaving?<RefreshCw className="animate-spin"/>:<Save/>} Guardar</button></div>
-                          </div>
-                      )}
-
-                      {activeTab==='patient' && (
-                          <div className="flex flex-col h-full gap-4 animate-fade-in-up">
-                              <div className="flex justify-between items-center mb-2">
-                                  <h3 className="font-bold text-xl dark:text-white">Plan de Tratamiento</h3>
-                                  <div className="flex gap-2">
-                                      <button onClick={handleShareWhatsApp} className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"><Share2 size={18}/></button>
-                                      <button onClick={handlePrint} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"><Download size={18}/></button>
-                                  </div>
-                              </div>
-
-                              {/* SECCIÓN A: RECETA MÉDICA (ESTRUCTURADA) */}
-                              <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
-                                  <div className="flex justify-between items-center mb-4">
-                                      <h3 className="font-bold text-lg flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
-                                          <Pill size={20}/> Receta Médica
-                                      </h3>
-                                      <button onClick={handleAddMedication} className="text-xs bg-indigo-50 text-indigo-600 px-3 py-1 rounded-full flex items-center gap-1 hover:bg-indigo-100 dark:bg-indigo-900/30 dark:text-indigo-300">
-                                          <Plus size={12}/> Agregar Fármaco
-                                      </button>
-                                  </div>
-                                  
-                                  {editablePrescriptions.length === 0 ? (
-                                      <p className="text-sm text-slate-400 italic text-center py-4">No se detectaron medicamentos en la transcripción.</p>
-                                  ) : (
-                                      <div className="space-y-3">
-                                          {editablePrescriptions.map((med, idx) => {
-                                              const isBlocked = med.action === 'SUSPENDER' || (med.dose && med.dose.includes('BLOQUEO'));
-                                              return (
-                                              <div key={idx} className={`flex gap-2 items-start p-3 rounded-lg border group transition-all ${isBlocked ? 'bg-red-50 border-red-200 dark:bg-red-900/10 dark:border-red-800' : 'bg-slate-50 border-slate-100 dark:bg-slate-800/50 dark:border-slate-700'}`}>
-                                                  <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                      <div className="relative">
-                                                          <input className={`w-full font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors ${isBlocked ? 'text-red-800 dark:text-red-200' : 'text-slate-800 dark:text-white'}`} value={med.drug} onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} placeholder="Nombre del medicamento" />
-                                                          {isBlocked && <div className="absolute right-0 top-1/2 -translate-y-1/2 text-red-500 animate-pulse"><AlertTriangle size={16}/></div>}
-                                                      </div>
-                                                      <input 
-                                                          className={`text-sm bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors ${isBlocked ? 'text-red-600 font-bold uppercase tracking-wider cursor-not-allowed' : 'text-slate-600 dark:text-slate-300'}`} 
-                                                          value={med.dose} 
-                                                          readOnly={isBlocked}
-                                                          onChange={e=>!isBlocked && handleUpdateMedication(idx,'dose',e.target.value)} 
-                                                          placeholder="Dosis" 
-                                                      />
-                                                      <div className="col-span-2 flex gap-2 text-xs">
-                                                          <input 
-                                                              className={`flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors ${isBlocked ? 'text-red-400 text-center font-mono opacity-50 cursor-not-allowed' : 'text-slate-500'}`} 
-                                                              value={isBlocked ? '---' : med.frequency} 
-                                                              readOnly={isBlocked}
-                                                              onChange={e=>!isBlocked && handleUpdateMedication(idx,'frequency',e.target.value)} 
-                                                              placeholder="Frecuencia" 
-                                                          />
-                                                          <input 
-                                                              className={`flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors ${isBlocked ? 'text-red-400 text-center font-mono opacity-50 cursor-not-allowed' : 'text-slate-500'}`} 
-                                                              value={isBlocked ? '---' : med.duration} 
-                                                              readOnly={isBlocked}
-                                                              onChange={e=>!isBlocked && handleUpdateMedication(idx,'duration',e.target.value)} 
-                                                              placeholder="Duración" 
-                                                          />
-                                                      </div>
-                                                  </div>
-                                                  <button onClick={()=>handleRemoveMedication(idx)} className={`opacity-0 group-hover:opacity-100 transition-opacity ${isBlocked ? 'text-red-400 hover:text-red-700' : 'text-slate-300 hover:text-red-500'}`}><X size={16}/></button>
-                                              </div>
-                                          )})}
-                                      </div>
-                                  )}
-                              </div>
-
-                              {/* SECCIÓN B: INDICACIONES (NARRATIVA) */}
-                              <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 flex-1 flex flex-col">
-                                  <div className="flex justify-between items-center mb-4">
-                                      <h3 className="font-bold text-lg flex items-center gap-2 text-teal-600 dark:text-teal-400">
-                                          <FileText size={20}/> Indicaciones y Cuidados
-                                      </h3>
-                                      <button onClick={()=>setIsEditingInstructions(!isEditingInstructions)} className="p-2 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-500 hover:text-teal-600 transition-colors">
-                                          <Edit2 size={18}/>
-                                      </button>
-                                  </div>
-                                  <div className="flex-1 overflow-y-auto custom-scrollbar min-h-[200px]">
-                                      {isEditingInstructions ? (
-                                          <textarea className="w-full h-full border dark:border-slate-700 p-4 rounded-lg bg-slate-50 dark:bg-slate-800 dark:text-slate-200 resize-none outline-none focus:ring-2 focus:ring-teal-500" value={editableInstructions} onChange={e=>setEditableInstructions(e.target.value)}/>
-                                      ) : (
-                                          <div className="prose dark:prose-invert max-w-none text-sm text-slate-700 dark:text-slate-300">
-                                              <FormattedText content={editableInstructions}/>
-                                          </div>
-                                      )}
-                                  </div>
-                              </div>
-
-                          </div>
-                      )}
-
-                      {activeTab==='chat' && (
-                          <div className="bg-white dark:bg-slate-900 p-4 rounded-xl shadow-sm h-full flex flex-col border border-slate-200 dark:border-slate-800 animate-fade-in-up">
-                              <div className="flex-1 overflow-y-auto mb-4 pr-2 custom-scrollbar">
-                                  {/* AQUÍ ESTÁ EL CAMBIO: Usamos FormattedText en lugar de texto plano */}
-                                  {chatMessages.map((m,i)=>(
-                                      <div key={i} className={`p-3 mb-3 rounded-2xl max-w-[85%] text-sm shadow-sm ${m.role==='user'?'bg-brand-teal text-white self-end ml-auto rounded-tr-none':'bg-slate-100 dark:bg-slate-800 dark:text-slate-200 self-start mr-auto rounded-tl-none'}`}>
-                                                  <FormattedText content={m.text} />
-                                      </div>
-                                  ))}
-                                  <div ref={chatEndRef}/>
-                              </div>
-                              <form onSubmit={handleChatSend} className="flex gap-2 relative"><input className="flex-1 border border-slate-200 dark:border-slate-700 p-4 pr-12 rounded-xl bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal shadow-sm" value={chatInput} onChange={e=>setChatInput(e.target.value)} placeholder="Pregunta al asistente..."/><button disabled={isChatting||!chatInput.trim()} className="absolute right-3 top-1/2 -translate-y-1/2 bg-brand-teal text-white p-2 rounded-lg hover:bg-teal-600 disabled:opacity-50 transition-all hover:scale-105 active:scale-95">{isChatting?<RefreshCw className="animate-spin" size={18}/>:<Send size={18}/>}</button></form>
-                          </div>
-                      )}
-
-                      {activeTab==='insurance' && generatedNote && (
-                          <div className="h-full animate-fade-in-up">
-                              <InsurancePanel 
-                                  patientName={selectedPatient?.name || "Paciente no registrado"}
-                                  diagnosis={generatedNote.soapData?.analysis || generatedNote.clinicalNote || "Diagnóstico pendiente"}
-                                  clinicalSummary={`S: ${generatedNote.soapData?.subjective || ''}\nO: ${generatedNote.soapData?.objective || ''}`}
-                                  icd10={generatedNote.soapData?.analysis?.match(/\(([A-Z][0-9][0-9](\.[0-9])?)\)/)?.[1] || ''}
-                                  onInsuranceDataChange={setInsuranceData}
-                              />
-                          </div>
-                      )}
-
-                 </div>
-             )}
+                    )}
+                </div>
           </div>
+
+          {/* TERCERA COLUMNA: CHAT FIJO (Visible solo en Escritorio LG+) */}
+          {generatedNote && (
+            <div className="hidden lg:flex lg:w-[30%] border-l dark:border-slate-800 flex-col bg-white dark:bg-slate-900">
+                 <div className="p-4 border-b dark:border-slate-800 font-bold flex items-center gap-2 text-sm text-slate-600 dark:text-slate-300 bg-slate-50 dark:bg-slate-900/50">
+                     <MessageSquare size={16} className="text-brand-teal"/> Asistente Médico IA
+                 </div>
+                 
+                 <div className="flex-shrink-0">
+                    <ContextualInsights 
+                        insights={clinicalInsights} 
+                        isLoading={loadingClinicalInsights} 
+                    />
+                 </div>
+
+                 <div className="flex-1 p-2 overflow-hidden">
+                     {renderChatContent()}
+                 </div>
+            </div>
+          )}
+
       </div>
 
       {isAttachmentsOpen && selectedPatient && (
         <div className="fixed inset-0 z-50 flex justify-end">
             <div className="absolute inset-0 bg-black/30 backdrop-blur-sm transition-opacity" onClick={() => setIsAttachmentsOpen(false)} />
-            <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 h-full shadow-2xl p-4 flex flex-col border-l border-slate-200 dark:border-slate-800 animate-slide-in-right">
-                <div className="flex justify-between items-center mb-4 pb-2 border-b border-slate-200 dark:border-slate-800">
+            <div className="relative w-full max-w-2xl bg-white dark:bg-slate-900 h-full shadow-2xl p-4 flex flex-col border-l dark:border-slate-800 animate-slide-in-right">
+                <div className="flex justify-between items-center mb-4 pb-2 border-b dark:border-slate-800">
                     <div><h3 className="font-bold text-lg dark:text-white flex items-center gap-2"><Paperclip size={20} className="text-brand-teal"/> Expediente Digital</h3><p className="text-xs text-slate-500">Paciente: {selectedPatient.name}</p></div>
                     <button onClick={() => setIsAttachmentsOpen(false)} className="p-2 hover:bg-slate-100 dark:bg-slate-800 rounded-full transition-colors"><X size={20} className="text-slate-500"/></button>
                 </div>
                 <div className="flex-1 overflow-y-auto flex flex-col gap-4">
                     <div className="bg-slate-50 dark:bg-slate-800/50 p-3 rounded-lg"><p className="text-xs font-bold text-slate-500 mb-2 uppercase">Agregar archivo:</p><UploadMedico preSelectedPatient={selectedPatient} onUploadComplete={() => { toast.success("Archivo agregado."); }} /></div>
                     
-                    {/* INYECCIÓN DEL MÓDULO ESPECIALIZADO (SIDE-BY-SIDE) */}
                     {doctorProfile && (
                         <div className="mt-4">
                              <SpecialtyVault patientId={selectedPatient.id} specialty={doctorProfile.specialty} />
@@ -1670,7 +1840,7 @@ const ConsultationView: React.FC = () => {
         <div className="fixed inset-0 bg-black/60 z-50 flex items-center justify-center p-4">
             <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 max-w-sm w-full animate-fade-in-up">
                 <h3 className="font-bold text-lg mb-4 dark:text-white">Agendar Seguimiento</h3>
-                <input type="datetime-local" className="w-full border border-slate-200 dark:border-slate-700 p-3 rounded-xl mb-6 bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal" value={nextApptDate} onChange={e=>setNextApptDate(e.target.value)}/>
+                <input type="datetime-local" className="w-full border dark:border-slate-700 p-3 rounded-xl mb-6 bg-slate-50 dark:bg-slate-800 dark:text-white outline-none focus:ring-2 focus:ring-brand-teal" value={nextApptDate} onChange={e=>setNextApptDate(e.target.value)}/>
                 <div className="flex justify-end gap-3">
                     <button onClick={()=>setIsAppointmentModalOpen(false)} className="text-slate-500 font-medium">Cancelar</button>
                     <button onClick={handleConfirmAppointment} className="bg-brand-teal text-white px-4 py-2 rounded-xl font-bold">Confirmar</button>
@@ -1685,7 +1855,7 @@ const ConsultationView: React.FC = () => {
             onClose={()=>setIsQuickRxModalOpen(false)} 
             initialTranscript={transcript} 
             patientName={selectedPatient.name} 
-            doctorProfile={doctorProfile}
+            doctorProfile={doctorProfile} 
         />
       )}
       
@@ -1698,7 +1868,22 @@ const ConsultationView: React.FC = () => {
             patientName={selectedPatient.name} 
         />
       )}
+
+      {/* [NUEVO] MODAL DE INCAPACIDAD QUIRÚRGICA */}
+      {isSurgicalModalOpen && selectedPatient && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+              <div className="max-w-3xl w-full">
+                  <SurgicalLeaveGenerator 
+                      patientName={selectedPatient.name}
+                      onClose={() => setIsSurgicalModalOpen(false)}
+                      onGenerate={handleSurgicalData}
+                  />
+              </div>
+          </div>
+      )}
+
     </div>
   );
 };
+
 export default ConsultationView;
