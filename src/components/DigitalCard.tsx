@@ -26,6 +26,7 @@ interface UserProfile {
   website_url?: string;
   address?: string;
   university?: string;
+  qr_code_url?: string; // <--- AGREGADO: Para leer el QR de configuración
   [key: string]: any;
 }
 
@@ -71,7 +72,7 @@ const DigitalCard: React.FC = () => {
   const [stats, setStats] = useState({ patientsCount: 0, avgDuration: 0, loadingStats: true });
   const [loading, setLoading] = useState(true);
   const [searchTerm, setSearchTerm] = useState('');
-  const [searchMode, setSearchMode] = useState<'pubmed' | 'guias'>('guias'); // Nuevo selector
+  const [searchMode, setSearchMode] = useState<'pubmed' | 'guias'>('guias'); 
 
   // ESTADO PARA EL MÓDULO DE REFERENCIA
   const [activeRefTab, setActiveRefTab] = useState<'vitals' | 'labs'>('vitals');
@@ -89,6 +90,7 @@ const DigitalCard: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (user) {
+        // Al hacer select('*'), automáticamente traemos qr_code_url si existe en la tabla profiles
         const { data: profileData } = await supabase.from('profiles').select('*').eq('id', user.id).single();
         setProfile(profileData || { full_name: 'Doctor', specialty: 'Medicina General' });
 
@@ -134,11 +136,8 @@ const DigitalCard: React.FC = () => {
       
       let url = '';
       if (searchMode === 'pubmed') {
-          // Búsqueda académica
           url = `https://pubmed.ncbi.nlm.nih.gov/?term=${encodeURIComponent(searchTerm)}`;
       } else {
-          // Búsqueda Táctica: Encuentra PDFs oficiales en sitios de gobierno MX
-          // El operador filetype:pdf filtra basura y va directo al documento.
           const query = `${searchTerm} "guía de práctica clínica" site:gob.mx OR site:cenetec-difusion.com filetype:pdf`;
           url = `https://www.google.com/search?q=${encodeURIComponent(query)}`;
       }
@@ -190,8 +189,18 @@ const DigitalCard: React.FC = () => {
                     <h3 className="text-xl font-bold text-slate-900 leading-tight">{profile?.full_name}</h3>
                     <p className="text-teal-600 font-bold text-xs uppercase tracking-wide mt-1 mb-6">{profile?.specialty}</p>
                     
+                    {/* ZONA DE QR INTELIGENTE */}
                     <div className="bg-white p-4 rounded-2xl border-2 border-dashed border-slate-200 inline-block mb-6 group-hover:border-teal-400 transition-colors">
-                        <QRCode value={getQRTarget()} size={120} level="M" fgColor="#0f172a"/>
+                        {/* LÓGICA: Si existe un QR guardado en configuración (imagen), se muestra ese. Si no, se genera uno nuevo. */}
+                        {profile?.qr_code_url ? (
+                            <img 
+                                src={profile.qr_code_url} 
+                                alt="QR Configurado" 
+                                className="w-[120px] h-[120px] object-contain"
+                            />
+                        ) : (
+                            <QRCode value={getQRTarget()} size={120} level="M" fgColor="#0f172a"/>
+                        )}
                     </div>
                     
                     <div className="grid grid-cols-2 gap-3">
