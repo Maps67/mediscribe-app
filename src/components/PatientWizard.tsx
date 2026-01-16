@@ -29,16 +29,19 @@ export interface WizardData {
   occupation: string;
   emergencyContact: string;
   
-  // Clínico Crítico
+  // Clínico Crítico (UI fields)
   allergies: string;
   nonCriticalAllergies: string;
   
-  // Antecedentes (Strings para Textareas)
+  // Antecedentes (UI fields - Strings para Textareas)
   pathological: string;
   nonPathological: string;
   family: string;
   obgyn: string;
   
+  // Campo computado para DB (VitalScribe Protocol v5.4)
+  history?: string; 
+
   // Administrativo
   notes: string;
   insurance: string;
@@ -59,7 +62,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
   const [errors, setErrors] = useState<{ [key: string]: boolean }>({});
   const [activeTab, setActiveTab] = useState<'general' | 'background' | 'admin'>('general');
 
-  // Inicialización Segura (Strings vacíos en lugar de Objetos para evitar [object Object])
+  // Inicialización Segura
   const [formData, setFormData] = useState<WizardData>({
     name: '', dob: '', age: '', gender: 'Masculino', 
     curp: '', bloodType: '', 
@@ -71,18 +74,28 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
     insurance: '', rfc: '', invoice: false, patientType: 'Nuevo', referral: ''
   });
 
-  // Carga de datos iniciales
+  // Carga de datos iniciales con parseo seguro de historial
   useEffect(() => {
     if (initialData) {
-      // Nos aseguramos de mezclar los datos entrantes con el estado base
+      // Intentamos recuperar campos individuales si vienen en 'history' JSON
+      let parsedHistory: any = {};
+      try {
+        if (initialData.history) {
+          parsedHistory = JSON.parse(initialData.history);
+        }
+      } catch (e) {
+        console.warn("Error parsing patient history JSON:", e);
+      }
+
       setFormData(prev => ({
         ...prev,
         ...initialData,
-        // Conversión de seguridad por si la DB devuelve objetos en lugar de strings
-        pathological: typeof initialData.pathological === 'string' ? initialData.pathological : JSON.stringify(initialData.pathological || ''),
-        nonPathological: typeof initialData.nonPathological === 'string' ? initialData.nonPathological : JSON.stringify(initialData.nonPathological || ''),
-        family: typeof initialData.family === 'string' ? initialData.family : JSON.stringify(initialData.family || ''),
-        obgyn: typeof initialData.obgyn === 'string' ? initialData.obgyn : JSON.stringify(initialData.obgyn || '')
+        // Prioridad: Dato explícito > Dato del JSON > String vacío
+        pathological: typeof initialData.pathological === 'string' ? initialData.pathological : (parsedHistory.pathological || ''),
+        nonPathological: typeof initialData.nonPathological === 'string' ? initialData.nonPathological : (parsedHistory.nonPathological || ''),
+        family: typeof initialData.family === 'string' ? initialData.family : (parsedHistory.family || ''),
+        obgyn: typeof initialData.obgyn === 'string' ? initialData.obgyn : (parsedHistory.obgyn || ''),
+        allergies: typeof initialData.allergies === 'string' ? initialData.allergies : (parsedHistory.allergies || '')
       }));
     }
   }, [initialData]);
@@ -124,33 +137,45 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
 
     setIsSaving(true);
     
-    // BLINDAJE 2: Sanitización final antes de enviar (Trim + Lowercase email)
-    const cleanData = {
+    // BLINDAJE 2: Empaquetado de Datos Clínicos (JSON History)
+    // Consolidamos los campos sueltos en el objeto 'history' que espera la DB
+    const clinicalData = {
+      allergies: formData.allergies,
+      nonCriticalAllergies: formData.nonCriticalAllergies,
+      pathological: formData.pathological,
+      nonPathological: formData.nonPathological,
+      family: formData.family,
+      obgyn: formData.obgyn,
+      bloodType: formData.bloodType
+    };
+
+    // BLINDAJE 3: Sanitización final y Construcción del Payload
+    const cleanData: WizardData = {
         ...formData,
         name: formData.name.trim(),
         curp: formData.curp.trim().toUpperCase(),
         email: formData.email.trim().toLowerCase(),
-        phone: formData.phone.trim()
+        phone: formData.phone.trim(),
+        // Inyectamos el JSON string para que el backend lo reciba correctamente
+        history: JSON.stringify(clinicalData)
     };
 
     try {
       await onSave(cleanData);
+      // El cierre del modal suele manejarlo el padre tras el éxito
     } catch (e: any) {
       console.error("Error al guardar paciente (Wizard Catch):", e);
       
-      // BLINDAJE 3: Manejo específico del error 409 (Duplicado)
-      // Capturamos códigos de PostgREST/Supabase
+      // BLINDAJE 4: Manejo específico del error 409 (Duplicado)
       if (e?.code === '23505' || e?.status === 409 || e?.message?.includes('duplicate') || e?.details?.includes('already exists')) {
           toast.error("⚠️ PACIENTE DUPLICADO: Ya existe un registro con este CURP, Email o Teléfono.");
           
-          // Ayuda visual: Si hay CURP, marcamos el campo y regresamos a la tab general
           if (cleanData.curp) {
               setErrors(prev => ({ ...prev, curp: true }));
               setActiveTab('general');
           }
       } else {
-          // Si no es duplicado, mostramos el mensaje que venga o uno genérico
-          toast.error("Error al guardar: " + (e.message || "Error de conexión o base de datos."));
+          toast.error("Error al guardar: " + (e.message || "Verifique su conexión."));
       }
     } finally {
         setIsSaving(false);
@@ -167,7 +192,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
     <div className="flex flex-col h-full bg-white dark:bg-slate-950 font-sans">
       
       {/* HEADER ELEGANTE */}
-      <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-6 py-4 flex justify-between items-center shadow-sm z-20 flex-shrink-0">
+      <div className="bg-white dark:bg-slate-900 border-b border-slate-100 dark:border-slate-800 px-6 py-4 flex justify-between items-center shadow-sm z-30 flex-shrink-0 relative">
         <div>
           <h2 className="text-xl font-bold text-slate-800 dark:text-white flex items-center gap-3">
             <div className="p-2 bg-brand-teal/10 rounded-lg text-brand-teal">
@@ -185,7 +210,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
       </div>
 
       {/* TABS DE NAVEGACIÓN STICKY */}
-      <div className="flex border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 md:px-8 sticky top-0 z-10 flex-shrink-0 overflow-x-auto">
+      <div className="flex border-b border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 px-4 md:px-8 sticky top-0 z-20 flex-shrink-0 overflow-x-auto">
         {tabs.map(tab => (
           <button
             key={tab.id}
@@ -202,7 +227,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
       </div>
 
       {/* BODY (SCROLLABLE AREA) */}
-      <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 dark:bg-slate-950 custom-scrollbar">
+      <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-50/50 dark:bg-slate-950 custom-scrollbar relative z-10">
         <div className="max-w-5xl mx-auto space-y-6 pb-20">
 
           {/* --- PESTAÑA 1: GENERALES --- */}
@@ -457,7 +482,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
       </div>
 
       {/* FOOTER PREMIUM */}
-      <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end gap-4 z-20 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex-shrink-0">
+      <div className="p-6 border-t border-slate-100 dark:border-slate-800 bg-white dark:bg-slate-900 flex justify-end gap-4 z-50 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)] flex-shrink-0 relative">
         <button 
             onClick={onClose} 
             className="px-6 py-3 rounded-xl font-bold text-slate-500 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
