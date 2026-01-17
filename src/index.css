@@ -59,3 +59,18 @@ html.dark, html.dark body, html.dark #root {
     @apply bg-slate-700 hover:bg-slate-600;
   }
 }
+
+/* --- OPTIMIZACIÓN VISUAL PARA TABLETS (iPad / Android) --- */
+/* Rango: 768px (iPad Mini vertical) a 1180px (iPad Air horizontal) */
+@media (min-width: 768px) and (max-width: 1180px) {
+  html {
+    /* REDUCCIÓN DE ESCALA (~16% Zoom Out) 
+       El estándar es 16px. Bajamos a 13.5px para que quepa más contenido 
+       y se reduzca la necesidad de scroll vertical. */
+    font-size: 13.5px;
+    
+    /* Suavizado de fuentes para evitar pixelado al reducir */
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+  }
+}
