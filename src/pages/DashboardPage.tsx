@@ -24,6 +24,7 @@ import { DoctorFileGallery } from '../components/DoctorFileGallery';
 import { QuickNotes } from '../components/QuickNotes';
 import { MedicalCalculators } from '../components/MedicalCalculators';
 import { QuickDocModal } from '../components/QuickDocModal';
+import { FastAdmitModal } from '../components/FastAdmitModal'; // <--- CAMBIO 1: IMPORTACIÓN
 
 import { ImpactMetrics } from '../components/ImpactMetrics';
 import SmartBriefingWidget from '../components/SmartBriefingWidget'; 
@@ -594,6 +595,7 @@ const Dashboard: React.FC = () => {
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [docType, setDocType] = useState<'justificante' | 'certificado' | 'receta'>('justificante');
   const [toolsTab, setToolsTab] = useState<'notes' | 'calc'>('notes');
+  const [isFastAdmitOpen, setIsFastAdmitOpen] = useState(false); // <--- CAMBIO 2: NUEVO ESTADO
   
   const [searchInput, setSearchInput] = useState('');
 
@@ -1000,7 +1002,7 @@ const Dashboard: React.FC = () => {
                       </div>
                  </div>
                  <div className="grid grid-cols-2 gap-4">
-                     <button onClick={() => navigate('/patients')} className="p-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 border border-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-300"><UserPlus size={20}/> Nuevo Paciente</button>
+                     <button onClick={() => setIsFastAdmitOpen(true)} className="p-4 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 border border-indigo-100 dark:bg-indigo-900/20 dark:border-indigo-800 dark:text-indigo-300"><UserPlus size={20}/> Nuevo Paciente</button> {/* <--- CAMBIO 3: CONEXIÓN DEL BOTÓN */}
                      <button onClick={() => setIsUploadModalOpen(true)} className="p-4 bg-slate-50 hover:bg-slate-100 text-slate-700 rounded-2xl font-bold text-xs flex flex-col items-center gap-2 border border-slate-200 dark:bg-slate-800 dark:border-slate-700 dark:text-slate-300"><Upload size={20}/> Subir Archivos</button>
                  </div>
              </div>
@@ -1052,6 +1054,7 @@ const Dashboard: React.FC = () => {
 
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile} defaultType={docType} />
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} initialQuery={initialAssistantQuery} />
+      <FastAdmitModal isOpen={isFastAdmitOpen} onClose={() => setIsFastAdmitOpen(false)} /> {/* <--- CAMBIO 4: RENDERIZADO DEL MODAL */}
     </div>
   );
 };
