@@ -1428,7 +1428,7 @@ const ConsultationView: React.FC = () => {
                         <div className="min-h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative pb-8">
                                 {activeTab==='record' && generatedNote.soapData && (
                                 <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-full h-fit pb-32 animate-fade-in-up relative">
-                                    <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex flex-col gap-2">
+                                    <div className="relative md:sticky md:top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex flex-col gap-2">
                                             <div className="flex justify-between items-start">
                                                 <div>
                                                     <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Nota de Evolución</h1>
