@@ -19,7 +19,9 @@ import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
 import MedicalRecordPDF from './MedicalRecordPDF'; 
 import { AppointmentService } from '../services/AppointmentService';
-import { PatientService } from '../services/PatientService'; // ✅ PUNTO A: IMPORTACIÓN AGREGADA
+import { PatientService } from '../services/PatientService'; 
+// ✅ INYECCIÓN 1: Importar el hook de autoguardado
+import { useMedicalAutoSave } from '../hooks/useMedicalAutoSave';
 import QuickRxModal from './QuickRxModal';
 import { DoctorFileGallery } from './DoctorFileGallery';
 import { UploadMedico } from './UploadMedico';
@@ -30,7 +32,6 @@ import { VitalSnapshotCard } from './VitalSnapshotCard';
 import { SpecialtyVault } from './SpecialtyVault';
 import { ConsultationSidebar } from './ConsultationSidebar';
 import { ContextualInsights } from './ContextualInsights'; 
-// CORRECCIÓN DE RUTA: Al estar en la misma carpeta components
 import { PatientBriefing } from './Consultation/PatientBriefing'; 
 import SurgicalLeaveGenerator, { GeneratedLeaveData } from './SurgicalLeaveGenerator';
 import SurgicalLeavePDF from './SurgicalLeavePDF';
@@ -202,6 +203,9 @@ const ConsultationView: React.FC = () => {
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [activeSpeaker, setActiveSpeaker] = useState<'doctor' | 'patient'>('doctor');
 
+  // ✅ INYECCIÓN 2: Inicializar el hook de autoguardado
+  const { saveData, loadData, clearData } = useMedicalAutoSave(currentUserId);
+
   // --- NUEVOS ESTADOS: BRIEFING & MANUAL CONTEXT ---
   const [clinicalInsights, setClinicalInsights] = useState<ClinicalInsight[]>([]);
   const [loadingClinicalInsights, setLoadingClinicalInsights] = useState(false);
@@ -245,6 +249,41 @@ const ConsultationView: React.FC = () => {
         window.removeEventListener('offline', handleOffline); 
     };
   }, []);
+
+  // ✅ INYECCIÓN 3: Efecto de Restauración (Rehidratación)
+  useEffect(() => {
+    if (currentUserId && !transcript && !generatedNote) {
+      const savedData = loadData();
+      if (savedData) {
+        // Restauramos todo el estado perdido
+        setTranscript(savedData.transcript || '');
+        setGeneratedNote(savedData.generatedNote);
+        setEditableInstructions(savedData.editableInstructions || '');
+        setEditablePrescriptions(savedData.editablePrescriptions || []);
+        setActiveSpeaker(savedData.activeSpeaker || 'doctor');
+        
+        toast.info("🔄 Sesión restaurada: Se recuperaron tus datos no guardados.");
+      }
+    }
+  }, [currentUserId]);
+
+  // ✅ INYECCIÓN 4: Efecto de Vigilancia (Autoguardado)
+  useEffect(() => {
+    // Solo guardamos si hay algo relevante que guardar
+    if (transcript || generatedNote || editableInstructions || editablePrescriptions.length > 0) {
+      const timer = setTimeout(() => {
+        saveData({
+          transcript,
+          generatedNote,
+          editableInstructions,
+          editablePrescriptions,
+          activeSpeaker
+        });
+      }, 2000); // Guardar 2 segundos después de dejar de escribir (Debounce)
+
+      return () => clearTimeout(timer);
+    }
+  }, [transcript, generatedNote, editableInstructions, editablePrescriptions, activeSpeaker, saveData]);
 
   // --- MODIFICACIÓN 2: Efecto de Sincronización con "Pausa Inteligente" (Debounce) ---
   useEffect(() => {
@@ -1208,6 +1247,9 @@ const ConsultationView: React.FC = () => {
         if (error) throw error;
         
         toast.success("Nota validada y guardada");
+        
+        // ✅ INYECCIÓN 5: Limpieza de seguridad
+        clearData(); 
         
         resetTranscript(); 
         setSegments([]);
