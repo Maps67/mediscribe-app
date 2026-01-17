@@ -1698,33 +1698,34 @@ const ConsultationView: React.FC = () => {
                                                                         </div>
                                                                     </div>
                                                                 ) : (
-                                                                    <div className="flex-1 grid grid-cols-1 md:grid-cols-2 gap-2">
-                                                                            <div className="relative">
-                                                                                <textarea 
-                                                                                    rows={1}
-                                                                                    className={`w-full font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors resize-none overflow-hidden ${
-                                                                                        isRisky ? 'text-amber-700 dark:text-amber-400 pr-6' : 'text-slate-800 dark:text-white'
-                                                                                    }`} 
-                                                                                    value={med.drug} 
-                                                                                    onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} 
-                                                                                    placeholder="Nombre del medicamento" 
-                                                                                    ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                                    <div className="flex-1 flex flex-col gap-2 min-w-0">
+                                                                            <div className="flex items-start gap-2 w-full">
+                                                                                <div className="relative flex-1">
+                                                                                    <textarea 
+                                                                                        rows={1}
+                                                                                        className={`w-full font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors resize-none overflow-hidden block ${
+                                                                                            isRisky ? 'text-amber-700 dark:text-amber-400 pr-6' : 'text-slate-800 dark:text-white'
+                                                                                        }`} 
+                                                                                        value={med.drug} 
+                                                                                        onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} 
+                                                                                        placeholder="Nombre del medicamento" 
+                                                                                        ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                                                    />
+                                                                                    {isRisky && (
+                                                                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 text-amber-500 cursor-help" title={`Precaución: Posible interacción detectada en análisis clínico.`}>
+                                                                                                    <AlertCircle size={16}/>
+                                                                                        </div>
+                                                                                    )}
+                                                                                </div>
+                                                                                <input 
+                                                                                    className="text-sm font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-600 dark:text-slate-300 w-20 text-right shrink-0"
+                                                                                    value={med.dose} 
+                                                                                    onChange={e=>handleUpdateMedication(idx,'dose',e.target.value)} 
+                                                                                    placeholder="Dosis" 
                                                                                 />
-                                                                                {isRisky && (
-                                                                                    <div className="absolute right-0 top-1/2 -translate-y-1/2 text-amber-500 cursor-help" title={`Precaución: Posible interacción detectada en análisis clínico.`}>
-                                                                                                <AlertCircle size={16}/>
-                                                                                    </div>
-                                                                                )}
                                                                             </div>
                                                                             
-                                                                            <input 
-                                                                                className="text-sm bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-600 dark:text-slate-300"
-                                                                                value={med.dose} 
-                                                                                onChange={e=>handleUpdateMedication(idx,'dose',e.target.value)} 
-                                                                                placeholder="Dosis" 
-                                                                            />
-                                                                            
-                                                                            <div className="col-span-2 flex gap-2 text-xs">
+                                                                            <div className="flex gap-2 text-xs w-full">
                                                                                     <input 
                                                                                         className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
                                                                                         value={med.frequency} 
