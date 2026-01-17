@@ -1055,12 +1055,13 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* --- BOTÓN FLOTANTE DE AYUDA (NUEVO) --- */}
+      {/* --- BOTÓN FLOTANTE DE AYUDA (OPTIMIZADO PARA MÓVIL) --- */}
       <button
         onClick={() => setIsGuideOpen(true)}
-        className="fixed bottom-6 right-6 bg-indigo-600 text-white px-5 py-3 rounded-full shadow-2xl font-bold flex items-center gap-2 z-50 hover:scale-105 transition-transform hover:shadow-indigo-500/50"
+        className="fixed z-50 bg-indigo-600 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 transition-transform hover:scale-105 hover:shadow-indigo-500/50 bottom-24 right-4 w-14 h-14 p-0 md:bottom-6 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3"
       >
-        <HelpCircle size={20} /> ¿Cómo funciona?
+        <HelpCircle size={24} /> 
+        <span className="hidden md:inline">¿Cómo funciona?</span>
       </button>
 
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile} defaultType={docType} />
