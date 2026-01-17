@@ -35,7 +35,6 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, patientNam
       frequency: capitalize(newMed.frequency), 
       duration: newMed.duration,
       notes: newMed.notes ? capitalize(newMed.notes) : '',
-      action: 'NUEVO'
     };
 
     setMedications([...medications, item]);
