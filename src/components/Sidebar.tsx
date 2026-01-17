@@ -3,11 +3,14 @@ import { NavLink, useNavigate } from 'react-router-dom';
 import { 
   LayoutDashboard, Stethoscope, Users, Briefcase, LogOut, X, 
   Settings, Download, Share, Calendar, Moon, Sun, Presentation,
-  ShieldCheck // <--- Importamos el icono de escudo para privacidad
+  ShieldCheck 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { useTheme } from '../context/ThemeContext';
 import { usePWA } from '../hooks/usePWA';
+
+// ✅ 1. IMPORTACIÓN AGREGADA
+import { HealthStatusBadge } from './ui/HealthStatusBadge'; 
 
 interface SidebarProps {
   isOpen: boolean;
@@ -132,8 +135,12 @@ const Sidebar: React.FC<SidebarProps> = ({ isOpen, onClose, onLogout }) => {
             <span>Cerrar Sesión</span>
           </button>
 
-          {/* CUMPLIMIENTO LEGAL ACTUALIZADO v5.4 */}
-          <div className="mt-4 pt-4 border-t border-slate-50 dark:border-slate-800/50 text-[10px] text-slate-400 text-center leading-tight">
+          {/* ✅ 2. COMPONENTE AGREGADO AQUÍ */}
+          <div className="mt-3 flex justify-center w-full">
+            <HealthStatusBadge />
+          </div>
+
+          <div className="mt-2 pt-2 border-t border-slate-50 dark:border-slate-800/50 text-[10px] text-slate-400 text-center leading-tight">
             <div className="flex flex-col gap-1 px-2">
               <NavLink 
                 to="/privacy" 
