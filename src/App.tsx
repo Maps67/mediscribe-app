@@ -125,11 +125,26 @@ const App: React.FC = () => {
     };
     initSession();
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, newSession) => {
-      if (!mounted) return;
-      setSession(newSession);
-      setLoading(false);
-    });
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
+    if (!mounted) return;
+
+    // 1. DIAGNÓSTICO: Muestra en consola qué está pasando (F12)
+    if (event !== 'SIGNED_IN' && event !== 'INITIAL_SESSION') {
+       console.log('🔄 Evento Auth:', event);
+    }
+
+    // 2. BLINDAJE ANTI-PARPADEO
+    // Si Supabase intenta refrescar el token pero falla momentáneamente (devuelve null),
+    // NO sacamos al usuario. Mantenemos la sesión anterior activa.
+    if (event === 'TOKEN_REFRESHED' && !newSession) {
+      console.warn('🛡️ Blindaje activado: Ignorando fallo de refresco de token.');
+      return; 
+    }
+
+    // 3. ACTUALIZACIÓN ESTÁNDAR
+    setSession(newSession);
+    setLoading(false);
+  });
 
     const splashTimer = setTimeout(() => { if (mounted) setShowSplash(false); }, 2500);
     return () => { mounted = false; subscription.unsubscribe(); clearTimeout(splashTimer); };
