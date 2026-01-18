@@ -1055,10 +1055,11 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* --- BOTÓN FLOTANTE DE AYUDA (OPTIMIZADO PARA MÓVIL) --- */}
+      {/* --- BOTÓN FLOTANTE DE AYUDA (POSICIÓN CORREGIDA WEB) --- */}
       <button
         onClick={() => setIsGuideOpen(true)}
-        className="fixed z-50 bg-indigo-600 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 transition-transform hover:scale-105 hover:shadow-indigo-500/50 bottom-24 right-4 w-14 h-14 p-0 md:bottom-6 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3"
+        // CAMBIO TÉCNICO: 'md:bottom-6' -> 'md:bottom-24' para evitar solapamiento con el widget de prueba
+        className="fixed z-50 bg-indigo-600 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 transition-transform hover:scale-105 hover:shadow-indigo-500/50 bottom-24 right-4 w-14 h-14 p-0 md:bottom-24 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3"
       >
         <HelpCircle size={24} /> 
         <span className="hidden md:inline">¿Cómo funciona?</span>
