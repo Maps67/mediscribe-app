@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, User, Stethoscope, Hash, Phone, MapPin, BookOpen, Download, FileSpreadsheet, ShieldCheck, Database, QrCode, PenTool, Image as ImageIcon } from 'lucide-react';
+import { Save, User, Stethoscope, Hash, Phone, MapPin, BookOpen, Download, FileSpreadsheet, ShieldCheck, Database, QrCode, PenTool, Image as ImageIcon, Lock } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { MedicalDataService } from '../services/MedicalDataService';
 import { toast } from 'sonner';
@@ -215,14 +215,16 @@ const SettingsView: React.FC = () => {
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Nombre Completo</label>
                         <input type="text" required value={fullName} onChange={e => setFullName(e.target.value)} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none dark:bg-slate-900 dark:text-white" placeholder="Dr. Juan Pérez" />
                     </div>
+                    
+                    {/* --- ZONA BLINDADA: ESPECIALIDAD --- */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Especialidad</label>
-                        <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-brand-teal relative">
+                        <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-slate-100 dark:bg-slate-800/50 cursor-not-allowed">
                             <Stethoscope size={16} className="text-slate-400 mr-2 pointer-events-none"/>
                             <select
                                 value={specialty}
-                                onChange={e => setSpecialty(e.target.value)}
-                                className="w-full py-3 outline-none bg-transparent dark:text-white appearance-none cursor-pointer"
+                                disabled={true} // BLINDADO: No editable
+                                className="w-full py-3 outline-none bg-transparent dark:text-slate-400 text-slate-500 appearance-none cursor-not-allowed font-medium"
                             >
                                 {SPECIALTIES.map(s => (
                                     <option key={s} value={s} className="text-slate-800 dark:text-slate-200 dark:bg-slate-800">
@@ -230,8 +232,14 @@ const SettingsView: React.FC = () => {
                                     </option>
                                 ))}
                             </select>
+                            <Lock size={14} className="text-slate-400 ml-2" />
                         </div>
+                        <p className="text-[10px] text-slate-400 mt-1 pl-1">
+                            Dato fundacional vinculado a Cédula. No editable.
+                        </p>
                     </div>
+                    {/* ----------------------------------- */}
+
                     <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Cédula Prof.</label>
                         <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-brand-teal">
