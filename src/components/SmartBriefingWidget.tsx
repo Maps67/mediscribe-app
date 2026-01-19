@@ -2,17 +2,20 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sun, Moon, Sunrise, Sunset, MoonStar, 
   Clock, AlertTriangle, Activity, Bot, 
-  BrainCircuit, Zap, ChevronRight 
+  BrainCircuit, Zap, ChevronRight, RefreshCw
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
+import { GeminiMedicalService } from '../services/GeminiMedicalService'; 
 
+// Definir interfaz de Props
 interface SmartBriefingProps {
   greeting: string;
   weather: { temp: string; code: number };
   systemStatus: boolean;
   onOpenAssistant: () => void;
   isLoading?: boolean; 
+  specialty?: string; 
   insights: {
     nextTime: string | null;
     pending: number;
@@ -21,11 +24,12 @@ interface SmartBriefingProps {
   };
 }
 
-const DAILY_CHALLENGES = [
-  { category: "Cardiología", question: "¿Fármaco de elección en HTA con Diabetes?", answer: "IECA / ARA-II (Nefroprotección)" },
-  { category: "Urgencias", question: "Triada de Cushing (HTIC)", answer: "HTA, Bradicardia, Alt. Respiratoria" },
-  { category: "Pediatría", question: "Dosis ponderal Paracetamol", answer: "10-15 mg/kg/dosis cada 6h" },
-  { category: "Ginecología", question: "Tratamiento de elección en Preeclampsia grave", answer: "Sulfato de Magnesio (Esquema Zuspan)" }
+// Respaldo local por si falla la IA o no hay internet
+const BACKUP_CHALLENGES = [
+  { category: "Cardiología", question: "¿Fármaco de elección en HTA con Diabetes?", answer: "IECA / ARA-II" },
+  { category: "Urgencias", question: "Triada de Cushing (HTIC)", answer: "HTA, Bradicardia, Alt. Resp." },
+  { category: "Pediatría", question: "Dosis ponderal Paracetamol", answer: "10-15 mg/kg/dosis" },
+  { category: "Medicina Interna", question: "Criterios de Framingham son para:", answer: "Insuficiencia Cardíaca" }
 ];
 
 const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({ 
@@ -34,18 +38,57 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
   systemStatus, 
   onOpenAssistant, 
   isLoading = false,
+  specialty = "Medicina General",
   insights 
 }) => {
   const [hour, setHour] = useState(new Date().getHours());
-  const [challenge, setChallenge] = useState(DAILY_CHALLENGES[0]);
+  const [challenge, setChallenge] = useState(BACKUP_CHALLENGES[0]);
   const [showAnswer, setShowAnswer] = useState(false);
+  const [loadingChallenge, setLoadingChallenge] = useState(false);
 
+  // --- LÓGICA DEL CEREBRO DE RETOS (IA + PERSISTENCIA) ---
   useEffect(() => {
     setHour(new Date().getHours());
-    // Selección aleatoria del reto al cargar
-    setChallenge(DAILY_CHALLENGES[Math.floor(Math.random() * DAILY_CHALLENGES.length)]);
-  }, []);
+    loadDailyChallenge();
+  }, [specialty]); // Se recarga si cambia la especialidad
 
+  const loadDailyChallenge = async () => {
+    const todayKey = `daily_challenge_${format(new Date(), 'yyyy-MM-dd')}`;
+    const storedData = localStorage.getItem('med_daily_challenge_data');
+    const storedDate = localStorage.getItem('med_daily_challenge_date');
+
+    // 1. Si ya existe un reto HOY, úsalo (Ahorra tokens y carga instantánea)
+    if (storedDate === todayKey && storedData) {
+      try {
+        setChallenge(JSON.parse(storedData));
+        return;
+      } catch (e) {
+        console.error("Error leyendo caché local, renovando...");
+      }
+    }
+
+    // 2. Si es un nuevo día, llama a la IA
+    setLoadingChallenge(true);
+    try {
+      // CORRECCIÓN APLICADA: Llamada directa al objeto estático (Sin 'new')
+      const newChallenge = await GeminiMedicalService.getDailyChallenge(specialty);
+      
+      if (newChallenge) {
+        setChallenge(newChallenge);
+        // Guardar en caché para el resto del día
+        localStorage.setItem('med_daily_challenge_data', JSON.stringify(newChallenge));
+        localStorage.setItem('med_daily_challenge_date', todayKey);
+      }
+    } catch (error) {
+      console.warn("Usando reto de respaldo debido a error de red/IA");
+      // Fallback aleatorio de la lista local
+      setChallenge(BACKUP_CHALLENGES[Math.floor(Math.random() * BACKUP_CHALLENGES.length)]);
+    } finally {
+      setLoadingChallenge(false);
+    }
+  };
+
+  // --- TEMA VISUAL ---
   let theme = { 
     gradient: "from-orange-400 via-amber-500 to-yellow-500", 
     icon: Sunrise, label: "Buenos Días", shadow: "shadow-orange-200/50", accent: "bg-white/20"
@@ -59,21 +102,11 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
     theme = { gradient: "from-slate-900 via-slate-800 to-blue-950", icon: MoonStar, label: "Guardia Nocturna", shadow: "shadow-slate-800/50", accent: "bg-slate-700/50" };
   }
 
+  // SKELETON LOADING (Estado de carga inicial del dashboard)
   if (isLoading) {
     return (
       <div className="relative w-full rounded-[2.5rem] bg-slate-200 dark:bg-slate-800/80 p-8 mb-8 overflow-hidden h-[300px] border-2 border-slate-300 dark:border-slate-700 shadow-xl">
           <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/60 dark:via-white/10 to-transparent skew-x-12 translate-x-[-100%] animate-[shimmer_2s_infinite]"></div>
-          <div className="relative z-10 flex flex-col justify-end h-full w-full gap-6">
-             <div className="space-y-4">
-               <div className="h-5 w-40 bg-slate-300 dark:bg-slate-600 rounded-lg"></div>
-               <div className="h-12 w-3/4 bg-slate-300 dark:bg-slate-600 rounded-2xl"></div>
-             </div>
-             <div className="flex gap-4">
-                <div className="h-16 w-40 bg-slate-300 dark:bg-slate-700 rounded-2xl border border-slate-400/20"></div>
-                <div className="h-16 w-40 bg-slate-300 dark:bg-slate-700 rounded-2xl border border-slate-400/20"></div>
-                <div className="hidden sm:block h-16 w-40 bg-slate-300 dark:bg-slate-700 rounded-2xl border border-slate-400/20"></div>
-             </div>
-          </div>
       </div>
     );
   }
@@ -141,21 +174,31 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
           </div>
         </div>
 
-        {/* COLUMNA CENTRAL: Reto Diario (Ahora visible siempre en PC) */}
+        {/* COLUMNA CENTRAL: Reto Diario IA */}
         <div className="w-full xl:max-w-sm">
           <div 
-            className="bg-white/10 border border-white/10 rounded-[2rem] p-5 backdrop-blur-md animate-in zoom-in-95 cursor-pointer hover:bg-white/15 transition-all shadow-inner"
-            onClick={() => setShowAnswer(!showAnswer)}
+            className="bg-white/10 border border-white/10 rounded-[2rem] p-5 backdrop-blur-md animate-in zoom-in-95 cursor-pointer hover:bg-white/15 transition-all shadow-inner relative overflow-hidden"
+            onClick={() => !loadingChallenge && setShowAnswer(!showAnswer)}
           >
+              {loadingChallenge && (
+                  <div className="absolute inset-0 bg-black/10 backdrop-blur-sm z-20 flex items-center justify-center">
+                      <RefreshCw className="animate-spin text-white opacity-80" size={24}/>
+                  </div>
+              )}
+
               <div className="flex items-start gap-4">
                  <div className="p-3 bg-indigo-500 rounded-2xl shadow-lg shadow-indigo-500/40 mt-1 shrink-0">
                    <BrainCircuit size={24} className="text-white animate-pulse"/>
                  </div>
                  <div className="flex-1 overflow-hidden">
                    <div className="flex items-center gap-2 mb-2">
-                     <span className="bg-indigo-500/50 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-indigo-300/30 tracking-wider">Reto Diario: {challenge.category}</span>
+                     <span className="bg-indigo-500/50 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-indigo-300/30 tracking-wider">
+                        {loadingChallenge ? 'Generando...' : `Reto Diario: ${challenge.category}`}
+                     </span>
                    </div>
-                   <p className="font-bold text-sm md:text-base leading-snug line-clamp-3">{challenge.question}</p>
+                   <p className="font-bold text-sm md:text-base leading-snug line-clamp-3">
+                       {loadingChallenge ? "Consultando base de conocimientos médicos..." : challenge.question}
+                   </p>
                    
                    <div className={`grid transition-all duration-500 ease-in-out ${showAnswer ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0'}`}>
                       <div className="overflow-hidden">
@@ -165,7 +208,11 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
                          </div>
                       </div>
                    </div>
-                   {!showAnswer && <p className="text-[10px] opacity-60 mt-2 flex items-center gap-1 font-bold italic tracking-wide uppercase"><ChevronRight size={10}/> Toca para revelar respuesta</p>}
+                   {!showAnswer && !loadingChallenge && (
+                       <p className="text-[10px] opacity-60 mt-2 flex items-center gap-1 font-bold italic tracking-wide uppercase">
+                           <ChevronRight size={10}/> Toca para revelar respuesta
+                       </p>
+                   )}
                  </div>
               </div>
           </div>

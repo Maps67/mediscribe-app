@@ -775,7 +775,8 @@ const Dashboard: React.FC = () => {
          <SmartBriefingWidget 
            greeting={dynamicGreeting.greeting} 
            weather={weather} 
-           systemStatus={systemStatus} 
+           systemStatus={systemStatus}
+           specialty={doctorProfile?.specialty} 
            onOpenAssistant={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }}
            isLoading={isLoading} 
            insights={{

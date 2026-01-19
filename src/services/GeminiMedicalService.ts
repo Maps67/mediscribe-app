@@ -640,5 +640,37 @@ export const GeminiMedicalService = {
   // --- HELPERS (Alias para compatibilidad) ---
   async generatePatientInsights(p: string, h: string, c: string[]): Promise<any> { return this.generatePatient360Analysis(p, h, c); },
   async generateQuickRxJSON(t: string, p: string): Promise<MedicationItem[]> { return this.extractMedications(t); },
-  async generatePrescriptionOnly(t: string): Promise<string> { return "Use extractMedications."; }
+  async generatePrescriptionOnly(t: string): Promise<string> { return "Use extractMedications."; },
+
+  /**
+   * Genera un reto clínico diario basado en la especialidad.
+   */
+  async getDailyChallenge(specialty: string): Promise<{ question: string; answer: string; category: string }> {
+    try {
+      const targetSpecialty = specialty || "Medicina General";
+
+      const prompt = `
+        Actúa como un profesor experto en medicina preparando un examen de certificación para la especialidad de: ${targetSpecialty}.
+        Genera UNA sola pregunta de opción múltiple o caso clínico breve que sea difícil y retadora.
+        
+        IMPORTANTE: Responde ÚNICAMENTE con un objeto JSON válido (sin texto extra, ni markdown).
+        El formato debe ser exactamente así:
+        {
+          "category": "Subtema específico de ${targetSpecialty}",
+          "question": "Texto de la pregunta...",
+          "answer": "Respuesta correcta breve y concisa (máximo 10 palabras)"
+        }
+      `;
+
+      // Llamada segura a la Edge Function
+      const rawText = await generateWithFailover(prompt, true);
+      const cleanJson = cleanJSON(rawText);
+      
+      return JSON.parse(cleanJson);
+
+    } catch (error) {
+      console.error("Error generando reto diario:", error);
+      throw error; 
+    }
+  }
 };
