@@ -22,6 +22,8 @@ import PatientDashboard from './PatientDashboard';
 import { GeminiMedicalService } from '../services/GeminiMedicalService'; 
 import { MedicalDataService } from '../services/MedicalDataService';
 import DataExportModal from './DataExportModal'; 
+// ✅ IMPORTACIÓN DEL HUB QUIRÚRGICO (Para acceso directo independiente)
+import { SurgicalReportView } from './SurgicalReportView';
 
 interface PatientData extends Omit<Partial<Patient>, 'age'> {
   id: string;
@@ -85,6 +87,9 @@ const PatientsView: React.FC = () => {
 
   // ✅ INTEGRACIÓN 2: Estado para controlar el Modal de Exportación
   const [showExportModal, setShowExportModal] = useState(false);
+
+  // ✅ NUEVO ESTADO: CONTROL DEL HUB QUIRÚRGICO INDEPENDIENTE
+  const [surgicalPatient, setSurgicalPatient] = useState<PatientData | null>(null);
 
   // ✅ DETECCIÓN DE PERFIL QUIRÚRGICO
   const isSurgicalProfile = useMemo(() => {
@@ -271,15 +276,10 @@ const PatientsView: React.FC = () => {
       });
   };
 
-  // ✅ ACCIÓN DE REDIRECCIÓN QUIRÚRGICA DIRECTA
+  // ✅ ACCIÓN DE REDIRECCIÓN QUIRÚRGICA DIRECTA (MODIFICADA: AHORA ABRE MODAL INDEPENDIENTE)
   const handleSurgicalDirect = (patient: PatientData) => {
-      // Navegamos a Consulta enviando un estado especial "mode: surgical_direct"
-      navigate('/consultation', { 
-          state: { 
-              patientData: patient,
-              mode: 'surgical_direct' 
-          } 
-      });
+      // En lugar de navegar y chocar con ConsultationView, abrimos el Hub aquí mismo.
+      setSurgicalPatient(patient);
   };
 
   const handleDelete = async (id: string) => {
@@ -676,6 +676,40 @@ const PatientsView: React.FC = () => {
       {showExportModal && (
         <DataExportModal onClose={() => setShowExportModal(false)} />
       )}
+
+      {/* ✅ NUEVO: QUIRÓFANO PORTÁTIL (MODAL INDEPENDIENTE) */}
+      {/* Esta es la capa que se superpone a todo, creando un módulo aislado */}
+      {surgicalPatient && doctorProfile && (
+        <div className="fixed inset-0 z-[100] bg-slate-50 dark:bg-slate-950 flex flex-col animate-in slide-in-from-bottom duration-300">
+            {/* Barra Superior de Navegación del Módulo Independiente */}
+            <div className="bg-white dark:bg-slate-900 border-b dark:border-slate-800 p-4 flex justify-between items-center shadow-sm shrink-0">
+                <div className="flex items-center gap-2">
+                    <div className="bg-indigo-100 dark:bg-indigo-900/30 p-2 rounded-lg text-indigo-600">
+                        <Scissors size={20} />
+                    </div>
+                    <div>
+                        <h2 className="font-bold text-slate-800 dark:text-white leading-tight">Quirófano Virtual</h2>
+                        <p className="text-xs text-slate-500">Módulo de Acceso Directo</p>
+                    </div>
+                </div>
+                <button 
+                    onClick={() => setSurgicalPatient(null)}
+                    className="p-2 bg-slate-100 dark:bg-slate-800 rounded-full text-slate-500 hover:text-red-500 transition-colors"
+                >
+                    <X size={24} />
+                </button>
+            </div>
+            
+            {/* Contenido del Hub */}
+            <div className="flex-1 overflow-hidden">
+                <SurgicalReportView 
+                    doctor={doctorProfile}
+                    patient={surgicalPatient}
+                />
+            </div>
+        </div>
+      )}
+
     </div>
   );
 };
