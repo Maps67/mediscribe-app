@@ -196,7 +196,7 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
                         {loadingChallenge ? 'Generando...' : `Reto Diario: ${challenge.category}`}
                      </span>
                    </div>
-                   <p className="font-bold text-sm md:text-base leading-snug line-clamp-3">
+                   <p className={`font-bold text-sm md:text-base leading-snug transition-all duration-300 ${!showAnswer ? 'line-clamp-3' : ''}`}>
                        {loadingChallenge ? "Consultando base de conocimientos médicos..." : challenge.question}
                    </p>
                    
