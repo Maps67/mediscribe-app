@@ -65,7 +65,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
   // Inicialización Segura
   const [formData, setFormData] = useState<WizardData>({
     name: '', dob: '', age: '', 
-    gender: '', 
+    gender: '', // Inicia vacío para forzar "Seleccione..." en pacientes nuevos
     curp: '', bloodType: '', 
     maritalStatus: 'Soltero/a',
     phone: '', email: '', address: '', occupation: '', emergencyContact: '',
@@ -76,7 +76,6 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
   });
 
   // UTILERÍA: Sanitización estricta para evitar el error "value prop on input should not be null"
-  // Convierte cualquier null/undefined entrante en una cadena vacía segura.
   const safeValue = (val: any): string => {
     if (val === null || val === undefined) return '';
     return String(val);
@@ -95,15 +94,18 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
         console.warn("Error parsing patient history JSON:", e);
       }
 
-      // CORRECCIÓN DEFINITIVA: Usamos safeValue() en CADA campo.
-      // Esto previene que 'null' entre al estado y cause el crash de .trim() más adelante.
+      // LÓGICA DE NORMALIZACIÓN (CORRECCIÓN): 
+      // Si viene "No especificado" de la DB, lo convertimos a '' (vacío) para que el Select muestre "Seleccione..."
+      const rawGender = safeValue(initialData.gender);
+      const normalizedGender = rawGender === 'No especificado' ? '' : rawGender;
+
       setFormData(prev => ({
         ...prev,
         // Campos directos
         name: safeValue(initialData.name),
         dob: safeValue(initialData.dob),
         age: safeValue(initialData.age),
-        gender: safeValue(initialData.gender),
+        gender: normalizedGender, // <--- AQUI ESTÁ LA SOLUCIÓN
         curp: safeValue(initialData.curp),
         bloodType: safeValue(initialData.bloodType),
         maritalStatus: safeValue(initialData.maritalStatus) || 'Soltero/a',
@@ -153,7 +155,6 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
     const newErrors: { [key: string]: boolean } = {};
     
     // --- PROTOCOLO DE URGENCIA ACTIVADO ---
-    // Usamos safeValue aquí también por doble seguridad para evitar crash de .trim()
     const safeName = safeValue(formData.name);
     
     if (!safeName.trim()) newErrors.name = true;
@@ -179,15 +180,15 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
       bloodType: formData.bloodType
     };
 
-    // CORRECCIÓN DEL ERROR 409 (Duplicados en DB):
-    // Si el campo está vacío, enviamos NULL, no string vacío "".
-    // Esto permite guardar múltiples pacientes sin CURP/Email sin que la DB marque error de unicidad.
+    // Preparación del payload para DB
     const cleanData: WizardData = {
         ...formData,
         name: formData.name.trim(),
+        // Si no selecciona género, enviamos 'No especificado' para que la DB tenga un valor,
+        // pero la próxima vez que cargue, lo convertiremos a vacío visualmente.
         gender: formData.gender || 'No especificado', 
         
-        // Lógica NULL-IF-EMPTY para evitar conflictos de constraint Unique
+        // Lógica NULL-IF-EMPTY para evitar conflictos de constraint Unique (409)
         curp: formData.curp.trim() === '' ? (null as any) : formData.curp.trim().toUpperCase(),
         email: formData.email.trim() === '' ? (null as any) : formData.email.trim().toLowerCase(),
         phone: formData.phone.trim() === '' ? (null as any) : formData.phone.trim(),
@@ -289,7 +290,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                             </div>
                         </div>
 
-                        {/* Género (CORREGIDO PARA OBLIGAR SELECCIÓN) */}
+                        {/* Género (CORREGIDO: Muestra "Seleccione..." si está vacío) */}
                         <div className="md:col-span-4">
                             <label className={LABEL_CLASS}>Género</label>
                             <select 
@@ -297,7 +298,7 @@ export const PatientWizard: React.FC<PatientWizardProps> = ({ initialData, onClo
                                 value={formData.gender} 
                                 onChange={(e) => handleChange('gender', e.target.value)}
                             >
-                                {/* Esta opción está oculta una vez que abres el menú, pero se ve al inicio si está vacío */}
+                                {/* Esta opción se muestra por defecto si value es "" */}
                                 <option value="" disabled hidden>Seleccione...</option>
                                 <option value="Masculino" className="text-slate-700">Masculino</option>
                                 <option value="Femenino" className="text-slate-700">Femenino</option>
