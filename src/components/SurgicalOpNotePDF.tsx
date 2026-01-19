@@ -105,7 +105,7 @@ const SurgicalOpNotePDF: React.FC<SurgicalOpNotePDFProps> = ({ doctor, patient, 
           <Text style={{ fontSize: 8, color: '#64748b' }}>{doctor.specialty} - Cédula: {doctor.license_number}</Text>
           
           <Text style={styles.disclaimer}>
-            Documento generado electrónicamente mediante VitalScribe AI. {new Date().toISOString()}
+            Documento generado electrónicamente {new Date().toISOString()}
           </Text>
         </View>
 

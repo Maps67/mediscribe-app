@@ -350,23 +350,40 @@ export const SurgicalReportView: React.FC<SurgicalReportViewProps> = ({ doctor, 
               <div className="p-8 prose dark:prose-invert max-w-none">
                 <FormattedText content={generatedReport} />
               </div>
-              <div className="bg-slate-50 dark:bg-slate-950 p-4 border-t dark:border-slate-800 flex flex-wrap justify-end gap-3">
-                 <button onClick={() => setGeneratedReport(null)} className="text-slate-500 font-bold text-sm px-4 hover:text-slate-700">
-                    Editar / Reintentar
-                 </button>
+              
+              {/* PIE DE PÁGINA CON ADVERTENCIA LEGAL */}
+              <div className="bg-slate-50 dark:bg-slate-950 p-4 border-t dark:border-slate-800 flex flex-col gap-4">
                  
-                 {/* ✅ BOTÓN PDF */}
-                 <button 
-                    onClick={handleDownloadPDF} 
-                    className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-slate-300 dark:hover:bg-slate-700 flex items-center gap-2"
-                 >
-                    <Download size={16}/> Descargar PDF
-                 </button>
+                 {/* ⚠️ ADVERTENCIA DE RESPONSABILIDAD ⚠️ */}
+                 <div className="flex items-start gap-2 text-[10px] text-slate-500 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/50">
+                    <ShieldAlert size={14} className="text-amber-600 shrink-0 mt-0.5"/>
+                    <p>
+                      <span className="font-bold text-amber-700 dark:text-amber-500">RESPONSABILIDAD MÉDICA:</span> 
+                      VitalScribe AI genera este reporte basado en su dictado. Al hacer clic en "Validar y Guardar", usted certifica que ha leído, revisado y verificado que la información clínica, hallazgos y conteo de textiles son correctos. La responsabilidad legal del contenido final recae exclusivamente en el cirujano tratante.
+                    </p>
+                 </div>
 
-                 <button onClick={handleSaveToRecord} disabled={isSaving} className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50">
-                    {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>}
-                    Validar y Guardar
-                 </button>
+                 <div className="flex flex-wrap justify-end gap-3">
+                    <button onClick={() => setGeneratedReport(null)} className="text-slate-500 font-bold text-sm px-4 hover:text-slate-700">
+                        Editar / Reintentar
+                    </button>
+                    
+                    <button 
+                        onClick={handleDownloadPDF} 
+                        className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-slate-300 dark:hover:bg-slate-700 flex items-center gap-2"
+                    >
+                        <Download size={16}/> Descargar PDF
+                    </button>
+
+                    <button 
+                        onClick={handleSaveToRecord} 
+                        disabled={isSaving} 
+                        className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50"
+                    >
+                        {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>}
+                        Validar y Guardar
+                    </button>
+                 </div>
               </div>
            </div>
         </div>
