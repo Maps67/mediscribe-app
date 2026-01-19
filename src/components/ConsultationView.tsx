@@ -36,8 +36,9 @@ import { ContextualInsights } from './ContextualInsights';
 import { PatientBriefing } from './Consultation/PatientBriefing'; 
 import SurgicalLeaveGenerator, { GeneratedLeaveData } from './SurgicalLeaveGenerator';
 import SurgicalLeavePDF from './SurgicalLeavePDF';
+import { SurgicalReportView } from './SurgicalReportView'; // <--- NUEVO COMPONENTE
 
-type TabType = 'record' | 'patient' | 'chat' | 'insurance';
+type TabType = 'record' | 'patient' | 'chat' | 'insurance' | 'surgical_report'; // <--- TIPO ACTUALIZADO
 
 interface EnhancedGeminiResponse extends GeminiResponse {
    prescriptions?: MedicationItem[];
@@ -98,6 +99,24 @@ const SPECIALTIES_WITH_CONTROLLED_RX = [
     'Cuidados Paliativos',
     'Oncología Médica',
     'Cirugía Oncológica'
+];
+
+// --- Feature: Reporte Quirúrgico (Lista Blanca de Especialidades Qx) ---
+const SURGICAL_SPECIALTIES = [
+  'Cirugía General',
+  'Cirugía Cardiotorácica',
+  'Cirugía de Columna',
+  'Cirugía de Mano',
+  'Cirugía Oncológica',
+  'Cirugía Pediátrica',
+  'Cirugía Plástica y Reconstructiva',
+  'Ginecología y Obstetricia',
+  'Neurocirugía',
+  'Oftalmología',
+  'Otorrinolaringología',
+  'Traumatología y Ortopedia',
+  'Traumatología: Artroscopia',
+  'Urología'
 ];
 
 const cleanHistoryString = (input: any): string => {
@@ -247,6 +266,14 @@ const ConsultationView: React.FC = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
 
   const lastAnalyzedRef = useRef<string>("");
+
+  // --- [NUEVO] DETECCIÓN DE PERFIL QUIRÚRGICO ---
+  const isSurgicalProfile = useMemo(() => {
+    if (!doctorProfile?.specialty) return false;
+    return SURGICAL_SPECIALTIES.some(s => 
+      doctorProfile.specialty.toLowerCase().includes(s.toLowerCase())
+    );
+  }, [doctorProfile]);
 
   useEffect(() => {
     const handleOnline = () => { 
@@ -703,7 +730,7 @@ const ConsultationView: React.FC = () => {
 
   const handleBriefingComplete = (context: string) => {
       setManualContext(context);
-      setShowBriefing(false);     
+      setShowBriefing(false);      
       
       const isNewOrEmpty = (selectedPatient as any).isTemporary || 
                            !selectedPatient?.history || 
@@ -1602,6 +1629,17 @@ const ConsultationView: React.FC = () => {
                         );
                     })}
                     
+                    {/* 🔥 NUEVO: BOTÓN EXCLUSIVO PARA CIRUJANOS 🔥 */}
+                    {isSurgicalProfile && selectedPatient && (
+                       <button 
+                           onClick={() => setActiveTab('surgical_report' as any)}
+                           className={`flex-1 py-4 flex justify-center gap-2 text-sm font-bold border-b-4 transition-colors ${activeTab === 'surgical_report' ? 'text-indigo-600 border-indigo-600' : 'text-slate-400 border-transparent hover:text-slate-600'}`}
+                       >
+                           <Scissors size={18} className="shrink-0"/>
+                           <span className="hidden sm:inline">REPORTE QX</span>
+                       </button>
+                    )}
+                    
                     {/* [AJUSTE MÓVIL 1] Top Bar: Botón Interconsulta con shrink-0 para evitar colapso */}
                     {selectedPatient && !isInterconsultationOpen && (
                         <button 
@@ -1616,13 +1654,24 @@ const ConsultationView: React.FC = () => {
                 </div>
                 
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 bg-slate-100 dark:bg-slate-950">
-                    {!generatedNote ? (
+                    {!generatedNote && activeTab !== 'surgical_report' ? (
                         <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-4 opacity-50">
                             <FileText size={64} strokeWidth={1}/>
                             <p className="text-lg text-center px-4">Área de Documentación</p>
                         </div>
                     ) : (
                         <div className="min-h-full flex flex-col max-w-4xl mx-auto w-full gap-4 relative pb-8">
+                                
+                                {/* --- VISTA DE REPORTE QUIRÚRGICO --- */}
+                                {activeTab === 'surgical_report' && isSurgicalProfile && (
+                                    <div className="animate-fade-in-up h-full">
+                                        <SurgicalReportView 
+                                            doctor={doctorProfile}
+                                            patient={selectedPatient}
+                                        />
+                                    </div>
+                                )}
+
                                 {activeTab==='record' && generatedNote.soapData && (
                                 <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-full h-fit pb-32 animate-fade-in-up relative">
                                     <div className="relative md:sticky md:top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex flex-col gap-2">
@@ -1684,7 +1733,7 @@ const ConsultationView: React.FC = () => {
                                                                         : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 rounded-tl-none'
                                                                 }`}>
                                                                     <span className={`text-[10px] font-bold block mb-1 uppercase opacity-70 ${line.speaker === 'Médico' ? 'text-right' : 'text-left'}`}>
-                                                                        {line.speaker}
+                                                                            {line.speaker}
                                                                     </span>
                                                                     {line.text}
                                                                 </div>
@@ -1695,77 +1744,77 @@ const ConsultationView: React.FC = () => {
                                     )}
                                     
                                     <div className="space-y-8">
-                                                <div className="group relative">
-                                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Subjetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                                    {editingSection === 'subjective' ? (
-                                                        <textarea 
-                                                            autoFocus
-                                                            onBlur={() => setEditingSection(null)}
-                                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-blue-200 rounded p-1 transition-all" 
-                                                            value={generatedNote.soapData.subjective} 
-                                                            onChange={(e) => handleSoapChange('subjective', e.target.value)} 
-                                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                                        />
-                                                    ) : (
-                                                        <div onClick={() => setEditingSection('subjective')} className="cursor-text min-h-[40px] p-1">
-                                                            <FormattedText content={generatedNote.soapData.subjective} />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <hr className="border-slate-100 dark:border-slate-800" />
-                                                <div className="group relative">
-                                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ClipboardList size={14} className="text-green-500"/> Objetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                                    {editingSection === 'objective' ? (
-                                                        <textarea 
-                                                            autoFocus
-                                                            onBlur={() => setEditingSection(null)}
-                                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-green-200 rounded p-1 transition-all" 
-                                                            value={generatedNote.soapData.objective} 
-                                                            onChange={(e) => handleSoapChange('objective', e.target.value)} 
-                                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                                        />
-                                                    ) : (
-                                                        <div onClick={() => setEditingSection('objective')} className="cursor-text min-h-[40px] p-1">
-                                                            <FormattedText content={generatedNote.soapData.objective} />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <hr className="border-slate-100 dark:border-slate-800" />
-                                                <div className="group relative">
-                                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                                    {editingSection === 'analysis' ? (
-                                                        <textarea 
-                                                            autoFocus
-                                                            onBlur={() => setEditingSection(null)}
-                                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-amber-200 rounded p-1 transition-all" 
-                                                            value={generatedNote.soapData.analysis} 
-                                                            onChange={(e) => handleSoapChange('analysis', e.target.value)} 
-                                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                                        />
-                                                    ) : (
-                                                        <div onClick={() => setEditingSection('analysis')} className="cursor-text min-h-[40px] p-1">
-                                                            <FormattedText content={generatedNote.soapData.analysis} />
-                                                        </div>
-                                                    )}
-                                                </div>
-                                                <hr className="border-slate-100 dark:border-slate-800" />
-                                                <div className="group relative">
-                                                    <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><FileSignature size={14} className="text-purple-500"/> Plan Médico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
-                                                    {editingSection === 'plan' ? (
-                                                        <textarea 
-                                                            autoFocus
-                                                            onBlur={() => setEditingSection(null)}
-                                                            className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-purple-200 rounded p-1 transition-all" 
-                                                            value={generatedNote.soapData.plan} 
-                                                            onChange={(e) => handleSoapChange('plan', e.target.value)} 
-                                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
-                                                        />
-                                                    ) : (
-                                                        <div onClick={() => setEditingSection('plan')} className="cursor-text min-h-[40px] p-1">
-                                                            <FormattedText content={generatedNote.soapData.plan} />
-                                                        </div>
-                                                    )}
-                                                </div>
+                                                    <div className="group relative">
+                                                        <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Activity size={14} className="text-blue-500"/> Subjetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
+                                                        {editingSection === 'subjective' ? (
+                                                            <textarea 
+                                                                autoFocus
+                                                                onBlur={() => setEditingSection(null)}
+                                                                className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-blue-200 rounded p-1 transition-all" 
+                                                                value={generatedNote.soapData.subjective} 
+                                                                onChange={(e) => handleSoapChange('subjective', e.target.value)} 
+                                                                ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                            />
+                                                        ) : (
+                                                            <div onClick={() => setEditingSection('subjective')} className="cursor-text min-h-[40px] p-1">
+                                                                <FormattedText content={generatedNote.soapData.subjective} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <hr className="border-slate-100 dark:border-slate-800" />
+                                                    <div className="group relative">
+                                                        <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><ClipboardList size={14} className="text-green-500"/> Objetivo <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
+                                                        {editingSection === 'objective' ? (
+                                                            <textarea 
+                                                                autoFocus
+                                                                onBlur={() => setEditingSection(null)}
+                                                                className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-green-200 rounded p-1 transition-all" 
+                                                                value={generatedNote.soapData.objective} 
+                                                                onChange={(e) => handleSoapChange('objective', e.target.value)} 
+                                                                ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                            />
+                                                        ) : (
+                                                            <div onClick={() => setEditingSection('objective')} className="cursor-text min-h-[40px] p-1">
+                                                                <FormattedText content={generatedNote.soapData.objective} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <hr className="border-slate-100 dark:border-slate-800" />
+                                                    <div className="group relative">
+                                                        <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><Brain size={14} className="text-amber-500"/> Análisis y Diagnóstico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
+                                                        {editingSection === 'analysis' ? (
+                                                            <textarea 
+                                                                autoFocus
+                                                                onBlur={() => setEditingSection(null)}
+                                                                className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-amber-200 rounded p-1 transition-all" 
+                                                                value={generatedNote.soapData.analysis} 
+                                                                onChange={(e) => handleSoapChange('analysis', e.target.value)} 
+                                                                ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                            />
+                                                        ) : (
+                                                            <div onClick={() => setEditingSection('analysis')} className="cursor-text min-h-[40px] p-1">
+                                                                <FormattedText content={generatedNote.soapData.analysis} />
+                                                            </div>
+                                                        )}
+                                                    </div>
+                                                    <hr className="border-slate-100 dark:border-slate-800" />
+                                                    <div className="group relative">
+                                                        <h4 className="text-xs font-bold text-slate-400 dark:text-slate-500 uppercase tracking-widest mb-3 flex items-center gap-2"><FileSignature size={14} className="text-purple-500"/> Plan Médico <PenLine size={12} className="opacity-0 group-hover:opacity-50"/></h4>
+                                                        {editingSection === 'plan' ? (
+                                                            <textarea 
+                                                                autoFocus
+                                                                onBlur={() => setEditingSection(null)}
+                                                                className="w-full bg-transparent text-slate-800 dark:text-slate-200 leading-7 text-base pl-1 resize-none overflow-hidden outline-none focus:ring-1 focus:ring-purple-200 rounded p-1 transition-all" 
+                                                                value={generatedNote.soapData.plan} 
+                                                                onChange={(e) => handleSoapChange('plan', e.target.value)} 
+                                                                ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                            />
+                                                        ) : (
+                                                            <div onClick={() => setEditingSection('plan')} className="cursor-text min-h-[40px] p-1">
+                                                                <FormattedText content={generatedNote.soapData.plan} />
+                                                            </div>
+                                                        )}
+                                                    </div>
                                     </div>
                                 </div>
                                 )}
@@ -1828,7 +1877,7 @@ const ConsultationView: React.FC = () => {
                                                                         onChange={(e) => setSpecialFolio(e.target.value)}
                                                                     />
                                                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                                                            Solo para Fracción I / II
+                                                                                Solo para Fracción I / II
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -1916,18 +1965,18 @@ const ConsultationView: React.FC = () => {
                                                                             </div>
                                                                             
                                                                             <div className="flex gap-2 text-xs w-full">
-                                                                                    <input 
-                                                                                        className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
-                                                                                        value={med.frequency} 
-                                                                                        onChange={e=>handleUpdateMedication(idx,'frequency',e.target.value)} 
-                                                                                        placeholder="Frecuencia" 
-                                                                                    />
-                                                                                    <input 
-                                                                                        className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
-                                                                                        value={med.duration} 
-                                                                                        onChange={e=>handleUpdateMedication(idx,'duration',e.target.value)} 
-                                                                                        placeholder="Duración" 
-                                                                                    />
+                                                                                <input 
+                                                                                    className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
+                                                                                    value={med.frequency} 
+                                                                                    onChange={e=>handleUpdateMedication(idx,'frequency',e.target.value)} 
+                                                                                    placeholder="Frecuencia" 
+                                                                                />
+                                                                                <input 
+                                                                                    className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
+                                                                                    value={med.duration} 
+                                                                                    onChange={e=>handleUpdateMedication(idx,'duration',e.target.value)} 
+                                                                                    placeholder="Duración" 
+                                                                                />
                                                                             </div>
                                                                     </div>
                                                                 )}

@@ -672,5 +672,49 @@ export const GeminiMedicalService = {
       console.error("Error generando reto diario:", error);
       throw error; 
     }
+  },
+
+  // --- J. MÓDULO QUIRÚRGICO (OP-SCRIBE) ---
+  // PROCESAMIENTO VOLÁTIL: El archivo se analiza y se descarta. No se guarda.
+  async generateSurgicalReport(evidenceText: string, specialty: string = "Cirugía General"): Promise<string> {
+    try {
+      console.log("🔪 Iniciando Protocolo Op-Scribe (Memoria Volátil)...");
+
+      const prompt = `
+        ACTÚA COMO: Cirujano Experto y Auditor de Seguridad Quirúrgica (${specialty}).
+        TAREA: Generar una NOTA POST-OPERATORIA (Reporte Qx) estructurada y legalmente blindada.
+
+        ENTRADA (EVIDENCIA CRUDA):
+        "${evidenceText}"
+
+        INSTRUCCIONES DE PROCESAMIENTO:
+        1. Transforma el dictado/texto informal en lenguaje médico técnico formal.
+        2. ESTRUCTURA OBLIGATORIA (Formato Sinóptico):
+           - DIAGNÓSTICO PRE-OPERATORIO:
+           - DIAGNÓSTICO POST-OPERATORIO:
+           - PROCEDIMIENTO REALIZADO: (Nombre técnico exacto + CPT si aplica).
+           - HALLAZGOS: (Descripción anatómica detallada).
+           - TÉCNICA QUIRÚRGICA: (Paso a paso lógico).
+           - COMPLICACIONES / SANGRADO: (Si no se menciona, poner "Sin complicaciones inmediatas. Sangrado mínimo.").
+           - SEGURIDAD: (Obligatorio: Incluir "Cuenta de gasas y textiles completa. Hemostasia verificada.").
+           - PLAN POST-QUIRÚRGICO: (Ayuno, Analgesia, etc.).
+
+        REGLAS DE SEGURIDAD (BLINDAJE LEGAL):
+        - Si el médico no mencionó explícitamente el sangrado, asume "Escaso/Mínimo" pero JAMÁS inventes que no hubo si el contexto sugiere hemorragia.
+        - Si es una colecistectomía, busca o sugiere la "Visión Crítica de Seguridad".
+        - NO inventes datos numéricos que no existan.
+
+        SALIDA:
+        Genera SOLO el texto del reporte en formato Markdown limpio, listo para copiar y pegar.
+      `;
+
+      // Usamos el mismo canal seguro que ya auditamos
+      const response = await generateWithFailover(prompt, false); 
+      return response;
+
+    } catch (error) {
+      console.error("❌ Error en Módulo Quirúrgico:", error);
+      throw new Error("No se pudo procesar la evidencia quirúrgica.");
+    }
   }
 };
