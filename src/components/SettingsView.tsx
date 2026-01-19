@@ -3,7 +3,7 @@ import { Save, User, Stethoscope, Hash, Phone, MapPin, BookOpen, Download, FileS
 import { supabase } from '../lib/supabase';
 import { MedicalDataService } from '../services/MedicalDataService';
 import { toast } from 'sonner';
-import PatientImporter from './PatientImporter'; // Verifica que la ruta sea correcta
+import PatientImporter from './PatientImporter'; 
 import { ImageUploader } from '../components/ui/ImageUploader';
 
 // LISTA MAESTRA DE ESPECIALIDADES (NORMALIZACIÓN)
@@ -46,7 +46,7 @@ const SettingsView: React.FC = () => {
       if (!user) return;
 
       const { data } = await supabase
-        .from('profiles') // Asegúrate de que tu tabla se llame 'profiles' o 'doctors'
+        .from('profiles') 
         .select('*')
         .eq('id', user.id)
         .single();
@@ -60,7 +60,6 @@ const SettingsView: React.FC = () => {
         setAddress(data.address || '');
         setWebsiteUrl(data.website_url || '');
         
-        // Carga de imágenes
         setLogoUrl(data.logo_url || '');
         setSignatureUrl(data.signature_url || '');
         setQrCodeUrl(data.qr_code_url || '');
@@ -73,29 +72,24 @@ const SettingsView: React.FC = () => {
     }
   };
 
-  // --- LÓGICA DE SUBIDA MODULAR ---
   const handleSmartUpload = async (file: File, type: 'logo' | 'signature' | 'qr') => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) throw new Error("No hay sesión de usuario");
 
-      // 1. Definir ruta y nombre de archivo único
       const fileExt = file.name.split('.').pop();
       const fileName = `${user.id}/${type}-${Date.now()}.${fileExt}`;
 
-      // 2. Subir a Supabase Storage
       const { error: uploadError } = await supabase.storage
         .from('clinic-assets')
         .upload(fileName, file, { upsert: true });
 
       if (uploadError) throw uploadError;
 
-      // 3. Obtener URL Pública
       const { data: { publicUrl } } = supabase.storage
         .from('clinic-assets')
         .getPublicUrl(fileName);
 
-      // 4. Actualizar Estado Local
       if (type === 'logo') setLogoUrl(publicUrl);
       else if (type === 'signature') setSignatureUrl(publicUrl);
       else if (type === 'qr') setQrCodeUrl(publicUrl);
@@ -164,7 +158,7 @@ const SettingsView: React.FC = () => {
   if (loading) return <div className="p-10 text-center text-slate-400">Cargando perfil...</div>;
 
   return (
-    <div className="p-6 max-w-7xl mx-auto pb-32 relative">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto pb-32 relative">
 
       {/* --- INTEGRACIÓN DEL IMPORTADOR --- */}
       {showImporter && (
@@ -181,28 +175,28 @@ const SettingsView: React.FC = () => {
               <p className="text-slate-500 dark:text-slate-400 text-sm">Datos del consultorio, identidad y activos digitales.</p>
           </div>
           
-          <div className="flex gap-2">
+          <div className="flex gap-2 w-full md:w-auto">
             <button 
                 onClick={() => setShowImporter(true)}
-                className="flex items-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition-colors text-sm font-bold"
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-indigo-50 dark:bg-indigo-900/20 text-indigo-700 dark:text-indigo-400 rounded-lg border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 transition-colors text-sm font-bold"
             >
-                <Database size={16}/> Importar Pacientes
+                <Database size={16}/> <span className="hidden sm:inline">Importar</span>
             </button>
 
             <button 
                 onClick={handleBackup}
                 disabled={downloading}
-                className="flex items-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors text-sm font-bold disabled:opacity-50"
+                className="flex-1 md:flex-none flex items-center justify-center gap-2 px-4 py-2 bg-blue-50 dark:bg-blue-900/20 text-blue-600 dark:text-blue-400 rounded-lg border border-blue-200 dark:border-blue-800 hover:bg-blue-100 transition-colors text-sm font-bold disabled:opacity-50"
             >
                 {downloading ? <Download className="animate-bounce" size={16}/> : <FileSpreadsheet size={16}/>}
-                {downloading ? "Exportando..." : "Descargar Mis Datos"}
+                <span className="truncate">{downloading ? "..." : "Respaldo"}</span>
             </button>
           </div>
       </div>
       
       <form onSubmit={updateProfile} className="space-y-8">
         
-        {/* --- SECCIÓN 1: DATOS DE TEXTO (GRID HORIZONTAL) --- */}
+        {/* --- SECCIÓN 1: DATOS DE TEXTO --- */}
         <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             
             {/* Tarjeta: Identidad */}
@@ -210,20 +204,24 @@ const SettingsView: React.FC = () => {
                 <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                     <User size={18} className="text-brand-teal"/> Identidad Profesional
                 </div>
+                
+                {/* CORRECCIÓN DE GRID AQUÍ */}
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div className="col-span-2">
+                    
+                    {/* Nombre ocupa 1 columna en móvil, 2 en escritorio */}
+                    <div className="col-span-1 md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Nombre Completo</label>
                         <input type="text" required value={fullName} onChange={e => setFullName(e.target.value)} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none dark:bg-slate-900 dark:text-white" placeholder="Dr. Juan Pérez" />
                     </div>
                     
-                    {/* --- ZONA BLINDADA: ESPECIALIDAD --- */}
+                    {/* ESPECIALIDAD BLINDADA */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Especialidad</label>
                         <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-slate-100 dark:bg-slate-800/50 cursor-not-allowed">
                             <Stethoscope size={16} className="text-slate-400 mr-2 pointer-events-none"/>
                             <select
                                 value={specialty}
-                                disabled={true} // BLINDADO: No editable
+                                disabled={true} 
                                 className="w-full py-3 outline-none bg-transparent dark:text-slate-400 text-slate-500 appearance-none cursor-not-allowed font-medium"
                             >
                                 {SPECIALTIES.map(s => (
@@ -235,10 +233,9 @@ const SettingsView: React.FC = () => {
                             <Lock size={14} className="text-slate-400 ml-2" />
                         </div>
                         <p className="text-[10px] text-slate-400 mt-1 pl-1">
-                            Dato fundacional vinculado a Cédula. No editable.
+                            Dato vinculado a Cédula. No editable.
                         </p>
                     </div>
-                    {/* ----------------------------------- */}
 
                     <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Cédula Prof.</label>
@@ -247,7 +244,9 @@ const SettingsView: React.FC = () => {
                             <input type="text" required value={license} onChange={e => setLicense(e.target.value)} className="w-full py-3 outline-none bg-transparent dark:text-white" placeholder="12345678" />
                         </div>
                     </div>
-                    <div className="col-span-2">
+
+                    {/* Universidad ocupa 1 columna en móvil, 2 en escritorio */}
+                    <div className="col-span-1 md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Universidad / Institución</label>
                         <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-brand-teal">
                             <BookOpen size={16} className="text-slate-400 mr-2"/>
@@ -288,13 +287,12 @@ const SettingsView: React.FC = () => {
             </div>
         </div>
 
-        {/* --- SECCIÓN 2: ACTIVOS DIGITALES (GRID HORIZONTAL 3 COLUMNAS) --- */}
+        {/* --- SECCIÓN 2: ACTIVOS DIGITALES --- */}
         <div>
             <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
                 <ImageIcon size={20} className="text-brand-teal" /> Activos Digitales para Recetas y Documentos
             </h3>
             
-            {/* GRID RESPONSIVE: 1 col en móvil -> 3 cols en escritorio */}
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                 
                 {/* 1. LOGO */}
@@ -328,7 +326,7 @@ const SettingsView: React.FC = () => {
             </div>
         </div>
 
-        {/* Aviso de Privacidad (Ancho completo) */}
+        {/* Aviso de Privacidad */}
         <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/50 rounded-xl flex gap-3 items-start">
             <ShieldCheck className="text-amber-600 shrink-0" size={20} />
             <div>
@@ -341,8 +339,8 @@ const SettingsView: React.FC = () => {
 
       </form>
 
-      {/* BOTÓN FLOTANTE DE GUARDADO (Sticky Bottom) */}
-      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/80 dark:bg-slate-900/80 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-50 flex justify-center md:justify-end md:px-10">
+      {/* BOTÓN FLOTANTE */}
+      <div className="fixed bottom-0 left-0 right-0 p-4 bg-white/90 dark:bg-slate-900/90 backdrop-blur-md border-t border-slate-200 dark:border-slate-800 z-50 flex justify-center md:justify-end md:px-10">
          <button 
                 onClick={(e) => updateProfile(e)}
                 disabled={saving}
