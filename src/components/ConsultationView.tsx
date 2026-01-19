@@ -21,6 +21,7 @@ import PrescriptionPDF from './PrescriptionPDF';
 import MedicalRecordPDF from './MedicalRecordPDF'; 
 import { AppointmentService } from '../services/AppointmentService';
 import { PatientService } from '../services/PatientService'; 
+// ✅ INYECCIÓN 1: Importar el hook de autoguardado
 import { useMedicalAutoSave } from '../hooks/useMedicalAutoSave';
 import QuickRxModal from './QuickRxModal';
 import { DoctorFileGallery } from './DoctorFileGallery';
@@ -35,8 +36,10 @@ import { ContextualInsights } from './ContextualInsights';
 import { PatientBriefing } from './Consultation/PatientBriefing'; 
 import SurgicalLeaveGenerator, { GeneratedLeaveData } from './SurgicalLeaveGenerator';
 import SurgicalLeavePDF from './SurgicalLeavePDF';
-import { SurgicalReportView } from './SurgicalReportView'; 
+// ✅ CORRECCIÓN CRÍTICA: Importación del componente que causaba pantalla blanca
+import { SurgicalReportView } from './SurgicalReportView';
 
+// ✅ CORRECCIÓN DE TIPO: Agregado 'surgical_report' oficialmente
 type TabType = 'record' | 'patient' | 'chat' | 'insurance' | 'surgical_report';
 
 interface EnhancedGeminiResponse extends GeminiResponse {
@@ -49,6 +52,7 @@ interface TranscriptSegment {
    timestamp: number;
 }
 
+// Estructura para el Snapshot de Seguridad
 interface SessionSnapshot {
    inputSignature: string;
    data: EnhancedGeminiResponse;
@@ -87,6 +91,7 @@ const SPECIALTIES = [
   "Urgencias Médicas"
 ];
 
+// --- Feature: Folio Controlado (Lista Blanca de Especialidades) ---
 const SPECIALTIES_WITH_CONTROLLED_RX = [
     'Psiquiatría',
     'Neurología',
@@ -98,6 +103,7 @@ const SPECIALTIES_WITH_CONTROLLED_RX = [
     'Cirugía Oncológica'
 ];
 
+// --- Feature: Reporte Quirúrgico (Lista Blanca de Especialidades Qx) ---
 const SURGICAL_SPECIALTIES = [
   'Cirugía General',
   'Cirugía Cardiotorácica',
@@ -141,6 +147,7 @@ const cleanHistoryString = (input: any): string => {
 };
 
 const ConsultationView: React.FC = () => {
+  // --- [MOTOR 1] NOTA CLÍNICA (CANAL PRINCIPAL) ---
   const { 
       isListening, 
       isPaused, 
@@ -154,6 +161,7 @@ const ConsultationView: React.FC = () => {
       isAPISupported 
   } = useSpeechRecognition();
   
+  // --- [MOTOR 2] CHAT ASISTENTE (CANAL SECUNDARIO AISLADO) ---
   const {
       isListening: isChatListening,
       transcript: chatTranscript,
@@ -162,6 +170,7 @@ const ConsultationView: React.FC = () => {
       resetTranscript: resetChatTranscript
   } = useSpeechRecognition();
 
+  // Sincronización del Chat (Canal B)
   useEffect(() => {
       if (isChatListening && chatTranscript) {
           setChatInput(chatTranscript);
@@ -192,17 +201,20 @@ const ConsultationView: React.FC = () => {
   
   const [generatedNote, setGeneratedNote] = useState<EnhancedGeminiResponse | null>(null);
   
+  // --- NUEVO ESTADO: SNAPSHOT DE SESIÓN (Inmutabilidad) ---
   const [sessionSnapshot, setSessionSnapshot] = useState<SessionSnapshot | null>(null);
 
   const [consentGiven, setConsentGiven] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('record');
   
+  // Este estado se mantiene para sincronizar el dropdown visual, pero NO afecta la lógica legal
   const [selectedSpecialty, setSelectedSpecialty] = useState('Medicina General');
   
   const [editableInstructions, setEditableInstructions] = useState('');
   const [editablePrescriptions, setEditablePrescriptions] = useState<MedicationItem[]>([]);
   const [isEditingInstructions, setIsEditingInstructions] = useState(false);
 
+  // --- Feature: Folio Controlado (Estado Local) ---
   const [specialFolio, setSpecialFolio] = useState('');
   
   const [insuranceData, setInsuranceData] = useState<{provider: string, policyNumber: string, accidentDate: string} | null>(null);
@@ -230,8 +242,10 @@ const ConsultationView: React.FC = () => {
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
   const [activeSpeaker, setActiveSpeaker] = useState<'doctor' | 'patient'>('doctor');
 
+  // ✅ INYECCIÓN 2: Inicializar el hook de autoguardado
   const { saveData, loadData, clearData } = useMedicalAutoSave(currentUserId);
 
+  // --- NUEVOS ESTADOS: BRIEFING & MANUAL CONTEXT ---
   const [clinicalInsights, setClinicalInsights] = useState<ClinicalInsight[]>([]);
   const [loadingClinicalInsights, setLoadingClinicalInsights] = useState(false);
   
@@ -240,6 +254,7 @@ const ConsultationView: React.FC = () => {
 
   const [isSurgicalModalOpen, setIsSurgicalModalOpen] = useState(false);
 
+  // --- [NUEVO BLINDAJE] ESTADOS DE INTERCONSULTA ---
   const [isInterconsultationOpen, setIsInterconsultationOpen] = useState(false);
   const [interconsultationSpecialty, setInterconsultationSpecialty] = useState('Medicina Interna');
   const [interconsultationResult, setInterconsultationResult] = useState<string | null>(null);
@@ -254,6 +269,7 @@ const ConsultationView: React.FC = () => {
 
   const lastAnalyzedRef = useRef<string>("");
 
+  // --- [NUEVO] DETECCIÓN DE PERFIL QUIRÚRGICO ---
   const isSurgicalProfile = useMemo(() => {
     if (!doctorProfile?.specialty) return false;
     return SURGICAL_SPECIALTIES.some(s => 
@@ -281,21 +297,26 @@ const ConsultationView: React.FC = () => {
     };
   }, []);
 
+  // ✅ INYECCIÓN 3: Efecto de Restauración (Rehidratación)
   useEffect(() => {
     if (currentUserId && !transcript && !generatedNote) {
       const savedData = loadData();
       if (savedData) {
+        // Restauramos todo el estado perdido
         setTranscript(savedData.transcript || '');
         setGeneratedNote(savedData.generatedNote);
         setEditableInstructions(savedData.editableInstructions || '');
         setEditablePrescriptions(savedData.editablePrescriptions || []);
         setActiveSpeaker(savedData.activeSpeaker || 'doctor');
+        
         toast.info("🔄 Sesión restaurada: Se recuperaron tus datos no guardados.");
       }
     }
   }, [currentUserId]);
 
+  // ✅ INYECCIÓN 4: Efecto de Vigilancia (Autoguardado)
   useEffect(() => {
+    // Solo guardamos si hay algo relevante que guardar
     if (transcript || generatedNote || editableInstructions || editablePrescriptions.length > 0) {
       const timer = setTimeout(() => {
         saveData({
@@ -305,12 +326,13 @@ const ConsultationView: React.FC = () => {
           editablePrescriptions,
           activeSpeaker
         });
-      }, 2000); 
+      }, 2000); // Guardar 2 segundos después de dejar de escribir (Debounce)
 
       return () => clearTimeout(timer);
     }
   }, [transcript, generatedNote, editableInstructions, editablePrescriptions, activeSpeaker, saveData]);
 
+  // --- MODIFICACIÓN 2: Efecto de Sincronización con "Pausa Inteligente" (Debounce) ---
   useEffect(() => {
     if (!generatedNote || (!generatedNote.soapData && !generatedNote.clinicalNote)) {
         setClinicalInsights([]);
@@ -349,7 +371,6 @@ const ConsultationView: React.FC = () => {
 
   }, [generatedNote, selectedSpecialty]); 
 
-  // --- ⚠️ AQUÍ ESTÁ LA CORRECCIÓN CRÍTICA ⚠️ ---
   useEffect(() => {
     let mounted = true;
     const loadInitialData = async () => {
@@ -402,8 +423,11 @@ const ConsultationView: React.FC = () => {
 
             if (location.state?.patientData) {
                 const incoming = location.state.patientData;
-                const isSurgicalDirect = location.state.mode === 'surgical_direct'; // Detectamos modo directo
                 
+                // ✅ CORRECCIÓN DE NAVEGACIÓN "CIRUGÍA MAESTRA"
+                // Detectar modo especial 'surgical_direct' para bypass de briefing
+                const isSurgicalMode = location.state.mode === 'surgical_direct';
+
                 if (incoming.isGhost) {
                       const tempPatient = {
                           ...incoming,
@@ -411,25 +435,29 @@ const ConsultationView: React.FC = () => {
                           isTemporary: true, 
                           appointmentId: incoming.appointmentId || incoming.id.replace('ghost_', '')
                       };
-                      handleSelectPatient(tempPatient, isSurgicalDirect); // Pasamos flag para silenciar briefing
+                      handleSelectPatient(tempPatient, isSurgicalMode); // Pasamos flag de cirugía
                       if(incoming.appointmentId) setLinkedAppointmentId(incoming.appointmentId);
-                      if(!isSurgicalDirect) toast.info(`Iniciando consulta para: ${incoming.name}`);
+                      toast.info(`Iniciando consulta para: ${incoming.name}`);
                 } else {
                       const realPatient = loadedPatients.find(p => p.id === incoming.id);
-                      if (realPatient) handleSelectPatient(realPatient, isSurgicalDirect); // Pasamos flag
-                      else handleSelectPatient(incoming, isSurgicalDirect); 
+                      if (realPatient) handleSelectPatient(realPatient, isSurgicalMode);
+                      else handleSelectPatient(incoming, isSurgicalMode); 
                       
-                      if(!isSurgicalDirect) toast.success(`Paciente cargado: ${incoming.name}`);
+                      if (isSurgicalMode) {
+                          toast.success(`Modo Quirúrgico Activado: ${incoming.name}`, { icon: <Scissors size={18}/> });
+                      } else {
+                          toast.success(`Paciente cargado: ${incoming.name}`);
+                      }
                 }
 
                 if (location.state.linkedAppointmentId) {
                     setLinkedAppointmentId(location.state.linkedAppointmentId);
                 }
-
-                // 👇 FUERZA BRUTA: SI ES QUIRÚRGICO, MATAMOS EL BRIEFING Y CAMBIAMOS TAB 👇
-                if (isSurgicalDirect) {
+                
+                // Si es modo quirúrgico, forzamos la pestaña y apagamos el briefing
+                if (isSurgicalMode) {
                     setActiveTab('surgical_report');
-                    setShowBriefing(false); // <--- ESTO ES LO QUE FALTABA
+                    setShowBriefing(false); // 🚫 BYPASS DE BRIEFING
                 }
                 
                 window.history.replaceState({}, document.title);
@@ -644,8 +672,8 @@ const ConsultationView: React.FC = () => {
       setActiveSpeaker(newRole);
   };
 
-  // ✅ CORRECCIÓN: Agregar parámetro opcional 'skipBriefing'
-  const handleSelectPatient = async (patient: any, skipBriefing = false) => {
+  // ✅ MODIFICADO: ACEPTA PARÁMETRO OPCIONAL forceSurgicalMode
+  const handleSelectPatient = async (patient: any, forceSurgicalMode = false) => {
       setManualContext("");
       setSessionSnapshot(null);
       
@@ -660,14 +688,14 @@ const ConsultationView: React.FC = () => {
           if (patient.appointmentId) setLinkedAppointmentId(patient.appointmentId);
           toast.info(`Paciente temporal: ${patient.name} (Se registrará al guardar)`);
           
-          if (!skipBriefing) setShowBriefing(true); 
+          if (!forceSurgicalMode) setShowBriefing(true); 
       } 
       else {
           setSelectedPatient(patient);
           setSearchTerm(''); 
           setIsMobileSnapshotVisible(true); 
           
-          if (!skipBriefing) setShowBriefing(true); // <--- CONDICIONAL APLICADA
+          if (!forceSurgicalMode) setShowBriefing(true); // <--- UI OPTIMISTA: SOLO SI NO ES MODO QUIRURGICO
 
           try {
               const loadingHistory = toast.loading("Sincronizando historial...");
@@ -719,7 +747,7 @@ const ConsultationView: React.FC = () => {
 
   const handleBriefingComplete = (context: string) => {
       setManualContext(context);
-      setShowBriefing(false);      
+      setShowBriefing(false);       
       
       const isNewOrEmpty = (selectedPatient as any).isTemporary || 
                            !selectedPatient?.history || 
@@ -1608,8 +1636,8 @@ const ConsultationView: React.FC = () => {
       <div className={`flex-1 flex w-full md:w-3/4 overflow-hidden ${(!generatedNote && activeTab !== 'surgical_report') ? 'hidden md:flex' : 'flex'}`}>
           <div className="flex-1 flex flex-col bg-slate-100 dark:bg-slate-950 border-l dark:border-slate-800 min-w-0 relative">
                 
-                {/* ✅ SOLUCIÓN: Usamos "showBriefing" en lugar de renderizarlo condicionalmente aquí. */}
-                {/* PatientBriefing se movió al final del archivo como un MODAL, así que no estorba aquí. */}
+                {/* 🛑 ELIMINADO DE AQUÍ (ZONA DE RIESGO DE OCULTAMIENTO) */}
+                {/* {showBriefing && selectedPatient && ( <PatientBriefing ... /> )} */}
 
                 <div className="flex border-b dark:border-slate-800 bg-white dark:bg-slate-900 shrink-0 items-center px-2">
                     <button onClick={()=>setGeneratedNote(null)} className="md:hidden p-4 text-slate-500"><ArrowLeft/></button>
@@ -1933,46 +1961,46 @@ const ConsultationView: React.FC = () => {
                                                                     </div>
                                                                 ) : (
                                                                     <div className="flex-1 flex flex-col gap-2 min-w-0">
-                                                                            <div className="flex items-start gap-2 w-full">
-                                                                                <div className="relative flex-1">
-                                                                                    <textarea 
-                                                                                        rows={1}
-                                                                                        className={`w-full font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors resize-none overflow-hidden block ${
-                                                                                            isRisky ? 'text-amber-700 dark:text-amber-400 pr-6' : 'text-slate-800 dark:text-white'
-                                                                                        }`} 
-                                                                                        value={med.drug} 
-                                                                                        onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} 
-                                                                                        placeholder="Nombre del medicamento" 
-                                                                                        ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                                                <div className="flex items-start gap-2 w-full">
+                                                                                    <div className="relative flex-1">
+                                                                                        <textarea 
+                                                                                            rows={1}
+                                                                                            className={`w-full font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors resize-none overflow-hidden block ${
+                                                                                                isRisky ? 'text-amber-700 dark:text-amber-400 pr-6' : 'text-slate-800 dark:text-white'
+                                                                                            }`} 
+                                                                                            value={med.drug} 
+                                                                                            onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} 
+                                                                                            placeholder="Nombre del medicamento" 
+                                                                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                                                        />
+                                                                                        {isRisky && (
+                                                                                            <div className="absolute right-0 top-1/2 -translate-y-1/2 text-amber-500 cursor-help" title={`Precaución: Posible interacción detectada en análisis clínico.`}>
+                                                                                                    <AlertCircle size={16}/>
+                                                                                            </div>
+                                                                                        )}
+                                                                                    </div>
+                                                                                    <input 
+                                                                                        className="text-sm font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-600 dark:text-slate-300 w-20 text-right shrink-0"
+                                                                                        value={med.dose} 
+                                                                                        onChange={e=>handleUpdateMedication(idx,'dose',e.target.value)} 
+                                                                                        placeholder="Dosis" 
                                                                                     />
-                                                                                    {isRisky && (
-                                                                                        <div className="absolute right-0 top-1/2 -translate-y-1/2 text-amber-500 cursor-help" title={`Precaución: Posible interacción detectada en análisis clínico.`}>
-                                                                                                <AlertCircle size={16}/>
-                                                                                        </div>
-                                                                                    )}
                                                                                 </div>
-                                                                                <input 
-                                                                                    className="text-sm font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-600 dark:text-slate-300 w-20 text-right shrink-0"
-                                                                                    value={med.dose} 
-                                                                                    onChange={e=>handleUpdateMedication(idx,'dose',e.target.value)} 
-                                                                                    placeholder="Dosis" 
-                                                                                />
-                                                                            </div>
-                                                                            
-                                                                            <div className="flex gap-2 text-xs w-full">
-                                                                                <input 
-                                                                                    className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
-                                                                                    value={med.frequency} 
-                                                                                    onChange={e=>handleUpdateMedication(idx,'frequency',e.target.value)} 
-                                                                                    placeholder="Frecuencia" 
-                                                                                />
-                                                                                <input 
-                                                                                    className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
-                                                                                    value={med.duration} 
-                                                                                    onChange={e=>handleUpdateMedication(idx,'duration',e.target.value)} 
-                                                                                    placeholder="Duración" 
-                                                                                />
-                                                                            </div>
+                                                                                
+                                                                                <div className="flex gap-2 text-xs w-full">
+                                                                                    <input 
+                                                                                        className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
+                                                                                        value={med.frequency} 
+                                                                                        onChange={e=>handleUpdateMedication(idx,'frequency',e.target.value)} 
+                                                                                        placeholder="Frecuencia" 
+                                                                                    />
+                                                                                    <input 
+                                                                                        className="flex-1 bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors text-slate-500"
+                                                                                        value={med.duration} 
+                                                                                        onChange={e=>handleUpdateMedication(idx,'duration',e.target.value)} 
+                                                                                        placeholder="Duración" 
+                                                                                    />
+                                                                                </div>
                                                                     </div>
                                                                 )}
 
