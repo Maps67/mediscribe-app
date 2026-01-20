@@ -448,10 +448,10 @@ export const SurgicalReportView: React.FC<SurgicalReportViewProps> = ({ doctor, 
                         </div>
                       </div>
                       
-                      {/* ✅ CAMBIO CLAVE: TEXTAREA EDITABLE EN LUGAR DE SOLO LECTURA */}
+                      {/* ✅ CAMBIO CLAVE: ALTURA RESPONSIVA (500px en móvil, 800px en desktop) */}
                       <div className="p-0">
                         <textarea 
-                            className="w-full h-[500px] p-8 bg-transparent text-slate-700 dark:text-slate-300 leading-relaxed outline-none resize-none font-medium focus:bg-slate-50 dark:focus:bg-slate-800/50 transition-colors"
+                            className="w-full h-[500px] md:h-[800px] p-8 bg-transparent text-slate-700 dark:text-slate-300 leading-relaxed outline-none resize-none font-medium focus:bg-slate-50 dark:focus:bg-slate-800/50 transition-colors"
                             value={generatedReport || ''}
                             onChange={(e) => setGeneratedReport(e.target.value)}
                             spellCheck="false"
