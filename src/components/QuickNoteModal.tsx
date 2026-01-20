@@ -147,21 +147,24 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
 
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-2xl rounded-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh] h-[600px]"> {/* Altura fija mayor para evitar colapso */}
+      
+      {/* 🔥 CORRECCIÓN RESPONSIVA AQUÍ 🔥 */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col w-[95%] md:w-full md:max-w-2xl h-[92vh] md:h-auto md:max-h-[90vh] md:min-h-[500px]">
         
+        {/* HEADER */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950 shrink-0">
           <div>
             <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
               <span className="bg-amber-400 text-amber-900 p-1 rounded-md"><Sparkles size={16}/></span>
               Nota Rápida
             </h2>
-            <p className="text-xs text-slate-500">
+            <p className="text-xs text-slate-500 hidden md:block"> {/* Ocultamos instrucciones en móvil muy pequeño */}
               {step === 'capture' && "1. Dicte o escriba la nota"}
               {step === 'assign' && "2. Asigne un paciente"}
               {step === 'saving' && "Guardando..."}
             </p>
           </div>
-          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors">
+          <button onClick={onClose} className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors p-1">
             <X size={24} />
           </button>
         </div>
@@ -169,16 +172,12 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
         <div className="flex-1 overflow-hidden relative flex flex-col">
           
           {step === 'capture' && (
-            <div className="flex-1 p-6 flex flex-col gap-4 animate-fade-in h-full overflow-hidden">
+            // Ajuste de padding para móvil (p-4) vs escritorio (md:p-6)
+            <div className="flex-1 p-4 md:p-6 flex flex-col gap-4 animate-fade-in h-full overflow-hidden">
               
-              {/* 🔥 CORRECCIÓN CRÍTICA DE CSS 🔥 
-                  1. 'relative': Contenedor padre.
-                  2. 'flex-1': Ocupa todo el espacio vertical disponible.
-                  3. El textarea tiene 'absolute inset-0' para forzar que ocupe el 100% del contenedor blanco.
-              */}
-              <div className="flex-1 relative bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-[300px]">
+              <div className="flex-1 relative bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-[200px]">
                 {isListening && (
-                  <div className="absolute top-4 right-4 flex items-center gap-2 px-3 py-1.5 bg-red-100 text-red-600 rounded-full text-xs font-bold animate-pulse z-20 pointer-events-none shadow-sm">
+                  <div className="absolute top-3 right-3 flex items-center gap-2 px-2 py-1 bg-red-100 text-red-600 rounded-full text-xs font-bold animate-pulse z-20 pointer-events-none shadow-sm">
                     <div className="w-2 h-2 bg-red-500 rounded-full"/> Grabando
                   </div>
                 )}
@@ -186,7 +185,7 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
                 {generatedNote ? (
                    <textarea
                      ref={textareaRef}
-                     className="absolute inset-0 w-full h-full bg-transparent resize-none outline-none text-slate-700 dark:text-slate-300 leading-relaxed custom-scrollbar p-6 text-lg"
+                     className="absolute inset-0 w-full h-full bg-transparent resize-none outline-none text-slate-700 dark:text-slate-300 leading-relaxed custom-scrollbar p-4 md:p-6 text-base md:text-lg"
                      value={generatedNote}
                      onChange={(e) => setGeneratedNote(e.target.value)}
                      placeholder="El resultado de la IA aparecerá aquí..."
@@ -194,51 +193,51 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
                 ) : (
                    <textarea
                      ref={textareaRef}
-                     className="absolute inset-0 w-full h-full bg-transparent resize-none outline-none text-slate-700 dark:text-slate-300 text-xl leading-relaxed placeholder:text-slate-400 custom-scrollbar p-6"
+                     className="absolute inset-0 w-full h-full bg-transparent resize-none outline-none text-slate-700 dark:text-slate-300 text-lg md:text-xl leading-relaxed placeholder:text-slate-400 custom-scrollbar p-4 md:p-6"
                      value={transcript}
                      onChange={(e) => setTranscript(e.target.value)}
-                     placeholder="Empiece a dictar pulsando el micrófono..."
+                     placeholder="Empiece a dictar..."
                    />
                 )}
               </div>
 
-              <div className="flex items-center justify-between gap-4 mt-auto shrink-0">
+              <div className="flex flex-wrap items-center justify-between gap-3 mt-auto shrink-0">
                 <div className="flex gap-2">
                    <button
                      onClick={isListening ? stopListening : startListening}
-                     className={`p-4 rounded-full transition-all shadow-lg flex items-center justify-center ${isListening ? 'bg-red-500 text-white hover:bg-red-600 scale-110' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
+                     className={`p-3 md:p-4 rounded-full transition-all shadow-lg flex items-center justify-center ${isListening ? 'bg-red-500 text-white hover:bg-red-600 scale-110' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
                      title={isListening ? "Detener" : "Dictar"}
                    >
-                     {isListening ? <Square size={24}/> : <Mic size={24}/>}
+                     {isListening ? <Square size={20} md:size={24}/> : <Mic size={20} md:size={24}/>}
                    </button>
                    {(transcript || generatedNote) && (
                      <button 
                        onClick={() => { resetTranscript(); setGeneratedNote(''); }}
-                       className="px-4 py-2 text-slate-400 hover:text-red-500 text-sm font-medium transition-colors"
+                       className="px-3 py-2 text-slate-400 hover:text-red-500 text-sm font-medium transition-colors"
                      >
                        Borrar
                      </button>
                    )}
                 </div>
 
-                <div className="flex gap-2">
+                <div className="flex gap-2 flex-1 md:flex-initial justify-end">
                   {!generatedNote && (
                     <button
                       onClick={handleGenerateDraft}
                       disabled={(!transcript || transcript.length < 5) || isProcessingAI}
-                      className="px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 rounded-lg text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                      className="px-3 md:px-4 py-2 bg-purple-100 text-purple-700 hover:bg-purple-200 dark:bg-purple-900/30 dark:text-purple-300 rounded-lg text-sm font-bold flex items-center gap-2 transition-all disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                     >
                       {isProcessingAI ? <span className="animate-spin">✨</span> : <Sparkles size={16}/>}
-                      {isProcessingAI ? "Procesando..." : "Mejorar con IA"}
+                      {isProcessingAI ? "Procesando" : "Mejorar IA"}
                     </button>
                   )}
 
                   <button
                     onClick={handleProceedToAssign}
                     disabled={(!transcript && !generatedNote) || isProcessingAI}
-                    className="px-6 py-2 bg-slate-800 text-white dark:bg-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-200 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="px-4 md:px-6 py-2 bg-slate-800 text-white dark:bg-white dark:text-slate-900 hover:bg-slate-700 dark:hover:bg-slate-200 rounded-lg text-sm font-bold flex items-center gap-2 transition-all shadow-md disabled:opacity-50 disabled:cursor-not-allowed whitespace-nowrap"
                   >
-                    Asignar Paciente <ArrowRight size={16}/>
+                    Asignar <ArrowRight size={16} className="hidden md:inline"/>
                   </button>
                 </div>
               </div>
@@ -251,7 +250,7 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
                  <AlertCircle className="text-amber-600 mt-0.5 shrink-0" size={18}/>
                  <div className="text-xs text-amber-800 dark:text-amber-200">
                     <p className="font-bold">Nota lista para guardar.</p>
-                    <p>Busque al paciente a quien pertenece esta nota clínica para archivarla en su expediente.</p>
+                    <p>Busque al paciente.</p>
                  </div>
               </div>
               
@@ -268,8 +267,7 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
             <div className="h-full flex flex-col items-center justify-center gap-4 animate-fade-in">
                <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"/>
                <div className="text-center">
-                 <h3 className="text-lg font-bold text-slate-800 dark:text-white">Guardando Nota</h3>
-                 <p className="text-sm text-slate-500">Asignando a {selectedPatient?.name}...</p>
+                 <h3 className="text-lg font-bold text-slate-800 dark:text-white">Guardando...</h3>
                </div>
             </div>
           )}
