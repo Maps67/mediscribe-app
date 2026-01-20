@@ -31,11 +31,10 @@ export const SurgicalReportView: React.FC<SurgicalReportViewProps> = ({ doctor, 
   // --- ESTADOS PARA NOTA POST-QUIRÚRGICA (OP-SCRIBE) ---
   const [activeTab, setActiveTab] = useState<'dictation' | 'upload'>('dictation');
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [generatedReport, setGeneratedReport] = useState<string | null>(null); // ✅ ESTE ES EL CONTENIDO EDITABLE
+  const [generatedReport, setGeneratedReport] = useState<string | null>(null);
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   
-  // ✅ REFERENCIAS SEPARADAS PARA MEJOR UX MÓVIL
   const fileInputRef = useRef<HTMLInputElement>(null);
   const audioInputRef = useRef<HTMLInputElement>(null);
 
@@ -48,19 +47,30 @@ export const SurgicalReportView: React.FC<SurgicalReportViewProps> = ({ doctor, 
     resetTranscript 
   } = useSpeechRecognition();
 
-  // --- LÓGICA DE INGESTA DE ARCHIVOS (OP-NOTE) ---
+  // --- LÓGICA DE INGESTA DE ARCHIVOS MEJORADA (COMPATIBILIDAD WINDOWS) ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
       const file = e.target.files[0];
-      const allowedTypes = [
-        'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/ogg', 'audio/mp4', 'audio/webm', 'audio/aac',
+      
+      // 1. Tipos MIME oficiales
+      const allowedMimeTypes = [
+        'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/ogg', 'audio/mp4', 'audio/webm', 'audio/aac', 'audio/flac', 'audio/opus',
         'application/pdf', 'text/plain', 'image/jpeg', 'image/png'
       ];
 
-      const isAudio = file.type.startsWith('audio/');
+      // 2. Extensiones permitidas (Salvoconducto para Windows)
+      const allowedExtensions = ['mp3', 'wav', 'm4a', 'ogg', 'mp4', 'webm', 'aac', 'flac', 'opus', 'pdf', 'txt', 'jpg', 'jpeg', 'png'];
       
-      if (!allowedTypes.includes(file.type) && !isAudio) {
-        toast.error("Formato no soportado. Use Audio, PDF o Imagen.");
+      // Obtener extensión real del archivo
+      const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
+
+      // VALIDACIÓN HÍBRIDA: Pasa si coincide MIME, Prefijo Audio o Extensión
+      const isValidMime = allowedMimeTypes.includes(file.type);
+      const isAudioType = file.type.startsWith('audio/');
+      const isValidExtension = allowedExtensions.includes(fileExtension);
+      
+      if (!isValidMime && !isAudioType && !isValidExtension) {
+        toast.error(`Formato no reconocido (${fileExtension}). Intente con MP3, M4A o WAV.`);
         return;
       }
       
@@ -114,7 +124,7 @@ export const SurgicalReportView: React.FC<SurgicalReportViewProps> = ({ doctor, 
       }
 
       if (uploadedFile) {
-        evidenceContext += `[ARCHIVO ADJUNTO: ${uploadedFile.name} - TIPO: ${uploadedFile.type}]\n`;
+        evidenceContext += `[ARCHIVO ADJUNTO: ${uploadedFile.name} - TIPO: ${uploadedFile.type || 'Detectado por extensión'}]\n`;
         evidenceContext += `(El sistema procesará el contenido interno de este archivo para extraer hallazgos).`;
       }
 
@@ -298,7 +308,7 @@ export const SurgicalReportView: React.FC<SurgicalReportViewProps> = ({ doctor, 
                                         type="file" 
                                         ref={audioInputRef} 
                                         className="hidden" 
-                                        accept="audio/*,.mp3,.wav,.m4a,.ogg,.mp4,.webm,.aac" // ✅ FIXED: EXPLICIT EXTENSIONS FOR WINDOWS
+                                        accept=".mp3,.wav,.m4a,.ogg,.mp4,.webm,.aac,.flac,.opus,audio/*" // ✅ COMPATIBILIDAD WINDOWS + MÓVIL
                                         onChange={handleFileChange}
                                     />
                                     <div className="bg-white dark:bg-slate-800 p-4 rounded-full text-indigo-600 shadow-sm group-hover:scale-110 transition-transform mb-3">
@@ -421,7 +431,7 @@ export const SurgicalReportView: React.FC<SurgicalReportViewProps> = ({ doctor, 
                   </p>
                 </div>
               ) : (
-                /* VISTA DE RESULTADO OP-NOTE (AHORA EDITABLE) */
+                /* VISTA DE RESULTADO OP-NOTE (EDITABLE) */
                 <div className="max-w-4xl mx-auto w-full animate-fade-in-up">
                    <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-indigo-100 dark:border-indigo-900/50 overflow-hidden">
                       <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 border-b border-indigo-100 flex justify-between items-center">
