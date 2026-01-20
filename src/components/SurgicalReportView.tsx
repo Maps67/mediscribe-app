@@ -47,28 +47,46 @@ export const SurgicalReportView: React.FC<SurgicalReportViewProps> = ({ doctor, 
     resetTranscript 
   } = useSpeechRecognition();
 
-  // --- LÓGICA DE INGESTA DE ARCHIVOS MEJORADA (COMPATIBILIDAD WINDOWS) ---
+  // --- LÓGICA DE INGESTA DE ARCHIVOS BLINDADA (MÓVIL + DESKTOP) ---
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      const file = e.target.files[0];
+      // Usamos 'let' porque podríamos necesitar reemplazar el objeto file
+      let file = e.target.files[0];
       
-      // 1. Tipos MIME oficiales
+      // --- 🔥 PARCHE CRÍTICO PARA AUDIO MÓVIL 🔥 ---
+      // Los celulares a veces envían audios (.m4a, .mp4) sin tipo MIME o con uno genérico.
+      // Esto hace que la IA falle. Aquí detectamos eso y forzamos la etiqueta correcta.
+      const ext = file.name.split('.').pop()?.toLowerCase();
+      // Si no tiene tipo o es genérico 'octet-stream'
+      const isMissingOrGenericType = !file.type || file.type === 'application/octet-stream';
+      const isCommonMobileAudio = ['m4a', 'mp4', 'aac', 'wav', 'mp3', 'ogg'].includes(ext || '');
+
+      if (isMissingOrGenericType && isCommonMobileAudio) {
+          let newType = 'audio/mp4'; // Default seguro para m4a/aac de iOS/Android
+          if (ext === 'mp3') newType = 'audio/mpeg';
+          if (ext === 'wav') newType = 'audio/wav';
+          if (ext === 'ogg') newType = 'audio/ogg';
+
+          // Creamos un clon del archivo con la etiqueta MIME corregida
+          const newBlob = file.slice(0, file.size, newType);
+          file = new File([newBlob], file.name, { type: newType, lastModified: file.lastModified });
+          // console.log("Audio móvil parcheado:", file.type); // Debug interno
+      }
+      // --------------------------------------------------
+
+      // 1. Validación robusta de tipos (usando el archivo potencialmente parcheado)
       const allowedMimeTypes = [
         'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/ogg', 'audio/mp4', 'audio/webm', 'audio/aac', 'audio/flac', 'audio/opus',
         'application/pdf', 'text/plain', 'image/jpeg', 'image/png'
       ];
-
-      // 2. Extensiones permitidas (Salvoconducto para Windows)
       const allowedExtensions = ['mp3', 'wav', 'm4a', 'ogg', 'mp4', 'webm', 'aac', 'flac', 'opus', 'pdf', 'txt', 'jpg', 'jpeg', 'png'];
-      
-      // Obtener extensión real del archivo
       const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
 
-      // VALIDACIÓN HÍBRIDA: Pasa si coincide MIME, Prefijo Audio o Extensión
       const isValidMime = allowedMimeTypes.includes(file.type);
       const isAudioType = file.type.startsWith('audio/');
       const isValidExtension = allowedExtensions.includes(fileExtension);
       
+      // Si falla todo (MIME exacto, prefijo audio/ y extensión), entonces rechazamos.
       if (!isValidMime && !isAudioType && !isValidExtension) {
         toast.error(`Formato no reconocido (${fileExtension}). Intente con MP3, M4A o WAV.`);
         return;
@@ -124,7 +142,8 @@ export const SurgicalReportView: React.FC<SurgicalReportViewProps> = ({ doctor, 
       }
 
       if (uploadedFile) {
-        evidenceContext += `[ARCHIVO ADJUNTO: ${uploadedFile.name} - TIPO: ${uploadedFile.type || 'Detectado por extensión'}]\n`;
+        // Usamos el tipo del archivo (que ya puede estar parcheado si vino de móvil)
+        evidenceContext += `[ARCHIVO ADJUNTO: ${uploadedFile.name} - TIPO: ${uploadedFile.type}]\n`;
         evidenceContext += `(El sistema procesará el contenido interno de este archivo para extraer hallazgos).`;
       }
 
