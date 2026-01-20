@@ -16,6 +16,7 @@ export interface GeneratedLeaveData {
   days: number;
   clinicalIndication: string;
   careInstructions: string;
+  attachedImages: string[]; // <--- NUEVO: Array de imágenes en Base64
 }
 
 const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({ 
@@ -23,9 +24,6 @@ const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({
   onClose, 
   onGenerate 
 }) => {
-  // ELIMINADO: Dependencia de ThemeContext para evitar errores de importación.
-  // Usaremos clases nativas 'dark:' de Tailwind en su lugar.
-  
   // Estado del formulario
   const [selectedProcId, setSelectedProcId] = useState<string>('');
   const [startDate, setStartDate] = useState<string>(new Date().toISOString().split('T')[0]);
@@ -33,6 +31,9 @@ const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [instructions, setInstructions] = useState<string>('');
   
+  // --- NUEVO: Estado para las imágenes ---
+  const [images, setImages] = useState<string[]>([]);
+
   // Calcular fecha final automáticamente
   const calculateEndDate = (start: string, duration: number): string => {
     const date = new Date(start);
@@ -59,6 +60,26 @@ const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({
     }
   };
 
+  // --- NUEVO: Lógica para cargar imágenes y convertirlas a Base64 ---
+  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (files && files.length > 0) {
+      Array.from(files).forEach(file => {
+        const reader = new FileReader();
+        reader.onloadend = () => {
+          if (reader.result) {
+            setImages(prev => [...prev, reader.result as string]);
+          }
+        };
+        reader.readAsDataURL(file);
+      });
+    }
+  };
+
+  const removeImage = (index: number) => {
+    setImages(prev => prev.filter((_, i) => i !== index));
+  };
+
   const handleGenerate = () => {
     if (!selectedProcId) return;
     
@@ -70,7 +91,8 @@ const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({
       endDate,
       days,
       clinicalIndication: notes,
-      careInstructions: instructions
+      careInstructions: instructions,
+      attachedImages: images // <--- Enviamos las fotos al generador PDF
     });
   };
 
@@ -159,6 +181,33 @@ const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({
             className="w-full p-3 rounded-lg border bg-gray-50 border-gray-300 text-gray-600 dark:bg-gray-700 dark:border-gray-600 dark:text-white text-sm italic"
           />
         </div>
+
+        {/* --- NUEVO: SECCIÓN DE EVIDENCIA FOTOGRÁFICA --- */}
+        <div>
+            <label className="block text-sm font-medium text-gray-500 mb-2">Anexos / Evidencia (Opcional)</label>
+            <div className="flex flex-wrap gap-3">
+                {/* Botón de carga */}
+                <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors">
+                    <DynamicIcon name="upload" className="w-6 h-6 text-gray-400" />
+                    <span className="text-[10px] text-gray-400 mt-1">Foto</span>
+                    <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
+                </label>
+
+                {/* Previsualización de Imágenes */}
+                {images.map((img, idx) => (
+                    <div key={idx} className="relative w-20 h-20 group">
+                        <img src={img} alt="Evidencia" className="w-full h-full object-cover rounded-xl border border-gray-200 dark:border-gray-700" />
+                        <button 
+                            onClick={() => removeImage(idx)}
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                        >
+                            <DynamicIcon name="x" className="w-3 h-3" />
+                        </button>
+                    </div>
+                ))}
+            </div>
+        </div>
+
       </div>
 
       {/* Botones de Acción */}

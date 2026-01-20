@@ -43,7 +43,15 @@ const styles = StyleSheet.create({
   signName: { fontSize: 10, fontWeight: 'bold', marginTop: 5 },
   signCedula: { fontSize: 8, color: '#666' },
   
-  legalText: { fontSize: 7, color: '#999', marginTop: 20, textAlign: 'center' }
+  legalText: { fontSize: 7, color: '#999', marginTop: 20, textAlign: 'center' },
+
+  // --- NUEVOS ESTILOS PARA LA PÁGINA DE EVIDENCIA (CORREGIDOS) ---
+  evidenceHeader: { fontSize: 14, fontWeight: 'bold', color: '#0f766e', marginBottom: 20, marginTop: 10, textTransform: 'uppercase', borderBottomWidth: 1, borderBottomColor: '#ccc', paddingBottom: 5 },
+  imageGrid: { flexDirection: 'row', flexWrap: 'wrap', justifyContent: 'space-between' },
+  // CORRECCIÓN TÉCNICA: Se cambió 'border: 1' por 'borderWidth: 1' y 'borderStyle: solid' para evitar el crash del PDF
+  imageContainer: { width: '48%', marginBottom: 20, padding: 5, borderWidth: 1, borderStyle: 'solid', borderColor: '#eee', borderRadius: 4, alignItems: 'center' },
+  evidenceImage: { width: '100%', height: 200, objectFit: 'contain', marginBottom: 5 },
+  imageCaption: { fontSize: 8, color: '#555', fontStyle: 'italic' }
 });
 
 interface SurgicalLeavePDFProps {
@@ -56,6 +64,7 @@ interface SurgicalLeavePDFProps {
 const SurgicalLeavePDF: React.FC<SurgicalLeavePDFProps> = ({ doctor, patientName, data, date }) => {
   return (
     <Document>
+      {/* PÁGINA 1: CERTIFICADO LEGAL */}
       <Page size="LETTER" style={styles.page}>
         
         {/* ENCABEZADO MÉDICO */}
@@ -138,6 +147,38 @@ const SurgicalLeavePDF: React.FC<SurgicalLeavePDFProps> = ({ doctor, patientName
         </View>
 
       </Page>
+
+      {/* --- PÁGINA 2: ANEXOS (CONDICIONAL) --- */}
+      {data.attachedImages && data.attachedImages.length > 0 && (
+        <Page size="LETTER" style={styles.page}>
+            {/* Cabecera Repetida (Más compacta) */}
+            <View style={{ ...styles.header, borderBottomColor: '#ccc', marginBottom: 10 }}>
+                <View style={styles.doctorInfo}>
+                    <Text style={{ ...styles.docName, fontSize: 12 }}>{doctor.full_name}</Text>
+                    <Text style={styles.docMeta}>ANEXOS AL EXPEDIENTE CLÍNICO - {patientName}</Text>
+                </View>
+            </View>
+
+            <Text style={styles.evidenceHeader}>EVIDENCIA FOTOGRÁFICA / ESTUDIOS</Text>
+
+            <View style={styles.imageGrid}>
+                {data.attachedImages.map((imgBase64, index) => (
+                    <View key={index} style={styles.imageContainer}>
+                        {/* Renderizamos la imagen Base64 */}
+                        <Image src={imgBase64} style={styles.evidenceImage} />
+                        <Text style={styles.imageCaption}>Figura {index + 1}: Evidencia Clínica</Text>
+                    </View>
+                ))}
+            </View>
+
+            <View style={styles.footer}>
+                <Text style={styles.legalText}>
+                    Estas imágenes forman parte integral del criterio clínico para la expedición de la incapacidad.
+                </Text>
+            </View>
+        </Page>
+      )}
+
     </Document>
   );
 };
