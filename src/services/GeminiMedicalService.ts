@@ -674,47 +674,52 @@ export const GeminiMedicalService = {
     }
   },
 
-  // --- J. MÓDULO QUIRÚRGICO (OP-SCRIBE) ---
-  // PROCESAMIENTO VOLÁTIL: El archivo se analiza y se descarta. No se guarda.
-  async generateSurgicalReport(evidenceText: string, specialty: string = "Cirugía General"): Promise<string> {
+  // --- J. MÓDULO QUIRÚRGICO (OP-SCRIBE / BITÁCORA BLINDADA) ---
+  async generateSurgicalReport(evidenceText: string, specialty: string = "Cirugía General"): Promise<any> {
     try {
-      console.log("🔪 Iniciando Protocolo Op-Scribe (Memoria Volátil)...");
+      console.log("🔪 Iniciando Protocolo Op-Scribe (Modo Extracción Estricta)...");
 
       const prompt = `
-        ACTÚA COMO: Cirujano Experto y Auditor de Seguridad Quirúrgica (${specialty}).
-        TAREA: Generar una NOTA POST-OPERATORIA (Reporte Qx) estructurada y legalmente blindada.
+        [SYSTEM OVERRIDE: DATA_EXTRACTION_MODE]
+        ACTÚA COMO: API DE EXTRACCIÓN DE DATOS QUIRÚRGICOS.
+        
+        INSTRUCCIÓN: Tu única tarea es extraer los datos técnicos del texto dictado y devolverlos en JSON.
+        
+        ⚠️ REGLAS DE LIMPIEZA ABSOLUTA (PROHIBICIONES):
+        1. PROHIBIDO añadir interpretaciones fonéticas o texto entre paréntesis (ej. NO pongas "(Bio Cole, Sixto)").
+        2. PROHIBIDO categorizar: Si el médico dice "Piocolecisto", el resultado debe ser exactamente "Piocolecisto".
+        3. IGNORA cualquier nombre de paciente o historial previo que no esté en el dictado actual.
+        4. Si un dato no está presente, devuelve "---".
+        5. CORRECCIÓN FONÉTICA TÉCNICA: Si el texto contiene términos que suenan como medicamentos o materiales (ej: 'conceda' por 'con seda', 'centro acciona' por 'ceftriaxona'), corrígelos a su nombre técnico médico correcto."
 
-        ENTRADA (EVIDENCIA CRUDA):
+        ENTRADA (TEXTO DEL MÉDICO):
         "${evidenceText}"
 
-        INSTRUCCIONES DE PROCESAMIENTO:
-        1. Transforma el dictado/texto informal en lenguaje médico técnico formal.
-        2. ESTRUCTURA OBLIGATORIA (Formato Sinóptico):
-           - DIAGNÓSTICO PRE-OPERATORIO:
-           - DIAGNÓSTICO POST-OPERATORIO:
-           - PROCEDIMIENTO REALIZADO: (Nombre técnico exacto + CPT si aplica).
-           - HALLAZGOS: (Descripción anatómica detallada).
-           - TÉCNICA QUIRÚRGICA: (Paso a paso lógico).
-           - COMPLICACIONES / SANGRADO: (Si no se menciona, poner "Sin complicaciones inmediatas. Sangrado mínimo.").
-           - SEGURIDAD: (Obligatorio: Incluir "Cuenta de gasas y textiles completa. Hemostasia verificada.").
-           - PLAN POST-QUIRÚRGICO: (Ayuno, Analgesia, etc.).
-
-        REGLAS DE SEGURIDAD (BLINDAJE LEGAL):
-        - Si el médico no mencionó explícitamente el sangrado, asume "Escaso/Mínimo" pero JAMÁS inventes que no hubo si el contexto sugiere hemorragia.
-        - Si es una colecistectomía, busca o sugiere la "Visión Crítica de Seguridad".
-        - NO inventes datos numéricos que no existan.
-
-        SALIDA:
-        Genera SOLO el texto del reporte en formato Markdown limpio, listo para copiar y pegar.
+        SALIDA JSON OBLIGATORIA:
+        {
+            "dx_post": "Diagnóstico post-operatorio (SOLO EL TÉRMINO MÉDICO, SIN COMENTARIOS)",
+            "procedure": "Nombre del procedimiento realizado",
+            "findings": "Hallazgos anatómicos y patológicos clave",
+            "complications": "Incidentes, sangrado o 'Sin incidentes'",
+            "material_notes": "Suturas, mallas, drenajes e insumos",
+            "plan": "Plan post-qx inmediato"
+        }
       `;
 
-      // Usamos el mismo canal seguro que ya auditamos
-      const response = await generateWithFailover(prompt, false); 
-      return response;
+      // Canal seguro con modo JSON activo
+      const rawResponse = await generateWithFailover(prompt, true); 
+      
+      try {
+          const cleanText = cleanJSON(rawResponse);
+          return JSON.parse(cleanText);
+      } catch (parseError) {
+          console.error("Error parseando JSON Qx:", parseError);
+          return { findings: rawResponse, dx_post: "Error de formato", procedure: "---", complications: "---", material_notes: "---", plan: "---" };
+      }
 
     } catch (error) {
       console.error("❌ Error en Módulo Quirúrgico:", error);
       throw new Error("No se pudo procesar la evidencia quirúrgica.");
     }
   }
-};
+  }; // Fin del objeto GeminiMedicalService

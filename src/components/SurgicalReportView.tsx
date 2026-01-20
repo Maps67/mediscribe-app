@@ -1,23 +1,30 @@
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { 
   Upload, Mic, FileText, X, CheckCircle, ShieldAlert, 
   Scissors, AlertTriangle, Save, RefreshCw, Square, 
-  User, Download, Activity, CalendarDays, FileImage, Music, PenLine 
+  User, Download, Activity, CalendarDays, FileImage, Music, 
+  PenLine, ShieldCheck, Zap
 } from 'lucide-react'; 
 import { toast } from 'sonner';
 import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { PatientService } from '../services/PatientService';
 import { supabase } from '../lib/supabase';
-import FormattedText from './FormattedText';
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition';
-
-// ✅ IMPORTACIONES PARA PDF
 import { pdf } from '@react-pdf/renderer';
-import SurgicalOpNotePDF from './SurgicalOpNotePDF';
-import SurgicalLeavePDF from './SurgicalLeavePDF';
 
-// ✅ IMPORTACIÓN DEL GENERADOR DE INCAPACIDADES
+import SurgicalLeavePDF from './SurgicalLeavePDF'; 
 import SurgicalLeaveGenerator, { GeneratedLeaveData } from './SurgicalLeaveGenerator';
+
+// Interfaz de datos de la bitácora
+interface SurgicalLogData {
+    preoperative_diagnosis: string;
+    postoperative_diagnosis: string;
+    procedure: string;
+    findings: string;
+    complications: string;
+    plan: string;
+    material_notes: string;
+}
 
 interface SurgicalReportViewProps {
   doctor: any;
@@ -25,508 +32,283 @@ interface SurgicalReportViewProps {
 }
 
 export const SurgicalReportView: React.FC<SurgicalReportViewProps> = ({ doctor, patient }) => {
-  // --- ESTADO DE NAVEGACIÓN PRINCIPAL (HUB QUIRÚRGICO) ---
-  const [currentModule, setCurrentModule] = useState<'op_note' | 'leave'>('op_note');
-
-  // --- ESTADOS PARA NOTA POST-QUIRÚRGICA (OP-SCRIBE) ---
-  const [activeTab, setActiveTab] = useState<'dictation' | 'upload'>('dictation');
-  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [generatedReport, setGeneratedReport] = useState<string | null>(null);
+  // --- ESTADOS Y NAVEGACIÓN ---
+  const [currentModule, setCurrentModule] = useState<'op_log' | 'leave'>('op_log');
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  const audioInputRef = useRef<HTMLInputElement>(null);
+  const [uploadedFile, setUploadedFile] = useState<File | null>(null);
+  const [surgicalLog, setSurgicalLog] = useState<SurgicalLogData | null>(null);
+  const [textContent, setTextContent] = useState("");
 
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const scrollRef = useRef<HTMLDivElement>(null);
+  
   const { 
     isListening, 
-    transcript: surgicalTranscript, 
-    setTranscript, 
+    transcript, 
     startListening, 
     stopListening, 
     resetTranscript 
   } = useSpeechRecognition();
 
-  // --- LÓGICA DE INGESTA DE ARCHIVOS BLINDADA (MÓVIL + DESKTOP) ---
+  // Sincronización de dictado con cuadro de texto
+  useEffect(() => {
+      if (transcript) {
+          setTextContent(transcript);
+      }
+  }, [transcript]);
+
+  // Autoscroll al final del texto durante dictado
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTop = scrollRef.current.scrollHeight;
+    }
+  }, [textContent, isListening]);
+
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     if (e.target.files && e.target.files[0]) {
-      // Usamos 'let' porque podríamos necesitar reemplazar el objeto file
-      let file = e.target.files[0];
-      
-      // --- 🔥 PARCHE CRÍTICO PARA AUDIO MÓVIL 🔥 ---
-      // Los celulares a veces envían audios (.m4a, .mp4) sin tipo MIME o con uno genérico.
-      // Esto hace que la IA falle. Aquí detectamos eso y forzamos la etiqueta correcta.
-      const ext = file.name.split('.').pop()?.toLowerCase();
-      // Si no tiene tipo o es genérico 'octet-stream'
-      const isMissingOrGenericType = !file.type || file.type === 'application/octet-stream';
-      const isCommonMobileAudio = ['m4a', 'mp4', 'aac', 'wav', 'mp3', 'ogg'].includes(ext || '');
-
-      if (isMissingOrGenericType && isCommonMobileAudio) {
-          let newType = 'audio/mp4'; // Default seguro para m4a/aac de iOS/Android
-          if (ext === 'mp3') newType = 'audio/mpeg';
-          if (ext === 'wav') newType = 'audio/wav';
-          if (ext === 'ogg') newType = 'audio/ogg';
-
-          // Creamos un clon del archivo con la etiqueta MIME corregida
-          const newBlob = file.slice(0, file.size, newType);
-          file = new File([newBlob], file.name, { type: newType, lastModified: file.lastModified });
-          // console.log("Audio móvil parcheado:", file.type); // Debug interno
-      }
-      // --------------------------------------------------
-
-      // 1. Validación robusta de tipos (usando el archivo potencialmente parcheado)
-      const allowedMimeTypes = [
-        'audio/mpeg', 'audio/wav', 'audio/x-m4a', 'audio/ogg', 'audio/mp4', 'audio/webm', 'audio/aac', 'audio/flac', 'audio/opus',
-        'application/pdf', 'text/plain', 'image/jpeg', 'image/png'
-      ];
-      const allowedExtensions = ['mp3', 'wav', 'm4a', 'ogg', 'mp4', 'webm', 'aac', 'flac', 'opus', 'pdf', 'txt', 'jpg', 'jpeg', 'png'];
-      const fileExtension = file.name.split('.').pop()?.toLowerCase() || '';
-
-      const isValidMime = allowedMimeTypes.includes(file.type);
-      const isAudioType = file.type.startsWith('audio/');
-      const isValidExtension = allowedExtensions.includes(fileExtension);
-      
-      // Si falla todo (MIME exacto, prefijo audio/ y extensión), entonces rechazamos.
-      if (!isValidMime && !isAudioType && !isValidExtension) {
-        toast.error(`Formato no reconocido (${fileExtension}). Intente con MP3, M4A o WAV.`);
-        return;
-      }
-      
-      if (file.size > 25 * 1024 * 1024) {
-        toast.error("El archivo es demasiado grande (Máx 25MB).");
-        return;
-      }
+      const file = e.target.files[0];
       setUploadedFile(file);
-      toast.success(`Evidencia cargada: ${file.name}`);
+      toast.success(`${file.name} listo para análisis.`);
     }
   };
 
-  // --- CONTROL DEL MICRÓFONO (OP-NOTE) ---
-  const toggleRecording = () => {
-    if (isListening) {
-      stopListening();
-      toast.success("Dictado Qx pausado.");
-    } else {
-      startListening();
-      toast.info("🎙️ Escuchando reporte quirúrgico...");
+  const handleMicStart = (e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    if (!isListening) {
+        startListening();
+        if (navigator.vibrate) navigator.vibrate(50);
     }
   };
 
-  // --- PROCESAMIENTO VOLÁTIL (OP-NOTE) ---
-  const handleProcess = async () => {
-    if (!doctor || !patient) return toast.error("Faltan datos de sesión.");
-    
-    if (!uploadedFile && (!surgicalTranscript || surgicalTranscript.length < 5)) {
-        return toast.error("No hay información. Dicte el procedimiento, escriba texto o suba un archivo.");
+  const handleMicStop = (e: React.PointerEvent) => {
+    e.preventDefault(); e.stopPropagation();
+    if (isListening) stopListening();
+  };
+
+  // --- PROCESAMIENTO CON IA ---
+  const handleProcessLog = async () => {
+    if (!textContent && !uploadedFile) {
+        return toast.error("Por favor, proporcione dictado o evidencia.");
     }
 
     setIsProcessing(true);
     const loadingId = toast.loading("Analizando protocolo quirúrgico...");
 
     try {
-      const doctorName = doctor.full_name || (doctor.first_name ? `${doctor.first_name} ${doctor.last_name || ''}` : doctor.name) || "No especificado";
-      
-      let evidenceContext = `
-      --- DATOS ADMINISTRATIVOS OBLIGATORIOS ---
-      PACIENTE: ${patient.name}
-      CIRUJANO: Dr(a). ${doctorName}
-      ESPECIALIDAD: ${doctor.specialty}
-      FECHA: ${new Date().toLocaleDateString()}
-      ------------------------------------------
-      
-      EVIDENCIA CLÍNICA / DICTADO / TEXTO LIBRE:
-      `;
-
-      if (surgicalTranscript && surgicalTranscript.length > 5) {
-        evidenceContext += `"${surgicalTranscript}"\n\n`;
-      }
-
+      let evidenceText = textContent || "";
       if (uploadedFile) {
-        // Usamos el tipo del archivo (que ya puede estar parcheado si vino de móvil)
-        evidenceContext += `[ARCHIVO ADJUNTO: ${uploadedFile.name} - TIPO: ${uploadedFile.type}]\n`;
-        evidenceContext += `(El sistema procesará el contenido interno de este archivo para extraer hallazgos).`;
+          evidenceText += `\n[EVIDENCIA ADJUNTA: ${uploadedFile.name}]`;
       }
 
-      const report = await GeminiMedicalService.generateSurgicalReport(evidenceContext, doctor.specialty);
+      const rawData = await GeminiMedicalService.generateSurgicalReport(evidenceText, doctor.specialty); 
       
-      setGeneratedReport(report);
-      setUploadedFile(null); 
-      if(fileInputRef.current) fileInputRef.current.value = "";
-      if(audioInputRef.current) audioInputRef.current.value = "";
-      
-      toast.success("Reporte Qx generado. Puede editarlo ahora.");
+      const getVal = (key: string, altKey?: string) => {
+          return rawData[key] || rawData[altKey || ''] || "---";
+      };
 
-    } catch (error: any) {
-      toast.error(error.message || "Error generando reporte.");
-    } finally {
-      setIsProcessing(false);
-      toast.dismiss(loadingId);
-    }
-  };
+      const cleanData: SurgicalLogData = {
+          preoperative_diagnosis: getVal('preoperative_diagnosis', 'pre_dx'),
+          postoperative_diagnosis: getVal('dx_post', 'postoperative_diagnosis'),
+          procedure: getVal('procedure'),
+          findings: getVal('findings'),
+          complications: getVal('complications'),
+          material_notes: getVal('material_notes', 'materials'),
+          plan: getVal('plan')
+      };
 
-  // --- LÓGICA DE DESCARGA PDF (OP-NOTE) ---
-  const handleDownloadPDF = async () => {
-    if (!generatedReport || !doctor || !patient) return;
-    
-    const toastId = toast.loading("Generando documento PDF...");
-    try {
-        const blob = await pdf(
-            <SurgicalOpNotePDF 
-                doctor={doctor}
-                patient={patient}
-                content={generatedReport}
-                date={new Date().toLocaleDateString()}
-            />
-        ).toBlob();
-
-        const url = URL.createObjectURL(blob);
-        window.open(url, '_blank');
-        toast.success("PDF generado.", { id: toastId });
+      setSurgicalLog(cleanData);
+      setUploadedFile(null);
+      resetTranscript();
+      setTextContent(""); 
+      toast.success("Bitácora generada con éxito", { id: loadingId });
 
     } catch (error) {
-        console.error(error);
-        toast.error("Error al generar PDF.", { id: toastId });
-    }
-  };
-
-  // --- LÓGICA DE GUARDADO (OP-NOTE) ---
-  const handleSaveToRecord = async () => {
-    if (!generatedReport || !doctor || !patient) return;
-    
-    setIsSaving(true);
-    const toastId = toast.loading("Encriptando y guardando...");
-
-    try {
-        const finalPatientId = await PatientService.ensurePatientId(patient);
-        const finalSummary = `REPORTE QUIRÚRGICO (OP-SCRIBE)\nFECHA: ${new Date().toLocaleDateString()}\nCIRUJANO: ${doctor.specialty}\n\n${generatedReport}`;
-
-        const { error } = await supabase.from('consultations').insert({
-            doctor_id: doctor.id,
-            patient_id: finalPatientId,
-            transcript: surgicalTranscript || "Carga Manual/Archivo",
-            summary: finalSummary,
-            status: 'completed',
-            legal_status: 'validated',
-            ai_analysis_data: { 
-                type: 'surgical_report',
-                source: uploadedFile ? 'file_upload' : 'hybrid_input'
-            }
-        });
-
-        if (error) throw error;
-        toast.success("Guardado en expediente.", { id: toastId });
-        
-        setGeneratedReport(null);
-        resetTranscript();
-
-    } catch (error: any) {
-        toast.error("Error al guardar: " + error.message, { id: toastId });
+      toast.error("Error al procesar el dictado.", { id: loadingId });
     } finally {
-        setIsSaving(false);
+      setIsProcessing(false);
     }
   };
 
-  // --- LÓGICA PARA INCAPACIDADES (NUEVO MÓDULO INTEGRADO) ---
-  const handleGenerateLeave = async (data: GeneratedLeaveData) => {
-      if (!doctor || !patient) {
-        toast.error("Faltan datos para generar la constancia.");
-        return;
-      }
-
-      const toastId = toast.loading("Generando Constancia de Incapacidad...");
+  // --- GUARDADO COMPLETO EN HISTORIAL ---
+  const handleSaveLog = async () => {
+      if (!surgicalLog || !patient) return;
+      setIsSaving(true);
+      const toastId = toast.loading("Respaldando en el historial...");
 
       try {
-        const blob = await pdf(
-          <SurgicalLeavePDF 
-            doctor={doctor}
-            patientName={patient.name}
-            data={data}
-            date={new Date().toLocaleDateString('es-MX', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}
-          />
-        ).toBlob();
+          const finalPatientId = await PatientService.ensurePatientId(patient);
+          
+          const summaryText = `REPORTE QUIRÚRGICO DETALLADO
+• PROCEDIMIENTO: ${surgicalLog.procedure}
+• DIAGNÓSTICO: ${surgicalLog.postoperative_diagnosis}
+• HALLAZGOS: ${surgicalLog.findings}
+• COMPLICACIONES: ${surgicalLog.complications}
+• MATERIALES: ${surgicalLog.material_notes}
+• PLAN: ${surgicalLog.plan}`;
 
+          const { error } = await supabase.from('consultations').insert({
+              doctor_id: doctor.id,
+              patient_id: finalPatientId,
+              transcript: "Generado vía Módulo Quirúrgico Móvil",
+              summary: summaryText,
+              status: 'completed',
+              ai_analysis_data: {
+                  type: 'surgical_log_v2',
+                  structured_data: surgicalLog,
+                  doctor_specialty: doctor.specialty
+              }
+          });
+
+          if (error) throw error;
+          toast.success("Bitácora guardada íntegramente.", { id: toastId });
+          setSurgicalLog(null); 
+
+      } catch (e: any) {
+          toast.error("Error al guardar: " + e.message, { id: toastId });
+      } finally {
+          setIsSaving(false);
+      }
+  };
+
+  const handleGenerateLeave = async (data: GeneratedLeaveData) => {
+      if (!doctor || !patient) return;
+      const toastId = toast.loading("Preparando PDF...");
+      try {
+        const blob = await pdf(
+          <SurgicalLeavePDF doctor={doctor} patientName={patient.name} data={data} date={new Date().toLocaleDateString()} />
+        ).toBlob();
         const url = URL.createObjectURL(blob);
         window.open(url, '_blank');
-        
-        toast.success("Constancia lista para imprimir.", { id: toastId, icon: <Scissors size={18}/> });
-
+        toast.success("Incapacidad lista.", { id: toastId });
       } catch (error) {
-        console.error("Error PDF Incapacidad:", error);
-        toast.error("Error al generar el documento PDF.", { id: toastId });
+        toast.error("Error al generar PDF.", { id: toastId });
       }
+  };
+
+  const handleClearAll = () => {
+      resetTranscript();
+      setTextContent("");
+      setUploadedFile(null);
   };
 
   return (
-    <div className="h-full flex flex-col bg-slate-50 dark:bg-slate-950 p-4 md:p-8 overflow-y-auto animate-fade-in">
+    // 🥪 RESPONSIVE SANDWICH LAYOUT (Header, Body, Footer)
+    <div className="bg-slate-50 dark:bg-slate-950 w-full h-[100dvh] grid grid-rows-[auto_1fr_auto] overflow-hidden">
       
-      {/* HEADER UNIFICADO */}
-      <div className="mb-6 flex flex-col md:flex-row justify-between items-start md:items-end border-b dark:border-slate-800 pb-4 gap-4">
-        <div>
-          <h2 className="text-2xl font-bold text-slate-800 dark:text-white flex items-center gap-2">
-            <span className="bg-indigo-600 text-white p-1.5 rounded-lg"><Scissors size={20}/></span>
-            Centro de Mando Quirúrgico
-          </h2>
-          <p className="text-slate-500 text-sm mt-1">Gestión integral del evento operatorio</p>
-          
-          <div className="mt-3 flex items-center gap-2 text-indigo-600 bg-indigo-50 dark:bg-indigo-900/20 dark:text-indigo-300 px-3 py-1 rounded-md w-fit">
-             <User size={14} />
-             <span className="text-xs font-bold uppercase tracking-wide">Paciente: {patient?.name || "Sin seleccionar"}</span>
-          </div>
+      {/* 1. TOP: HEADER ESTÁTICO */}
+      <header className="bg-white dark:bg-slate-900 border-b border-slate-200 dark:border-slate-800 p-4 z-20 shadow-sm">
+        <div className="flex justify-between items-center mb-3">
+            <h2 className="text-lg font-black text-slate-800 dark:text-white flex items-center gap-2 uppercase tracking-tight">
+                <span className="bg-indigo-600 text-white p-1.5 rounded-lg"><ShieldCheck size={20}/></span>
+                Bitácora Qx
+            </h2>
+            <div className="flex bg-slate-100 dark:bg-slate-800 p-1 rounded-xl">
+                <button onClick={() => setCurrentModule('op_log')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${currentModule === 'op_log' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400'}`}>Nota</button>
+                <button onClick={() => setCurrentModule('leave')} className={`px-4 py-1.5 rounded-lg text-xs font-bold transition-all ${currentModule === 'leave' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400'}`}>Incapacidad</button>
+            </div>
         </div>
-
-        {/* NAVEGACIÓN INTERNA (SUB-TABS) */}
-        <div className="flex bg-white dark:bg-slate-900 p-1 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 w-full md:w-auto">
-            <button
-                onClick={() => setCurrentModule('op_note')}
-                className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${currentModule === 'op_note' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-                <Activity size={16}/> Nota Post-Qx
-            </button>
-            <button
-                onClick={() => setCurrentModule('leave')}
-                className={`flex-1 md:flex-none px-6 py-2 rounded-lg text-sm font-bold flex items-center justify-center gap-2 transition-all ${currentModule === 'leave' ? 'bg-indigo-100 text-indigo-700 dark:bg-indigo-900/40 dark:text-indigo-300' : 'text-slate-400 hover:text-slate-600'}`}
-            >
-                <CalendarDays size={16}/> Incapacidad
-            </button>
+        <div className="flex items-center gap-2 text-slate-500 text-[10px] font-bold bg-slate-100 dark:bg-slate-800/50 py-1.5 px-3 rounded-lg uppercase tracking-wider">
+            <User size={12} className="text-indigo-500" /> {patient?.name || "Paciente"}
         </div>
-      </div>
+      </header>
 
-      {/* --- MÓDULO 1: NOTA OPERATORIA (OP-SCRIBE) --- */}
-      {currentModule === 'op_note' && (
-          <div className="animate-fade-in-up w-full">
-              {!generatedReport ? (
-                <div className="max-w-3xl mx-auto w-full">
-                  {/* TABS DE ENTRADA (DICTADO VS UPLOAD) */}
-                  <div className="bg-white dark:bg-slate-900 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800 p-1 mb-8 flex">
-                    <button 
-                      onClick={() => setActiveTab('dictation')}
-                      className={`flex-1 py-3 px-4 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeTab === 'dictation' ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-200' : 'text-slate-400 hover:bg-slate-50'}`}
-                    >
-                      <Mic size={18}/> Dictado / Texto Libre
-                    </button>
-                    <button 
-                      onClick={() => setActiveTab('upload')}
-                      className={`flex-1 py-3 px-4 rounded-lg font-bold text-sm flex items-center justify-center gap-2 transition-all ${activeTab === 'upload' ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-200' : 'text-slate-400 hover:bg-slate-50'}`}
-                    >
-                      <Upload size={18}/> Cargar Evidencia Externa
-                    </button>
-                  </div>
-
-                  {/* AREA DE CARGA (UPLOAD) - MODIFICADA PARA AUDIO */}
-                  {activeTab === 'upload' && (
-                    <div className="animate-fade-in-up">
-                        
-                        {!uploadedFile ? (
-                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 h-64">
-                                {/* BOTÓN DE AUDIO */}
-                                <div 
-                                    onClick={() => !isProcessing && audioInputRef.current?.click()}
-                                    className="border-2 border-dashed border-indigo-200 dark:border-indigo-900 bg-indigo-50/50 dark:bg-indigo-900/10 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-indigo-100/50 dark:hover:bg-indigo-900/20 transition-all group"
-                                >
-                                    <input 
-                                        type="file" 
-                                        ref={audioInputRef} 
-                                        className="hidden" 
-                                        accept=".mp3,.wav,.m4a,.ogg,.mp4,.webm,.aac,.flac,.opus,audio/*" // ✅ COMPATIBILIDAD WINDOWS + MÓVIL
-                                        onChange={handleFileChange}
-                                    />
-                                    <div className="bg-white dark:bg-slate-800 p-4 rounded-full text-indigo-600 shadow-sm group-hover:scale-110 transition-transform mb-3">
-                                        <Music size={28} />
-                                    </div>
-                                    <h3 className="font-bold text-slate-700 dark:text-slate-200 text-center">Anexar Audio</h3>
-                                    <p className="text-xs text-slate-400 text-center mt-1">Grabaciones, notas de voz</p>
-                                </div>
-
-                                {/* BOTÓN DE DOCUMENTOS */}
-                                <div 
-                                    onClick={() => !isProcessing && fileInputRef.current?.click()}
-                                    className="border-2 border-dashed border-slate-300 dark:border-slate-700 rounded-2xl p-6 flex flex-col items-center justify-center cursor-pointer hover:bg-slate-50 dark:hover:bg-slate-800 transition-all group"
-                                >
-                                    <input 
-                                        type="file" 
-                                        ref={fileInputRef} 
-                                        className="hidden" 
-                                        accept=".pdf,.txt,.jpg,.jpeg,.png" // ✅ ESTO FILTRA DOCS
-                                        onChange={handleFileChange}
-                                    />
-                                    <div className="bg-slate-100 dark:bg-slate-800 p-4 rounded-full text-slate-500 shadow-sm group-hover:scale-110 transition-transform mb-3">
-                                        <FileImage size={28} />
-                                    </div>
-                                    <h3 className="font-bold text-slate-700 dark:text-slate-200 text-center">Foto / Documento</h3>
-                                    <p className="text-xs text-slate-400 text-center mt-1">PDF, Imágenes, Texto</p>
-                                </div>
-                            </div>
-                        ) : (
-                            // VISTA DE ARCHIVO CARGADO
-                            <div className="border-2 border-dashed border-green-400 bg-green-50 dark:bg-green-900/10 rounded-2xl p-12 flex flex-col items-center justify-center h-64">
-                                <div className="bg-green-100 p-4 rounded-full text-green-600 mb-4 animate-bounce">
-                                    <CheckCircle size={32} />
-                                </div>
-                                <p className="font-bold text-lg text-slate-800 dark:text-white text-center break-all">{uploadedFile.name}</p>
-                                <p className="text-xs text-slate-500 mt-1 uppercase font-bold">{uploadedFile.type || "Archivo Detectado"}</p>
-                                <button 
-                                    onClick={(e) => { e.stopPropagation(); setUploadedFile(null); }}
-                                    className="mt-4 text-red-500 text-xs font-bold hover:underline flex items-center gap-1"
-                                >
-                                    <X size={12}/> Eliminar / Cambiar
-                                </button>
-                            </div>
-                        )}
-                        
-                        <p className="text-center text-[10px] text-slate-400 mt-4">
-                            Los archivos se procesan en memoria volátil y no se guardan permanentemente hasta generar el reporte.
-                        </p>
-                    </div>
-                  )}
-
-                  {/* AREA HÍBRIDA (TEXTO + DICTADO) */}
-                  {activeTab === 'dictation' && (
-                    <div className="bg-white dark:bg-slate-900 rounded-2xl p-6 border border-slate-200 dark:border-slate-800 h-80 flex flex-col relative overflow-hidden animate-fade-in shadow-sm">
-                      
-                      {isListening && (
-                          <div className="absolute inset-0 bg-red-50/30 dark:bg-red-900/10 pointer-events-none animate-pulse z-0"/>
-                      )}
-
-                      <div className="flex justify-between items-center mb-2 z-10">
-                          <h4 className="text-xs font-bold text-slate-400 uppercase flex items-center gap-2">
-                            {isListening ? <span className="flex h-2 w-2 rounded-full bg-red-500 animate-ping"/> : null}
-                            {isListening ? "Escuchando..." : "Editor de Texto / Dictado"}
-                          </h4>
-                          <div className="flex gap-3">
-                            <button 
-                              onClick={toggleRecording}
-                              className={`text-xs font-bold flex items-center gap-1 transition-colors ${isListening ? 'text-red-500 hover:text-red-700' : 'text-indigo-600 hover:text-indigo-800'}`}
-                            >
-                              {isListening ? <><Square size={10}/> Detener</> : <><Mic size={12}/> Dictar</>}
-                            </button>
-                            {surgicalTranscript && (
-                              <button onClick={resetTranscript} className="text-xs text-slate-400 hover:text-red-500 transition-colors">
-                                Borrar
-                              </button>
-                            )}
-                          </div>
-                      </div>
-
-                      <textarea 
-                        className="flex-1 w-full bg-transparent resize-none outline-none text-slate-700 dark:text-slate-300 placeholder:text-slate-300 dark:placeholder:text-slate-600 text-lg leading-relaxed z-10"
-                        placeholder="Presione el icono del micrófono para dictar, o escriba/pegue su nota aquí..."
-                        value={surgicalTranscript}
-                        onChange={(e) => setTranscript(e.target.value)}
-                        spellCheck="false"
-                      />
-
-                      {!isListening && !surgicalTranscript && (
-                        <div className="absolute bottom-6 right-6 z-20">
-                            <button 
-                              onClick={toggleRecording}
-                              className="p-4 rounded-full bg-indigo-600 text-white shadow-lg hover:bg-indigo-700 hover:scale-105 transition-all"
-                              title="Iniciar Dictado"
-                            >
-                              <Mic size={24}/>
-                            </button>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* BOTÓN DE ACCIÓN */}
-                  <button 
-                    disabled={(!uploadedFile && (!surgicalTranscript || surgicalTranscript.length < 3)) || isProcessing}
-                    onClick={handleProcess}
-                    className="w-full mt-6 bg-indigo-600 text-white py-4 rounded-xl font-bold text-lg shadow-lg hover:bg-indigo-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all flex justify-center items-center gap-2 group"
-                  >
-                    {isProcessing ? (
-                      <span className="flex items-center gap-2"><span className="animate-spin rounded-full h-4 w-4 border-b-2 border-white"></span> Procesando...</span>
-                    ) : (
-                      <>
-                        Generar Reporte Qx <Scissors size={18} className="group-hover:rotate-45 transition-transform"/>
-                      </>
-                    )}
-                  </button>
-                  
-                  <p className="text-center text-[10px] text-slate-400 mt-4 flex justify-center items-center gap-1">
-                    <AlertTriangle size={10}/>
-                    Nota: Puede combinar dictado y escritura manual antes de generar el reporte.
-                  </p>
-                </div>
-              ) : (
-                /* VISTA DE RESULTADO OP-NOTE (EDITABLE) */
-                <div className="max-w-4xl mx-auto w-full animate-fade-in-up">
-                   <div className="bg-white dark:bg-slate-900 rounded-xl shadow-lg border border-indigo-100 dark:border-indigo-900/50 overflow-hidden">
-                      <div className="bg-indigo-50 dark:bg-indigo-900/20 p-4 border-b border-indigo-100 flex justify-between items-center">
-                        <h3 className="font-bold text-indigo-800 dark:text-indigo-200 flex items-center gap-2">
-                          <FileText size={18}/> Nota Post-Operatoria Generada
-                        </h3>
-                        <div className="flex gap-2">
-                            <span className="text-[10px] text-indigo-500 font-bold bg-white/50 px-2 py-1 rounded flex items-center gap-1">
-                                <PenLine size={10}/> EDITABLE
-                            </span>
-                            <button onClick={() => setGeneratedReport(null)} className="text-xs text-indigo-600 font-bold hover:underline">
-                            Nueva Cirugía
-                            </button>
-                        </div>
-                      </div>
-                      
-                      {/* ✅ CAMBIO CLAVE: ALTURA RESPONSIVA (500px en móvil, 800px en desktop) */}
-                      <div className="p-0">
-                        <textarea 
-                            className="w-full h-[500px] md:h-[800px] p-8 bg-transparent text-slate-700 dark:text-slate-300 leading-relaxed outline-none resize-none font-medium focus:bg-slate-50 dark:focus:bg-slate-800/50 transition-colors"
-                            value={generatedReport || ''}
-                            onChange={(e) => setGeneratedReport(e.target.value)}
-                            spellCheck="false"
-                        />
-                      </div>
-                      
-                      {/* PIE DE PÁGINA CON ADVERTENCIA LEGAL */}
-                      <div className="bg-slate-50 dark:bg-slate-950 p-4 border-t dark:border-slate-800 flex flex-col gap-4">
-                          
-                          <div className="flex items-start gap-2 text-[10px] text-slate-500 bg-amber-50 dark:bg-amber-900/20 p-2 rounded-lg border border-amber-100 dark:border-amber-800/50">
-                            <ShieldAlert size={14} className="text-amber-600 shrink-0 mt-0.5"/>
-                            <p>
-                              <span className="font-bold text-amber-700 dark:text-amber-500">RESPONSABILIDAD MÉDICA:</span> 
-                              VitalScribe AI genera este reporte basado en su dictado. Al hacer clic en "Validar y Guardar", usted certifica que ha leído, revisado y verificado que la información clínica, hallazgos y conteo de textiles son correctos. La responsabilidad legal del contenido final recae exclusivamente en el cirujano tratante.
-                            </p>
-                          </div>
-
-                          <div className="flex flex-wrap justify-end gap-3">
-                            <button onClick={() => setGeneratedReport(null)} className="text-slate-500 font-bold text-sm px-4 hover:text-slate-700">
-                                Descartar / Reintentar
-                            </button>
+      {/* 2. MIDDLE: BODY SCROLLABLE */}
+      <main ref={scrollRef} className="overflow-y-auto overflow-x-hidden bg-slate-50 dark:bg-slate-950 p-4 scroll-smooth">
+        {currentModule === 'op_log' && (
+            <div className="max-w-2xl mx-auto h-full">
+                {!surgicalLog ? (
+                    <div className="flex flex-col h-full items-center justify-center space-y-6 min-h-[350px]">
+                        <div className="w-full bg-white dark:bg-slate-900 rounded-3xl shadow-sm border border-slate-200 dark:border-slate-800 p-6 relative overflow-hidden flex flex-col min-h-[250px]">
+                            {isListening && <div className="absolute top-0 left-0 w-full h-1 bg-red-500 animate-pulse"/>}
                             
-                            <button 
-                                onClick={handleDownloadPDF} 
-                                className="bg-slate-200 dark:bg-slate-800 text-slate-700 dark:text-slate-200 px-4 py-2 rounded-lg font-bold shadow-sm hover:bg-slate-300 dark:hover:bg-slate-700 flex items-center gap-2"
-                            >
-                                <Download size={16}/> Descargar PDF
-                            </button>
+                            <textarea
+                                className="flex-1 w-full bg-transparent border-none outline-none resize-none text-lg font-medium text-slate-600 dark:text-slate-300 placeholder:text-slate-300 dark:placeholder:text-slate-600 leading-relaxed"
+                                placeholder="Dicte hallazgos o escriba aquí..."
+                                value={textContent} 
+                                onChange={(e) => setTextContent(e.target.value)}
+                            />
 
-                            <button 
-                                onClick={handleSaveToRecord} 
-                                disabled={isSaving} 
-                                className="bg-indigo-600 text-white px-6 py-2 rounded-lg font-bold shadow hover:bg-indigo-700 flex items-center gap-2 disabled:opacity-50"
-                            >
-                                {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>}
-                                Validar y Guardar
-                            </button>
-                          </div>
-                      </div>
-                   </div>
-                </div>
-              )}
-          </div>
-      )}
+                            {uploadedFile && (
+                                <div className="mt-4 flex items-center gap-2 bg-indigo-50 dark:bg-indigo-900/30 px-3 py-2 rounded-2xl border border-indigo-100 dark:border-indigo-800">
+                                    {uploadedFile.type.includes('audio') ? <Music size={16} className="text-indigo-600"/> : <FileImage size={16} className="text-indigo-600"/>}
+                                    <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300 truncate max-w-[180px]">{uploadedFile.name}</span>
+                                    <button onClick={() => setUploadedFile(null)} className="ml-auto p-1 bg-white dark:bg-slate-800 rounded-full shadow-sm text-red-500"><X size={12}/></button>
+                                </div>
+                            )}
+                        </div>
 
-      {/* --- MÓDULO 2: INCAPACIDADES (SURGICAL LEAVE) --- */}
-      {currentModule === 'leave' && (
-          <div className="animate-fade-in-up w-full max-w-3xl mx-auto">
-              <SurgicalLeaveGenerator 
-                  patientName={patient.name}
-                  onClose={() => setCurrentModule('op_note')} // Volver al inicio si cierra
-                  onGenerate={handleGenerateLeave}
-              />
-          </div>
-      )}
+                        <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-2 px-6 py-3 bg-white dark:bg-slate-900 text-slate-600 dark:text-slate-300 rounded-full text-xs font-black shadow-sm border border-slate-200 dark:border-slate-800 uppercase tracking-widest active:scale-95 transition-all">
+                            <Upload size={14} className="text-indigo-600"/> Anexar Evidencia
+                        </button>
+                        <input type="file" ref={fileInputRef} className="hidden" onChange={handleFileChange} accept="audio/*,image/*,.pdf"/>
+                    </div>
+                ) : (
+                    <div className="space-y-4 pb-20 animate-in fade-in slide-in-from-bottom-4 duration-500">
+                        <div className="bg-white dark:bg-slate-900 rounded-3xl shadow-xl border border-indigo-100 dark:border-indigo-900 overflow-hidden">
+                            <div className="bg-indigo-600 p-4 flex justify-between items-center text-white">
+                                <h3 className="font-black text-xs uppercase tracking-widest flex items-center gap-2"><ShieldCheck size={16}/> Reporte Validado</h3>
+                            </div>
+                            <div className="divide-y divide-slate-100 dark:divide-slate-800">
+                                <DataRow label="Diagnóstico Post-Qx" value={surgicalLog.postoperative_diagnosis} />
+                                <DataRow label="Procedimiento" value={surgicalLog.procedure} />
+                                <DataRow label="Hallazgos Críticos" value={surgicalLog.findings} highlight />
+                                <DataRow label="Complicaciones" value={surgicalLog.complications} alert={(surgicalLog.complications || '').toLowerCase().includes('sangrado') || (surgicalLog.complications || '').toLowerCase().includes('incidente')} />
+                                <DataRow label="Insumos y Materiales" value={surgicalLog.material_notes} />
+                                <DataRow label="Plan de Cuidados" value={surgicalLog.plan} />
+                            </div>
+                        </div>
+                    </div>
+                )}
+            </div>
+        )}
 
+        {currentModule === 'leave' && (
+             <div className="max-w-2xl mx-auto h-full animate-in fade-in duration-300">
+                <SurgicalLeaveGenerator 
+                    patientName={patient.name}
+                    onClose={() => setCurrentModule('op_log')}
+                    onGenerate={handleGenerateLeave}
+                />
+             </div>
+        )}
+      </main>
+
+      {/* 3. BOTTOM: FOOTER ESTÁTICO DE ACCIONES */}
+      <footer className="bg-white dark:bg-slate-900 border-t border-slate-100 dark:border-slate-800 p-4 z-20 shadow-[0_-4px_15px_rgba(0,0,0,0.05)]">
+        {currentModule === 'op_log' && (
+            <div className="max-w-md mx-auto flex justify-between items-center gap-4">
+                {!surgicalLog ? (
+                    <>
+                        <button onClick={handleClearAll} className="p-4 text-slate-300 hover:text-red-500 transition-colors" disabled={!textContent && !uploadedFile}><X size={28} /></button>
+                        <button onPointerDown={handleMicStart} onPointerUp={handleMicStop} onPointerLeave={handleMicStop} className={`p-8 rounded-full shadow-2xl transition-all active:scale-90 touch-none ${isListening ? 'bg-red-500 ring-8 ring-red-100 dark:ring-red-900/30 scale-110' : 'bg-indigo-600 hover:bg-indigo-700'}`}>{isListening ? <Square size={32} className="text-white fill-current"/> : <Mic size={32} className="text-white"/>}</button>
+                        <button onClick={handleProcessLog} disabled={( !textContent && !uploadedFile ) || isProcessing} className="p-4 text-indigo-600 disabled:opacity-20 active:scale-95 transition-all">{isProcessing ? <RefreshCw className="animate-spin" size={28}/> : <Zap size={32} fill="currentColor"/>}</button>
+                    </>
+                ) : (
+                    <div className="w-full grid grid-cols-2 gap-3">
+                        <button onClick={() => setSurgicalLog(null)} className="py-4 bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 font-black rounded-2xl text-[10px] uppercase tracking-widest active:scale-95 transition-all">Descartar</button>
+                        <button onClick={handleSaveLog} disabled={isSaving} className="py-4 bg-indigo-600 text-white font-black rounded-2xl text-[10px] uppercase tracking-widest shadow-lg shadow-indigo-200 dark:shadow-none flex items-center justify-center gap-2 active:scale-95 transition-all">{isSaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>} Guardar en Nube</button>
+                    </div>
+                )}
+            </div>
+        )}
+        {currentModule === 'leave' && (
+            <p className="text-center text-[10px] text-slate-400 font-bold uppercase tracking-widest">Generador de Incapacidad Médica</p>
+        )}
+      </footer>
     </div>
   );
 };
+
+// COMPONENTE DE FILA DE DATOS CON SOPORTE RESPONSIVE
+const DataRow = ({ label, value, highlight = false, alert = false }: any) => (
+    <div className={`p-5 transition-colors ${highlight ? 'bg-indigo-50/50 dark:bg-indigo-900/10' : ''} ${alert ? 'bg-red-50 dark:bg-red-900/10' : ''}`}>
+        <p className="text-[9px] uppercase font-black text-slate-400 mb-2 flex items-center justify-between tracking-tighter">
+            {label}
+            {alert && <AlertTriangle size={12} className="text-red-500 animate-bounce"/>}
+        </p>
+        <p className={`text-sm font-semibold leading-relaxed ${alert ? 'text-red-700 dark:text-red-400' : 'text-slate-800 dark:text-slate-200'} select-all`}>
+            {value || "---"}
+        </p>
+    </div>
+);

@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { SURGICAL_CATALOG } from '../data/surgicalProcedures';
-// Mantenemos la importación con nombre { } y la ruta relativa correcta
 import { DynamicIcon } from './ui/DynamicIcon';
 
 interface SurgicalLeaveGeneratorProps {
@@ -16,7 +15,7 @@ export interface GeneratedLeaveData {
   days: number;
   clinicalIndication: string;
   careInstructions: string;
-  attachedImages: string[]; // <--- NUEVO: Array de imágenes en Base64
+  attachedImages: string[];
 }
 
 const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({ 
@@ -31,7 +30,7 @@ const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({
   const [notes, setNotes] = useState<string>('');
   const [instructions, setInstructions] = useState<string>('');
   
-  // --- NUEVO: Estado para las imágenes ---
+  // --- Estado para las imágenes ---
   const [images, setImages] = useState<string[]>([]);
 
   // Calcular fecha final automáticamente
@@ -60,7 +59,7 @@ const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({
     }
   };
 
-  // --- NUEVO: Lógica para cargar imágenes y convertirlas a Base64 ---
+  // --- Lógica para cargar imágenes ---
   const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
     const files = e.target.files;
     if (files && files.length > 0) {
@@ -92,27 +91,30 @@ const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({
       days,
       clinicalIndication: notes,
       careInstructions: instructions,
-      attachedImages: images // <--- Enviamos las fotos al generador PDF
+      attachedImages: images 
     });
   };
 
   return (
-    // USO DE CLASES DARK: NATIVAS
-    <div className="p-6 rounded-xl shadow-lg border bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700 transition-colors">
-      {/* Encabezado */}
-      <div className="flex justify-between items-center mb-6">
+    // OPTIMIZACIÓN MÓVIL: Estructura Flex Column con altura máxima controlada
+    <div className="flex flex-col max-h-[90vh] w-full rounded-xl shadow-lg border bg-white border-gray-200 dark:bg-gray-800 dark:border-gray-700 transition-colors">
+      
+      {/* 1. ENCABEZADO FIJO */}
+      <div className="flex-none flex justify-between items-center p-5 border-b border-gray-100 dark:border-gray-700">
         <div>
           <h3 className="text-lg font-bold text-gray-800 dark:text-white">
-            Generador de Incapacidad Quirúrgica
+            Generador de Incapacidad
           </h3>
           <p className="text-sm text-gray-500">Paciente: {patientName}</p>
         </div>
-        <button onClick={onClose} className="text-gray-400 hover:text-gray-500 transition-colors">
+        <button onClick={onClose} className="text-gray-400 hover:text-gray-500 transition-colors p-2" type="button">
           <DynamicIcon name="x" className="w-6 h-6" />
         </button>
       </div>
 
-      <div className="space-y-4">
+      {/* 2. CUERPO SCROLLABLE */}
+      <div className="flex-1 overflow-y-auto p-5 space-y-5 custom-scrollbar">
+        
         {/* Selector de Procedimiento */}
         <div>
           <label className="block text-sm font-medium text-gray-500 mb-1">Procedimiento Realizado</label>
@@ -182,24 +184,29 @@ const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({
           />
         </div>
 
-        {/* --- NUEVO: SECCIÓN DE EVIDENCIA FOTOGRÁFICA --- */}
-        <div>
-            <label className="block text-sm font-medium text-gray-500 mb-2">Anexos / Evidencia (Opcional)</label>
+        {/* SECCIÓN DE EVIDENCIA FOTOGRÁFICA */}
+        <div className="bg-gray-50 dark:bg-gray-700/30 p-3 rounded-xl border border-dashed border-gray-200 dark:border-gray-600">
+            {/* 🔥 CORRECCIÓN AQUÍ: Quitamos 'block' porque ya tiene 'flex' */}
+            <label className="text-sm font-bold text-gray-600 dark:text-gray-300 mb-3 flex items-center gap-2">
+               <DynamicIcon name="camera" className="w-4 h-4" /> 
+               Anexar Evidencia / Fotos
+            </label>
             <div className="flex flex-wrap gap-3">
                 {/* Botón de carga */}
-                <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-gray-300 dark:border-gray-600 rounded-xl cursor-pointer hover:border-blue-500 hover:bg-blue-50 dark:hover:bg-gray-700 transition-colors">
-                    <DynamicIcon name="upload" className="w-6 h-6 text-gray-400" />
-                    <span className="text-[10px] text-gray-400 mt-1">Foto</span>
+                <label className="w-20 h-20 flex flex-col items-center justify-center border-2 border-dashed border-blue-300 dark:border-blue-500/50 bg-blue-50 dark:bg-blue-900/20 rounded-xl cursor-pointer hover:bg-blue-100 transition-colors">
+                    <DynamicIcon name="upload" className="w-6 h-6 text-blue-500" />
+                    <span className="text-[10px] text-blue-600 font-bold mt-1">Subir</span>
                     <input type="file" accept="image/*" multiple onChange={handleImageUpload} className="hidden" />
                 </label>
 
                 {/* Previsualización de Imágenes */}
                 {images.map((img, idx) => (
                     <div key={idx} className="relative w-20 h-20 group">
-                        <img src={img} alt="Evidencia" className="w-full h-full object-cover rounded-xl border border-gray-200 dark:border-gray-700" />
+                        <img src={img} alt="Evidencia" className="w-full h-full object-cover rounded-xl border border-gray-200 dark:border-gray-700 shadow-sm" />
                         <button 
+                            type="button" // Importante para evitar submit accidental
                             onClick={() => removeImage(idx)}
-                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity shadow-sm"
+                            className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full p-1 shadow-md hover:scale-110 transition-transform"
                         >
                             <DynamicIcon name="x" className="w-3 h-3" />
                         </button>
@@ -210,21 +217,23 @@ const SurgicalLeaveGenerator: React.FC<SurgicalLeaveGeneratorProps> = ({
 
       </div>
 
-      {/* Botones de Acción */}
-      <div className="flex justify-end gap-3 mt-6 pt-4 border-t border-gray-200 dark:border-gray-700">
+      {/* 3. PIE DE PÁGINA FIJO */}
+      <div className="flex-none flex justify-end gap-3 p-5 border-t border-gray-200 dark:border-gray-700 bg-gray-50 dark:bg-gray-800 rounded-b-xl">
         <button
+          type="button"
           onClick={onClose}
           className="px-4 py-2 text-sm text-gray-600 hover:text-gray-800 dark:text-gray-400 dark:hover:text-gray-200"
         >
           Cancelar
         </button>
         <button
+          type="button"
           onClick={handleGenerate}
           disabled={!selectedProcId}
-          className={`px-6 py-2 rounded-lg text-sm font-medium text-white transition-colors ${
+          className={`px-6 py-2 rounded-lg text-sm font-medium text-white transition-colors shadow-lg ${
             !selectedProcId 
               ? 'bg-gray-400 cursor-not-allowed' 
-              : 'bg-blue-600 hover:bg-blue-700 shadow-md'
+              : 'bg-blue-600 hover:bg-blue-700 hover:scale-105 active:scale-95'
           }`}
         >
           <div className="flex items-center gap-2">
