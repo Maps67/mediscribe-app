@@ -31,24 +31,19 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
     resetTranscript 
   } = useSpeechRecognition();
 
-  // Auto-scroll
+  // Auto-scroll (Mantenido para el área de texto interna)
   useEffect(() => {
     if (textareaRef.current) {
       textareaRef.current.scrollTop = textareaRef.current.scrollHeight;
     }
   }, [transcript, generatedNote]);
 
-  // --- LÓGICA "WALKIE-TALKIE" PURO (ESTRICTO) ---
-  // Eliminamos temporizadores complejos. La física manda: Dedo abajo = ON, Dedo arriba = OFF.
-  
+  // --- LÓGICA DE BOTÓN FÍSICO (WALKIE-TALKIE) ---
   const handleMicStart = (e: React.PointerEvent) => {
-    // PREVENCIÓN CRÍTICA: Evita que el navegador intente hacer scroll, zoom o menú contextual
     e.preventDefault(); 
     e.stopPropagation();
-    
     if (!isListening) {
         startListening();
-        // Feedback háptico si el dispositivo lo soporta (vibración leve)
         if (navigator.vibrate) navigator.vibrate(50);
     }
   };
@@ -56,10 +51,7 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
   const handleMicStop = (e: React.PointerEvent) => {
     e.preventDefault();
     e.stopPropagation();
-    
-    if (isListening) {
-        stopListening();
-    }
+    if (isListening) stopListening();
   };
 
   const handleGenerateDraft = async () => {
@@ -172,10 +164,14 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
   return (
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       
-      <div className="bg-white dark:bg-slate-900 rounded-xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col w-[95%] md:w-full md:max-w-2xl h-[92vh] md:h-auto md:max-h-[90vh] md:min-h-[500px]">
+      {/* 🔥 ARQUITECTURA BLINDADA: CSS GRID + DVH 🔥 
+          - h-[100dvh]: Altura dinámica real del celular (ignora barra URL).
+          - grid grid-rows-[auto_1fr_auto]: 3 filas estrictas (Header, Contenido, Footer).
+      */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl md:rounded-2xl shadow-2xl overflow-hidden w-[95%] md:w-full md:max-w-2xl h-[95dvh] md:h-auto md:max-h-[90vh] md:min-h-[500px] grid grid-rows-[auto_1fr_auto]">
         
-        {/* HEADER */}
-        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950 shrink-0">
+        {/* FILA 1: HEADER (Fijo arriba) */}
+        <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950 z-10">
           <div>
             <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
               <span className="bg-amber-400 text-amber-900 p-1 rounded-md"><Sparkles size={16}/></span>
@@ -192,18 +188,20 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
           </button>
         </div>
 
-        <div className="flex-1 overflow-hidden relative flex flex-col">
+        {/* FILA 2: CONTENIDO SCROLLABLE (El único que se mueve) */}
+        <div className="overflow-hidden relative bg-white dark:bg-slate-900">
           
           {step === 'capture' && (
-            <div className="flex-1 p-4 md:p-6 flex flex-col gap-4 animate-fade-in h-full overflow-hidden">
-              
-              <div className="flex-1 relative bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden min-h-[200px]">
+            <div className="absolute inset-0 p-4 md:p-6 flex flex-col h-full">
+              {/* Contenedor del Textarea */}
+              <div className="flex-1 relative bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 overflow-hidden shadow-inner">
                 {isListening && (
                   <div className="absolute top-3 right-3 flex items-center gap-2 px-2 py-1 bg-red-100 text-red-600 rounded-full text-xs font-bold animate-pulse z-20 pointer-events-none shadow-sm">
                     <div className="w-2 h-2 bg-red-500 rounded-full"/> Grabando
                   </div>
                 )}
                 
+                {/* El textarea llena este contenedor, el scroll ocurre AQUÍ dentro */}
                 {generatedNote ? (
                    <textarea
                      ref={textareaRef}
@@ -222,14 +220,36 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
                    />
                 )}
               </div>
+            </div>
+          )}
 
-              <div className="flex flex-wrap items-center justify-between gap-3 mt-auto shrink-0">
+          {step === 'assign' && (
+            <div className="absolute inset-0 flex flex-col animate-slide-in-right">
+               {/* Reutilizamos estructura interna para buscador */}
+               <div className="flex-1 overflow-hidden relative">
+                 <PatientSearch 
+                    onSelect={handleFinalSave}
+                    onCancel={() => setStep('capture')}
+                 />
+               </div>
+            </div>
+          )}
+
+          {step === 'saving' && (
+            <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 animate-fade-in">
+               <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"/>
+               <div className="text-center">
+                 <h3 className="text-lg font-bold text-slate-800 dark:text-white">Guardando...</h3>
+                 <p className="text-sm text-slate-500">Asignando a {selectedPatient?.name}...</p>
+               </div>
+            </div>
+          )}
+        </div>
+
+        {/* FILA 3: FOOTER DE ACCIONES (Fijo abajo, inmune al scroll) */}
+        {step === 'capture' && (
+            <div className="p-4 md:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950 z-10 flex items-center justify-between gap-3">
                 <div className="flex gap-2">
-                   {/* 🔥 BOTÓN WALKIE-TALKIE PURO 🔥 
-                      - touch-none: Impide que el navegador haga scroll si mueves el dedo.
-                      - select-none: Impide que se seleccione texto.
-                      - onPointerDown/Up: Reacciona al instante.
-                   */}
                    <button
                      onPointerDown={handleMicStart}
                      onPointerUp={handleMicStop}
@@ -274,39 +294,12 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
                     Asignar <ArrowRight size={16} className="hidden md:inline"/>
                   </button>
                 </div>
-              </div>
             </div>
-          )}
+        )}
+        
+        {/* Footer vacío para otros pasos si se requiere mantener layout, o null */}
+        {step !== 'capture' && <div className="hidden"></div>}
 
-          {step === 'assign' && (
-            <div className="h-full flex flex-col animate-slide-in-right">
-              <div className="p-4 bg-amber-50 dark:bg-amber-900/20 border-b border-amber-100 dark:border-amber-800 flex items-start gap-3 shrink-0">
-                 <AlertCircle className="text-amber-600 mt-0.5 shrink-0" size={18}/>
-                 <div className="text-xs text-amber-800 dark:text-amber-200">
-                    <p className="font-bold">Nota lista para guardar.</p>
-                    <p>Busque al paciente.</p>
-                 </div>
-              </div>
-              
-              <div className="flex-1 overflow-hidden relative">
-                 <PatientSearch 
-                    onSelect={handleFinalSave}
-                    onCancel={() => setStep('capture')}
-                 />
-              </div>
-            </div>
-          )}
-
-          {step === 'saving' && (
-            <div className="h-full flex flex-col items-center justify-center gap-4 animate-fade-in">
-               <div className="w-16 h-16 border-4 border-indigo-200 border-t-indigo-600 rounded-full animate-spin"/>
-               <div className="text-center">
-                 <h3 className="text-lg font-bold text-slate-800 dark:text-white">Guardando...</h3>
-                 <p className="text-sm text-slate-500">Asignando a {selectedPatient?.name}...</p>
-               </div>
-            </div>
-          )}
-        </div>
       </div>
     </div>
   );
