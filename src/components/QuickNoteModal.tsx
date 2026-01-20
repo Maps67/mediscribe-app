@@ -22,10 +22,6 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
 
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   
-  // Refs para lógica Push-to-Talk
-  const pressStartTime = useRef<number>(0);
-  const isLongPress = useRef<boolean>(false);
-
   const { 
     isListening, 
     transcript, 
@@ -42,33 +38,28 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
     }
   }, [transcript, generatedNote]);
 
-  // --- LÓGICA DEL BOTÓN INTELIGENTE (HÍBRIDO) ---
-  const handleMicDown = (e: React.PointerEvent) => {
+  // --- LÓGICA "WALKIE-TALKIE" PURO (ESTRICTO) ---
+  // Eliminamos temporizadores complejos. La física manda: Dedo abajo = ON, Dedo arriba = OFF.
+  
+  const handleMicStart = (e: React.PointerEvent) => {
+    // PREVENCIÓN CRÍTICA: Evita que el navegador intente hacer scroll, zoom o menú contextual
     e.preventDefault(); 
-    pressStartTime.current = Date.now();
-    isLongPress.current = false;
-
-    if (isListening) {
-        stopListening();
-    } else {
+    e.stopPropagation();
+    
+    if (!isListening) {
         startListening();
+        // Feedback háptico si el dispositivo lo soporta (vibración leve)
+        if (navigator.vibrate) navigator.vibrate(50);
     }
   };
 
-  const handleMicUp = (e: React.PointerEvent) => {
+  const handleMicStop = (e: React.PointerEvent) => {
     e.preventDefault();
-    const duration = Date.now() - pressStartTime.current;
-
-    // Si duró más de 500ms, es soltar para dejar de grabar
-    if (duration > 500 && isListening) {
+    e.stopPropagation();
+    
+    if (isListening) {
         stopListening();
-    } 
-  };
-
-  const handleMicLeave = (e: React.PointerEvent) => {
-     if (isListening && (Date.now() - pressStartTime.current > 500)) {
-         stopListening();
-     }
+    }
   };
 
   const handleGenerateDraft = async () => {
@@ -183,6 +174,7 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
       
       <div className="bg-white dark:bg-slate-900 rounded-xl md:rounded-2xl shadow-2xl overflow-hidden flex flex-col w-[95%] md:w-full md:max-w-2xl h-[92vh] md:h-auto md:max-h-[90vh] md:min-h-[500px]">
         
+        {/* HEADER */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950 shrink-0">
           <div>
             <h2 className="text-lg font-bold text-slate-800 dark:text-white flex items-center gap-2">
@@ -226,20 +218,24 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
                      className="absolute inset-0 w-full h-full bg-transparent resize-none outline-none text-slate-700 dark:text-slate-300 text-lg md:text-xl leading-relaxed placeholder:text-slate-400 custom-scrollbar p-4 md:p-6"
                      value={transcript}
                      onChange={(e) => setTranscript(e.target.value)}
-                     placeholder="Mantenga presionado para dictar (o toque para bloquear)..."
+                     placeholder="Mantenga presionado el micrófono para dictar..."
                    />
                 )}
               </div>
 
               <div className="flex flex-wrap items-center justify-between gap-3 mt-auto shrink-0">
                 <div className="flex gap-2">
-                   {/* 🔥 BOTÓN CORREGIDO: USANDO CLASES TAILWIND 🔥 */}
+                   {/* 🔥 BOTÓN WALKIE-TALKIE PURO 🔥 
+                      - touch-none: Impide que el navegador haga scroll si mueves el dedo.
+                      - select-none: Impide que se seleccione texto.
+                      - onPointerDown/Up: Reacciona al instante.
+                   */}
                    <button
-                     onPointerDown={handleMicDown}
-                     onPointerUp={handleMicUp}
-                     onPointerLeave={handleMicLeave}
+                     onPointerDown={handleMicStart}
+                     onPointerUp={handleMicStop}
+                     onPointerLeave={handleMicStop}
                      className={`p-3 md:p-4 rounded-full transition-all shadow-lg flex items-center justify-center select-none active:scale-95 touch-none ${isListening ? 'bg-red-500 text-white hover:bg-red-600 scale-110 ring-4 ring-red-200 dark:ring-red-900' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-                     title={isListening ? "Soltar para detener" : "Mantener para hablar"}
+                     title="Mantenga presionado para grabar"
                      style={{ WebkitTapHighlightColor: 'transparent' }} 
                    >
                      {isListening ? 
