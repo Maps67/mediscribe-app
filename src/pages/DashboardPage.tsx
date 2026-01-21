@@ -586,11 +586,11 @@ const Dashboard: React.FC = () => {
 
       <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-[1600px] mx-auto w-full">
          
-         {/* 🔥 ZONA HERO BENTO GRID (RESPONSIVE) */}
-         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+         {/* 🔥 ZONA HERO BENTO GRID (Con Scroll Horizontal en Móvil) */}
+         <div className="flex flex-nowrap overflow-x-auto snap-x snap-mandatory gap-4 pb-4 md:grid md:grid-cols-1 lg:grid-cols-4 md:gap-6 md:pb-0 md:overflow-visible hide-scrollbar">
              
              {/* 1. MÓDULO CONTEXTO */}
-             <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between min-h-[180px] lg:col-span-1">
+             <div className="min-w-[85vw] md:min-w-0 snap-center bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between min-h-[180px] lg:col-span-1">
                  <div className="flex justify-between items-start">
                     <div>
                         <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{dynamicGreeting.greeting}</p>
@@ -614,12 +614,12 @@ const Dashboard: React.FC = () => {
              </div>
 
              {/* 2. MÓDULO INTELIGENCIA (RETO DIARIO) */}
-             <div className="lg:col-span-2 min-h-[180px]">
+             <div className="min-w-[85vw] md:min-w-0 snap-center lg:col-span-2 min-h-[180px]">
                  <DailyChallengeCard specialty={doctorProfile?.specialty} />
              </div>
 
              {/* 3. MÓDULO COMANDO (BOTONES DE ACCIÓN) */}
-             <div className="flex flex-col gap-3 min-h-[180px] lg:col-span-1">
+             <div className="min-w-[85vw] md:min-w-0 snap-center flex flex-col gap-3 min-h-[180px] lg:col-span-1">
                  <button 
                     onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }}
                     className="flex-1 group relative flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[1.5rem] shadow-sm hover:shadow-md transition-all text-left"
@@ -651,7 +651,7 @@ const Dashboard: React.FC = () => {
          </div>
 
          {/* BARRA DE BÚSQUEDA */}
-         <div className="mb-8 relative z-20">
+         <div className="mb-6 md:mb-8 relative z-20">
             <form onSubmit={handleSearchSubmit}>
                 <div className="bg-white dark:bg-slate-900 rounded-2xl p-2 shadow-sm border border-slate-200 dark:border-slate-800 flex items-center gap-2 group focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
                     <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600">
@@ -661,7 +661,7 @@ const Dashboard: React.FC = () => {
                         type="text" 
                         value={searchInput}
                         onChange={(e) => setSearchInput(e.target.value)}
-                        placeholder="Pregunta clínica, dosis, interacción o búsqueda rápida..." 
+                        placeholder="Pregunta clínica..." 
                         className="flex-1 bg-transparent border-none outline-none text-slate-700 dark:text-white font-medium placeholder:text-slate-400 text-sm md:text-base h-10 px-2"
                     />
                     <button type="button" onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors md:hidden"><Mic size={20} /></button>
@@ -671,21 +671,21 @@ const Dashboard: React.FC = () => {
          </div>
 
          {/* GRID PRINCIPAL */}
-         <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
+         <div className="grid grid-cols-1 xl:grid-cols-12 gap-6 md:gap-8 items-start">
              
-             <div className="xl:col-span-8 flex flex-col gap-8">
+             <div className="xl:col-span-8 flex flex-col gap-6 md:gap-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-auto md:h-64">
                      {/* Widget Próximo Paciente */}
                      <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-1 shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
                         <div className={`absolute top-0 left-0 w-2 h-full ${nextPatient ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
-                        <div className="p-8 flex flex-col justify-between h-full relative z-10">
+                        <div className="p-6 md:p-8 flex flex-col justify-between h-full relative z-10">
                              <div className="flex justify-between items-start mb-4">
                                 <span className={`px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider ${nextPatient ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>{nextPatient ? 'En Espera' : 'Libre'}</span>
                                 {nextPatient && <span className="text-2xl font-bold text-slate-800">{format(parseISO(nextPatient.start_time), 'h:mm a')}</span>}
                              </div>
                              <div>
-                                <h2 className="text-3xl font-black text-slate-800 dark:text-white leading-tight mb-1">{nextPatient ? nextPatient.title : 'Agenda Despejada'}</h2>
-                                <p className="text-slate-500 text-sm">{nextPatient ? (nextPatient.patient ? 'Expediente Activo' : 'Primera Vez') : 'No hay pacientes en cola inmediata.'}</p>
+                                <h2 className="text-2xl md:text-3xl font-black text-slate-800 dark:text-white leading-tight mb-1">{nextPatient ? nextPatient.title : 'Agenda Despejada'}</h2>
+                                <p className="text-slate-500 text-sm">{nextPatient ? (nextPatient.patient ? 'Expediente Activo' : 'Primera Vez') : 'No hay pacientes en cola.'}</p>
                              </div>
                              {nextPatient && <button onClick={() => handleStartConsultation(nextPatient)} className="mt-6 w-full py-3 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"><PlayCircle size={18}/> INICIAR CONSULTA</button>}
                         </div>
@@ -694,7 +694,7 @@ const Dashboard: React.FC = () => {
                      <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
                  </div>
 
-                 <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                 <div className="grid grid-cols-1 md:grid-cols-2 gap-6 md:gap-8">
                      <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm min-h-[300px]">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Calendar size={20} className="text-indigo-600"/> Agenda</h3>
@@ -728,7 +728,7 @@ const Dashboard: React.FC = () => {
                  </div>
              </div>
 
-             <div className="xl:col-span-4 flex flex-col gap-8 h-full">
+             <div className="xl:col-span-4 flex flex-col gap-6 md:gap-8 h-full">
                  <ActionRadar 
                    items={pendingItems} 
                    onItemClick={handleRadarClick}
@@ -740,29 +740,29 @@ const Dashboard: React.FC = () => {
                    }}
                  />
                  
-                 <div className="flex-1 grid grid-cols-2 xl:flex xl:flex-col gap-4">
-                     <button onClick={() => setIsFastAdmitOpen(true)} className="group relative p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 text-left flex flex-col justify-between overflow-hidden xl:flex-1">
+                 {/* 🔥 GRID DE ACCIÓN 2x2 (COMPACTO ESTILO ONE UI) */}
+                 <div className="flex-1 grid grid-cols-2 gap-4">
+                     <button onClick={() => setIsFastAdmitOpen(true)} className="group relative p-4 md:p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 text-left flex flex-col justify-between overflow-hidden aspect-square md:aspect-auto">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110 duration-500">
-                           <UserPlus size={80} className="text-indigo-600"/>
+                           <UserPlus size={60} className="text-indigo-600"/>
                         </div>
-                        <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 w-fit rounded-2xl mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
+                        <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 w-fit rounded-2xl mb-2 md:mb-4 group-hover:bg-indigo-600 group-hover:text-white transition-colors">
                            <UserPlus size={24} className="text-indigo-600 dark:text-indigo-400 group-hover:text-white"/>
                         </div>
                         <div className="relative z-10">
-                           <h3 className="font-black text-slate-800 dark:text-white text-lg mb-1 group-hover:translate-x-1 transition-transform">Nuevo Paciente</h3>
-                           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Admisión rápida, historial y datos.</p>
+                           <h3 className="font-black text-slate-800 dark:text-white text-base md:text-lg mb-1 group-hover:translate-x-1 transition-transform leading-tight">Nuevo<br/>Paciente</h3>
                         </div>
                      </button>
-                     <button onClick={() => setIsUploadModalOpen(true)} className="group relative p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 text-left flex flex-col justify-between overflow-hidden xl:flex-1">
+
+                     <button onClick={() => setIsUploadModalOpen(true)} className="group relative p-4 md:p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 text-left flex flex-col justify-between overflow-hidden aspect-square md:aspect-auto">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110 duration-500">
-                           <FolderUp size={80} className="text-slate-600"/>
+                           <FolderUp size={60} className="text-slate-600"/>
                         </div>
-                        <div className="p-3 bg-slate-50 dark:bg-slate-800 w-fit rounded-2xl mb-4 group-hover:bg-slate-800 group-hover:text-white transition-colors">
+                        <div className="p-3 bg-slate-50 dark:bg-slate-800 w-fit rounded-2xl mb-2 md:mb-4 group-hover:bg-slate-800 group-hover:text-white transition-colors">
                            <FolderUp size={24} className="text-slate-600 dark:text-slate-400 group-hover:text-white"/>
                         </div>
                         <div className="relative z-10">
-                           <h3 className="font-black text-slate-800 dark:text-white text-lg mb-1 group-hover:translate-x-1 transition-transform">Adjuntar</h3>
-                           <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Labs, radiografías y documentos externos.</p>
+                           <h3 className="font-black text-slate-800 dark:text-white text-base md:text-lg mb-1 group-hover:translate-x-1 transition-transform leading-tight">Subir<br/>Archivo</h3>
                         </div>
                      </button>
                  </div>
