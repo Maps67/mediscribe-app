@@ -6,7 +6,7 @@ import {
   Stethoscope, AlertTriangle, FileText,
   UserPlus, Activity, ChevronRight,
   CalendarX, FileSignature, Printer, FileCheck,
-  HelpCircle, Zap, FolderUp, BrainCircuit 
+  HelpCircle, Zap, FolderUp, BrainCircuit, Clock 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
@@ -489,7 +489,7 @@ const Dashboard: React.FC = () => {
         .delay-300 { animation-delay: 300ms; }
       `}</style>
       
-      {/* 📱 VISTA MÓVIL ESTRICTA (v8.0 - IMMERSIVE CARDS) */}
+      {/* 📱 VISTA MÓVIL ESTRICTA (v8.1 - CARDS & GAPS) */}
       <div className="md:hidden h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-slate-50 p-4 pb-20">
         <div className="shrink-0 bg-white rounded-xl p-4 shadow-sm border border-slate-200 relative overflow-hidden animate-slide-top">
             
@@ -519,7 +519,7 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
             
-            {/* BOTONES DE ACCIÓN (NEUTROS) */}
+            {/* BOTONES DE ACCIÓN */}
             <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
                 <button onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="bg-white p-3 rounded-lg flex items-center justify-center gap-2 active:scale-95 transition-transform border border-slate-200 shadow-sm">
                     <Bot size={18} className="text-blue-600"/>
@@ -532,38 +532,57 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* LISTA DE AGENDA (CLEAN) */}
-        <div className="flex-1 min-h-0 bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex flex-col my-2 animate-fade-in delay-150">
+        {/* LISTA DE AGENDA (TARJETAS INDEPENDIENTES v8.1) */}
+        <div className="flex-1 min-h-0 bg-transparent flex flex-col my-2 animate-fade-in delay-150">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
                 <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-slate-500"/> Agenda de Hoy</h3>
                 <span className="bg-slate-100 text-slate-600 text-[9px] px-2 py-0.5 rounded-full font-bold border border-slate-200">{appointments.length} Citas</span>
             </div>
-            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+            
+            {/* CONTENEDOR DE TARJETAS FLOTANTES (GAPS) */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1 pb-2">
                 {appointments.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                    <div className="h-full flex flex-col items-center justify-center text-center opacity-40 bg-white/50 rounded-xl border border-slate-100 border-dashed">
                         <CalendarX size={24} className="text-slate-300 mb-1"/>
                         <p className="text-[10px] text-slate-400 font-medium">Agenda libre</p>
                     </div>
                 ) : (
-                    appointments.map(apt => (
-                        <div key={apt.id} onClick={() => handleStartConsultation(apt)} className="bg-white border border-slate-100 p-3 rounded-lg flex items-center gap-3 active:scale-98 transition-all shadow-sm shrink-0">
-                             <div className="font-bold text-slate-500 text-[10px] min-w-[30px]">{format(parseISO(apt.start_time), 'HH:mm')}</div>
-                             <div className="flex-1 min-w-0">
-                                <p className="font-bold text-slate-800 text-xs truncate">{apt.title}</p>
-                                <p className="text-[9px] text-slate-500 truncate">{apt.patient ? 'Expediente Activo' : 'Primera Vez'}</p>
+                    appointments.map((apt, index) => (
+                        <div 
+                            key={apt.id} 
+                            onClick={() => handleStartConsultation(apt)} 
+                            className={`
+                                relative overflow-hidden p-4 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/60
+                                flex items-center gap-4 active:scale-[0.98] transition-all shrink-0
+                                ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'} 
+                            `}
+                        >
+                             {/* Indicador de Estado (Barra Lateral) */}
+                             <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
+
+                             <div className="font-bold text-slate-500 text-xs min-w-[35px] text-center bg-slate-100 rounded-md py-1 px-1.5">
+                                {format(parseISO(apt.start_time), 'HH:mm')}
                              </div>
-                             <ChevronRight size={14} className="text-slate-300"/>
+                             
+                             <div className="flex-1 min-w-0">
+                                <p className="font-bold text-slate-800 text-sm truncate leading-tight">{apt.title}</p>
+                                <div className="flex items-center gap-1.5 mt-0.5">
+                                    <div className={`w-1.5 h-1.5 rounded-full ${apt.patient ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
+                                    <p className="text-[10px] text-slate-500 truncate">{apt.patient ? 'Expediente Activo' : 'Primera Vez'}</p>
+                                </div>
+                             </div>
+                             
+                             <ChevronRight size={16} className="text-slate-300"/>
                         </div>
                     ))
                 )}
             </div>
         </div>
 
-        {/* 🎨 IMMERSIVE CARDS (MÓVIL) */}
+        {/* IMMERSIVE CARDS & FOOTER */}
         <div className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300">
             <div className="grid grid-cols-2 gap-2 h-24">
                 <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
-                {/* CARD: CONSULTA RÁPIDA (IMMERSIVE BLUE) */}
                 <button 
                   onClick={() => setIsFastAdmitOpen(true)} 
                   className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-3 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02]"
@@ -587,7 +606,6 @@ const Dashboard: React.FC = () => {
                     <div className="p-1.5 bg-slate-100 rounded-lg text-slate-500"><FileCheck size={16}/></div>
                     <span className="text-[10px] font-bold text-slate-600">Docs</span>
                  </button>
-                 {/* CARD: SUBIR ARCHIVO (IMMERSIVE TEAL) */}
                  <button 
                     onClick={() => setIsUploadModalOpen(true)} 
                     className="relative bg-white rounded-xl p-2 shadow-sm border border-slate-200 overflow-hidden group flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform hover:border-teal-400"
@@ -609,7 +627,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 🖥️ VISTA ESCRITORIO (v8.0 - IMMERSIVE CARDS) */}
+      {/* 🖥️ VISTA ESCRITORIO (v8.1 - CARDS & GAPS) */}
       <div className="hidden md:block min-h-screen bg-slate-50 p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
@@ -674,14 +692,24 @@ const Dashboard: React.FC = () => {
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Calendar size={20} className="text-slate-400"/> Agenda del Día</h3>
                         </div>
-                        <div className="space-y-2">
+                        
+                        {/* LISTA ESCRITORIO CON TARJETAS (CARDS & GAPS) */}
+                        <div className="space-y-3">
                             {appointments.length === 0 ? (
                                 <p className="text-center text-slate-400 py-10">No hay más citas programadas.</p>
                             ) : (
-                                appointments.map(apt => (
-                                    <div key={apt.id} className="flex items-center gap-4 p-4 hover:bg-slate-50 rounded-xl group cursor-pointer border border-transparent hover:border-slate-200 transition-all" onClick={() => handleStartConsultation(apt)}>
+                                appointments.map((apt, index) => (
+                                    <div 
+                                        key={apt.id} 
+                                        className={`
+                                            flex items-center gap-4 p-4 rounded-xl group cursor-pointer 
+                                            border border-slate-100 shadow-sm hover:shadow-md hover:border-blue-200 transition-all
+                                            ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}
+                                        `} 
+                                        onClick={() => handleStartConsultation(apt)}
+                                    >
                                         <div className="font-bold text-slate-500 text-sm w-12 text-right">{format(parseISO(apt.start_time), 'HH:mm')}</div>
-                                        <div className="w-1 h-8 bg-slate-200 rounded-full group-hover:bg-blue-500 transition-colors"></div>
+                                        <div className="w-1.5 h-10 bg-slate-200 rounded-full group-hover:bg-blue-500 transition-colors"></div>
                                         <div className="flex-1 min-w-0">
                                             <p className="font-bold text-slate-800 text-base truncate">{apt.title}</p>
                                         </div>
@@ -694,8 +722,8 @@ const Dashboard: React.FC = () => {
                  </div>
 
                  <div className="lg:col-span-3 flex flex-col gap-6">
+                     {/* SIDEBAR CARDS */}
                      <div className="grid grid-cols-2 gap-4">
-                        {/* IMMERSIVE CARD: CONSULTA RÁPIDA (DESKTOP) */}
                         <button 
                           onClick={() => setIsFastAdmitOpen(true)} 
                           className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-4 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02]"
@@ -704,18 +732,15 @@ const Dashboard: React.FC = () => {
                             <UserPlus size={120} strokeWidth={1} />
                           </div>
                           <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl -mr-10 -mt-10"></div>
-
                           <div className="relative z-10 bg-white/20 w-fit p-2 rounded-lg backdrop-blur-sm mb-2">
                             <UserPlus className="text-white" size={24} />
                           </div>
-                          
                           <div className="relative z-10">
                             <h3 className="text-white font-bold text-lg leading-tight">Consulta<br/>Rápida</h3>
                             <p className="text-blue-100 text-[10px] mt-1 opacity-80">Ingreso Express</p>
                           </div>
                         </button>
 
-                        {/* IMMERSIVE CARD: SUBIR ARCHIVO (DESKTOP) */}
                         <button 
                           onClick={() => setIsUploadModalOpen(true)} 
                           className="relative w-full h-full bg-white border border-slate-200 rounded-xl p-4 shadow-sm overflow-hidden group text-left flex flex-col justify-between transition-all hover:border-teal-400 hover:shadow-md"
@@ -723,13 +748,10 @@ const Dashboard: React.FC = () => {
                           <div className="absolute -right-4 -bottom-4 text-teal-50 opacity-0 group-hover:opacity-100 transition-all duration-500 scale-150">
                             <FolderUp size={100} />
                           </div>
-                          
                           <div className="absolute top-0 right-0 w-20 h-20 bg-teal-50 rounded-bl-full opacity-50 transition-all group-hover:bg-teal-100"></div>
-
                           <div className="relative z-10 bg-teal-50 w-fit p-2 rounded-lg group-hover:bg-teal-600 group-hover:text-white transition-colors mb-2">
                             <FolderUp size={24} className="text-teal-600 group-hover:text-white" />
                           </div>
-                          
                           <div className="relative z-10">
                             <h3 className="text-slate-700 font-bold text-lg leading-tight group-hover:text-teal-700">Subir<br/>Archivo</h3>
                             <p className="text-slate-400 text-[10px] mt-1 group-hover:text-teal-600">Digitalización</p>
@@ -757,7 +779,7 @@ const Dashboard: React.FC = () => {
          </div>
       </div>
 
-      {/* MODALES */}
+      {/* MODALES & UTILS */}
       {isChallengeModalOpen && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in">
               <div className="w-full max-w-md bg-transparent relative">
