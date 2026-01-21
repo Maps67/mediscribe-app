@@ -70,15 +70,16 @@ export const SubscriptionPlans = () => {
 
           <ul className="space-y-4 mb-8">
             <li className="flex items-center text-sm text-slate-600">
-              <svg className="w-5 h-5 text-teal-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              {/* CORRECCIÓN: strokeLinecap, strokeLinejoin, strokeWidth */}
+              <svg className="w-5 h-5 text-teal-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
               Consultas Ilimitadas
             </li>
             <li className="flex items-center text-sm text-slate-600">
-              <svg className="w-5 h-5 text-teal-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              <svg className="w-5 h-5 text-teal-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
               Formatos NOM-004
             </li>
             <li className="flex items-center text-sm text-slate-600">
-              <svg className="w-5 h-5 text-teal-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              <svg className="w-5 h-5 text-teal-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
               App Móvil (PWA) + Web
             </li>
           </ul>
@@ -87,7 +88,7 @@ export const SubscriptionPlans = () => {
             disabled={true}
             className="w-full py-3 px-4 bg-green-100 text-green-700 border border-green-200 font-bold rounded-xl cursor-default flex items-center justify-center gap-2"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
             Desbloqueado
           </button>
         </div>
@@ -106,11 +107,11 @@ export const SubscriptionPlans = () => {
 
           <ul className="space-y-4 mb-8 grayscale">
             <li className="flex items-center text-sm text-slate-500">
-              <svg className="w-5 h-5 text-slate-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              <svg className="w-5 h-5 text-slate-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
               Multi-usuario
             </li>
             <li className="flex items-center text-sm text-slate-500">
-              <svg className="w-5 h-5 text-slate-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7" /></svg>
+              <svg className="w-5 h-5 text-slate-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
               Panel Administrativo
             </li>
           </ul>

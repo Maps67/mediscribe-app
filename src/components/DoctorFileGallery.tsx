@@ -1,12 +1,10 @@
 import React, { useEffect, useState } from 'react';
 import { FileText, Image as ImageIcon, RefreshCw, Eye, FolderOpen } from 'lucide-react';
-import { createClient } from '@supabase/supabase-js';
+// 🛡️ CORRECCIÓN 1: Importamos la instancia ÚNICA, no creamos una nueva.
+import { supabase } from '../lib/supabase';
 import { ImageViewerModal } from './ImageViewerModal';
 
-// Configuración de Supabase
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Nota: Ya no necesitamos declarar supabaseUrl ni supabaseKey aquí porque usamos la instancia central.
 const BUCKET_NAME = 'pacientes';
 
 interface FileObject {
@@ -95,6 +93,17 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
     }
   };
 
+  // 🛡️ CORRECCIÓN 2: Lógica segura para mostrar nombres
+  const getDisplayName = (fileName: string) => {
+    // Si el archivo tiene un prefijo de timestamp (ej: 171500_foto.png), lo limpiamos.
+    // Si no tiene guion bajo, mostramos el nombre original para evitar vacíos.
+    const parts = fileName.split('_');
+    if (parts.length > 1) {
+        return parts.slice(1).join('_');
+    }
+    return fileName;
+  };
+
   if (!patientId) {
       return (
           <div className="p-8 text-center text-slate-400 border-2 border-dashed rounded-xl bg-slate-50 dark:bg-slate-800/50 dark:border-slate-700 h-full flex flex-col items-center justify-center">
@@ -109,7 +118,7 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
       <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden h-full flex flex-col">
         <div className="p-3 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center bg-gray-50 dark:bg-slate-800/50">
           <h3 className="font-semibold text-gray-700 dark:text-slate-300 text-xs uppercase tracking-wider">
-             Expediente Digital
+              Expediente Digital
           </h3>
           <button onClick={fetchFiles} className="text-gray-400 hover:text-brand-teal transition-colors" title="Actualizar lista">
             <RefreshCw size={14} />
@@ -141,7 +150,8 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
                       </div>
                       <div className="flex flex-col min-w-0">
                         <span className="text-xs font-medium text-gray-700 dark:text-slate-300 truncate block max-w-[140px]">
-                          {file.name.split('_').slice(1).join('_')}
+                          {/* Usamos la nueva función segura */}
+                          {getDisplayName(file.name)}
                         </span>
                         <span className="text-[10px] text-gray-400">
                           {file.metadata?.size ? (file.metadata.size / 1024).toFixed(0) : '0'} KB • {new Date(file.created_at).toLocaleDateString()}

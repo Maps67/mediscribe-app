@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, MapPin, ChevronRight, Sun, Moon, Cloud, 
@@ -30,27 +30,40 @@ import { UserGuideModal } from '../components/UserGuideModal';
 import { QuickNoteModal } from '../components/QuickNoteModal'; 
 import { ImpactMetrics } from '../components/ImpactMetrics';
 
+// Tipos del Sistema (Importados o Redefinidos para consistencia local si faltan imports directos)
+import { DoctorProfile, Patient } from '../types'; 
+
+// --- TYPES LOCALES ---
+interface DashboardAppointment {
+  id: string; 
+  title: string; 
+  start_time: string; 
+  status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
+  patient?: { id: string; name: string; history?: string; };
+  criticalAlert?: string | null;
+}
+
+interface PendingItem {
+   id: string; 
+   type: 'note' | 'lab' | 'appt'; 
+   title: string; 
+   subtitle: string; 
+   date: string;
+}
+
+interface WeatherState {
+    temp: string;
+    code: number;
+}
+
 // --- UTILS ---
 const cleanMarkdown = (text: string): string => {
     if (!text) return "";
     return text.replace(/[*_#`~]/g, '').replace(/^\s*[-•]\s+/gm, '').replace(/\[.*?\]/g, '').replace(/\n\s*\n/g, '\n').trim();
 };
 
-interface DashboardAppointment {
-  id: string; title: string; start_time: string; status: string;
-  patient?: { id: string; name: string; history?: string; };
-  criticalAlert?: string | null;
-}
-
-interface PendingItem {
-   id: string; type: 'note' | 'lab' | 'appt'; title: string; subtitle: string; date: string;
-}
-
-// --- CLOCK COMPACTO (Polimórfico: Móvil Compacto / Desktop Hero) ---
-const AtomicClock = ({ location, isDesktop = false }: { location: string, isDesktop?: boolean }) => {
-    const [date, setDate] = useState(new Date());
-    useEffect(() => { const timer = setInterval(() => setDate(new Date()), 1000); return () => clearInterval(timer); }, []);
-
+// --- CLOCK COMPACTO (Optimizado: Recibe props, no tiene estado interno) ---
+const AtomicClock = ({ location, date, isDesktop = false }: { location: string, date: Date, isDesktop?: boolean }) => {
     return (
         <div className={`flex flex-col ${isDesktop ? 'items-end' : 'justify-center'}`}>
             <div className={`flex items-baseline gap-1 text-slate-800 dark:text-white ${isDesktop ? 'flex-row-reverse' : ''}`}>
@@ -77,7 +90,7 @@ const AtomicClock = ({ location, isDesktop = false }: { location: string, isDesk
 };
 
 // --- WIDGET DE CLIMA COMPACTO ---
-const WeatherWidget = ({ weather, isDesktop = false }: { weather: any, isDesktop?: boolean }) => {
+const WeatherWidget = ({ weather, isDesktop = false }: { weather: WeatherState, isDesktop?: boolean }) => {
     return (
         <div className={`flex flex-col ${isDesktop ? 'justify-end items-end' : 'justify-center items-end'}`}>
             <div className="flex items-start gap-1">
@@ -91,7 +104,7 @@ const WeatherWidget = ({ weather, isDesktop = false }: { weather: any, isDesktop
 };
 
 // ✅ WIDGET DE EFICIENCIA (Polimórfico)
-const StatusWidget = ({ totalApts, pendingApts }: any) => {
+const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingApts: number }) => {
     const completed = totalApts - pendingApts;
     const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
     
@@ -133,7 +146,7 @@ const StatusWidget = ({ totalApts, pendingApts }: any) => {
                             {progress}<span className="text-3xl text-slate-400">%</span>
                         </span>
                     </div>
-                    <div className="bg-emerald-50 text-emerald-600 p-2 rounded-xl">
+                    <div className="bg-emerald-5 text-emerald-600 p-2 rounded-xl">
                         <Activity size={20} />
                     </div>
                  </div>
@@ -241,8 +254,8 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   );
 };
 
-// --- COMPONENTE RADAR (Adaptable) ---
-const ActionRadar = ({ items, onItemClick }: any) => {
+// --- COMPONENTE RADAR (Adaptable y Tipado) ---
+const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick: (item: PendingItem) => void }) => {
     // EN MÓVIL: Ocultamos si no hay nada crítico para ahorrar espacio
     if (items.length === 0) return (
         <div className="hidden md:flex bg-white/80 backdrop-blur-md rounded-2xl md:rounded-[2rem] p-4 md:p-6 border border-slate-100 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex-col items-center justify-center text-center h-full min-h-[160px]">
@@ -258,14 +271,21 @@ const ActionRadar = ({ items, onItemClick }: any) => {
                 Radar ({items.length})
             </h3>
             <div className="space-y-2 md:space-y-3 max-h-32 md:max-h-full overflow-y-auto custom-scrollbar">
-                {items.slice(0, 3).map((item: any) => (
-                    <div key={item.id} onClick={() => onItemClick(item)} className="flex items-center gap-3 p-2 md:p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-amber-50 dark:hover:bg-slate-700 hover:shadow-md transition-all group">
+                {items.slice(0, 3).map((item) => (
+                    <div 
+                        key={item.id} 
+                        onClick={() => onItemClick(item)} 
+                        role="button"
+                        tabIndex={0}
+                        onKeyDown={(e) => { if(e.key === 'Enter') onItemClick(item); }}
+                        className="flex items-center gap-3 p-2 md:p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-amber-50 dark:hover:bg-slate-700 hover:shadow-md transition-all group focus:outline-none focus:ring-2 focus:ring-amber-500"
+                    >
                         <div className={`w-2 h-2 rounded-full ${item.type === 'note' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
-                        <div className="flex-1">
+                        <div className="flex-1 min-w-0">
                             <p className="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 truncate group-hover:text-amber-700 transition-colors">{item.title}</p>
                             <p className="text-[9px] md:text-xs text-slate-400 truncate">{item.subtitle}</p>
                         </div>
-                        <ChevronRight size={16} className="text-slate-300 group-hover:text-amber-500 transition-colors"/>
+                        <ChevronRight size={16} className="text-slate-300 group-hover:text-amber-500 transition-colors shrink-0"/>
                     </div>
                 ))}
             </div>
@@ -299,11 +319,12 @@ const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certific
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  const [doctorProfile, setDoctorProfile] = useState<any>(null); 
+  // Uso estricto de tipado para evitar 'any'
+  const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null); 
   const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
   const [completedTodayCount, setCompletedTodayCount] = useState(0);
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]); 
-  const [weather, setWeather] = useState({ temp: '--', code: 0 });
+  const [weather, setWeather] = useState<WeatherState>({ temp: '--', code: 0 });
   const [locationName, setLocationName] = useState('Localizando...');
   const [systemStatus, setSystemStatus] = useState(true); 
   const [isLoading, setIsLoading] = useState(true); 
@@ -319,9 +340,16 @@ const Dashboard: React.FC = () => {
   const [searchInput, setSearchInput] = useState('');
   const [rescheduleTarget, setRescheduleTarget] = useState<{id: string, title: string} | null>(null);
   const [newDateInput, setNewDateInput] = useState('');
+  const [now, setNow] = useState(new Date());
 
   // ✅ NUEVO ESTADO: Modal de Reto Diario
   const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
+
+  // Reloj interno estable - Única fuente de verdad para el tiempo en todo el dashboard
+  useEffect(() => { 
+      const timer = setInterval(() => setNow(new Date()), 1000); 
+      return () => clearInterval(timer); 
+  }, []);
 
   const formattedDocName = useMemo(() => {
     if (!doctorProfile?.full_name) return '';
@@ -329,6 +357,7 @@ const Dashboard: React.FC = () => {
     return /^(Dr\.|Dra\.)/i.test(raw) ? raw : `Dr. ${raw}`;
   }, [doctorProfile]);
 
+  // Se eliminó el uso innecesario de estado para greeting, se calcula al vuelo o via hook
   const dynamicGreeting = useMemo(() => getTimeOfDayGreeting(formattedDocName || ''), [formattedDocName]);
 
   const openDocModal = (type: 'justificante' | 'certificado' | 'receta') => { setDocType(type); setIsDocModalOpen(true); };
@@ -350,16 +379,30 @@ const Dashboard: React.FC = () => {
               if (!user) { setSystemStatus(false); return; }
               setSystemStatus(true);
               const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-              setDoctorProfile(profile);
+              if (profile) setDoctorProfile(profile as DoctorProfile);
               
               const todayStart = startOfDay(new Date()); 
               const nextWeekEnd = endOfDay(addDays(new Date(), 7));
               
-              const { data: aptsData } = await supabase.from('appointments').select(`id, title, start_time, status, patient:patients (id, name, history)`).eq('doctor_id', user.id).gte('start_time', todayStart.toISOString()).lte('start_time', nextWeekEnd.toISOString()).neq('status', 'cancelled').neq('status', 'completed').order('start_time', { ascending: true }).limit(10);
+              const { data: aptsData } = await supabase
+                .from('appointments')
+                .select(`id, title, start_time, status, patient:patients (id, name, history)`)
+                .eq('doctor_id', user.id)
+                .gte('start_time', todayStart.toISOString())
+                .lte('start_time', nextWeekEnd.toISOString())
+                .neq('status', 'cancelled')
+                .neq('status', 'completed')
+                .order('start_time', { ascending: true })
+                .limit(10);
               
               if (aptsData) {
                   const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
-                      id: item.id, title: item.title, start_time: item.start_time, status: item.status, patient: item.patient, criticalAlert: null 
+                      id: item.id, 
+                      title: item.title, 
+                      start_time: item.start_time, 
+                      status: item.status, 
+                      patient: item.patient, 
+                      criticalAlert: null 
                   }));
                   setAppointments(formattedApts);
               }
@@ -386,11 +429,17 @@ const Dashboard: React.FC = () => {
       } catch (e) { console.error("Error actualizando clima:", e); }
   }, []);
 
+  // Fix: Gestión correcta del intervalo de geolocalización
   useEffect(() => {
     fetchData(); 
     const cachedLocation = localStorage.getItem('last_known_location');
     if (cachedLocation) { setLocationName(cachedLocation); }
+    
+    // Polling de datos cada 2 min
     const pollingInterval = setInterval(() => { if (document.visibilityState === 'visible') fetchData(true); }, 120000);
+    
+    let weatherInterval: NodeJS.Timeout | null = null;
+
     if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(async (position) => {
             const { latitude, longitude } = position.coords;
@@ -401,28 +450,91 @@ const Dashboard: React.FC = () => {
                 setLocationName(newLoc);
                 localStorage.setItem('last_known_location', newLoc);
             } catch (e) { if(!cachedLocation) setLocationName("México"); }
+            
             await updateWeather(latitude, longitude);
-            const weatherInterval = setInterval(() => { updateWeather(latitude, longitude); }, 30 * 60 * 1000); 
-            return () => clearInterval(weatherInterval);
+            // Iniciar intervalo SOLO si tenemos coordenadas
+            weatherInterval = setInterval(() => { updateWeather(latitude, longitude); }, 30 * 60 * 1000); 
         }, () => { if(!cachedLocation) setLocationName("Ubicación n/a"); });
     }
-    return () => clearInterval(pollingInterval);
+    
+    return () => {
+        clearInterval(pollingInterval);
+        if (weatherInterval) clearInterval(weatherInterval);
+    };
   }, [fetchData, updateWeather]);
 
-  const handleStartConsultation = (apt: DashboardAppointment) => { navigate('/consultation', { state: { patientData: apt.patient ? { id: apt.patient.id, name: apt.patient.name } : { id: `ghost_${apt.id}`, name: apt.title, isGhost: true }, linkedAppointmentId: apt.id } }); };
-  const handleRadarClick = (item: PendingItem) => { if (item.type === 'note') { navigate('/consultation', { state: { consultationId: item.id, isResume: true } }); } else if (item.type === 'appt') { const patientName = item.subtitle.split('•')[0].trim(); navigate('/consultation', { state: { linkedAppointmentId: item.id, patientData: { id: 'radar_temp', name: patientName, isGhost: true } } }); } };
-  const openRescheduleModal = (e: React.MouseEvent, apt: DashboardAppointment) => { e.stopPropagation(); setRescheduleTarget({ id: apt.id, title: apt.title }); const currentIso = new Date(apt.start_time); const localIso = new Date(currentIso.getTime() - (currentIso.getTimezoneOffset() * 60000)).toISOString().slice(0, 16); setNewDateInput(localIso); };
-  const confirmReschedule = async () => { if (!rescheduleTarget || !newDateInput) return; try { const newDate = new Date(newDateInput).toISOString(); await supabase.from('appointments').update({ start_time: newDate }).eq('id', rescheduleTarget.id); toast.success(`Cita movida`); setPendingItems(prev => prev.filter(i => i.id !== rescheduleTarget.id)); setRescheduleTarget(null); fetchData(); } catch (err) { toast.error("Error al mover cita"); } };
-  const handleCancelAppointment = async (e: React.MouseEvent, aptId: string) => { e.stopPropagation(); if (!confirm("¿Cancelar cita?")) return; try { await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', aptId); setAppointments(prev => prev.filter(a => a.id !== aptId)); toast.success("Cita cancelada"); } catch (err) { toast.error("Error al cancelar"); } };
-  const handleSearchSubmit = (e?: React.FormEvent) => { if(e) e.preventDefault(); if(!searchInput.trim()) return; setInitialAssistantQuery(searchInput); setIsAssistantOpen(true); setSearchInput(''); };
+  const handleStartConsultation = (apt: DashboardAppointment) => { 
+      // Safe navigation with ghost patient handling
+      navigate('/consultation', { 
+          state: { 
+              patientData: apt.patient ? { id: apt.patient.id, name: apt.patient.name } : { id: `ghost_${apt.id}`, name: apt.title, isGhost: true }, 
+              linkedAppointmentId: apt.id 
+          } 
+      }); 
+  };
+
+  const handleRadarClick = (item: PendingItem) => { 
+      if (item.type === 'note') { 
+          navigate('/consultation', { state: { consultationId: item.id, isResume: true } }); 
+      } else if (item.type === 'appt') { 
+          const patientName = item.subtitle.split('•')[0].trim(); 
+          navigate('/consultation', { state: { linkedAppointmentId: item.id, patientData: { id: 'radar_temp', name: patientName, isGhost: true } } }); 
+      } 
+  };
+
+  const openRescheduleModal = (e: React.MouseEvent, apt: DashboardAppointment) => { 
+      e.stopPropagation(); 
+      setRescheduleTarget({ id: apt.id, title: apt.title }); 
+      const currentIso = new Date(apt.start_time); 
+      const localIso = new Date(currentIso.getTime() - (currentIso.getTimezoneOffset() * 60000)).toISOString().slice(0, 16); 
+      setNewDateInput(localIso); 
+  };
+
+  const confirmReschedule = async () => { 
+      if (!rescheduleTarget || !newDateInput) return; 
+      try { 
+          const newDate = new Date(newDateInput).toISOString(); 
+          await supabase.from('appointments').update({ start_time: newDate }).eq('id', rescheduleTarget.id); 
+          toast.success(`Cita movida`); 
+          setPendingItems(prev => prev.filter(i => i.id !== rescheduleTarget.id)); 
+          setRescheduleTarget(null); 
+          fetchData(); 
+      } catch (err) { toast.error("Error al mover cita"); } 
+  };
+
+  const handleCancelAppointment = async (e: React.MouseEvent, aptId: string) => { 
+      e.stopPropagation(); 
+      if (!confirm("¿Cancelar cita?")) return; 
+      try { 
+          await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', aptId); 
+          setAppointments(prev => prev.filter(a => a.id !== aptId)); 
+          toast.success("Cita cancelada"); 
+      } catch (err) { toast.error("Error al cancelar"); } 
+  };
+
+  const handleSearchSubmit = (e?: React.FormEvent) => { 
+      if(e) e.preventDefault(); 
+      if(!searchInput.trim()) return; 
+      setInitialAssistantQuery(searchInput); 
+      setIsAssistantOpen(true); 
+      setSearchInput(''); 
+  };
 
   // --- RENDER PRINCIPAL ---
   return (
     <div className="md:h-auto min-h-screen bg-slate-50 dark:bg-slate-950 font-sans w-full relative">
+      <style>{`
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(1rem); } to { opacity: 1; transform: translateY(0); } }
+        @keyframes slideInTop { from { opacity: 0; transform: translateY(-1rem); } to { opacity: 1; transform: translateY(0); } }
+        .animate-fade-in { animation: fadeIn 0.6s ease-out forwards; }
+        .animate-slide-top { animation: slideInTop 0.5s ease-out forwards; }
+        .delay-150 { animation-delay: 150ms; }
+        .delay-300 { animation-delay: 300ms; }
+      `}</style>
       
-      {/* 🚀 VISTA MÓVIL ESTRICTA (v6.6) - TEXTO CONSULTA RÁPIDA ✅ */}
+      {/* 🚀 VISTA MÓVIL ESTRICTA (v6.6) ✅ */}
       <div className="md:hidden h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-gradient-to-b from-[#FDFBF7] via-[#F4F7FB] to-[#E2E8F0] p-4 pb-20">
-        <div className="shrink-0 bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-50 relative overflow-hidden">
+        <div className="shrink-0 bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-50 relative overflow-hidden animate-slide-top">
             <div className="flex justify-between items-start mb-1">
                 <div className="flex items-center gap-3 flex-1 min-w-0 pr-2"> 
                     <div className="h-10 w-10 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center font-bold text-base border border-teal-100 shrink-0">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
@@ -432,7 +544,7 @@ const Dashboard: React.FC = () => {
                     </div>
                 </div>
 
-                {/* ✅ MINI-PÍLDORA HORIZONTAL ESTILO ESCRITORIO */}
+                {/* MINI-PÍLDORA HORIZONTAL ESTILO ESCRITORIO */}
                 <div className="flex items-center gap-2 bg-slate-100/50 backdrop-blur-sm px-3 py-1.5 rounded-full border border-white/40 shadow-sm shrink-0">
                     <div className="flex items-center gap-1">
                         <span className="text-xs font-bold text-slate-700">{weather.temp}°</span>
@@ -441,10 +553,10 @@ const Dashboard: React.FC = () => {
                     <div className="w-px h-3 bg-slate-300 mx-0.5"></div>
                     <div className="flex items-baseline gap-0.5 text-slate-800">
                         <span className="text-sm font-bold tracking-tighter tabular-nums">
-                            {format(new Date(), 'h:mm')}
+                            {format(now, 'h:mm')}
                         </span>
                         <span className="text-[8px] font-medium text-slate-400 uppercase">
-                            {format(new Date(), 'a')}
+                            {format(now, 'a')}
                         </span>
                     </div>
                 </div>
@@ -462,7 +574,7 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        <div className="flex-1 min-h-0 bg-white rounded-2xl p-3 border border-slate-50 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col my-2">
+        <div className="flex-1 min-h-0 bg-white rounded-2xl p-3 border border-slate-50 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col my-2 animate-fade-in delay-150">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
                 <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-teal-600"/> Agenda de Hoy</h3>
                 <span className="bg-slate-100 text-slate-500 text-[9px] px-2 py-0.5 rounded-full font-bold">{appointments.length} Citas</span>
@@ -488,13 +600,12 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        <div className="shrink-0 flex flex-col gap-2">
+        <div className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300">
             <div className="grid grid-cols-2 gap-2 h-24">
                 <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
                 <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white rounded-2xl p-3 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform relative overflow-hidden group">
                      <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50"></div>
                      <div className="p-2.5 bg-indigo-50 rounded-full text-indigo-600 group-hover:scale-110 transition-transform"><UserPlus size={18}/></div>
-                     {/* ✅ CAMBIO DE TEXTO: CONSULTA RÁPIDA */}
                      <span className="text-xs font-bold text-slate-700 leading-tight text-center">Consulta<br/>Rápida</span>
                 </button>
             </div>
@@ -515,10 +626,11 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 🖥️ VISTA DE ESCRITORIO & TABLET - CORREGIDA */}
+      {/* 🖥️ VISTA DE ESCRITORIO & TABLET (v6.6) ✅ */}
       <div className="hidden md:block min-h-screen bg-gradient-to-br from-[#FDFBF7] to-[#E2E8F0] p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
-             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6">
+             {/* HEADER HERO CON PÍLDORA UNIFICADA */}
+             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
                  <div className="flex items-center gap-6">
                      <div>
                          <h1 className="text-5xl font-black text-slate-900 tracking-tight leading-tight">
@@ -530,10 +642,10 @@ const Dashboard: React.FC = () => {
                          </p>
                      </div>
                      <div className="flex gap-2 ml-4">
-                        <button onClick={() => setIsAssistantOpen(true)} className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg shadow-indigo-200 hover:bg-indigo-700 transition-all flex items-center gap-2">
+                        <button onClick={() => setIsAssistantOpen(true)} className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2">
                             <Bot size={20}/> <span className="text-sm font-bold">Asistente</span>
                         </button>
-                        <button onClick={() => setIsQuickNoteOpen(true)} className="p-3 bg-amber-500 text-white rounded-2xl shadow-lg shadow-amber-200 hover:bg-amber-600 transition-all flex items-center gap-2">
+                        <button onClick={() => setIsQuickNoteOpen(true)} className="p-3 bg-amber-500 text-white rounded-2xl shadow-lg hover:bg-amber-600 transition-all flex items-center gap-2">
                             <Zap size={20}/> <span className="text-sm font-bold">Nota Flash</span>
                         </button>
                      </div>
@@ -541,11 +653,12 @@ const Dashboard: React.FC = () => {
                  <div className="flex items-center gap-8 bg-white/60 backdrop-blur-md px-6 py-3 rounded-[2rem] border border-white/50 shadow-sm">
                      <WeatherWidget weather={weather} isDesktop />
                      <div className="w-px h-12 bg-slate-300"></div>
-                     <AtomicClock location={locationName} isDesktop />
+                     <AtomicClock location={locationName} date={now} isDesktop />
                  </div>
              </div>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 h-auto">
+             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
+                 {/* COLUMNA IZQUIERDA: Métricas y Radar */}
                  <div className="lg:col-span-3 flex flex-col gap-6">
                      <div className="h-64">
                         <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
@@ -553,8 +666,9 @@ const Dashboard: React.FC = () => {
                      <ActionRadar items={pendingItems} onItemClick={handleRadarClick} />
                  </div>
 
+                 {/* COLUMNA CENTRAL: Agenda Core */}
                  <div className="lg:col-span-6 flex flex-col gap-6">
-                     <div className="bg-white/80 backdrop-blur-md rounded-[2rem] p-8 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-100 relative overflow-hidden min-h-[280px] flex flex-col justify-between">
+                     <div className="bg-white/80 backdrop-blur-md rounded-[2rem] p-8 shadow-sm border border-slate-100 relative overflow-hidden min-h-[280px] flex flex-col justify-between">
                         <div className="flex justify-between items-start mb-4">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${nextPatient ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
                                 {nextPatient ? 'En Espera' : 'Sala Libre'}
@@ -562,7 +676,7 @@ const Dashboard: React.FC = () => {
                             {nextPatient && <span className="text-2xl font-bold text-slate-800">{format(parseISO(nextPatient.start_time), 'h:mm a')}</span>}
                         </div>
                         <div className="mb-6">
-                            <h2 className="text-4xl font-black text-slate-800 leading-tight truncate mb-2">
+                            <h2 className="text-4xl font-black text-slate-800 truncate mb-2">
                                 {nextPatient ? nextPatient.title : 'Sin pacientes en espera'}
                             </h2>
                             <p className="text-slate-500 text-lg">
@@ -570,13 +684,13 @@ const Dashboard: React.FC = () => {
                             </p>
                         </div>
                         {nextPatient && (
-                            <button onClick={() => handleStartConsultation(nextPatient)} className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-sm shadow-lg transition-all flex items-center justify-center gap-2">
+                            <button onClick={() => handleStartConsultation(nextPatient)} className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-sm shadow-lg flex items-center justify-center gap-2">
                                 <Stethoscope size={18} /> INICIAR CONSULTA
                             </button>
                         )}
                      </div>
 
-                     <div className="bg-white/80 backdrop-blur-md rounded-[2rem] p-8 border border-slate-100 shadow-[0_8px_30px_rgb(0,0,0,0.04)] min-h-[400px]">
+                     <div className="bg-white/80 backdrop-blur-md rounded-[2rem] p-8 border border-slate-100 shadow-sm min-h-[400px]">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-slate-800 text-xl flex items-center gap-2"><Calendar size={24} className="text-indigo-600"/> Agenda del Día</h3>
                         </div>
@@ -599,6 +713,7 @@ const Dashboard: React.FC = () => {
                      </div>
                  </div>
 
+                 {/* COLUMNA DERECHA: Herramientas */}
                  <div className="lg:col-span-3 flex flex-col gap-6">
                      <div className="grid grid-cols-2 gap-4">
                         <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white/80 backdrop-blur-md p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center gap-3">
@@ -638,7 +753,7 @@ const Dashboard: React.FC = () => {
                       <X size={24}/>
                   </button>
                   <div className="h-[400px]">
-                      <DailyChallengeCard specialty={doctorProfile?.specialty} />
+                      <DailyChallengeCard specialty={doctorProfile?.specialty || 'General'} />
                   </div>
               </div>
           </div>
@@ -646,13 +761,13 @@ const Dashboard: React.FC = () => {
 
       {isUploadModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-xl relative"><button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4"><X size={16}/></button><UploadMedico onUploadComplete={() => {}}/><div className="mt-4 pt-4 border-t"><DoctorFileGallery /></div></div></div>}
       {rescheduleTarget && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 p-4"><div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm"><h3 className="font-bold text-lg mb-2">Reprogramar</h3><input type="datetime-local" className="w-full p-3 border rounded-xl mb-4" value={newDateInput} onChange={(e) => setNewDateInput(e.target.value)}/><div className="flex justify-end gap-2"><button onClick={() => setRescheduleTarget(null)} className="px-4 py-2 text-slate-500 text-sm">Cancelar</button><button onClick={confirmReschedule} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">Confirmar</button></div></div></div>}
-      {isQuickNoteOpen && <QuickNoteModal onClose={() => setIsQuickNoteOpen(false)} doctorProfile={doctorProfile}/>}
-      <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile} defaultType={docType} />
+      {isQuickNoteOpen && <QuickNoteModal onClose={() => setIsQuickNoteOpen(false)} doctorProfile={doctorProfile!}/>}
+      <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile!} defaultType={docType} />
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} initialQuery={initialAssistantQuery} />
       <FastAdmitModal isOpen={isFastAdmitOpen} onClose={() => setIsFastAdmitOpen(false)} /> 
       <UserGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
       
-      <button onClick={() => setIsGuideOpen(true)} className="fixed z-50 bg-indigo-600 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 transition-transform hover:scale-105 hover:shadow-indigo-500/50 bottom-24 right-4 w-14 h-14 p-0 md:bottom-24 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3">
+      <button onClick={() => setIsGuideOpen(true)} className="fixed z-50 bg-indigo-600 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 bottom-24 right-4 w-14 h-14 md:bottom-24 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3">
         <HelpCircle size={24} /> <span className="hidden md:inline">¿Cómo funciona?</span>
       </button>
     </div>

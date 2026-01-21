@@ -1,14 +1,13 @@
 import React, { useState, useEffect } from 'react';
-import { createClient } from '@supabase/supabase-js';
+// 🛡️ CORRECCIÓN: Importamos la instancia ÚNICA de Supabase
+import { supabase } from '../lib/supabase';
 import imageCompression from 'browser-image-compression';
 import { Search, UserPlus, Upload, X, Loader2 } from 'lucide-react';
 import { PatientService } from '../services/PatientService';
 import { Patient } from '../types';
 import { toast } from 'sonner';
 
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
-const supabase = createClient(supabaseUrl, supabaseKey);
+// Nota: Ya no necesitamos declarar supabaseUrl ni supabaseKey aquí porque usamos la instancia central.
 const BUCKET_NAME = 'pacientes';
 
 interface UploadMedicoProps {
