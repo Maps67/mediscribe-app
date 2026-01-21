@@ -747,7 +747,7 @@ const ConsultationView: React.FC = () => {
 
   const handleBriefingComplete = (context: string) => {
       setManualContext(context);
-      setShowBriefing(false);       
+      setShowBriefing(false);        
       
       const isNewOrEmpty = (selectedPatient as any).isTemporary || 
                            !selectedPatient?.history || 
@@ -1699,32 +1699,32 @@ const ConsultationView: React.FC = () => {
                                 <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-8 md:p-12 min-h-full h-fit pb-32 animate-fade-in-up relative">
                                     <div className="relative md:sticky md:top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex flex-col gap-2">
                                     <div className="flex justify-between items-start">
-                                        <div>
-                                            <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Nota de Evolución</h1>
-                                            <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
-                                                <Lock size={12} className="text-green-600"/>
-                                                {doctorProfile?.specialty || "Cargando..."}
-                                            </p>
-                                        </div>
-                                        
-                                        <div className="flex flex-col items-end gap-3">
-                                        
-                                        <button 
-                                            onClick={handleSaveConsultation} 
-                                            disabled={isSaving} 
-                                            className="bg-brand-teal text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-teal-600 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                        >
-                                            {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>} 
-                                            Validar y Guardar
-                                        </button>
+                                            <div>
+                                                <h1 className="text-2xl font-bold text-slate-900 dark:text-white">Nota de Evolución</h1>
+                                                <p className="text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide flex items-center gap-1">
+                                                    <Lock size={12} className="text-green-600"/>
+                                                    {doctorProfile?.specialty || "Cargando..."}
+                                                </p>
+                                            </div>
+                                            
+                                            <div className="flex flex-col items-end gap-3">
+                                            
+                                            <button 
+                                                onClick={handleSaveConsultation} 
+                                                disabled={isSaving} 
+                                                className="bg-brand-teal text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-teal-600 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                            >
+                                                {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>} 
+                                                Validar y Guardar
+                                            </button>
 
-                                        <div className="flex items-start justify-end gap-1.5 max-w-xs text-right opacity-60 hover:opacity-100 transition-opacity duration-300 group cursor-help">
-                                            <ShieldCheck className="w-3 h-3 text-slate-400 mt-[2px] flex-shrink-0 group-hover:text-brand-teal" />
-                                            <p className="text-[10px] leading-3 text-slate-400 group-hover:text-slate-600 transition-colors">
-                                            <span className="font-semibold text-brand-teal">VitalScribe AI</span> es una herramienta de soporte. La responsabilidad final del diagnóstico, tratamiento y el uso de los formatos administrativos recae exclusivamente en el médico tratante.
-                                            </p>
-                                        </div>
-                                        </div>
+                                            <div className="flex items-start justify-end gap-1.5 max-w-xs text-right opacity-60 hover:opacity-100 transition-opacity duration-300 group cursor-help">
+                                                <ShieldCheck className="w-3 h-3 text-slate-400 mt-[2px] flex-shrink-0 group-hover:text-brand-teal" />
+                                                <p className="text-[10px] leading-3 text-slate-400 group-hover:text-slate-600 transition-colors">
+                                                <span className="font-semibold text-brand-teal">VitalScribe AI</span> es una herramienta de soporte. La responsabilidad final del diagnóstico, tratamiento y el uso de los formatos administrativos recae exclusivamente en el médico tratante.
+                                                </p>
+                                            </div>
+                                            </div>
 
                                     </div>
 
@@ -1756,7 +1756,7 @@ const ConsultationView: React.FC = () => {
                                                                         : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 rounded-tl-none'
                                                                 }`}>
                                                                     <span className={`text-[10px] font-bold block mb-1 uppercase opacity-70 ${line.speaker === 'Médico' ? 'text-right' : 'text-left'}`}>
-                                                                            {line.speaker}
+                                                                                {line.speaker}
                                                                     </span>
                                                                     {line.text}
                                                                 </div>

@@ -6,7 +6,8 @@ import {
   Stethoscope, AlertTriangle, FileText,
   UserPlus, Activity, ChevronRight,
   CalendarX, FileSignature, Printer, FileCheck,
-  HelpCircle, Zap, FolderUp, BrainCircuit, Clock, RefreshCcw 
+  HelpCircle, Zap, FolderUp, BrainCircuit, Clock, RefreshCcw,
+  Scissors // ✨ NUEVO: Icono para Incapacidades
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
@@ -272,14 +273,34 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
     );
 };
 
-// --- QUICK DOCS ---
-const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certificado' | 'receta') => void }) => (
-    <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm h-full">
-        <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4 text-sm"><div className="p-1.5 bg-slate-100 text-slate-600 rounded-md"><FileCheck size={16}/></div> Documentación Rápida</h3>
-        <div className="grid grid-cols-2 gap-3">
-            <button onClick={() => openModal('justificante')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group"><FileText size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/><p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Justificante</p></button>
-            <button onClick={() => openModal('certificado')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group"><FileSignature size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/><p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Certificado</p></button>
-            <button onClick={() => openModal('receta')} className="col-span-2 p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left flex items-center gap-3 transition-all group"><Printer size={18} className="text-slate-400 group-hover:text-blue-500 transition-colors"/><p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Receta Simple</p></button>
+// --- QUICK DOCS (UPDATED v8.5) ---
+// ✨ Grid Simétrico con Incapacidades
+const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certificado' | 'receta' | 'incapacidad') => void }) => (
+    <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm h-full flex flex-col justify-between">
+        <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4 text-sm">
+            <div className="p-1.5 bg-slate-100 text-slate-600 rounded-md"><FileCheck size={16}/></div>
+            Documentación Rápida
+        </h3>
+        <div className="grid grid-cols-2 gap-3 flex-1">
+            <button onClick={() => openModal('justificante')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
+                <FileText size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Justificante</p>
+            </button>
+            <button onClick={() => openModal('certificado')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
+                <FileSignature size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Certificado</p>
+            </button>
+            
+            <button onClick={() => openModal('receta')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
+                <Printer size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Receta</p>
+            </button>
+            {/* ✨ NUEVO: MÓDULO INCAPACIDAD */}
+            <button onClick={() => openModal('incapacidad')} className="p-3 bg-white border border-slate-100 hover:border-purple-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-8 h-8 bg-purple-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-150"></div>
+                <Scissors size={18} className="text-slate-400 group-hover:text-purple-500 mb-2 transition-colors relative z-10"/>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-purple-700 relative z-10">Incapacidad</p>
+            </button>
         </div>
     </div>
 );
@@ -299,7 +320,8 @@ const Dashboard: React.FC = () => {
   const [isAssistantOpen, setIsAssistantOpen] = useState(false);
   const [initialAssistantQuery, setInitialAssistantQuery] = useState<string | null>(null);
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
-  const [docType, setDocType] = useState<'justificante' | 'certificado' | 'receta'>('justificante');
+  // ✨ UPDATE TYPE: Añadido 'incapacidad'
+  const [docType, setDocType] = useState<'justificante' | 'certificado' | 'receta' | 'incapacidad'>('justificante');
   const [isFastAdmitOpen, setIsFastAdmitOpen] = useState(false); 
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
@@ -327,7 +349,8 @@ const Dashboard: React.FC = () => {
     return 'Buenas noches';
   }, [now]);
 
-  const openDocModal = (type: 'justificante' | 'certificado' | 'receta') => { setDocType(type); setIsDocModalOpen(true); };
+  // ✨ UPDATE FUNCTION: Añadido 'incapacidad'
+  const openDocModal = (type: 'justificante' | 'certificado' | 'receta' | 'incapacidad') => { setDocType(type); setIsDocModalOpen(true); };
   
   const nextPatient = useMemo(() => appointments.find(a => a.status === 'scheduled') || null, [appointments]);
   const appointmentsToday = appointments.filter(a => isToday(parseISO(a.start_time))).length;
@@ -480,7 +503,6 @@ const Dashboard: React.FC = () => {
       `}</style>
       
       {/* 📱 VISTA MÓVIL (v8.5 - FIXED LAYOUT BLOCKED) */}
-      {/* 🛡️ PROTOCOLO GLASS FIXED: Posicionamiento absoluto y bloqueo de scroll en el padre */}
       <div className="md:hidden fixed inset-0 z-0 flex flex-col bg-slate-50 p-4 pb-24 overflow-hidden overscroll-none">
         
         {/* HEADER (No Scroll) */}
@@ -565,6 +587,7 @@ const Dashboard: React.FC = () => {
                   <div className="relative z-10"><h3 className="text-white font-bold text-xs leading-tight">Consulta<br/>Rápida</h3></div>
                 </button>
             </div>
+            {/* QuickDocs (Actualizado) */}
             <div className="grid grid-cols-2 gap-2 h-20">
                  <button onClick={() => setIsDocModalOpen(true)} className="bg-white rounded-xl p-2 shadow-sm border border-slate-200 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform"><div className="p-1.5 bg-slate-100 rounded-lg text-slate-500"><FileCheck size={16}/></div><span className="text-[10px] font-bold text-slate-600">Docs</span></button>
                  <button onClick={() => setIsUploadModalOpen(true)} className="relative bg-white rounded-xl p-2 shadow-sm border border-slate-200 overflow-hidden group flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform hover:border-teal-400">
