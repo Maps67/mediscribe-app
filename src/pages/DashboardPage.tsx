@@ -22,7 +22,8 @@ import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
-import { QuickNotes } from '../components/QuickNotes';
+// ✅ RENOMBRADO CON ALIAS PARA EVITAR CONFUSIONES
+import { QuickNotes as BlocNotasWidget } from '../components/QuickNotes'; 
 import { MedicalCalculators } from '../components/MedicalCalculators';
 import { QuickDocModal } from '../components/QuickDocModal';
 import { FastAdmitModal } from '../components/FastAdmitModal';
@@ -888,7 +889,8 @@ const Dashboard: React.FC = () => {
                           <button onClick={() => setToolsTab('calc')} className={`flex-1 py-3 rounded-xl text-xs font-bold uppercase transition-all ${toolsTab === 'calc' ? 'bg-white dark:bg-slate-700 text-indigo-600 shadow-sm' : 'text-slate-400'}`}><Calculator size={14} className="inline mr-2"/> Calc</button>
                       </div>
                       <div className="p-0 flex-1 relative bg-white dark:bg-slate-900">
-                          {toolsTab === 'notes' ? <div className="absolute inset-0 p-2"><QuickNotes userId={doctorProfile?.id} /></div> : <div className="absolute inset-0 p-2 overflow-y-auto"><MedicalCalculators /></div>}
+                          {/* ✅ USO DEL NUEVO ALIAS PARA EL COMPONENTE ANTIGUO */}
+                          {toolsTab === 'notes' ? <div className="absolute inset-0 p-2"><BlocNotasWidget userId={doctorProfile?.id} /></div> : <div className="absolute inset-0 p-2 overflow-y-auto"><MedicalCalculators /></div>}
                       </div>
                  </div>
                  
@@ -896,8 +898,8 @@ const Dashboard: React.FC = () => {
                  <div className="grid grid-cols-2 gap-4">
                      {/* BOTÓN 1: NOTA RÁPIDA (Nuevo) */}
                      <button 
-                        onClick={() => setIsQuickNoteOpen(true)}
-                        className="col-span-2 p-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-orange-500/30 transition-all hover:scale-[1.02]"
+                       onClick={() => setIsQuickNoteOpen(true)}
+                       className="col-span-2 p-4 bg-gradient-to-r from-amber-400 to-orange-500 text-white rounded-2xl font-bold text-sm flex items-center justify-center gap-2 shadow-lg hover:shadow-orange-500/30 transition-all hover:scale-[1.02]"
                      >
                         <Zap size={20} fill="currentColor"/> NOTA RÁPIDA DE PASILLO
                      </button>
