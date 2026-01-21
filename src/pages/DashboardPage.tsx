@@ -83,32 +83,41 @@ const WeatherWidget = ({ weather }: any) => {
     );
 };
 
-// ✅ WIDGET DE EFICIENCIA (Polimórfico: Grid Cuadrado en Móvil / Full en Desktop)
+// ✅ WIDGET DE EFICIENCIA (Polimórfico: Compacto Móvil / Full Desktop)
 const StatusWidget = ({ totalApts, pendingApts }: any) => {
     const completed = totalApts - pendingApts;
     const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
     
     return (
-        <div className="bg-white/60 dark:bg-slate-900/60 md:bg-white md:dark:bg-slate-900 backdrop-blur-xl md:backdrop-blur-none rounded-2xl md:rounded-[2rem] p-3 md:p-6 border border-white/20 md:border-slate-100 dark:border-slate-800 shadow-sm relative overflow-hidden group w-full h-full flex flex-col justify-between">
+        <div className="bg-white dark:bg-slate-900 md:bg-white md:dark:bg-slate-900 rounded-2xl md:rounded-[2rem] p-3 md:p-6 border border-slate-100 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group w-full h-full flex flex-col justify-between">
              {/* Decoración Desktop */}
              <div className="hidden md:block absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity rotate-12">
                 <Activity size={120} className="text-indigo-600 dark:text-indigo-400"/>
              </div>
 
-             {/* VISTA MÓVIL: CUADRO COMPACTO (Grid Glassmorphism) */}
-             <div className="flex md:hidden flex-col items-center justify-center h-full gap-1">
-                 <div className="relative">
-                    <Activity size={24} className="text-indigo-600 dark:text-indigo-400 opacity-20 absolute top-0 left-0 animate-pulse"/>
-                    <p className="text-3xl font-black text-slate-800 dark:text-white leading-none">{progress}%</p>
+             {/* VISTA MÓVIL: COMPACTA (Rediseñada para fila compartida) */}
+             <div className="flex md:hidden flex-col justify-center h-full gap-2">
+                 <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-slate-400 uppercase leading-none">Tu Día</p>
+                    <Activity size={14} className="text-teal-500"/>
                  </div>
-                 <p className="text-[9px] font-bold text-slate-400 uppercase leading-none">Eficiencia</p>
+                 
+                 <div className="flex items-end gap-1">
+                    <p className="text-4xl font-black text-slate-800 dark:text-white leading-none tracking-tighter">{progress}%</p>
+                 </div>
+                 
+                 <div className="w-full bg-slate-100 rounded-full h-1.5 mt-1">
+                    <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
+                 </div>
+
                  <div className="flex gap-2 mt-1">
-                    <span className="text-[9px] bg-emerald-50/80 text-emerald-700 px-1.5 py-0.5 rounded font-bold backdrop-blur-sm border border-emerald-100/50">{completed} OK</span>
-                    <span className="text-[9px] bg-indigo-50/80 text-indigo-700 px-1.5 py-0.5 rounded font-bold backdrop-blur-sm border border-indigo-100/50">{pendingApts} Cola</span>
+                    <span className="text-[9px] font-bold text-slate-500">{completed} Listos</span>
+                    <span className="text-[9px] font-bold text-slate-400">|</span>
+                    <span className="text-[9px] font-bold text-slate-500">{pendingApts} Cola</span>
                  </div>
              </div>
 
-             {/* VISTA DESKTOP: COMPLETA */}
+             {/* VISTA DESKTOP: COMPLETA (Intacta) */}
              <div className="hidden md:block relative z-10 text-center">
                  <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">Eficiencia Diaria</p>
                  <div className="flex items-baseline justify-center gap-1 mb-5">
@@ -398,17 +407,17 @@ const Dashboard: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans w-full pb-32 md:pb-8 relative overflow-hidden">
       
-      {/* 🚀 VISTA MÓVIL: ZERO SCROLL STRATEGY (High Density Grid con Mesh Gradient) */}
-      <div className="md:hidden p-3 space-y-3 bg-[radial-gradient(ellipse_at_top_right,_var(--tw-gradient-stops))] from-indigo-200 via-slate-100 to-indigo-100 dark:from-slate-950 dark:via-indigo-950/20 dark:to-slate-950 min-h-screen">
+      {/* 🚀 VISTA MÓVIL REFINADA: CALIDEZ MÉDICA + ESTRUCTURA LIMPIA */}
+      <div className="md:hidden p-4 space-y-4 bg-gradient-to-b from-[#FDFBF7] via-[#F4F7FB] to-[#E2E8F0] min-h-screen">
         
-        {/* 1. HEADER INTEGRADO: Saludo + Reloj + Botones de Acción */}
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-4 shadow-sm border border-white/20 dark:border-slate-800">
+        {/* 1. HEADER CORREGIDO: Espacio seguro para textos */}
+        <div className="bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-50 relative overflow-hidden">
             <div className="flex justify-between items-start mb-3">
-                <div className="flex items-center gap-3">
-                    <div className="h-10 w-10 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-sm">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
-                    <div>
+                <div className="flex items-center gap-3 pt-2"> 
+                    <div className="h-10 w-10 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center font-bold text-sm border border-teal-100">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
+                    <div className="mt-1">
                         <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">{dynamicGreeting.greeting}</p>
-                        <h1 className="text-sm font-black text-slate-800 dark:text-white leading-tight max-w-[150px] truncate">{formattedDocName}</h1>
+                        <h1 className="text-sm font-black text-slate-800 leading-tight max-w-[160px] truncate">{formattedDocName}</h1>
                     </div>
                 </div>
                 <div className="text-right">
@@ -416,74 +425,78 @@ const Dashboard: React.FC = () => {
                     <div className="mt-1 opacity-70 scale-90 origin-right"><WeatherWidget weather={weather} /></div>
                 </div>
             </div>
-            {/* Botones de Acción Integrados (Embedded) */}
-            <div className="grid grid-cols-2 gap-2 mt-2 pt-3 border-t border-slate-50/20 dark:border-slate-800/20">
-                <button onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="bg-indigo-50/50 dark:bg-indigo-900/20 p-2 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+            
+            {/* Botones de Acción */}
+            <div className="grid grid-cols-2 gap-3 mt-4 pt-3 border-t border-slate-50">
+                <button onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="bg-indigo-50/50 p-2.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform border border-indigo-50">
                     <Bot size={16} className="text-indigo-600"/>
-                    <span className="text-xs font-bold text-indigo-700 dark:text-indigo-300">Asistente</span>
+                    <span className="text-xs font-bold text-indigo-700">Asistente</span>
                 </button>
-                <button onClick={() => setIsQuickNoteOpen(true)} className="bg-amber-50/50 dark:bg-amber-900/20 p-2 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform">
+                <button onClick={() => setIsQuickNoteOpen(true)} className="bg-amber-50/50 p-2.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform border border-amber-50">
                     <Zap size={16} className="text-amber-600"/>
-                    <span className="text-xs font-bold text-amber-700 dark:text-amber-300">Nota Flash</span>
+                    <span className="text-xs font-bold text-amber-700">Nota Flash</span>
                 </button>
             </div>
         </div>
 
-        {/* 2. GRID PRINCIPAL DE WIDGETS (2x2 Layout) */}
-        <div className="grid grid-cols-2 gap-3 h-[calc(100vh-280px)] max-h-[400px]">
-            
-            {/* A. Widget Agenda (Mini Cuadro Glass) */}
-            <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-2xl p-3 border border-white/20 dark:border-slate-800 shadow-sm flex flex-col h-full overflow-hidden">
-                <div className="flex justify-between items-center mb-2">
-                    <h3 className="font-bold text-slate-800 text-xs flex items-center gap-1"><Calendar size={14} className="text-indigo-600"/> Agenda</h3>
-                    <span className="bg-slate-100 text-slate-500 text-[9px] px-1.5 py-0.5 rounded font-bold">{appointments.length}</span>
-                </div>
-                <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2">
-                    {appointments.length === 0 ? (
-                        <div className="h-full flex flex-col items-center justify-center text-center opacity-50">
-                            <CalendarX size={20} className="text-slate-300 mb-1"/>
-                            <p className="text-[10px] text-slate-400">Libre</p>
+        {/* 2. AGENDA HORIZONTAL (Full Width) */}
+        <div className="bg-white rounded-2xl p-3 border border-slate-50 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col h-40">
+            <div className="flex justify-between items-center mb-2 px-1">
+                <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-teal-600"/> Agenda de Hoy</h3>
+                <span className="bg-slate-100 text-slate-500 text-[9px] px-2 py-0.5 rounded-full font-bold">{appointments.length} Citas</span>
+            </div>
+            <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
+                {appointments.length === 0 ? (
+                    <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
+                        <CalendarX size={24} className="text-slate-300 mb-1"/>
+                        <p className="text-[10px] text-slate-400 font-medium">Agenda libre por hoy</p>
+                    </div>
+                ) : (
+                    appointments.map(apt => (
+                        <div key={apt.id} onClick={() => handleStartConsultation(apt)} className="bg-slate-50 hover:bg-slate-100 p-2.5 rounded-xl border-l-2 border-teal-500 flex items-center gap-3 active:scale-98 transition-transform">
+                             <div className="font-bold text-slate-500 text-[10px] min-w-[30px]">{format(parseISO(apt.start_time), 'HH:mm')}</div>
+                             <div className="flex-1">
+                                <p className="font-bold text-slate-700 text-xs truncate">{apt.title}</p>
+                                <p className="text-[9px] text-slate-400 truncate">{apt.patient ? 'Expediente Activo' : 'Primera Vez'}</p>
+                             </div>
+                             <ChevronRight size={14} className="text-slate-300"/>
                         </div>
-                    ) : (
-                        appointments.map(apt => (
-                            <div key={apt.id} onClick={() => handleStartConsultation(apt)} className="bg-slate-50/80 dark:bg-slate-800/80 backdrop-blur-sm p-2 rounded-lg border-l-2 border-indigo-500">
-                                <p className="font-bold text-slate-800 text-[10px] truncate">{apt.title}</p>
-                                <p className="text-[9px] text-slate-500">{format(parseISO(apt.start_time), 'HH:mm')}</p>
-                            </div>
-                        ))
-                    )}
-                </div>
+                    ))
+                )}
             </div>
+        </div>
 
-            {/* B. Widget Status (Cuadro Eficiencia Glass) */}
-            <div className="h-full">
+        {/* 3. GRID FUNCIONAL (Filas Organizadas) */}
+        <div className="space-y-3">
+            
+            {/* Fila A: Eficiencia + Nuevo Paciente */}
+            <div className="grid grid-cols-2 gap-3 h-32">
                 <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
+                
+                <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white rounded-2xl p-3 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-2 active:scale-95 transition-transform relative overflow-hidden group">
+                     <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50"></div>
+                     <div className="p-3 bg-indigo-50 rounded-full text-indigo-600 group-hover:scale-110 transition-transform"><UserPlus size={20}/></div>
+                     <span className="text-xs font-bold text-slate-700 leading-tight text-center">Nuevo<br/>Paciente</span>
+                </button>
             </div>
 
-            {/* C. Botones Funcionales (Reto + Docs) */}
-            <div className="grid grid-rows-2 gap-3 h-full">
-                 <button onClick={() => setIsChallengeModalOpen(true)} className="bg-gradient-to-br from-indigo-600 to-purple-600 rounded-2xl p-3 shadow-md active:scale-95 transition-transform flex flex-col items-center justify-center text-white relative overflow-hidden">
-                    <div className="absolute top-0 right-0 p-2 opacity-20"><BrainCircuit size={40}/></div>
-                    <BrainCircuit size={20} className="mb-1"/>
-                    <span className="text-xs font-black uppercase tracking-wide">Reto Diario</span>
-                 </button>
-                 <button onClick={() => setIsDocModalOpen(true)} className="bg-white/60 backdrop-blur-xl border border-white/20 rounded-2xl p-3 shadow-sm active:scale-95 transition-transform flex flex-col items-center justify-center relative overflow-hidden">
-                    <FileCheck size={20} className="text-pink-500 mb-1"/>
+            {/* Fila B: Docs + Subir */}
+            <div className="grid grid-cols-2 gap-3 h-28">
+                 <button onClick={() => setIsDocModalOpen(true)} className="bg-white rounded-2xl p-3 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-2 active:scale-95 transition-transform">
+                    <div className="p-2 bg-pink-50 rounded-lg text-pink-500"><FileCheck size={18}/></div>
                     <span className="text-xs font-bold text-slate-700">Docs Rápidos</span>
                  </button>
+                 <button onClick={() => setIsUploadModalOpen(true)} className="bg-white rounded-2xl p-3 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-2 active:scale-95 transition-transform">
+                    <div className="p-2 bg-slate-100 rounded-lg text-slate-600"><FolderUp size={18}/></div>
+                    <span className="text-xs font-bold text-slate-700">Subir Archivo</span>
+                 </button>
             </div>
-
-            {/* D. Acciones Finales (Nuevo + Subir) */}
-            <div className="grid grid-rows-2 gap-3 h-full">
-                <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white/60 backdrop-blur-xl border border-white/20 rounded-2xl p-2 flex items-center justify-center gap-2 shadow-sm active:scale-95">
-                    <UserPlus size={18} className="text-indigo-600"/>
-                    <span className="text-[10px] font-bold text-slate-700 leading-tight">Nuevo<br/>Paciente</span>
-                </button>
-                <button onClick={() => setIsUploadModalOpen(true)} className="bg-white/60 backdrop-blur-xl border border-white/20 rounded-2xl p-2 flex items-center justify-center gap-2 shadow-sm active:scale-95">
-                    <FolderUp size={18} className="text-slate-600"/>
-                    <span className="text-[10px] font-bold text-slate-700 leading-tight">Subir<br/>Archivo</span>
-                </button>
-            </div>
+            
+            {/* Reto Diario (Botón Discreto) */}
+            <button onClick={() => setIsChallengeModalOpen(true)} className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2">
+                 <BrainCircuit size={16}/>
+                 <span className="text-xs font-bold uppercase tracking-wide">Reto Clínico del Día</span>
+            </button>
 
         </div>
       </div>
