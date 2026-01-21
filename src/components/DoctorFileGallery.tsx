@@ -1,10 +1,9 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Image as ImageIcon, RefreshCw, Eye, FolderOpen } from 'lucide-react';
-// 🛡️ CORRECCIÓN 1: Importamos la instancia ÚNICA, no creamos una nueva.
+import { FileText, Image as ImageIcon, RefreshCw, Eye, FolderOpen, Loader2, Download } from 'lucide-react';
+// 🛡️ CONEXIÓN SINGLETON
 import { supabase } from '../lib/supabase';
 import { ImageViewerModal } from './ImageViewerModal';
 
-// Nota: Ya no necesitamos declarar supabaseUrl ni supabaseKey aquí porque usamos la instancia central.
 const BUCKET_NAME = 'pacientes';
 
 interface FileObject {
@@ -48,7 +47,16 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
         });
 
       if (error) throw error;
-      setFiles(data || []);
+
+      // 🛡️ SANITIZACIÓN DE DATOS (Fix Error 400)
+      // Filtramos archivos temporales de sistema, carpetas vacías o residuos de subida
+      const cleanFiles = (data || []).filter(f => 
+        f.name !== '.emptyFolderPlaceholder' && 
+        !f.name.endsWith('_progress') && // Filtra los archivos fantasmas de la consola
+        f.metadata // Asegura que tenga metadatos
+      );
+
+      setFiles(cleanFiles);
     } catch (error) {
       console.error('Error cargando archivos:', error);
     } finally {
@@ -60,45 +68,34 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
     fetchFiles();
   }, [patientId]);
 
-  // --- LÓGICA DE DETECCIÓN DE IMAGEN BLINDADA ---
   const isImageFile = (file: FileObject) => {
-    // 1. Chequeo por extensión (Lo más fiable visualmente)
     const extension = file.name.split('.').pop()?.toLowerCase();
     const imageExtensions = ['jpg', 'jpeg', 'png', 'gif', 'webp', 'bmp', 'svg', 'heic'];
     if (extension && imageExtensions.includes(extension)) return true;
-
-    // 2. Chequeo por metadatos (Respaldo técnico)
     if (file.metadata?.mimetype?.startsWith('image/')) return true;
-
     return false;
   };
 
   const handleViewFile = async (file: FileObject) => {
     if (!patientId) return;
     
-    // Generamos la URL temporal
     const { data } = await supabase.storage
       .from(BUCKET_NAME)
       .createSignedUrl(`${patientId}/${file.name}`, 3600);
     
     if (data?.signedUrl) {
       if (isImageFile(file)) {
-        // ES IMAGEN -> Abrimos Modal
         setSelectedImage(data.signedUrl);
         setSelectedFileName(file.name);
       } else {
-        // NO ES IMAGEN -> Descarga / Nueva Pestaña
         window.open(data.signedUrl, '_blank');
       }
     }
   };
 
-  // 🛡️ CORRECCIÓN 2: Lógica segura para mostrar nombres
   const getDisplayName = (fileName: string) => {
-    // Si el archivo tiene un prefijo de timestamp (ej: 171500_foto.png), lo limpiamos.
-    // Si no tiene guion bajo, mostramos el nombre original para evitar vacíos.
     const parts = fileName.split('_');
-    if (parts.length > 1) {
+    if (parts.length > 1 && !isNaN(Number(parts[0]))) {
         return parts.slice(1).join('_');
     }
     return fileName;
@@ -106,8 +103,8 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
 
   if (!patientId) {
       return (
-          <div className="p-8 text-center text-slate-400 border-2 border-dashed rounded-xl bg-slate-50 dark:bg-slate-800/50 dark:border-slate-700 h-full flex flex-col items-center justify-center">
-              <FolderOpen className="mb-2 opacity-50" size={32}/>
+          <div className="p-8 text-center text-slate-400 border border-dashed border-slate-300 rounded-xl bg-slate-50 h-full flex flex-col items-center justify-center">
+              <FolderOpen className="mb-2 text-slate-300" size={32}/>
               <p className="text-xs font-medium">Seleccione un paciente<br/>para ver su expediente.</p>
           </div>
       )
@@ -115,51 +112,62 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
 
   return (
     <>
-      <div className="bg-white dark:bg-slate-900 rounded-lg border border-gray-200 dark:border-slate-700 shadow-sm overflow-hidden h-full flex flex-col">
-        <div className="p-3 border-b border-gray-100 dark:border-slate-800 flex justify-between items-center bg-gray-50 dark:bg-slate-800/50">
-          <h3 className="font-semibold text-gray-700 dark:text-slate-300 text-xs uppercase tracking-wider">
+      <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden h-full flex flex-col">
+        {/* Header "Clinical Clean" */}
+        <div className="p-4 border-b border-slate-100 flex justify-between items-center bg-white">
+          <h3 className="font-bold text-slate-700 text-sm flex items-center gap-2">
+              <div className="p-1.5 bg-blue-50 text-blue-600 rounded-md">
+                <FolderOpen size={16}/>
+              </div>
               Expediente Digital
           </h3>
-          <button onClick={fetchFiles} className="text-gray-400 hover:text-brand-teal transition-colors" title="Actualizar lista">
-            <RefreshCw size={14} />
+          <button 
+            onClick={fetchFiles} 
+            className="p-1.5 text-slate-400 hover:text-blue-600 hover:bg-blue-50 rounded-lg transition-all" 
+            title="Actualizar lista"
+          >
+            <RefreshCw size={16} className={loading ? "animate-spin" : ""} />
           </button>
         </div>
 
-        <div className="p-2 flex-1 overflow-y-auto min-h-[150px]">
-          {loading ? (
-            <div className="h-full flex items-center justify-center text-gray-400 text-xs">Cargando...</div>
+        <div className="p-2 flex-1 overflow-y-auto min-h-[200px] custom-scrollbar">
+          {loading && files.length === 0 ? (
+            <div className="h-full flex flex-col items-center justify-center text-slate-400 gap-2">
+               <Loader2 className="animate-spin text-blue-500" size={24}/>
+               <span className="text-xs">Cargando documentos...</span>
+            </div>
           ) : files.length === 0 ? (
-            <div className="h-full flex flex-col items-center justify-center text-gray-400 text-xs gap-2 py-8">
-              <div className="p-2 bg-gray-100 dark:bg-slate-800 rounded-full"><FileText size={20}/></div>
-              Carpeta vacía
+            <div className="h-full flex flex-col items-center justify-center text-slate-400 text-xs gap-3 py-8 opacity-60">
+              <FileText size={32} strokeWidth={1.5}/>
+              <p>Carpeta vacía</p>
             </div>
           ) : (
-            <ul className="space-y-1">
+            <ul className="space-y-2">
               {files.map((file) => {
                 const isImg = isImageFile(file);
                 
                 return (
                   <li 
                     key={file.id} 
-                    className="flex items-center justify-between p-2 hover:bg-slate-50 dark:hover:bg-slate-800 rounded-md group transition-colors cursor-pointer"
+                    className="flex items-center justify-between p-3 bg-white border border-slate-100 hover:border-blue-200 hover:shadow-sm rounded-xl group transition-all cursor-pointer"
                     onClick={() => handleViewFile(file)}
                   >
                     <div className="flex items-center gap-3 overflow-hidden">
-                      <div className={`w-8 h-8 rounded flex items-center justify-center shrink-0 ${isImg ? 'bg-purple-50 text-purple-500 dark:bg-purple-900/20' : 'bg-blue-50 text-blue-500 dark:bg-blue-900/20'}`}>
-                        {isImg ? <ImageIcon size={14} /> : <FileText size={14} />}
+                      <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border ${isImg ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
+                        {isImg ? <ImageIcon size={18} /> : <FileText size={18} />}
                       </div>
                       <div className="flex flex-col min-w-0">
-                        <span className="text-xs font-medium text-gray-700 dark:text-slate-300 truncate block max-w-[140px]">
-                          {/* Usamos la nueva función segura */}
+                        <span className="text-sm font-bold text-slate-700 truncate block max-w-[160px] group-hover:text-blue-700 transition-colors">
                           {getDisplayName(file.name)}
                         </span>
-                        <span className="text-[10px] text-gray-400">
-                          {file.metadata?.size ? (file.metadata.size / 1024).toFixed(0) : '0'} KB • {new Date(file.created_at).toLocaleDateString()}
+                        <span className="text-[10px] text-slate-400 font-medium">
+                          {file.metadata?.size ? (file.metadata.size / 1024).toFixed(1) : '0'} KB • {new Date(file.created_at).toLocaleDateString()}
                         </span>
                       </div>
                     </div>
-                    <button className="text-gray-300 hover:text-brand-teal opacity-0 group-hover:opacity-100 transition-opacity" title={isImg ? "Ver imagen" : "Abrir documento"}>
-                      <Eye size={16} />
+                    
+                    <button className="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all" title={isImg ? "Ver imagen" : "Descargar"}>
+                      {isImg ? <Eye size={18} /> : <Download size={18} />}
                     </button>
                   </li>
                 );

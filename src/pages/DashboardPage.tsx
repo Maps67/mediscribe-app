@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, Sun, Moon, Cloud, 
@@ -59,7 +59,7 @@ const cleanMarkdown = (text: string): string => {
     return text.replace(/[*_#`~]/g, '').replace(/^\s*[-•]\s+/gm, '').replace(/\[.*?\]/g, '').replace(/\n\s*\n/g, '\n').trim();
 };
 
-// --- CLOCK COMPACTO (Estilo Técnico) ---
+// --- CLOCK COMPACTO ---
 const AtomicClock = ({ date, isDesktop = false }: { location: string, date: Date, isDesktop?: boolean }) => {
     return (
         <div className={`flex flex-col ${isDesktop ? 'items-end' : 'justify-center'}`}>
@@ -95,7 +95,7 @@ const WeatherWidget = ({ weather, isDesktop = false }: { weather: WeatherState, 
     );
 };
 
-// ✅ WIDGET DE EFICIENCIA (Estilo Clínico)
+// ✅ WIDGET DE EFICIENCIA
 const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingApts: number }) => {
     const completed = totalApts - pendingApts;
     const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
@@ -118,8 +118,8 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
                  </div>
 
                  <div className="flex justify-between mt-1.5">
-                    <span className="text-[9px] font-semibold text-slate-600">{completed} Completado</span>
-                    <span className="text-[9px] font-semibold text-slate-400">{pendingApts} Pendiente</span>
+                    <span className="text-[9px] font-semibold text-slate-600">{completed} OK</span>
+                    <span className="text-[9px] font-semibold text-slate-400">{pendingApts} Pend</span>
                  </div>
              </div>
 
@@ -151,7 +151,7 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
     );
 };
 
-// --- ASISTENTE MODAL (Con Lógica de Cancelación) ---
+// --- ASISTENTE MODAL ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void; initialQuery?: string | null }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'answering'>('idle');
@@ -166,12 +166,10 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
     else { stopListening(); window.speechSynthesis.cancel(); }
   }, [isOpen, initialQuery]);
 
-  // Lógica de Aborto Manual (UX Fix)
   const handleManualCancel = () => {
     stopListening();
     resetTranscript();
     setStatus('idle');
-    // En el futuro aquí se puede añadir un AbortController para peticiones fetch
   };
 
   const processIntent = async (manualText?: string) => {
@@ -179,7 +177,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
       if (!textToProcess) { toast.info("No escuché ninguna instrucción."); return; }
       stopListening(); 
       setStatus('processing');
-      
       try {
           const executeLogic = async () => {
               const lowerText = textToProcess.toLowerCase();
@@ -229,15 +226,10 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
                 <div className="text-center text-lg font-medium min-h-[3rem] text-slate-700">
                     "{initialQuery || transcript || (status === 'processing' ? 'Analizando...' : 'Escuchando...')}"
                 </div>
-                
                 {status === 'processing' ? (
                   <div className="flex flex-col items-center gap-4">
                       <Loader2 className="animate-spin text-blue-600" size={48} />
-                      {/* Botón de Cancelación durante Procesamiento */}
-                      <button 
-                        onClick={handleManualCancel}
-                        className="px-6 py-2 bg-red-50 text-red-600 rounded-full text-sm font-bold hover:bg-red-100 transition-colors border border-red-100"
-                      >
+                      <button onClick={handleManualCancel} className="px-6 py-2 bg-red-50 text-red-600 rounded-full text-sm font-bold hover:bg-red-100 transition-colors border border-red-100">
                         Cancelar
                       </button>
                   </div>
@@ -246,12 +238,8 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
                       <button onClick={() => { if (status === 'listening') { processIntent(); } else { resetTranscript(); setStatus('listening'); startListening(); } }} className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
                         {status === 'listening' ? <Square size={28} fill="currentColor"/> : <Mic size={28} />}
                       </button>
-                      
                       {status === 'listening' && (
-                          <button 
-                            onClick={handleManualCancel}
-                            className="text-xs font-bold text-slate-400 hover:text-red-500 transition-colors"
-                          >
+                          <button onClick={handleManualCancel} className="text-xs font-bold text-slate-400 hover:text-red-500 transition-colors">
                             Cancelar
                           </button>
                       )}
@@ -274,7 +262,7 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   );
 };
 
-// --- COMPONENTE RADAR (Estilo Limpio) ---
+// --- COMPONENTE RADAR ---
 const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick: (item: PendingItem) => void }) => {
     if (items.length === 0) return (
         <div className="hidden md:flex bg-white rounded-xl p-6 border border-slate-200 shadow-sm flex-col items-center justify-center text-center h-full min-h-[160px]">
@@ -291,11 +279,7 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
             </h3>
             <div className="space-y-2 max-h-32 md:max-h-full overflow-y-auto custom-scrollbar">
                 {items.slice(0, 3).map((item) => (
-                    <div 
-                        key={item.id} 
-                        onClick={() => onItemClick(item)} 
-                        className="flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:bg-slate-50 hover:border-slate-100 cursor-pointer transition-all group"
-                    >
+                    <div key={item.id} onClick={() => onItemClick(item)} className="flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:bg-slate-50 hover:border-slate-100 cursor-pointer transition-all group">
                         <div className={`w-2 h-2 rounded-full ${item.type === 'note' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-slate-700 truncate">{item.title}</p>
@@ -309,7 +293,7 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
     );
 };
 
-// --- QUICK DOCS (Desktop - Clean) ---
+// --- QUICK DOCS ---
 const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certificado' | 'receta') => void }) => (
     <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm h-full">
         <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4 text-sm">
@@ -505,11 +489,11 @@ const Dashboard: React.FC = () => {
         .delay-300 { animation-delay: 300ms; }
       `}</style>
       
-      {/* 📱 VISTA MÓVIL ESTRICTA (v7.1 - CONTROL TOTAL + UX) */}
+      {/* 📱 VISTA MÓVIL ESTRICTA (v8.0 - IMMERSIVE CARDS) */}
       <div className="md:hidden h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-slate-50 p-4 pb-20">
         <div className="shrink-0 bg-white rounded-xl p-4 shadow-sm border border-slate-200 relative overflow-hidden animate-slide-top">
             
-            {/* ENCABEZADO MÓVIL (2 PISOS - CLEAN & STACKED FIX) */}
+            {/* ENCABEZADO MÓVIL */}
             <div className="flex flex-col gap-2 mb-2">
                 <div className="flex justify-between items-center w-full">
                     <div className="flex items-center gap-2">
@@ -518,7 +502,6 @@ const Dashboard: React.FC = () => {
                         </div>
                         <p className="text-sm font-medium text-slate-500">Buenas noches,</p>
                     </div>
-                    {/* Píldora de Telemetría (Full Info) */}
                     <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shrink-0">
                         <div className="flex items-center gap-1">
                             <span className="text-xs font-bold text-slate-700">{weather.temp}°</span>
@@ -529,7 +512,6 @@ const Dashboard: React.FC = () => {
                         <span className="text-[9px] font-bold text-slate-400 uppercase">{format(now, 'a')}</span>
                     </div>
                 </div>
-                {/* Nombre del Doctor en su propia fila (Ancho completo) */}
                 <div className="w-full pl-1">
                     <h1 className="text-2xl font-black text-slate-900 leading-tight break-words tracking-tight">
                         {formattedDocName}
@@ -577,24 +559,49 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
+        {/* 🎨 IMMERSIVE CARDS (MÓVIL) */}
         <div className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300">
             <div className="grid grid-cols-2 gap-2 h-24">
                 <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
-                <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white rounded-xl p-3 shadow-sm border border-slate-200 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform group">
-                     <div className="p-2.5 bg-blue-50 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><UserPlus size={18}/></div>
-                     <span className="text-xs font-bold text-slate-700 leading-tight text-center">Consulta<br/>Rápida</span>
+                {/* CARD: CONSULTA RÁPIDA (IMMERSIVE BLUE) */}
+                <button 
+                  onClick={() => setIsFastAdmitOpen(true)} 
+                  className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-3 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02]"
+                >
+                  <div className="absolute -right-4 -bottom-4 text-white opacity-10 group-hover:opacity-20 transition-all duration-500 rotate-12 scale-125">
+                    <UserPlus size={70} strokeWidth={1.5} />
+                  </div>
+                  <div className="absolute top-0 right-0 w-20 h-20 bg-white opacity-5 rounded-full blur-xl -mr-6 -mt-6"></div>
+                  
+                  <div className="relative z-10 bg-white/20 w-8 h-8 flex items-center justify-center rounded-lg backdrop-blur-sm">
+                    <UserPlus className="text-white" size={16} />
+                  </div>
+                  <div className="relative z-10">
+                    <h3 className="text-white font-bold text-xs leading-tight">Consulta<br/>Rápida</h3>
+                  </div>
                 </button>
             </div>
+            
             <div className="grid grid-cols-2 gap-2 h-20">
                  <button onClick={() => setIsDocModalOpen(true)} className="bg-white rounded-xl p-2 shadow-sm border border-slate-200 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform">
                     <div className="p-1.5 bg-slate-100 rounded-lg text-slate-500"><FileCheck size={16}/></div>
                     <span className="text-[10px] font-bold text-slate-600">Docs</span>
                  </button>
-                 <button onClick={() => setIsUploadModalOpen(true)} className="bg-white rounded-xl p-2 shadow-sm border border-slate-200 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform">
-                    <div className="p-1.5 bg-slate-100 rounded-lg text-slate-500"><FolderUp size={16}/></div>
-                    <span className="text-[10px] font-bold text-slate-600">Subir</span>
+                 {/* CARD: SUBIR ARCHIVO (IMMERSIVE TEAL) */}
+                 <button 
+                    onClick={() => setIsUploadModalOpen(true)} 
+                    className="relative bg-white rounded-xl p-2 shadow-sm border border-slate-200 overflow-hidden group flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform hover:border-teal-400"
+                 >
+                    <div className="absolute -right-2 -bottom-2 text-teal-50 opacity-0 group-hover:opacity-100 transition-all duration-500 rotate-12 scale-125">
+                        <FolderUp size={50} />
+                    </div>
+                    <div className="relative z-10 p-1.5 bg-slate-100 group-hover:bg-teal-50 rounded-lg text-slate-500 group-hover:text-teal-600 transition-colors">
+                        <FolderUp size={16}/>
+                    </div>
+                    <span className="relative z-10 text-[10px] font-bold text-slate-600 group-hover:text-teal-700 transition-colors">Subir</span>
                  </button>
             </div>
+            
             <button onClick={() => setIsChallengeModalOpen(true)} className="w-full bg-gradient-to-r from-blue-600 to-teal-500 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2">
                 <BrainCircuit size={16}/>
                 <span className="text-xs font-bold uppercase tracking-wide">Reto Clínico</span>
@@ -602,7 +609,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 🖥️ VISTA ESCRITORIO (v6.9 - CLINICAL PRO) */}
+      {/* 🖥️ VISTA ESCRITORIO (v8.0 - IMMERSIVE CARDS) */}
       <div className="hidden md:block min-h-screen bg-slate-50 p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
@@ -688,13 +695,45 @@ const Dashboard: React.FC = () => {
 
                  <div className="lg:col-span-3 flex flex-col gap-6">
                      <div className="grid grid-cols-2 gap-4">
-                        <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col items-center gap-3 group">
-                            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg group-hover:scale-110 transition-transform"><UserPlus size={24}/></div>
-                            <span className="font-bold text-slate-700 text-sm text-center">Consulta<br/>Rápida</span>
+                        {/* IMMERSIVE CARD: CONSULTA RÁPIDA (DESKTOP) */}
+                        <button 
+                          onClick={() => setIsFastAdmitOpen(true)} 
+                          className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-4 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02]"
+                        >
+                          <div className="absolute -right-6 -bottom-6 text-white opacity-10 group-hover:opacity-20 group-hover:scale-110 transition-all duration-500 rotate-12">
+                            <UserPlus size={120} strokeWidth={1} />
+                          </div>
+                          <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl -mr-10 -mt-10"></div>
+
+                          <div className="relative z-10 bg-white/20 w-fit p-2 rounded-lg backdrop-blur-sm mb-2">
+                            <UserPlus className="text-white" size={24} />
+                          </div>
+                          
+                          <div className="relative z-10">
+                            <h3 className="text-white font-bold text-lg leading-tight">Consulta<br/>Rápida</h3>
+                            <p className="text-blue-100 text-[10px] mt-1 opacity-80">Ingreso Express</p>
+                          </div>
                         </button>
-                        <button onClick={() => setIsUploadModalOpen(true)} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col items-center gap-3 group">
-                            <div className="p-3 bg-slate-100 text-slate-600 rounded-lg group-hover:scale-110 transition-transform"><FolderUp size={24}/></div>
-                            <span className="font-bold text-slate-700 text-sm text-center">Subir<br/>Archivo</span>
+
+                        {/* IMMERSIVE CARD: SUBIR ARCHIVO (DESKTOP) */}
+                        <button 
+                          onClick={() => setIsUploadModalOpen(true)} 
+                          className="relative w-full h-full bg-white border border-slate-200 rounded-xl p-4 shadow-sm overflow-hidden group text-left flex flex-col justify-between transition-all hover:border-teal-400 hover:shadow-md"
+                        >
+                          <div className="absolute -right-4 -bottom-4 text-teal-50 opacity-0 group-hover:opacity-100 transition-all duration-500 scale-150">
+                            <FolderUp size={100} />
+                          </div>
+                          
+                          <div className="absolute top-0 right-0 w-20 h-20 bg-teal-50 rounded-bl-full opacity-50 transition-all group-hover:bg-teal-100"></div>
+
+                          <div className="relative z-10 bg-teal-50 w-fit p-2 rounded-lg group-hover:bg-teal-600 group-hover:text-white transition-colors mb-2">
+                            <FolderUp size={24} className="text-teal-600 group-hover:text-white" />
+                          </div>
+                          
+                          <div className="relative z-10">
+                            <h3 className="text-slate-700 font-bold text-lg leading-tight group-hover:text-teal-700">Subir<br/>Archivo</h3>
+                            <p className="text-slate-400 text-[10px] mt-1 group-hover:text-teal-600">Digitalización</p>
+                          </div>
                         </button>
                      </div>
 
