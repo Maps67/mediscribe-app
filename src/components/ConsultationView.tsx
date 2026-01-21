@@ -7,7 +7,7 @@ import {
   ChevronDown, ChevronUp, Sparkles, PenLine, UserPlus, 
   ShieldCheck, AlertCircle, RefreshCw, Pill, Plus, Building2,
   Activity, ClipboardList, Scissors, Microscope, Eye, Lock,
-  Mic, Square 
+  Mic, Square, Trash2 
 } from 'lucide-react';
 
 import { useSpeechRecognition } from '../hooks/useSpeechRecognition'; 
@@ -201,6 +201,9 @@ const ConsultationView: React.FC = () => {
   
   const [generatedNote, setGeneratedNote] = useState<EnhancedGeminiResponse | null>(null);
   
+  // --- NUEVO ESTADO: ID DE CONSULTA (Para Update/Delete) ---
+  const [consultationId, setConsultationId] = useState<string | null>(null);
+
   // --- NUEVO ESTADO: SNAPSHOT DE SESIÓN (Inmutabilidad) ---
   const [sessionSnapshot, setSessionSnapshot] = useState<SessionSnapshot | null>(null);
 
@@ -618,6 +621,7 @@ const ConsultationView: React.FC = () => {
     if (selectedPatient) {
         setPatientInsights(null);
         setSpecialFolio(''); 
+        setConsultationId(null); // Reset CRUD ID
         
         const isTemp = (selectedPatient as any).isTemporary;
 
@@ -841,8 +845,50 @@ const ConsultationView: React.FC = () => {
           setEditableInstructions('');
           setEditablePrescriptions([]);
           setSpecialFolio('');
+          setConsultationId(null);
           setIsRiskExpanded(false); 
           toast.info("Sesión reiniciada. Puede generar una nueva valoración.");
+      }
+  };
+
+  // ✅ CRUD: FUNCIÓN PARA ELIMINAR NOTA (ACTIVA O PERSISTENTE)
+  const handleDeleteConsultation = async () => {
+      if (!confirm("⚠️ ¿DESEA DESCARTAR ESTA NOTA?\n\nEsta acción es irreversible y eliminará el registro de la sesión actual.")) return;
+      
+      const toastId = toast.loading("Eliminando registro...");
+      
+      try {
+          // 1. Si ya se guardó en DB, la borramos físicamente
+          if (consultationId) {
+              const { error } = await supabase
+                  .from('consultations')
+                  .delete()
+                  .eq('id', consultationId);
+                  
+              if (error) throw error;
+              toast.success("Nota eliminada de la base de datos", { id: toastId });
+          } else {
+              toast.success("Borrador descartado", { id: toastId });
+          }
+          
+          // 2. Limpieza total de estado (Reset)
+          clearData(); 
+          resetTranscript(); 
+          setSegments([]);
+          if (currentUserId) localStorage.removeItem(`draft_${currentUserId}`); 
+          setGeneratedNote(null); 
+          setSessionSnapshot(null); 
+          setEditableInstructions('');
+          setEditablePrescriptions([]);
+          setInsuranceData(null);
+          setConsultationId(null); // Reset ID
+          setIsRiskExpanded(false);
+          setSpecialFolio('');
+          startTimeRef.current = Date.now(); 
+
+      } catch (error: any) {
+          console.error("Error eliminando consulta:", error);
+          toast.error("Error al eliminar: " + error.message, { id: toastId });
       }
   };
 
@@ -950,7 +996,7 @@ const ConsultationView: React.FC = () => {
           `;
           
           if (activeMedicalContext.lastConsultation) {
-              activeContextString += `
+            activeContextString += `
               - RESUMEN ÚLTIMA CONSULTA (${new Date(activeMedicalContext.lastConsultation.date).toLocaleDateString()}) ===
               ${activeMedicalContext.lastConsultation.summary}
               `;
@@ -1330,11 +1376,32 @@ const ConsultationView: React.FC = () => {
             real_duration_seconds: durationSeconds 
         };
 
-        const { error } = await supabase.from('consultations').insert(payload);
+        // ✅ LOGICA CRUD: UPSERT (Update o Insert)
+        let data, error;
+        
+        if (consultationId) {
+            // UPDATE: Si ya existe un ID, actualizamos
+            ({ data, error } = await supabase
+                .from('consultations')
+                .update(payload)
+                .eq('id', consultationId)
+                .select()
+                .single());
+                
+            if (!error) toast.success("Nota actualizada correctamente");
+        } else {
+            // INSERT: Si no existe, creamos uno nuevo
+            ({ data, error } = await supabase
+                .from('consultations')
+                .insert(payload)
+                .select()
+                .single());
+                
+            if (data) setConsultationId(data.id);
+            if (!error) toast.success("Nota validada y guardada");
+        }
         
         if (error) throw error;
-        
-        toast.success("Nota validada y guardada");
         
         // ✅ INYECCIÓN 5: Limpieza de seguridad
         clearData(); 
@@ -1357,6 +1424,7 @@ const ConsultationView: React.FC = () => {
         setManualContext(""); 
         
         setSpecialFolio('');
+        setConsultationId(null); // Limpiamos ID después de finalizar el flujo completo
         
         startTimeRef.current = Date.now(); 
 
@@ -1709,14 +1777,26 @@ const ConsultationView: React.FC = () => {
                                             
                                             <div className="flex flex-col items-end gap-3">
                                             
-                                            <button 
-                                                onClick={handleSaveConsultation} 
-                                                disabled={isSaving} 
-                                                className="bg-brand-teal text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-teal-600 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                                            >
-                                                {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>} 
-                                                Validar y Guardar
-                                            </button>
+                                            <div className="flex gap-2">
+                                                {/* 🗑️ BOTÓN DE BORRADO (CRUD) */}
+                                                <button 
+                                                    onClick={handleDeleteConsultation}
+                                                    className="bg-red-50 text-red-600 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-red-100 transition-all border border-red-100"
+                                                    title="Descartar nota actual"
+                                                >
+                                                    <Trash2 size={16}/> 
+                                                    <span className="hidden sm:inline">Descartar</span>
+                                                </button>
+
+                                                <button 
+                                                    onClick={handleSaveConsultation} 
+                                                    disabled={isSaving} 
+                                                    className="bg-brand-teal text-white px-6 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-teal-600 shadow-md transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                                                >
+                                                    {isSaving ? <RefreshCw className="animate-spin" size={16}/> : <Save size={16}/>} 
+                                                    Validar y Guardar
+                                                </button>
+                                            </div>
 
                                             <div className="flex items-start justify-end gap-1.5 max-w-xs text-right opacity-60 hover:opacity-100 transition-opacity duration-300 group cursor-help">
                                                 <ShieldCheck className="w-3 h-3 text-slate-400 mt-[2px] flex-shrink-0 group-hover:text-brand-teal" />
@@ -1756,7 +1836,7 @@ const ConsultationView: React.FC = () => {
                                                                         : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 rounded-tl-none'
                                                                 }`}>
                                                                     <span className={`text-[10px] font-bold block mb-1 uppercase opacity-70 ${line.speaker === 'Médico' ? 'text-right' : 'text-left'}`}>
-                                                                                {line.speaker}
+                                                                                    {line.speaker}
                                                                     </span>
                                                                     {line.text}
                                                                 </div>
@@ -1846,7 +1926,10 @@ const ConsultationView: React.FC = () => {
                                     <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-sm h-full flex flex-col border dark:border-slate-800 overflow-hidden">
                                             <div className="bg-yellow-50 text-yellow-800 p-2 text-sm rounded mb-2 dark:bg-yellow-900/30 dark:text-yellow-200">Formato antiguo.</div>
                                             <div className="flex-1 overflow-y-auto pr-4 custom-scrollbar"><FormattedText content={generatedNote.clinicalNote}/></div>
-                                            <div className="border-t dark:border-slate-800 pt-4 flex justify-end"><button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-xl font-bold flex gap-2 hover:bg-teal-600 shadow-lg disabled:opacity-70">{isSaving?<RefreshCw className="animate-spin"/>:<Save/>} Guardar</button></div>
+                                            <div className="border-t dark:border-slate-800 pt-4 flex justify-end gap-2">
+                                                <button onClick={handleDeleteConsultation} className="bg-red-50 text-red-600 px-4 py-3 rounded-xl font-bold hover:bg-red-100"><Trash2 size={16}/></button>
+                                                <button onClick={handleSaveConsultation} disabled={isSaving} className="bg-brand-teal text-white px-6 py-3 rounded-xl font-bold flex gap-2 hover:bg-teal-600 shadow-lg disabled:opacity-70">{isSaving?<RefreshCw className="animate-spin"/>:<Save/>} Guardar</button>
+                                            </div>
                                     </div>
                                 )}
 
