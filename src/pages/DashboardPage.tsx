@@ -7,7 +7,7 @@ import {
   UserPlus, Activity, ChevronRight,
   CalendarX, FileSignature, Printer, FileCheck,
   HelpCircle, Zap, FolderUp, BrainCircuit, Clock, RefreshCcw,
-  Scissors, Volume2 // ✨ Icono de Audio
+  Scissors, Volume2 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
@@ -100,30 +100,37 @@ const WeatherWidget = ({ weather, isDesktop = false }: { weather: WeatherState, 
     );
 };
 
-// ✅ WIDGET DE EFICIENCIA
+// ✅ WIDGET DE EFICIENCIA (MODIFICADO: FONDO AZUL MÓVIL)
 const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingApts: number }) => {
     const completed = totalApts - pendingApts;
     const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
     
     return (
-        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden h-full flex flex-col justify-between">
+        <div className="bg-[#E3F2FD] md:bg-white dark:bg-slate-900 rounded-xl p-4 border border-blue-100 md:border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden h-full flex flex-col justify-between transition-colors">
+             {/* VISTA MÓVIL (Estilos ajustados para fondo Azul Claro) */}
              <div className="flex md:hidden flex-col justify-center h-full gap-1 shrink">
                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-bold text-slate-500 uppercase leading-none tracking-wide">Eficiencia</p>
+                    {/* Texto ajustado a Azul Oscuro para contraste */}
+                    <p className="text-[10px] font-bold text-blue-900/60 uppercase leading-none tracking-wide">Eficiencia</p>
                     <Activity size={14} className="text-blue-600"/>
                  </div>
+                 
                  <div className="flex items-end gap-1 mt-1">
-                    <p className="text-4xl font-bold text-slate-900 dark:text-white leading-none tracking-tight">{progress}%</p>
+                    <p className="text-4xl font-bold text-blue-900 dark:text-white leading-none tracking-tight">{progress}%</p>
                  </div>
-                 <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2">
+                 
+                 {/* Fondo de barra en blanco para resaltar sobre el azul */}
+                 <div className="w-full bg-white rounded-full h-1.5 mt-2">
                     <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
                  </div>
+
                  <div className="flex justify-between mt-1.5">
-                    <span className="text-[9px] font-semibold text-slate-600">{completed} OK</span>
-                    <span className="text-[9px] font-semibold text-slate-400">{pendingApts} Pend</span>
+                    <span className="text-[9px] font-semibold text-blue-800">{completed} OK</span>
+                    <span className="text-[9px] font-semibold text-blue-600/70">{pendingApts} Pend</span>
                  </div>
              </div>
-             {/* VISTA DESKTOP */}
+
+             {/* VISTA DESKTOP (Mantiene estilos originales Slate/White) */}
              <div className="hidden md:flex flex-col justify-between h-full relative z-10 text-center">
                  <div className="flex justify-between items-start">
                     <div className="text-left">
@@ -136,6 +143,7 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
                         <Activity size={20} />
                     </div>
                  </div>
+                 
                  <div className="space-y-3 mt-4">
                     <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                         <div className="bg-gradient-to-r from-blue-600 to-teal-500 h-full rounded-full transition-all duration-1000" style={{ width: `${progress}%` }}></div>
@@ -150,7 +158,7 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
     );
 };
 
-// --- ASISTENTE MODAL (REPARADO: TTS ACTIVADO) ---
+// --- ASISTENTE MODAL (TTS ACTIVADO) ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void; initialQuery?: string | null }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'answering'>('idle');
