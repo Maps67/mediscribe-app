@@ -14,6 +14,8 @@ interface SmartBriefingProps {
   weather: { temp: string; code: number };
   systemStatus: boolean;
   onOpenAssistant: () => void;
+  // ✅ NUEVA PROP: Función para abrir la Nota Rápida desde el Header
+  onOpenQuickNote: () => void;
   isLoading?: boolean; 
   specialty?: string; 
   insights: {
@@ -36,6 +38,7 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
   weather, 
   systemStatus, 
   onOpenAssistant, 
+  onOpenQuickNote, // ✅ Recibimos la función
   isLoading = false,
   specialty = "Medicina General",
   insights 
@@ -171,16 +174,13 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
           </div>
         </div>
 
-        {/* COLUMNA CENTRAL: Reto Diario IA (REDISEÑO RESPONSIVO GRID STACK) */}
-        {/* ✅ FIX UX: Grid unicelular permite que la tarjeta crezca según el contenido más alto sin romperse */}
+        {/* COLUMNA CENTRAL: Reto Diario IA (GRID STACK) */}
         <div className="w-full xl:max-w-2xl perspective-[1000px] group/card">
-          
           <div 
             className="relative w-full grid grid-cols-1 grid-rows-1 cursor-pointer"
             onClick={() => !loadingChallenge && setIsFlipped(!isFlipped)}
           >
-             
-             {/* --- CARA FRONTAL (PREGUNTA) --- */}
+             {/* CARA FRONTAL */}
              <div 
                 className={`
                     col-start-1 row-start-1 min-h-[220px] 
@@ -206,7 +206,6 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
                                 <BrainCircuit size={20} className="text-indigo-100"/>
                              </div>
                         </div>
-
                         <div className="flex-1 flex flex-col justify-center py-4">
                             <h3 className="font-bold text-lg md:text-xl leading-snug text-white drop-shadow-sm">
                                 {challenge.question}
@@ -215,7 +214,6 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
                                 {challenge.category}
                             </p>
                         </div>
-
                         <div className="flex items-center justify-between pt-4 border-t border-white/10">
                             <span className="text-[10px] font-bold opacity-60 uppercase tracking-widest">
                                 VitalScribe AI
@@ -228,7 +226,7 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
                 )}
              </div>
 
-             {/* --- CARA TRASERA (RESPUESTA) --- */}
+             {/* CARA TRASERA */}
              <div 
                 className={`
                     col-start-1 row-start-1 min-h-[220px]
@@ -240,12 +238,10 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
                  <div className="absolute top-0 right-0 p-4 opacity-10 pointer-events-none">
                      <Zap size={100} className="text-white"/>
                  </div>
-                 
                  <div className="relative z-10 flex-1 flex flex-col justify-center items-center text-center py-2">
                      <div className="bg-green-500/20 p-3 rounded-full mb-3 ring-1 ring-green-400/50">
                          <CheckCircle2 size={32} className="text-green-300"/>
                      </div>
-                     {/* ✅ FIX UX: Texto adaptable que empuja el contenedor si es largo */}
                      <h3 className="font-black text-xl md:text-2xl text-white leading-tight mb-2 break-words w-full">
                          {challenge.answer}
                      </h3>
@@ -253,7 +249,6 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
                          Respuesta Correcta
                      </p>
                  </div>
-
                  <div className="relative z-10 pt-4 border-t border-white/10 text-center mt-auto">
                      <p className="text-[9px] text-indigo-300/60 mb-2">
                         * Evidencia generada por IA. Verifica clínicamente.
@@ -263,11 +258,10 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
                      </p>
                  </div>
              </div>
-
           </div>
         </div>
         
-        {/* COLUMNA DERECHA: Clima y Asistente */}
+        {/* COLUMNA DERECHA: Clima y HERRAMIENTAS (Asistente + Nota Rápida) */}
         <div className="flex flex-row xl:flex-col gap-6 shrink-0 items-center xl:items-end w-full xl:w-auto justify-between xl:justify-end">
           <div className="text-left xl:text-right order-2 xl:order-1">
              <p className="text-4xl md:text-5xl font-black leading-none tracking-tighter">{weather.temp}°</p>
@@ -277,20 +271,43 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
 
           <div className="h-px xl:h-12 w-12 xl:w-px bg-white/20 hidden md:block order-2"></div>
 
-          <button 
-            onClick={onOpenAssistant}
-            className="group/btn relative flex items-center gap-3 bg-white text-indigo-600 pl-4 pr-5 py-4 rounded-[1.5rem] shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300 order-1 xl:order-3"
-          >
-             <div className="relative">
-               <div className="absolute inset-0 bg-indigo-400 rounded-full blur animate-pulse opacity-40"></div>
-               <Bot size={28} className="relative z-10 text-indigo-600"/>
-             </div>
-             <div className="text-left">
-               <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider leading-none mb-1">Asistente</p>
-               <p className="text-base font-black text-indigo-900 leading-none">Activar IA</p>
-             </div>
-             <ChevronRight size={18} className="text-indigo-300 group-hover/btn:translate-x-1 transition-transform ml-1"/>
-          </button>
+          {/* ✅ NUEVO GRUPO DE BOTONES DE ACCIÓN */}
+          <div className="flex flex-col md:flex-row gap-3 order-1 xl:order-3 w-full md:w-auto">
+              {/* Botón Asistente */}
+              <button 
+                onClick={onOpenAssistant}
+                className="group/btn relative flex-1 md:flex-none flex items-center justify-center md:justify-start gap-3 bg-white text-indigo-600 pl-4 pr-5 py-4 rounded-[1.5rem] shadow-xl hover:shadow-2xl hover:scale-105 active:scale-95 transition-all duration-300"
+              >
+                <div className="relative">
+                  <div className="absolute inset-0 bg-indigo-400 rounded-full blur animate-pulse opacity-40"></div>
+                  <Bot size={28} className="relative z-10 text-indigo-600"/>
+                </div>
+                <div className="text-left">
+                  <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider leading-none mb-1">Asistente</p>
+                  <p className="text-base font-black text-indigo-900 leading-none">Activar IA</p>
+                </div>
+                <ChevronRight size={18} className="text-indigo-300 group-hover/btn:translate-x-1 transition-transform ml-1"/>
+              </button>
+
+              {/* ✅ NUEVO BOTÓN: NOTA RÁPIDA (Con Semántica Visual) */}
+              <button 
+                onClick={onOpenQuickNote}
+                className="group/flash relative flex items-center justify-center md:justify-start gap-3 p-4 bg-white/20 text-white border border-white/20 rounded-[1.5rem] shadow-lg hover:bg-white/30 hover:scale-105 active:scale-95 transition-all duration-300 backdrop-blur-md flex-1 md:flex-none"
+                title="Nota Rápida de Pasillo"
+              >
+                 {/* Icono con efecto glow */}
+                 <div className="relative">
+                    <div className="absolute inset-0 bg-yellow-400 rounded-full blur-md opacity-0 group-hover/flash:opacity-40 transition-opacity"></div>
+                    <Zap size={24} className="text-yellow-300 drop-shadow-sm relative z-10"/>
+                 </div>
+                 
+                 {/* Texto Semántico - Visible siempre para máxima claridad */}
+                 <div className="text-left">
+                    <p className="text-[9px] font-bold text-yellow-100/80 uppercase tracking-wider leading-none mb-0.5">Herramienta</p>
+                    <p className="text-sm font-black text-white leading-none">Nota Flash</p>
+                 </div>
+              </button>
+          </div>
         </div>
 
       </div>
