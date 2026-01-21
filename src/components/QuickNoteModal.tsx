@@ -38,20 +38,20 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
     }
   }, [transcript, generatedNote]);
 
-  // --- LÓGICA DE BOTÓN FÍSICO (WALKIE-TALKIE) ---
-  const handleMicStart = (e: React.PointerEvent) => {
+  // --- LÓGICA DE BOTÓN TIPO INTERRUPTOR (TOGGLE) ---
+  // ✅ CORRECCIÓN UX: Cambiado de 'Push-to-Talk' a 'Tap-to-Record' para evitar bloqueo en móviles
+  const handleMicToggle = (e: React.MouseEvent) => {
     e.preventDefault(); 
     e.stopPropagation();
-    if (!isListening) {
+    
+    if (isListening) {
+        // Si está escuchando, DETENER
+        stopListening();
+    } else {
+        // Si está inactivo, INICIAR
         startListening();
         if (navigator.vibrate) navigator.vibrate(50);
     }
-  };
-
-  const handleMicStop = (e: React.PointerEvent) => {
-    e.preventDefault();
-    e.stopPropagation();
-    if (isListening) stopListening();
   };
 
   const handleGenerateDraft = async () => {
@@ -212,7 +212,7 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
                      className="absolute inset-0 w-full h-full bg-transparent resize-none outline-none text-slate-700 dark:text-slate-300 text-lg md:text-xl leading-relaxed placeholder:text-slate-400 custom-scrollbar p-4 md:p-6"
                      value={transcript}
                      onChange={(e) => setTranscript(e.target.value)}
-                     placeholder="Mantenga presionado el micrófono para dictar..."
+                     placeholder="Toque el micrófono para dictar..."
                    />
                 )}
               </div>
@@ -223,8 +223,8 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
             <div className="absolute inset-0 flex flex-col animate-slide-in-right">
                <div className="flex-1 overflow-hidden relative">
                  <PatientSearch 
-                    onSelect={handleFinalSave}
-                    onCancel={() => setStep('capture')}
+                   onSelect={handleFinalSave}
+                   onCancel={() => setStep('capture')}
                  />
                </div>
             </div>
@@ -245,12 +245,11 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
         {step === 'capture' && (
             <div className="p-4 md:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950 z-10 flex items-center justify-between gap-3">
                 <div className="flex gap-2">
+                   {/* ✅ BOTÓN ACTUALIZADO: Evento onClick simple (Toggle) sin eventos de puntero complejos */}
                    <button
-                     onPointerDown={handleMicStart}
-                     onPointerUp={handleMicStop}
-                     onPointerLeave={handleMicStop}
+                     onClick={handleMicToggle}
                      className={`p-3 md:p-4 rounded-full transition-all shadow-lg flex items-center justify-center select-none active:scale-95 touch-none ${isListening ? 'bg-red-500 text-white hover:bg-red-600 scale-110 ring-4 ring-red-200 dark:ring-red-900' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}
-                     title="Mantenga presionado para grabar"
+                     title={isListening ? "Toque para detener" : "Toque para grabar"}
                      style={{ WebkitTapHighlightColor: 'transparent' }} 
                    >
                      {isListening ? 
