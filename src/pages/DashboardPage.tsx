@@ -8,7 +8,7 @@ import {
   CalendarX, Repeat, Ban, PlayCircle, Sparkles,
   BarChart3, FileSignature, Microscope, StickyNote, FileCheck, Printer,
   Sunrise, Sunset, MoonStar, Send, Trash2, CalendarClock, HelpCircle,
-  Zap, FolderUp // ✅ FolderUp añadido para semántica de "Adjuntar/Subir"
+  Zap, FolderUp 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays, isPast } from 'date-fns';
@@ -22,15 +22,14 @@ import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
-// 🗑️ LIMPIEZA TOTAL: Se eliminaron importaciones de Widgets obsoletos (Notas/Calculadora)
+// ✅ IMPORTACIÓN DEL NUEVO COMPONENTE BENTO (RETO DIARIO)
+import { DailyChallengeCard } from '../components/DailyChallengeCard';
 
 import { QuickDocModal } from '../components/QuickDocModal';
 import { FastAdmitModal } from '../components/FastAdmitModal';
 import { UserGuideModal } from '../components/UserGuideModal';
 import { QuickNoteModal } from '../components/QuickNoteModal'; 
-
 import { ImpactMetrics } from '../components/ImpactMetrics';
-import SmartBriefingWidget from '../components/SmartBriefingWidget'; 
 
 // --- UTILS ---
 const cleanMarkdown = (text: string): string => {
@@ -43,7 +42,6 @@ const cleanMarkdown = (text: string): string => {
         .trim();
 };
 
-// --- INTERFACES ---
 interface DashboardAppointment {
   id: string; title: string; start_time: string; status: string;
   patient?: { id: string; name: string; history?: string; };
@@ -54,7 +52,7 @@ interface PendingItem {
    id: string; type: 'note' | 'lab' | 'appt'; title: string; subtitle: string; date: string;
 }
 
-// --- COMPONENTES AUXILIARES ---
+// --- SUB-COMPONENTE: RELOJ ATÓMICO (Bento Style) ---
 const AtomicClock = ({ location }: { location: string }) => {
     const [date, setDate] = useState(new Date());
 
@@ -64,32 +62,31 @@ const AtomicClock = ({ location }: { location: string }) => {
     }, []);
 
     return (
-        <div>
-            <div className="flex items-baseline gap-1">
-                <p className="text-4xl font-black text-slate-800 dark:text-white tracking-tighter tabular-nums leading-none">
+        <div className="flex flex-col h-full justify-center">
+            <div className="flex items-baseline gap-1 text-slate-800 dark:text-white">
+                <p className="text-3xl xl:text-4xl font-black tracking-tighter tabular-nums leading-none">
                     {format(date, 'h:mm')}
                 </p>
                 <div className="flex flex-col">
-                    <span className="text-sm font-bold text-slate-400 dark:text-slate-500 tabular-nums leading-none">
+                    <span className="text-xs font-bold text-slate-400 tabular-nums leading-none">
                         :{format(date, 'ss')}
                     </span>
-                    <span className="text-[10px] font-bold text-slate-300 dark:text-slate-600 uppercase leading-none mt-0.5">
+                    <span className="text-[10px] font-bold text-slate-300 uppercase leading-none mt-0.5">
                         {format(date, 'a')}
                     </span>
                 </div>
             </div>
-            <div className="flex flex-col mt-2">
-                <p className="text-xs font-bold text-indigo-600 dark:text-indigo-400 uppercase tracking-widest">
-                    {format(date, "EEEE, d 'de' MMMM", { locale: es })}
-                </p>
-                <p className="text-[10px] font-semibold text-slate-400 flex items-center gap-1 mt-0.5">
-                    <MapPin size={10} /> {location}
-                </p>
-            </div>
+            <p className="text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-1 truncate">
+                {format(date, "EEEE, d 'de' MMMM", { locale: es })}
+            </p>
+            <p className="text-[9px] font-semibold text-slate-400 flex items-center gap-1 mt-0.5 truncate">
+                 {location}
+            </p>
         </div>
     );
 };
 
+// --- ASISTENTE MODAL ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void; initialQuery?: string | null }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   
@@ -262,23 +259,66 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   );
 };
 
-const StatusWidget = ({ weather, totalApts, pendingApts, location }: any) => {
+// --- WIDGET DE CLIMA (Bento Style) ---
+const WeatherWidget = ({ weather }: any) => {
+    return (
+        <div className="flex flex-col justify-center items-end h-full">
+            <div className="flex items-start gap-1">
+                <span className="text-3xl xl:text-4xl font-black text-slate-800 dark:text-white tracking-tighter leading-none">{weather.temp}°</span>
+                <div className="mt-1">
+                    {weather.code < 3 ? <Sun size={14} className="text-amber-500"/> : <Cloud size={14} className="text-slate-400"/>}
+                </div>
+            </div>
+            <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wider mt-1">Clima Actual</p>
+        </div>
+    );
+};
+
+// ✅ WIDGET REDISEÑADO: SIN RELOJ, ENFOQUE 100% EN PRODUCTIVIDAD
+const StatusWidget = ({ totalApts, pendingApts }: any) => {
+    // Calculamos porcentaje y completados
     const completed = totalApts - pendingApts;
-    const progress = totalApts > 0 ? (completed / totalApts) * 100 : 0;
+    const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
     
     return (
-        <div className="bg-white/60 dark:bg-slate-900/60 backdrop-blur-xl rounded-[2rem] p-6 border border-white/50 dark:border-slate-700 shadow-xl h-full flex flex-col justify-between relative overflow-hidden">
-             <div className="absolute inset-0 bg-gradient-to-br from-white via-transparent to-blue-50/50 opacity-50"></div>
-             <div className="flex justify-between items-start z-10 relative">
-                 <AtomicClock location={location} />
-                 <div className="text-right bg-white/50 dark:bg-slate-800/50 p-2 rounded-2xl backdrop-blur-sm border border-white/50 dark:border-slate-600">
-                    <span className="text-2xl font-bold text-slate-700 dark:text-slate-200">{weather.temp}°</span>
-                 </div>
+        <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm h-full flex flex-col justify-center relative overflow-hidden group">
+             {/* Fondo Decorativo Sutil */}
+             <div className="absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity rotate-12">
+                <Activity size={120} className="text-indigo-600 dark:text-indigo-400"/>
              </div>
-             <div className="mt-4 z-10 relative">
-                 <div className="flex justify-between text-xs font-bold mb-2"><span className="text-slate-500">Progreso Diario</span><span className="text-indigo-600">{completed}/{totalApts} Pacientes</span></div>
+
+             <div className="relative z-10 text-center">
+                 <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-3">
+                    Eficiencia Diaria
+                 </p>
+                 
+                 {/* Gran Indicador Central */}
+                 <div className="flex items-baseline justify-center gap-1 mb-5">
+                    {/* Responsividad en texto: text-5xl en móvil, text-6xl en desktop */}
+                    <span className="text-5xl xl:text-6xl font-black text-slate-800 dark:text-white tracking-tighter leading-none">
+                        {progress}<span className="text-3xl xl:text-4xl">%</span>
+                    </span>
+                 </div>
+
+                 {/* Estadísticas Desglosadas */}
+                 <div className="flex justify-center gap-8 mb-5">
+                    <div className="text-center">
+                        <p className="text-xl font-black text-emerald-500 leading-none">{completed}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Listos</p>
+                    </div>
+                    <div className="w-px bg-slate-100 dark:bg-slate-800 h-8"></div>
+                    <div className="text-center">
+                        <p className="text-xl font-black text-indigo-500 leading-none">{pendingApts}</p>
+                        <p className="text-[9px] font-bold text-slate-400 uppercase mt-1">Cola</p>
+                    </div>
+                 </div>
+
+                 {/* Barra de Progreso Refinada */}
                  <div className="h-3 w-full bg-slate-100 dark:bg-slate-800 rounded-full overflow-hidden border border-slate-200 dark:border-slate-700">
-                    <div className="h-full bg-gradient-to-r from-indigo-400 to-purple-500 transition-all duration-1000 shadow-[0_0_10px_rgba(99,102,241,0.5)]" style={{width: `${progress}%`}}></div>
+                    <div 
+                        className="h-full bg-gradient-to-r from-indigo-500 to-purple-600 transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(99,102,241,0.3)]" 
+                        style={{width: `${progress}%`}}
+                    ></div>
                  </div>
              </div>
         </div>
@@ -315,17 +355,7 @@ const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certific
     </div>
 );
 
-const ActionRadar = ({ 
-    items, 
-    onItemClick,
-    onReschedule,
-    onCancel
-}: { 
-    items: PendingItem[], 
-    onItemClick: (item: PendingItem) => void,
-    onReschedule: (e: React.MouseEvent, item: PendingItem) => void,
-    onCancel: (e: React.MouseEvent, item: PendingItem) => void
-}) => {
+const ActionRadar = ({ items, onItemClick, onReschedule, onCancel }: any) => {
     if (items.length === 0) return (
         <div className="bg-gradient-to-br from-white to-amber-50/50 dark:from-slate-900 dark:to-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm flex flex-col items-center justify-center text-center h-48">
             <CheckCircle2 size={40} className="text-green-500 mb-2 opacity-50"/>
@@ -340,14 +370,13 @@ const ActionRadar = ({
                 Radar de Pendientes
             </h3>
             <div className="space-y-3 max-h-60 overflow-y-auto custom-scrollbar">
-                {items.map(item => (
+                {items.map((item: any) => (
                     <div key={item.id} onClick={() => onItemClick(item)} className="flex items-center gap-3 p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-amber-50 dark:hover:bg-slate-700 hover:shadow-md transition-all group">
                         <div className={`w-2 h-2 rounded-full ${item.type === 'note' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
                         <div className="flex-1">
                             <p className="text-sm font-bold text-slate-700 dark:text-slate-200">{item.title}</p>
                             <p className="text-xs text-slate-400">{item.subtitle}</p>
                         </div>
-                        
                         {item.type === 'appt' ? (
                             <div className="flex items-center gap-1">
                                 <button onClick={(e) => onReschedule(e, item)} className="p-2 text-indigo-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-full transition-all" title="Reprogramar"><CalendarClock size={16}/></button>
@@ -381,8 +410,6 @@ const Dashboard: React.FC = () => {
 
   const [isDocModalOpen, setIsDocModalOpen] = useState(false);
   const [docType, setDocType] = useState<'justificante' | 'certificado' | 'receta'>('justificante');
-  
-  // 🗑️ LIMPIEZA: toolsTab ha sido eliminado correctamente
   
   const [isFastAdmitOpen, setIsFastAdmitOpen] = useState(false); 
   const [isGuideOpen, setIsGuideOpen] = useState(false);
@@ -549,8 +576,9 @@ const Dashboard: React.FC = () => {
   }, []);
 
   return (
-    <div className="min-h-screen bg-[#F8FAFC] dark:bg-slate-950 font-sans w-full pb-32 md:pb-8 relative overflow-hidden">
+    <div className="min-h-screen bg-slate-50 dark:bg-slate-950 font-sans w-full pb-32 md:pb-8 relative overflow-hidden">
       
+      {/* HEADER MÓVIL SIMPLIFICADO */}
       <div className="md:hidden px-5 py-4 flex justify-between items-center bg-white sticky top-0 z-30 shadow-sm">
         <span className="font-bold text-lg text-indigo-700">VitalScribe</span>
         <div className="h-8 w-8 bg-indigo-100 text-indigo-600 rounded-full flex items-center justify-center font-bold text-xs">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
@@ -558,26 +586,75 @@ const Dashboard: React.FC = () => {
 
       <div className="px-4 md:px-8 pt-4 md:pt-8 max-w-[1600px] mx-auto w-full">
          
-         <SmartBriefingWidget 
-           greeting={dynamicGreeting.greeting} 
-           weather={weather} 
-           systemStatus={systemStatus}
-           specialty={doctorProfile?.specialty} 
-           onOpenAssistant={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }}
-           onOpenQuickNote={() => setIsQuickNoteOpen(true)} 
-           isLoading={isLoading} 
-           insights={{
-              nextTime: nextPatient ? format(parseISO(nextPatient.start_time), 'h:mm a') : null,
-              pending: pendingItems.length,
-              total: totalDailyLoad, 
-              done: completedTodayCount 
-           }}
-         />
+         {/* 🔥 ZONA HERO BENTO GRID (RESPONSIVE) */}
+         <div className="grid grid-cols-1 lg:grid-cols-4 gap-6 mb-8">
+             
+             {/* 1. MÓDULO CONTEXTO */}
+             <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 shadow-sm border border-slate-100 dark:border-slate-800 flex flex-col justify-between min-h-[180px] lg:col-span-1">
+                 <div className="flex justify-between items-start">
+                    <div>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">{dynamicGreeting.greeting}</p>
+                        <h1 className="text-xl font-black text-slate-800 dark:text-white leading-tight">
+                            {formattedDocName}
+                        </h1>
+                        <div className="flex items-center gap-2 mt-2">
+                            <span className="relative flex h-2 w-2">
+                              <span className={`animate-ping absolute inline-flex h-full w-full rounded-full opacity-75 ${systemStatus ? 'bg-emerald-400' : 'bg-red-400'}`}></span>
+                              <span className={`relative inline-flex rounded-full h-2 w-2 ${systemStatus ? 'bg-emerald-500' : 'bg-red-500'}`}></span>
+                            </span>
+                            <span className="text-[10px] font-bold text-slate-400 uppercase tracking-wider">{systemStatus ? 'Sistema Activo' : 'Offline'}</span>
+                        </div>
+                    </div>
+                    <WeatherWidget weather={weather} />
+                 </div>
+                 
+                 <div className="pt-4 border-t border-slate-100 dark:border-slate-800 mt-auto">
+                     <AtomicClock location={locationName} />
+                 </div>
+             </div>
 
-         <div className="mb-8 relative z-20 animate-fade-in-up" style={{ animationDelay: '100ms' }}>
+             {/* 2. MÓDULO INTELIGENCIA (RETO DIARIO) */}
+             <div className="lg:col-span-2 min-h-[180px]">
+                 <DailyChallengeCard specialty={doctorProfile?.specialty} />
+             </div>
+
+             {/* 3. MÓDULO COMANDO (BOTONES DE ACCIÓN) */}
+             <div className="flex flex-col gap-3 min-h-[180px] lg:col-span-1">
+                 <button 
+                    onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }}
+                    className="flex-1 group relative flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[1.5rem] shadow-sm hover:shadow-md transition-all text-left"
+                 >
+                    <div className="bg-indigo-50 dark:bg-indigo-900/30 p-3 rounded-2xl group-hover:bg-indigo-600 transition-colors">
+                        <Bot size={24} className="text-indigo-600 dark:text-indigo-400 group-hover:text-white transition-colors"/>
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-indigo-400 uppercase tracking-wider">Copiloto IA</p>
+                        <p className="text-sm font-black text-slate-800 dark:text-white">Asistente</p>
+                    </div>
+                    <ChevronRight className="ml-auto text-slate-300 group-hover:translate-x-1 transition-transform" size={16}/>
+                 </button>
+
+                 <button 
+                    onClick={() => setIsQuickNoteOpen(true)}
+                    className="flex-1 group relative flex items-center gap-4 p-4 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[1.5rem] shadow-sm hover:shadow-md transition-all text-left"
+                 >
+                    <div className="bg-amber-50 dark:bg-amber-900/30 p-3 rounded-2xl group-hover:bg-amber-500 transition-colors">
+                        <Zap size={24} className="text-amber-500 dark:text-amber-400 group-hover:text-white transition-colors"/>
+                    </div>
+                    <div>
+                        <p className="text-[10px] font-bold text-amber-500/80 uppercase tracking-wider">Herramienta</p>
+                        <p className="text-sm font-black text-slate-800 dark:text-white">Nota Flash</p>
+                    </div>
+                    <ChevronRight className="ml-auto text-slate-300 group-hover:translate-x-1 transition-transform" size={16}/>
+                 </button>
+             </div>
+         </div>
+
+         {/* BARRA DE BÚSQUEDA */}
+         <div className="mb-8 relative z-20">
             <form onSubmit={handleSearchSubmit}>
-                <div className="bg-white dark:bg-slate-900 rounded-2xl p-2 shadow-lg shadow-indigo-100/50 dark:shadow-none border border-indigo-50 dark:border-slate-800 flex items-center gap-2 group focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
-                    <div className="p-3 bg-gradient-to-br from-indigo-600 to-purple-600 rounded-xl text-white shadow-md">
+                <div className="bg-white dark:bg-slate-900 rounded-2xl p-2 shadow-sm border border-slate-200 dark:border-slate-800 flex items-center gap-2 group focus-within:ring-2 focus-within:ring-indigo-500/20 transition-all">
+                    <div className="p-3 bg-indigo-50 dark:bg-indigo-900/30 rounded-xl text-indigo-600">
                         <Sparkles size={20} />
                     </div>
                     <input 
@@ -587,18 +664,19 @@ const Dashboard: React.FC = () => {
                         placeholder="Pregunta clínica, dosis, interacción o búsqueda rápida..." 
                         className="flex-1 bg-transparent border-none outline-none text-slate-700 dark:text-white font-medium placeholder:text-slate-400 text-sm md:text-base h-10 px-2"
                     />
-                    
                     <button type="button" onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="p-2 text-slate-400 hover:text-indigo-600 transition-colors md:hidden"><Mic size={20} /></button>
                     <button type="submit" className="hidden md:flex items-center gap-2 px-6 py-2.5 bg-slate-900 dark:bg-slate-800 text-white rounded-xl font-bold text-xs hover:bg-black transition-colors">CONSULTAR IA <ArrowRight size={14} /></button>
                 </div>
             </form>
          </div>
 
+         {/* GRID PRINCIPAL */}
          <div className="grid grid-cols-1 xl:grid-cols-12 gap-8 items-start">
              
              <div className="xl:col-span-8 flex flex-col gap-8">
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-6 h-auto md:h-64">
-                     <div className="bg-gradient-to-br from-white to-emerald-50/50 dark:from-slate-900 dark:to-slate-900 rounded-[2rem] p-1 shadow-xl shadow-slate-200/50 dark:shadow-none border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
+                     {/* Widget Próximo Paciente */}
+                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-1 shadow-sm border border-slate-100 dark:border-slate-800 relative overflow-hidden group">
                         <div className={`absolute top-0 left-0 w-2 h-full ${nextPatient ? 'bg-emerald-500' : 'bg-slate-300'}`}></div>
                         <div className="p-8 flex flex-col justify-between h-full relative z-10">
                              <div className="flex justify-between items-start mb-4">
@@ -612,11 +690,12 @@ const Dashboard: React.FC = () => {
                              {nextPatient && <button onClick={() => handleStartConsultation(nextPatient)} className="mt-6 w-full py-3 bg-slate-900 hover:bg-black text-white rounded-xl font-bold text-sm flex items-center justify-center gap-2 transition-all"><PlayCircle size={18}/> INICIAR CONSULTA</button>}
                         </div>
                      </div>
-                     <StatusWidget weather={weather} totalApts={totalDailyLoad} pendingApts={appointmentsToday} location={locationName} />
+                     {/* ✅ STATUS WIDGET */}
+                     <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
                  </div>
 
                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                     <div className="bg-gradient-to-br from-white to-indigo-50/50 dark:from-slate-900 dark:to-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm min-h-[300px]">
+                     <div className="bg-white dark:bg-slate-900 rounded-[2rem] p-6 border border-slate-100 dark:border-slate-800 shadow-sm min-h-[300px]">
                         <div className="flex justify-between items-center mb-6">
                             <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2"><Calendar size={20} className="text-indigo-600"/> Agenda</h3>
                             <button onClick={() => navigate('/calendar')} className="text-xs font-bold text-indigo-600 bg-indigo-50 px-3 py-1.5 rounded-full">Ver Todo</button>
@@ -661,14 +740,8 @@ const Dashboard: React.FC = () => {
                    }}
                  />
                  
-                 {/* 🔥 ZONA DE ACCIÓN REESTRUCTURADA (Grid Adaptativo) */}
                  <div className="flex-1 grid grid-cols-2 xl:flex xl:flex-col gap-4">
-                     
-                     {/* TARJETA 1: NUEVO PACIENTE */}
-                     <button 
-                        onClick={() => setIsFastAdmitOpen(true)} 
-                        className="group relative p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 text-left flex flex-col justify-between overflow-hidden xl:flex-1"
-                     >
+                     <button onClick={() => setIsFastAdmitOpen(true)} className="group relative p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 text-left flex flex-col justify-between overflow-hidden xl:flex-1">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110 duration-500">
                            <UserPlus size={80} className="text-indigo-600"/>
                         </div>
@@ -680,12 +753,7 @@ const Dashboard: React.FC = () => {
                            <p className="text-xs text-slate-500 dark:text-slate-400 font-medium">Admisión rápida, historial y datos.</p>
                         </div>
                      </button>
-                     
-                     {/* TARJETA 2: SUBIR ARCHIVOS */}
-                     <button 
-                        onClick={() => setIsUploadModalOpen(true)} 
-                        className="group relative p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 text-left flex flex-col justify-between overflow-hidden xl:flex-1"
-                     >
+                     <button onClick={() => setIsUploadModalOpen(true)} className="group relative p-6 bg-white dark:bg-slate-900 border border-slate-100 dark:border-slate-800 rounded-[2rem] shadow-sm hover:shadow-xl transition-all duration-300 text-left flex flex-col justify-between overflow-hidden xl:flex-1">
                         <div className="absolute top-0 right-0 p-4 opacity-10 group-hover:opacity-20 transition-opacity transform group-hover:scale-110 duration-500">
                            <FolderUp size={80} className="text-slate-600"/>
                         </div>
