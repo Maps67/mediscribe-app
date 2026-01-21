@@ -8,7 +8,7 @@ import {
   CalendarX, Repeat, Ban, PlayCircle, PenLine, Calculator, Sparkles,
   BarChart3, FileSignature, Microscope, StickyNote, FileCheck, Printer,
   Sunrise, Sunset, MoonStar, Send, Trash2, CalendarClock, HelpCircle,
-  Zap // ✅ ICONO AGREGADO
+  Zap 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays, isPast } from 'date-fns';
@@ -28,7 +28,7 @@ import { MedicalCalculators } from '../components/MedicalCalculators';
 import { QuickDocModal } from '../components/QuickDocModal';
 import { FastAdmitModal } from '../components/FastAdmitModal';
 import { UserGuideModal } from '../components/UserGuideModal';
-import { QuickNoteModal } from '../components/QuickNoteModal'; // ✅ IMPORTACIÓN DE NOTA RÁPIDA
+import { QuickNoteModal } from '../components/QuickNoteModal'; 
 
 import { ImpactMetrics } from '../components/ImpactMetrics';
 import SmartBriefingWidget from '../components/SmartBriefingWidget'; 
@@ -408,12 +408,12 @@ const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certific
             <button onClick={() => openModal('justificante')} className="p-3 bg-white hover:bg-pink-50/50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 hover:shadow-md rounded-xl text-left transition-all group">
                 <FileText size={20} className="text-slate-400 group-hover:text-teal-500 mb-2"/>
                 <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Justificante</p>
-                <p className="text-[10px] text-slate-400">Generar PDF</p>
+                <p className="text-xs text-slate-400">Generar PDF</p>
             </button>
             <button onClick={() => openModal('certificado')} className="p-3 bg-white hover:bg-pink-50/50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 hover:shadow-md rounded-xl text-left transition-all group">
                 <FileSignature size={20} className="text-slate-400 group-hover:text-blue-500 mb-2"/>
                 <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Certificado</p>
-                <p className="text-[10px] text-slate-400">Salud</p>
+                <p className="text-xs text-slate-400">Salud</p>
             </button>
             <button onClick={() => openModal('receta')} className="col-span-2 p-3 bg-white hover:bg-pink-50/50 dark:bg-slate-800 dark:hover:bg-slate-700 border border-slate-100 dark:border-slate-700 hover:shadow-md rounded-xl text-left transition-all group flex items-center gap-3">
                 <div className="p-2 bg-slate-50 dark:bg-slate-900 rounded-lg shadow-sm group-hover:scale-110 transition-transform">
@@ -421,7 +421,7 @@ const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certific
                 </div>
                 <div>
                     <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Receta Simple</p>
-                    <p className="text-[10px] text-slate-400">Impresión Directa</p>
+                    <p className="text-xs text-slate-400">Impresión Directa</p>
                 </div>
             </button>
         </div>
@@ -535,7 +535,8 @@ const Dashboard: React.FC = () => {
       try {
           if (!isBackgroundRefresh) setIsLoading(true);
           
-          const minLoadTime = !isBackgroundRefresh ? new Promise(resolve => setTimeout(resolve, 1500)) : Promise.resolve();
+          // ✅ OPTIMIZACIÓN DE RENDIMIENTO: Eliminado retardo artificial de 1500ms
+          // Ahora la carga es 100% dependiente de la velocidad de red real
           
           const dataFetch = (async () => {
               const { data: { user } } = await supabase.auth.getUser();
@@ -574,7 +575,7 @@ const Dashboard: React.FC = () => {
               setPendingItems(radar);
           })();
 
-          await Promise.all([dataFetch, minLoadTime]);
+          await dataFetch; // Solo esperamos la data real
 
       } catch (e) { 
           setSystemStatus(false); 

@@ -39,7 +39,6 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
   }, [transcript, generatedNote]);
 
   // --- LÓGICA DE BOTÓN TIPO INTERRUPTOR (TOGGLE) ---
-  // ✅ CORRECCIÓN UX: Cambiado de 'Push-to-Talk' a 'Tap-to-Record' para evitar bloqueo en móviles
   const handleMicToggle = (e: React.MouseEvent) => {
     e.preventDefault(); 
     e.stopPropagation();
@@ -162,11 +161,17 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
   };
 
   return (
-    // Se mantiene el padding 'p-4' en el contenedor padre
+    // Padding externo
     <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-in fade-in duration-200">
       
-      {/* 🔥 AJUSTE VISUAL: Cambiamos 'w-[95%]' por 'w-full' para que respete el padding del padre 🔥 */}
-      <div className="bg-white dark:bg-slate-900 rounded-xl md:rounded-2xl shadow-2xl overflow-hidden w-full md:max-w-2xl h-[95dvh] md:h-auto md:max-h-[90vh] md:min-h-[500px] grid grid-rows-[auto_1fr_auto]">
+      {/* 🔥 AUDITORÍA DE ESTILOS "CON LUPA" - CAMBIOS APLICADOS:
+         1. w-full: Asegura uso del ancho disponible (respetando padding).
+         2. md:max-w-3xl: (Antes 2xl) Aumentado para dar aire lateral.
+         3. md:h-[85vh]: (Antes min-h-500px) FUERZA una altura del 85% de la pantalla en escritorio.
+            Esto garantiza que el área de texto sea masiva verticalmente.
+         4. h-[95dvh]: Mantiene la experiencia inmersiva en móviles.
+      */}
+      <div className="bg-white dark:bg-slate-900 rounded-xl md:rounded-2xl shadow-2xl overflow-hidden w-full md:max-w-3xl h-[95dvh] md:h-[85vh] grid grid-rows-[auto_1fr_auto]">
         
         {/* FILA 1: HEADER */}
         <div className="p-4 border-b border-slate-100 dark:border-slate-800 flex justify-between items-center bg-slate-50 dark:bg-slate-950 z-10">
@@ -186,7 +191,7 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
           </button>
         </div>
 
-        {/* FILA 2: CONTENIDO CENTRAL */}
+        {/* FILA 2: CONTENIDO CENTRAL (Expandido por el h-[85vh]) */}
         <div className="overflow-hidden relative bg-white dark:bg-slate-900">
           
           {step === 'capture' && (
@@ -245,7 +250,6 @@ export const QuickNoteModal: React.FC<QuickNoteModalProps> = ({ onClose, doctorP
         {step === 'capture' && (
             <div className="p-4 md:p-6 border-t border-slate-100 dark:border-slate-800 bg-slate-50/50 dark:bg-slate-950 z-10 flex items-center justify-between gap-3">
                 <div className="flex gap-2">
-                   {/* ✅ BOTÓN ACTUALIZADO: Evento onClick simple (Toggle) sin eventos de puntero complejos */}
                    <button
                      onClick={handleMicToggle}
                      className={`p-3 md:p-4 rounded-full transition-all shadow-lg flex items-center justify-center select-none active:scale-95 touch-none ${isListening ? 'bg-red-500 text-white hover:bg-red-600 scale-110 ring-4 ring-red-200 dark:ring-red-900' : 'bg-indigo-600 text-white hover:bg-indigo-700'}`}

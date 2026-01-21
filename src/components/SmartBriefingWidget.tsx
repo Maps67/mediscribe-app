@@ -2,7 +2,8 @@ import React, { useState, useEffect } from 'react';
 import { 
   Sun, Moon, Sunrise, Sunset, MoonStar, 
   Clock, AlertTriangle, Activity, Bot, 
-  BrainCircuit, Zap, ChevronRight, RefreshCw
+  BrainCircuit, Zap, ChevronRight, RefreshCw,
+  RotateCw, CheckCircle2 // ✅ CORRECCIÓN: Se agrega CheckCircle2 que faltaba
 } from 'lucide-react';
 import { format } from 'date-fns';
 import { es } from 'date-fns/locale';
@@ -43,14 +44,18 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
 }) => {
   const [hour, setHour] = useState(new Date().getHours());
   const [challenge, setChallenge] = useState(BACKUP_CHALLENGES[0]);
-  const [showAnswer, setShowAnswer] = useState(false);
+  
+  // ✅ NUEVO ESTADO: Controla si la tarjeta está volteada (true = viendo respuesta)
+  const [isFlipped, setIsFlipped] = useState(false);
   const [loadingChallenge, setLoadingChallenge] = useState(false);
 
   // --- LÓGICA DEL CEREBRO DE RETOS (IA + PERSISTENCIA) ---
   useEffect(() => {
     setHour(new Date().getHours());
+    // Resetear el flip al cambiar de especialidad para mostrar siempre la pregunta primero
+    setIsFlipped(false); 
     loadDailyChallenge();
-  }, [specialty]); // Se recarga si cambia la especialidad
+  }, [specialty]);
 
   const loadDailyChallenge = async () => {
     const todayKey = `daily_challenge_${format(new Date(), 'yyyy-MM-dd')}`;
@@ -70,7 +75,6 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
     // 2. Si es un nuevo día, llama a la IA
     setLoadingChallenge(true);
     try {
-      // CORRECCIÓN APLICADA: Llamada directa al objeto estático (Sin 'new')
       const newChallenge = await GeminiMedicalService.getDailyChallenge(specialty);
       
       if (newChallenge) {
@@ -113,7 +117,20 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
 
   return (
     <div className={`relative w-full rounded-[2.5rem] bg-gradient-to-r ${theme.gradient} p-8 shadow-2xl ${theme.shadow} dark:shadow-none text-white overflow-hidden mb-8 transition-all duration-1000 ease-in-out group`}>
-      <div className="absolute inset-0 bg-[url('https://www.transparenttextures.com/patterns/cubes.png')] opacity-10"></div>
+      
+      {/* 🚀 OPTIMIZACIÓN DE RENDIMIENTO: TEXTURA NATIVA CSS (SIN IMÁGENES EXTERNAS) 
+          Reemplazamos el PNG 'cubes.png' por un patrón de puntos radiales generado por la GPU.
+          Cero latencia de red, carga instantánea.
+      */}
+      <div 
+        className="absolute inset-0 opacity-10" 
+        style={{ 
+          backgroundImage: 'radial-gradient(circle, #ffffff 1px, transparent 1px)', 
+          backgroundSize: '24px 24px' 
+        }}
+      ></div>
+      
+      {/* Luz ambiental dinámica adicional */}
       <div className="absolute -right-20 -top-20 w-96 h-96 bg-white/10 rounded-full blur-[100px] animate-pulse"></div>
       
       <div className="relative z-10 flex flex-col xl:flex-row justify-between items-center xl:items-end gap-8">
@@ -174,53 +191,85 @@ const SmartBriefingWidget: React.FC<SmartBriefingProps> = ({
           </div>
         </div>
 
-        {/* COLUMNA CENTRAL: Reto Diario IA */}
-        <div className="w-full xl:max-w-sm">
+        {/* COLUMNA CENTRAL: Reto Diario IA (REDISEÑO FLASHCARD 3D) */}
+        {/* ✅ AJUSTE CRÍTICO: Cambio de xl:max-w-sm a xl:max-w-2xl para expandir a la izquierda */}
+        <div className="w-full xl:max-w-2xl perspective-[1000px] h-[220px]"> 
+          
           <div 
-            className="bg-white/10 border border-white/10 rounded-[2rem] p-5 backdrop-blur-md animate-in zoom-in-95 cursor-pointer hover:bg-white/15 transition-all shadow-inner relative overflow-hidden"
-            onClick={() => !loadingChallenge && setShowAnswer(!showAnswer)}
+            className={`relative w-full h-full transition-all duration-700 [transform-style:preserve-3d] cursor-pointer ${isFlipped ? '[transform:rotateY(180deg)]' : ''}`}
+            onClick={() => !loadingChallenge && setIsFlipped(!isFlipped)}
           >
-              {loadingChallenge && (
-                  <div className="absolute inset-0 bg-black/10 backdrop-blur-sm z-20 flex items-center justify-center">
-                      <RefreshCw className="animate-spin text-white opacity-80" size={24}/>
-                  </div>
-              )}
+             
+             {/* --- CARA FRONTAL (PREGUNTA) --- */}
+             <div className="absolute inset-0 bg-white/10 border border-white/20 rounded-[2rem] p-6 backdrop-blur-md shadow-xl flex flex-col justify-between [backface-visibility:hidden]">
+                {loadingChallenge ? (
+                    <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-3 bg-black/10 backdrop-blur-sm rounded-[2rem]">
+                        <RefreshCw className="animate-spin text-white" size={32}/>
+                        <span className="text-xs font-bold uppercase tracking-widest animate-pulse">Generando Reto...</span>
+                    </div>
+                ) : (
+                    <>
+                        <div className="flex justify-between items-start">
+                             <div className="flex items-center gap-2">
+                                <span className="bg-indigo-500 text-white px-3 py-1 rounded-full text-[10px] font-black uppercase tracking-widest shadow-lg shadow-indigo-500/20">
+                                   Reto Diario
+                                </span>
+                             </div>
+                             <div className="p-2 bg-indigo-500/20 rounded-full">
+                                <BrainCircuit size={20} className="text-indigo-100"/>
+                             </div>
+                        </div>
 
-              <div className="flex items-start gap-4">
-                 <div className="p-3 bg-indigo-500 rounded-2xl shadow-lg shadow-indigo-500/40 mt-1 shrink-0">
-                   <BrainCircuit size={24} className="text-white animate-pulse"/>
-                 </div>
-                 <div className="flex-1 overflow-hidden">
-                   <div className="flex items-center gap-2 mb-2">
-                     <span className="bg-indigo-500/50 px-2 py-0.5 rounded text-[10px] font-bold uppercase border border-indigo-300/30 tracking-wider">
-                        {loadingChallenge ? 'Generando...' : `Reto Diario: ${challenge.category}`}
-                     </span>
-                   </div>
-                   <p className={`font-bold text-sm md:text-base leading-snug transition-all duration-300 ${!showAnswer ? 'line-clamp-3' : ''}`}>
-                       {loadingChallenge ? "Consultando base de conocimientos médicos..." : challenge.question}
-                   </p>
-                   
-                   <div className={`grid transition-all duration-500 ease-in-out ${showAnswer ? 'grid-rows-[1fr] opacity-100 mt-3' : 'grid-rows-[0fr] opacity-0'}`}>
-                      <div className="overflow-hidden">
-                         <div className="text-sm bg-white/20 p-3 rounded-xl text-indigo-50 font-semibold flex items-center gap-3 border border-white/10">
-                           <Zap size={16} className="text-yellow-300 fill-yellow-300 shrink-0"/> 
-                           <span>{challenge.answer}</span>
-                         </div>
-                         
-                         {/* LEYENDA CORREGIDA: Fuera del div flex, pero dentro del contenedor desplegable */}
-                         <p className="text-[9px] text-indigo-200/60 mt-2 text-center font-medium tracking-wide">
-                            * Generado por IA. Requiere verificación clínica.
-                         </p>
+                        <div className="flex-1 flex flex-col justify-center py-2">
+                            <h3 className="font-bold text-lg md:text-xl leading-snug text-white drop-shadow-sm">
+                                {challenge.question}
+                            </h3>
+                            <p className="text-xs text-indigo-100 mt-2 font-medium opacity-80">
+                                {challenge.category}
+                            </p>
+                        </div>
 
-                      </div>
-                   </div>
-                   {!showAnswer && !loadingChallenge && (
-                       <p className="text-[10px] opacity-60 mt-2 flex items-center gap-1 font-bold italic tracking-wide uppercase">
-                           <ChevronRight size={10}/> Toca para revelar respuesta
-                       </p>
-                   )}
+                        <div className="flex items-center justify-between pt-4 border-t border-white/10">
+                            <span className="text-[10px] font-bold opacity-60 uppercase tracking-widest">
+                                VitalScribe AI
+                            </span>
+                            <div className="flex items-center gap-1 text-xs font-bold text-yellow-300 animate-pulse">
+                                Ver Respuesta <RotateCw size={12} className="ml-1"/>
+                            </div>
+                        </div>
+                    </>
+                )}
+             </div>
+
+             {/* --- CARA TRASERA (RESPUESTA) --- */}
+             <div className="absolute inset-0 bg-indigo-900/80 border border-indigo-400/30 rounded-[2rem] p-6 backdrop-blur-xl shadow-2xl flex flex-col justify-between [backface-visibility:hidden] [transform:rotateY(180deg)] overflow-hidden">
+                 <div className="absolute top-0 right-0 p-4 opacity-10">
+                     <Zap size={100} className="text-white"/>
                  </div>
-              </div>
+                 
+                 <div className="relative z-10 flex-1 flex flex-col justify-center items-center text-center">
+                     <div className="bg-green-500/20 p-3 rounded-full mb-3 ring-1 ring-green-400/50">
+                         {/* ✅ ICONO AHORA CORRECTAMENTE IMPORTADO */}
+                         <CheckCircle2 size={32} className="text-green-300"/>
+                     </div>
+                     <h3 className="font-black text-xl md:text-2xl text-white leading-tight mb-2">
+                         {challenge.answer}
+                     </h3>
+                     <p className="text-[10px] text-indigo-200 uppercase tracking-widest font-bold">
+                         Respuesta Correcta
+                     </p>
+                 </div>
+
+                 <div className="relative z-10 pt-4 border-t border-white/10 text-center">
+                     <p className="text-[9px] text-indigo-300/60 mb-2">
+                        * Evidencia generada por IA. Verifica clínicamente.
+                     </p>
+                     <p className="text-[10px] font-bold opacity-50 uppercase flex items-center justify-center gap-2">
+                        <RotateCw size={10}/> Toca para volver
+                     </p>
+                 </div>
+             </div>
+
           </div>
         </div>
         
