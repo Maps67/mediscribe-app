@@ -46,7 +46,7 @@ interface PendingItem {
    id: string; type: 'note' | 'lab' | 'appt'; title: string; subtitle: string; date: string;
 }
 
-// --- CLOCK COMPACTO (Texto Grande Móvil) ---
+// --- CLOCK COMPACTO (Escalado +15%) ---
 const AtomicClock = ({ location }: { location: string }) => {
     const [date, setDate] = useState(new Date());
     useEffect(() => { const timer = setInterval(() => setDate(new Date()), 1000); return () => clearInterval(timer); }, []);
@@ -54,7 +54,7 @@ const AtomicClock = ({ location }: { location: string }) => {
     return (
         <div className="flex flex-col justify-center">
             <div className="flex items-baseline gap-1 text-slate-800 dark:text-white">
-                <p className="text-3xl md:text-4xl xl:text-5xl font-black tracking-tighter tabular-nums leading-none">
+                <p className="text-4xl md:text-4xl xl:text-5xl font-black tracking-tighter tabular-nums leading-none">
                     {format(date, 'h:mm')}
                 </p>
                 <div className="flex flex-col">
@@ -69,21 +69,21 @@ const AtomicClock = ({ location }: { location: string }) => {
     );
 };
 
-// --- WIDGET DE CLIMA COMPACTO (Texto Grande Móvil) ---
+// --- WIDGET DE CLIMA COMPACTO (Escalado +15%) ---
 const WeatherWidget = ({ weather }: any) => {
     return (
         <div className="flex flex-col justify-center items-end">
             <div className="flex items-start gap-1">
-                <span className="text-3xl md:text-4xl xl:text-5xl font-black text-slate-800 dark:text-white tracking-tighter leading-none">{weather.temp}°</span>
+                <span className="text-4xl md:text-4xl xl:text-5xl font-black text-slate-800 dark:text-white tracking-tighter leading-none">{weather.temp}°</span>
                 <div className="mt-1">
-                    {weather.code < 3 ? <Sun size={14} className="text-amber-500"/> : <Cloud size={14} className="text-slate-400"/>}
+                    {weather.code < 3 ? <Sun size={16} className="text-amber-500"/> : <Cloud size={16} className="text-slate-400"/>}
                 </div>
             </div>
         </div>
     );
 };
 
-// ✅ WIDGET DE EFICIENCIA (Polimórfico)
+// ✅ WIDGET DE EFICIENCIA (Compactado para Móvil)
 const StatusWidget = ({ totalApts, pendingApts }: any) => {
     const completed = totalApts - pendingApts;
     const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
@@ -95,25 +95,25 @@ const StatusWidget = ({ totalApts, pendingApts }: any) => {
                 <Activity size={120} className="text-indigo-600 dark:text-indigo-400"/>
              </div>
 
-             {/* VISTA MÓVIL: COMPACTA */}
-             <div className="flex md:hidden flex-col justify-center h-full gap-2">
+             {/* VISTA MÓVIL: SUPER COMPACTA */}
+             <div className="flex md:hidden flex-col justify-center h-full gap-1">
                  <div className="flex items-center justify-between">
-                    <p className="text-[10px] font-bold text-slate-400 uppercase leading-none">Tu Día</p>
-                    <Activity size={14} className="text-teal-500"/>
+                    <p className="text-[9px] font-bold text-slate-400 uppercase leading-none">Tu Día</p>
+                    <Activity size={12} className="text-teal-500"/>
                  </div>
                  
                  <div className="flex items-end gap-1">
-                    <p className="text-4xl font-black text-slate-800 dark:text-white leading-none tracking-tighter">{progress}%</p>
+                    <p className="text-3xl font-black text-slate-800 dark:text-white leading-none tracking-tighter">{progress}%</p>
                  </div>
                  
-                 <div className="w-full bg-slate-100 rounded-full h-1.5 mt-1">
-                    <div className="bg-teal-500 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
+                 <div className="w-full bg-slate-100 rounded-full h-1 mt-1">
+                    <div className="bg-teal-500 h-1 rounded-full" style={{ width: `${progress}%` }}></div>
                  </div>
 
-                 <div className="flex gap-2 mt-1">
-                    <span className="text-[9px] font-bold text-slate-500">{completed} Listos</span>
-                    <span className="text-[9px] font-bold text-slate-400">|</span>
-                    <span className="text-[9px] font-bold text-slate-500">{pendingApts} Cola</span>
+                 <div className="flex gap-1 mt-0.5">
+                    <span className="text-[8px] font-bold text-slate-500">{completed} OK</span>
+                    <span className="text-[8px] font-bold text-slate-400">|</span>
+                    <span className="text-[8px] font-bold text-slate-500">{pendingApts} Cola</span>
                  </div>
              </div>
 
@@ -407,17 +407,17 @@ const Dashboard: React.FC = () => {
   return (
     <div className="md:h-auto min-h-screen bg-slate-50 dark:bg-slate-950 font-sans w-full relative">
       
-      {/* 🚀 VISTA MÓVIL ZEROSCROLL: h-[100dvh] + Flex Column */}
-      <div className="md:hidden h-[100dvh] w-full flex flex-col overflow-hidden bg-gradient-to-b from-[#FDFBF7] via-[#F4F7FB] to-[#E2E8F0] p-3 pb-24">
+      {/* 🚀 VISTA MÓVIL ESTRICTA: h-[100dvh] + Flex Column con Distribución Justificada */}
+      <div className="md:hidden h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-gradient-to-b from-[#FDFBF7] via-[#F4F7FB] to-[#E2E8F0] p-3 pb-20">
         
-        {/* 1. HEADER (Fijo - shrink-0) */}
-        <div className="shrink-0 bg-white rounded-2xl p-4 pt-5 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-50 relative overflow-hidden mb-3">
-            <div className="flex justify-between items-start mb-2">
-                <div className="flex items-center gap-3 pt-2"> 
-                    <div className="h-12 w-12 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center font-bold text-base border border-teal-100">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
+        {/* 1. HEADER (Fijo - shrink-0) - Jerarquía Aumentada */}
+        <div className="shrink-0 bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-50 relative overflow-hidden">
+            <div className="flex justify-between items-start mb-1">
+                <div className="flex items-center gap-3 pt-1"> 
+                    <div className="h-10 w-10 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center font-bold text-base border border-teal-100">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
                     <div className="mt-1">
-                        <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest leading-none mb-1.5">{dynamicGreeting.greeting}</p>
-                        <h1 className="text-base font-black text-slate-800 leading-tight max-w-[150px] truncate">{formattedDocName}</h1>
+                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">{dynamicGreeting.greeting}</p>
+                        <h1 className="text-lg font-black text-slate-800 leading-tight max-w-[150px] truncate">{formattedDocName}</h1>
                     </div>
                 </div>
                 <div className="text-right">
@@ -426,7 +426,7 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-3 mt-5 pt-3 border-t border-slate-50">
+            <div className="grid grid-cols-2 gap-2 mt-4 pt-2 border-t border-slate-50">
                 <button onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="bg-indigo-50/50 p-2.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform border border-indigo-50">
                     <Bot size={18} className="text-indigo-600"/>
                     <span className="text-xs font-bold text-indigo-700">Asistente</span>
@@ -438,8 +438,8 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* 2. AGENDA (Flexible - flex-1) - El único que hace scroll interno */}
-        <div className="flex-1 min-h-[100px] bg-white rounded-2xl p-3 border border-slate-50 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col mb-3">
+        {/* 2. AGENDA (Elástica - flex-1 min-h-0) - Absorbe el espacio restante */}
+        <div className="flex-1 min-h-0 bg-white rounded-2xl p-3 border border-slate-50 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col my-2">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
                 <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-teal-600"/> Agenda de Hoy</h3>
                 <span className="bg-slate-100 text-slate-500 text-[9px] px-2 py-0.5 rounded-full font-bold">{appointments.length} Citas</span>
@@ -465,31 +465,31 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* 3. GRIDS & FOOTER (Fijos - shrink-0) */}
-        <div className="shrink-0 flex flex-col gap-3">
+        {/* 3. GRIDS & FOOTER (Fijos - shrink-0) - Compactados para entrar siempre */}
+        <div className="shrink-0 flex flex-col gap-2">
             
-            <div className="grid grid-cols-2 gap-3 h-28">
+            <div className="grid grid-cols-2 gap-2 h-24">
                 <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
                 
-                <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white rounded-2xl p-3 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-2 active:scale-95 transition-transform relative overflow-hidden group">
+                <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white rounded-2xl p-3 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform relative overflow-hidden group">
                      <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50"></div>
-                     <div className="p-3 bg-indigo-50 rounded-full text-indigo-600 group-hover:scale-110 transition-transform"><UserPlus size={20}/></div>
+                     <div className="p-2.5 bg-indigo-50 rounded-full text-indigo-600 group-hover:scale-110 transition-transform"><UserPlus size={18}/></div>
                      <span className="text-xs font-bold text-slate-700 leading-tight text-center">Nuevo<br/>Paciente</span>
                 </button>
             </div>
 
-            <div className="grid grid-cols-2 gap-3 h-24">
-                 <button onClick={() => setIsDocModalOpen(true)} className="bg-white rounded-2xl p-3 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-2 active:scale-95 transition-transform">
-                    <div className="p-2 bg-pink-50 rounded-lg text-pink-500"><FileCheck size={18}/></div>
-                    <span className="text-xs font-bold text-slate-700">Docs Rápidos</span>
+            <div className="grid grid-cols-2 gap-2 h-20">
+                 <button onClick={() => setIsDocModalOpen(true)} className="bg-white rounded-2xl p-2 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform">
+                    <div className="p-1.5 bg-pink-50 rounded-lg text-pink-500"><FileCheck size={16}/></div>
+                    <span className="text-[10px] font-bold text-slate-700">Docs Rápidos</span>
                  </button>
-                 <button onClick={() => setIsUploadModalOpen(true)} className="bg-white rounded-2xl p-3 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-2 active:scale-95 transition-transform">
-                    <div className="p-2 bg-slate-100 rounded-lg text-slate-600"><FolderUp size={18}/></div>
-                    <span className="text-xs font-bold text-slate-700">Subir Archivo</span>
+                 <button onClick={() => setIsUploadModalOpen(true)} className="bg-white rounded-2xl p-2 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform">
+                    <div className="p-1.5 bg-slate-100 rounded-lg text-slate-600"><FolderUp size={16}/></div>
+                    <span className="text-[10px] font-bold text-slate-700">Subir Archivo</span>
                  </button>
             </div>
             
-            <button onClick={() => setIsChallengeModalOpen(true)} className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2 mt-1">
+            <button onClick={() => setIsChallengeModalOpen(true)} className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2">
                 <BrainCircuit size={16}/>
                 <span className="text-xs font-bold uppercase tracking-wide">Reto Clínico</span>
             </button>
