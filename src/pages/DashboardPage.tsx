@@ -46,7 +46,7 @@ interface PendingItem {
    id: string; type: 'note' | 'lab' | 'appt'; title: string; subtitle: string; date: string;
 }
 
-// --- CLOCK COMPACTO (Escalado +15%) ---
+// --- CLOCK COMPACTO (Ajuste: Peso Medium para Finesse) ---
 const AtomicClock = ({ location }: { location: string }) => {
     const [date, setDate] = useState(new Date());
     useEffect(() => { const timer = setInterval(() => setDate(new Date()), 1000); return () => clearInterval(timer); }, []);
@@ -54,12 +54,13 @@ const AtomicClock = ({ location }: { location: string }) => {
     return (
         <div className="flex flex-col justify-center">
             <div className="flex items-baseline gap-1 text-slate-800 dark:text-white">
-                <p className="text-4xl md:text-4xl xl:text-5xl font-black tracking-tighter tabular-nums leading-none">
+                {/* Peso reducido de font-black a font-medium/semibold para elegancia */}
+                <p className="text-4xl md:text-4xl xl:text-5xl font-medium tracking-tighter tabular-nums leading-none">
                     {format(date, 'h:mm')}
                 </p>
                 <div className="flex flex-col">
-                    <span className="text-[10px] md:text-xs font-bold text-slate-400 tabular-nums leading-none">:{format(date, 'ss')}</span>
-                    <span className="text-[9px] md:text-[10px] font-bold text-slate-300 uppercase leading-none mt-0.5">{format(date, 'a')}</span>
+                    <span className="text-[10px] md:text-xs font-medium text-slate-400 tabular-nums leading-none">:{format(date, 'ss')}</span>
+                    <span className="text-[9px] md:text-[10px] font-medium text-slate-300 uppercase leading-none mt-0.5">{format(date, 'a')}</span>
                 </div>
             </div>
             <p className="hidden md:block text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-1 truncate">
@@ -69,12 +70,13 @@ const AtomicClock = ({ location }: { location: string }) => {
     );
 };
 
-// --- WIDGET DE CLIMA COMPACTO (Escalado +15%) ---
+// --- WIDGET DE CLIMA COMPACTO (Ajuste: Peso Medium) ---
 const WeatherWidget = ({ weather }: any) => {
     return (
         <div className="flex flex-col justify-center items-end">
             <div className="flex items-start gap-1">
-                <span className="text-4xl md:text-4xl xl:text-5xl font-black text-slate-800 dark:text-white tracking-tighter leading-none">{weather.temp}°</span>
+                {/* Peso reducido para balance visual */}
+                <span className="text-4xl md:text-4xl xl:text-5xl font-medium text-slate-800 dark:text-white tracking-tighter leading-none">{weather.temp}°</span>
                 <div className="mt-1">
                     {weather.code < 3 ? <Sun size={16} className="text-amber-500"/> : <Cloud size={16} className="text-slate-400"/>}
                 </div>
@@ -83,7 +85,7 @@ const WeatherWidget = ({ weather }: any) => {
     );
 };
 
-// ✅ WIDGET DE EFICIENCIA (Compactado para Móvil)
+// ✅ WIDGET DE EFICIENCIA (Polimórfico)
 const StatusWidget = ({ totalApts, pendingApts }: any) => {
     const completed = totalApts - pendingApts;
     const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
@@ -95,8 +97,8 @@ const StatusWidget = ({ totalApts, pendingApts }: any) => {
                 <Activity size={120} className="text-indigo-600 dark:text-indigo-400"/>
              </div>
 
-             {/* VISTA MÓVIL: SUPER COMPACTA */}
-             <div className="flex md:hidden flex-col justify-center h-full gap-1">
+             {/* VISTA MÓVIL: COMPACTA CON FLEX-SHRINK */}
+             <div className="flex md:hidden flex-col justify-center h-full gap-1 shrink">
                  <div className="flex items-center justify-between">
                     <p className="text-[9px] font-bold text-slate-400 uppercase leading-none">Tu Día</p>
                     <Activity size={12} className="text-teal-500"/>
@@ -407,20 +409,20 @@ const Dashboard: React.FC = () => {
   return (
     <div className="md:h-auto min-h-screen bg-slate-50 dark:bg-slate-950 font-sans w-full relative">
       
-      {/* 🚀 VISTA MÓVIL ESTRICTA: h-[100dvh] + Flex Column con Distribución Justificada */}
-      <div className="md:hidden h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-gradient-to-b from-[#FDFBF7] via-[#F4F7FB] to-[#E2E8F0] p-3 pb-20">
+      {/* 🚀 VISTA MÓVIL ESTRICTA: h-[100dvh] + Overflow Hidden + Distribución Compacta */}
+      <div className="md:hidden h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-gradient-to-b from-[#FDFBF7] via-[#F4F7FB] to-[#E2E8F0] p-4 pb-20">
         
-        {/* 1. HEADER (Fijo - shrink-0) - Jerarquía Aumentada */}
+        {/* 1. HEADER (Fijo - shrink-0) - Jerarquía Aumentada + Identidad Corregida */}
         <div className="shrink-0 bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-50 relative overflow-hidden">
             <div className="flex justify-between items-start mb-1">
-                <div className="flex items-center gap-3 pt-1"> 
-                    <div className="h-10 w-10 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center font-bold text-base border border-teal-100">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
-                    <div className="mt-1">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest leading-none mb-1">{dynamicGreeting.greeting}</p>
-                        <h1 className="text-lg font-black text-slate-800 leading-tight max-w-[150px] truncate">{formattedDocName}</h1>
+                <div className="flex items-center gap-3 flex-1 min-w-0 pr-2"> 
+                    <div className="h-10 w-10 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center font-bold text-base border border-teal-100 shrink-0">{formattedDocName ? formattedDocName.charAt(0) : 'D'}</div>
+                    <div className="flex flex-col min-w-0">
+                        <p className="text-sm font-medium text-slate-500 mb-0.5">Buenas noches,</p>
+                        <h1 className="text-lg font-bold text-slate-900 leading-tight break-words">{formattedDocName}</h1>
                     </div>
                 </div>
-                <div className="text-right">
+                <div className="text-right shrink-0">
                     <AtomicClock location="" />
                     <div className="mt-1 opacity-80 scale-100 origin-right"><WeatherWidget weather={weather} /></div>
                 </div>
@@ -438,7 +440,7 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* 2. AGENDA (Elástica - flex-1 min-h-0) - Absorbe el espacio restante */}
+        {/* 2. AGENDA (Elástica - flex-1 min-h-0) - Se encoge si falta espacio */}
         <div className="flex-1 min-h-0 bg-white rounded-2xl p-3 border border-slate-50 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col my-2">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
                 <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-teal-600"/> Agenda de Hoy</h3>
@@ -454,7 +456,7 @@ const Dashboard: React.FC = () => {
                     appointments.map(apt => (
                         <div key={apt.id} onClick={() => handleStartConsultation(apt)} className="bg-slate-50 hover:bg-slate-100 p-2.5 rounded-xl border-l-2 border-teal-500 flex items-center gap-3 active:scale-98 transition-transform shrink-0">
                              <div className="font-bold text-slate-500 text-[10px] min-w-[30px]">{format(parseISO(apt.start_time), 'HH:mm')}</div>
-                             <div className="flex-1">
+                             <div className="flex-1 min-w-0">
                                 <p className="font-bold text-slate-700 text-xs truncate">{apt.title}</p>
                                 <p className="text-[9px] text-slate-400 truncate">{apt.patient ? 'Expediente Activo' : 'Primera Vez'}</p>
                              </div>
@@ -465,7 +467,7 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* 3. GRIDS & FOOTER (Fijos - shrink-0) - Compactados para entrar siempre */}
+        {/* 3. GRIDS & FOOTER (Fijos - shrink-0) - Compactados */}
         <div className="shrink-0 flex flex-col gap-2">
             
             <div className="grid grid-cols-2 gap-2 h-24">
