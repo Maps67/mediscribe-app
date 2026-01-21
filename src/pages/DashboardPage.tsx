@@ -1,17 +1,15 @@
-import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
+import React, { useEffect, useState, useMemo, useCallback } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
-  Calendar, MapPin, ChevronRight, Sun, Moon, Cloud, 
+  Calendar, Sun, Moon, Cloud, 
   Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
-  Stethoscope, UserCircle, AlertTriangle, FileText,
-  Clock, UserPlus, Activity, Search, ArrowRight,
-  CalendarX, Repeat, Ban, PlayCircle, Sparkles,
-  BarChart3, FileSignature, Microscope, StickyNote, FileCheck, Printer,
-  Sunrise, Sunset, MoonStar, Send, Trash2, CalendarClock, HelpCircle,
-  Zap, FolderUp, BrainCircuit 
+  Stethoscope, AlertTriangle, FileText,
+  UserPlus, Activity, ChevronRight,
+  CalendarX, FileSignature, Printer, FileCheck, // ✅ CORRECCIÓN: FileCheck reincorporado
+  HelpCircle, Zap, FolderUp, BrainCircuit 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-import { format, isToday, isTomorrow, parseISO, startOfDay, endOfDay, addDays, isPast } from 'date-fns';
+import { format, isToday, parseISO, startOfDay, endOfDay, addDays } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { getTimeOfDayGreeting } from '../utils/greetingUtils';
 import { toast } from 'sonner';
@@ -28,10 +26,9 @@ import { QuickDocModal } from '../components/QuickDocModal';
 import { FastAdmitModal } from '../components/FastAdmitModal';
 import { UserGuideModal } from '../components/UserGuideModal';
 import { QuickNoteModal } from '../components/QuickNoteModal'; 
-import { ImpactMetrics } from '../components/ImpactMetrics';
 
 // Tipos del Sistema
-import { DoctorProfile, Patient } from '../types'; 
+import { DoctorProfile } from '../types'; 
 
 // --- TYPES LOCALES ---
 interface DashboardAppointment {
@@ -62,26 +59,21 @@ const cleanMarkdown = (text: string): string => {
     return text.replace(/[*_#`~]/g, '').replace(/^\s*[-•]\s+/gm, '').replace(/\[.*?\]/g, '').replace(/\n\s*\n/g, '\n').trim();
 };
 
-// --- CLOCK COMPACTO ---
-const AtomicClock = ({ location, date, isDesktop = false }: { location: string, date: Date, isDesktop?: boolean }) => {
+// --- CLOCK COMPACTO (Estilo Técnico) ---
+const AtomicClock = ({ date, isDesktop = false }: { location: string, date: Date, isDesktop?: boolean }) => {
     return (
         <div className={`flex flex-col ${isDesktop ? 'items-end' : 'justify-center'}`}>
-            <div className={`flex items-baseline gap-1 text-slate-800 dark:text-white ${isDesktop ? 'flex-row-reverse' : ''}`}>
-                <p className={`${isDesktop ? 'text-6xl' : 'text-4xl md:text-4xl xl:text-5xl'} font-medium tracking-tighter tabular-nums leading-none`}>
+            <div className={`flex items-baseline gap-1 text-slate-900 dark:text-white ${isDesktop ? 'flex-row-reverse' : ''}`}>
+                <p className={`${isDesktop ? 'text-6xl' : 'text-4xl'} font-bold tracking-tighter tabular-nums leading-none`}>
                     {format(date, 'h:mm')}
                 </p>
                 <div className={`flex flex-col ${isDesktop ? 'items-end mr-2' : ''}`}>
-                    <span className="text-[10px] md:text-xs font-medium text-slate-400 tabular-nums leading-none">:{format(date, 'ss')}</span>
-                    <span className="text-[9px] md:text-[10px] font-medium text-slate-300 uppercase leading-none mt-0.5">{format(date, 'a')}</span>
+                    <span className="text-[10px] font-semibold text-slate-500 tabular-nums leading-none">:{format(date, 'ss')}</span>
+                    <span className="text-[10px] font-bold text-slate-400 uppercase leading-none mt-0.5">{format(date, 'a')}</span>
                 </div>
             </div>
-            {!isDesktop && (
-                <p className="hidden md:block text-[10px] font-bold text-indigo-500 uppercase tracking-widest mt-1 truncate">
-                    {format(date, "EEEE, d 'de' MMMM", { locale: es })}
-                </p>
-            )}
             {isDesktop && (
-                 <p className="text-sm font-medium text-slate-400 uppercase tracking-widest mt-1">
+                 <p className="text-sm font-semibold text-slate-500 uppercase tracking-widest mt-1">
                     {format(date, "EEEE, d 'de' MMMM", { locale: es })}
                  </p>
             )}
@@ -89,79 +81,69 @@ const AtomicClock = ({ location, date, isDesktop = false }: { location: string, 
     );
 };
 
-// --- WIDGET DE CLIMA COMPACTO ---
+// --- WIDGET DE CLIMA ---
 const WeatherWidget = ({ weather, isDesktop = false }: { weather: WeatherState, isDesktop?: boolean }) => {
     return (
         <div className={`flex flex-col ${isDesktop ? 'justify-end items-end' : 'justify-center items-end'}`}>
             <div className="flex items-start gap-1">
-                <span className={`${isDesktop ? 'text-5xl' : 'text-4xl md:text-4xl xl:text-5xl'} font-medium text-slate-800 dark:text-white tracking-tighter leading-none`}>{weather.temp}°</span>
+                <span className={`${isDesktop ? 'text-5xl' : 'text-4xl'} font-bold text-slate-900 dark:text-white tracking-tighter leading-none`}>{weather.temp}°</span>
                 <div className="mt-1">
-                    {weather.code < 3 ? <Sun size={isDesktop ? 24 : 16} className="text-amber-500"/> : <Cloud size={isDesktop ? 24 : 16} className="text-slate-400"/>}
+                    {weather.code < 3 ? <Sun size={isDesktop ? 24 : 16} className="text-amber-500" strokeWidth={2}/> : <Cloud size={isDesktop ? 24 : 16} className="text-slate-400" strokeWidth={2}/>}
                 </div>
             </div>
         </div>
     );
 };
 
-// ✅ WIDGET DE EFICIENCIA (Polimórfico)
+// ✅ WIDGET DE EFICIENCIA (Estilo Clínico)
 const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingApts: number }) => {
     const completed = totalApts - pendingApts;
     const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
     
     return (
-        <div className="bg-white dark:bg-slate-900 md:bg-white/80 md:backdrop-blur-md rounded-2xl p-3 md:p-6 border border-slate-100 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] relative overflow-hidden group w-full h-full flex flex-col justify-between">
-             {/* Decoración Desktop */}
-             <div className="hidden md:block absolute -right-4 -bottom-4 opacity-5 group-hover:opacity-10 transition-opacity rotate-12">
-                <Activity size={120} className="text-indigo-600 dark:text-indigo-400"/>
-             </div>
-
-             {/* VISTA MÓVIL: COMPACTA */}
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden h-full flex flex-col justify-between">
+             {/* VISTA MÓVIL */}
              <div className="flex md:hidden flex-col justify-center h-full gap-1 shrink">
                  <div className="flex items-center justify-between">
-                    <p className="text-[9px] font-bold text-slate-400 uppercase leading-none">Tu Día</p>
-                    <Activity size={12} className="text-teal-500"/>
+                    <p className="text-[10px] font-bold text-slate-500 uppercase leading-none tracking-wide">Eficiencia</p>
+                    <Activity size={14} className="text-blue-600"/>
                  </div>
                  
-                 <div className="flex items-end gap-1">
-                    <p className="text-3xl font-black text-slate-800 dark:text-white leading-none tracking-tighter">{progress}%</p>
+                 <div className="flex items-end gap-1 mt-1">
+                    <p className="text-4xl font-bold text-slate-900 dark:text-white leading-none tracking-tight">{progress}%</p>
                  </div>
                  
-                 <div className="w-full bg-slate-100 rounded-full h-1 mt-1">
-                    <div className="bg-teal-500 h-1 rounded-full" style={{ width: `${progress}%` }}></div>
+                 <div className="w-full bg-slate-100 rounded-full h-1.5 mt-2">
+                    <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
                  </div>
 
-                 <div className="flex gap-1 mt-0.5">
-                    <span className="text-[8px] font-bold text-slate-500">{completed} OK</span>
-                    <span className="text-[8px] font-bold text-slate-400">|</span>
-                    <span className="text-[8px] font-bold text-slate-500">{pendingApts} Cola</span>
+                 <div className="flex justify-between mt-1.5">
+                    <span className="text-[9px] font-semibold text-slate-600">{completed} Completado</span>
+                    <span className="text-[9px] font-semibold text-slate-400">{pendingApts} Pendiente</span>
                  </div>
              </div>
 
-             {/* VISTA DESKTOP: CLEAN & PRO */}
+             {/* VISTA DESKTOP */}
              <div className="hidden md:flex flex-col justify-between h-full relative z-10 text-center">
                  <div className="flex justify-between items-start">
                     <div className="text-left">
-                        <p className="text-xs font-bold text-slate-400 uppercase tracking-widest mb-1">Eficiencia</p>
-                        <span className="text-5xl font-bold text-slate-800 dark:text-white tracking-tighter leading-none">
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Rendimiento</p>
+                        <span className="text-5xl font-bold text-slate-900 dark:text-white tracking-tighter leading-none">
                             {progress}<span className="text-3xl text-slate-400">%</span>
                         </span>
                     </div>
-                    <div className="bg-emerald-5 text-emerald-600 p-2 rounded-xl">
+                    <div className="bg-blue-50 text-blue-600 p-2 rounded-lg">
                         <Activity size={20} />
                     </div>
                  </div>
                  
                  <div className="space-y-3 mt-4">
-                    <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-500 font-medium">Completados</span>
-                        <span className="font-bold text-slate-800">{completed}</span>
-                    </div>
                     <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
-                        <div className="bg-gradient-to-r from-emerald-400 to-teal-500 h-full rounded-full transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+                        <div className="bg-gradient-to-r from-blue-600 to-teal-500 h-full rounded-full transition-all duration-1000" style={{ width: `${progress}%` }}></div>
                     </div>
                     <div className="flex justify-between items-center text-sm">
-                        <span className="text-slate-500 font-medium">En Cola</span>
-                        <span className="font-bold text-indigo-600">{pendingApts}</span>
+                        <span className="text-slate-500 font-medium">Pacientes Atendidos</span>
+                        <span className="font-bold text-slate-900">{completed} / {totalApts}</span>
                     </div>
                  </div>
              </div>
@@ -169,7 +151,7 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
     );
 };
 
-// --- ASISTENTE MODAL ---
+// --- ASISTENTE MODAL (Estilo Neutro) ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void; initialQuery?: string | null }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'answering'>('idle');
@@ -223,28 +205,28 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   if (!isOpen) return null;
   return (
     <div className="fixed inset-0 z-[60] flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-md animate-in fade-in duration-200">
-      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-[2rem] shadow-2xl overflow-hidden border border-white/20 ring-1 ring-black/5">
-        <div className="p-8 text-white text-center bg-gradient-to-br from-indigo-600 to-purple-700">
-          <Bot size={48} className="mx-auto mb-3" />
-          <h3 className="text-2xl font-black">{status === 'answering' ? 'Respuesta Inteligente' : 'Copiloto Clínico'}</h3>
+      <div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl shadow-2xl overflow-hidden border border-white/20 ring-1 ring-black/5">
+        <div className="p-6 text-white text-center bg-slate-900">
+          <Bot size={40} className="mx-auto mb-3 text-blue-400" />
+          <h3 className="text-xl font-bold">Asistente VitalScribe</h3>
         </div>
         <div className="p-8">
           {(status === 'idle' || status === 'listening' || status === 'processing') && (
             <div className="flex flex-col items-center gap-8">
-                <div className="text-center text-xl font-medium min-h-[3rem]">"{initialQuery || transcript || 'Escuchando...'}"</div>
-                {status === 'processing' ? <Loader2 className="animate-spin text-indigo-600" /> : (
-                  <button onClick={() => { if (status === 'listening') { processIntent(); } else { resetTranscript(); setStatus('listening'); startListening(); } }} className={`w-24 h-24 rounded-full flex items-center justify-center shadow-2xl transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-900 text-white'}`}>
-                    {status === 'listening' ? <Square size={32} fill="currentColor"/> : <Mic size={32} />}
+                <div className="text-center text-lg font-medium min-h-[3rem] text-slate-700">"{initialQuery || transcript || 'Escuchando...'}"</div>
+                {status === 'processing' ? <Loader2 className="animate-spin text-blue-600" /> : (
+                  <button onClick={() => { if (status === 'listening') { processIntent(); } else { resetTranscript(); setStatus('listening'); startListening(); } }} className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>
+                    {status === 'listening' ? <Square size={28} fill="currentColor"/> : <Mic size={28} />}
                   </button>
                 )}
             </div>
           )}
           {status === 'answering' && aiResponse && (
             <div className="animate-in slide-in-from-bottom-4 fade-in">
-              <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-2xl p-5 mb-6 max-h-60 overflow-y-auto"><p className="text-slate-700 dark:text-slate-200 text-sm">{medicalAnswer || aiResponse.message}</p></div>
+              <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-6 max-h-60 overflow-y-auto"><p className="text-slate-700 text-sm leading-relaxed">{medicalAnswer || aiResponse.message}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setStatus('idle'); resetTranscript(); }} className="flex-1 py-3.5 text-slate-500 font-bold hover:bg-slate-100 rounded-xl">Nueva</button>
-                <button onClick={handleExecuteAction} className="flex-1 py-3.5 bg-indigo-600 text-white font-bold rounded-xl shadow-lg">{aiResponse.intent === 'MEDICAL_QUERY' ? 'Cerrar' : 'Ejecutar'}</button>
+                <button onClick={() => { setStatus('idle'); resetTranscript(); }} className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-lg border border-slate-200">Nueva</button>
+                <button onClick={handleExecuteAction} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700">{aiResponse.intent === 'MEDICAL_QUERY' ? 'Cerrar' : 'Ejecutar'}</button>
               </div>
             </div>
           )}
@@ -254,38 +236,34 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   );
 };
 
-// --- COMPONENTE RADAR (Adaptable y Tipado) ---
+// --- COMPONENTE RADAR (Estilo Limpio) ---
 const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick: (item: PendingItem) => void }) => {
-    // EN MÓVIL: Ocultamos si no hay nada crítico para ahorrar espacio
     if (items.length === 0) return (
-        <div className="hidden md:flex bg-white/80 backdrop-blur-md rounded-2xl md:rounded-[2rem] p-4 md:p-6 border border-slate-100 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] flex-col items-center justify-center text-center h-full min-h-[160px]">
+        <div className="hidden md:flex bg-white rounded-xl p-6 border border-slate-200 shadow-sm flex-col items-center justify-center text-center h-full min-h-[160px]">
             <CheckCircle2 size={32} className="text-emerald-500 mb-2 opacity-50"/>
-            <p className="font-bold text-slate-600 dark:text-slate-300 text-sm">Todo en orden</p>
-            <p className="text-xs text-slate-400">Sin pendientes urgentes</p>
+            <p className="font-bold text-slate-600 text-sm">Sin pendientes</p>
+            <p className="text-xs text-slate-400">Bandeja de entrada limpia</p>
         </div>
     );
     return (
-        <div className="bg-white/80 backdrop-blur-md dark:from-slate-900 dark:to-slate-900 rounded-2xl md:rounded-[2rem] p-3 md:p-6 border border-slate-100 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] h-full">
-            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-2 md:mb-4 text-xs md:text-base">
-                <div className="p-1.5 md:p-2 bg-amber-50 text-amber-600 rounded-lg"><AlertTriangle size={18}/></div>
-                Radar ({items.length})
+        <div className="bg-white dark:bg-slate-900 rounded-xl p-4 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm h-full">
+            <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-3 text-sm">
+                <div className="p-1.5 bg-amber-50 text-amber-600 rounded-md"><AlertTriangle size={16}/></div>
+                Atención Requerida ({items.length})
             </h3>
-            <div className="space-y-2 md:space-y-3 max-h-32 md:max-h-full overflow-y-auto custom-scrollbar">
+            <div className="space-y-2 max-h-32 md:max-h-full overflow-y-auto custom-scrollbar">
                 {items.slice(0, 3).map((item) => (
                     <div 
                         key={item.id} 
                         onClick={() => onItemClick(item)} 
-                        role="button"
-                        tabIndex={0}
-                        onKeyDown={(e) => { if(e.key === 'Enter') onItemClick(item); }}
-                        className="flex items-center gap-3 p-2 md:p-3 bg-white dark:bg-slate-800 rounded-xl border border-slate-100 dark:border-slate-700 cursor-pointer hover:bg-amber-50 dark:hover:bg-slate-700 hover:shadow-md transition-all group focus:outline-none focus:ring-2 focus:ring-amber-500"
+                        className="flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:bg-slate-50 hover:border-slate-100 cursor-pointer transition-all group"
                     >
                         <div className={`w-2 h-2 rounded-full ${item.type === 'note' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-xs md:text-sm font-bold text-slate-700 dark:text-slate-200 truncate group-hover:text-amber-700 transition-colors">{item.title}</p>
-                            <p className="text-[9px] md:text-xs text-slate-400 truncate">{item.subtitle}</p>
+                            <p className="text-sm font-bold text-slate-700 truncate">{item.title}</p>
+                            <p className="text-xs text-slate-500 truncate">{item.subtitle}</p>
                         </div>
-                        <ChevronRight size={16} className="text-slate-300 group-hover:text-amber-500 transition-colors shrink-0"/>
+                        <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500"/>
                     </div>
                 ))}
             </div>
@@ -293,25 +271,25 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
     );
 };
 
-// --- QUICK DOCS (Desktop) ---
+// --- QUICK DOCS (Desktop - Clean) ---
 const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certificado' | 'receta') => void }) => (
-    <div className="bg-white/80 backdrop-blur-md dark:from-slate-900 dark:to-slate-900 rounded-2xl md:rounded-[2rem] p-4 md:p-6 border border-slate-100 dark:border-slate-800 shadow-[0_8px_30px_rgb(0,0,0,0.04)] h-full">
-        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-3 md:mb-4 text-sm md:text-base">
-            <div className="p-1.5 md:p-2 bg-pink-50 text-pink-600 rounded-lg"><FileCheck size={18}/></div>
-            Docs Rápidos
+    <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm h-full">
+        <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4 text-sm">
+            <div className="p-1.5 bg-slate-100 text-slate-600 rounded-md"><FileCheck size={16}/></div>
+            Documentación Rápida
         </h3>
-        <div className="grid grid-cols-2 gap-2 md:gap-3">
-            <button onClick={() => openModal('justificante')} className="p-3 bg-white hover:bg-pink-50/50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-left transition-colors">
-                <FileText size={18} className="text-slate-400 mb-2"/>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Justificante</p>
+        <div className="grid grid-cols-2 gap-3">
+            <button onClick={() => openModal('justificante')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group">
+                <FileText size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Justificante</p>
             </button>
-            <button onClick={() => openModal('certificado')} className="p-3 bg-white hover:bg-pink-50/50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-left transition-colors">
-                <FileSignature size={18} className="text-slate-400 mb-2"/>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Certificado</p>
+            <button onClick={() => openModal('certificado')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group">
+                <FileSignature size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Certificado</p>
             </button>
-            <button onClick={() => openModal('receta')} className="col-span-2 p-3 bg-white hover:bg-pink-50/50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl text-left flex items-center gap-3 transition-colors">
-                <Printer size={18} className="text-indigo-500"/>
-                <p className="text-xs font-bold text-slate-700 dark:text-slate-200">Receta Simple</p>
+            <button onClick={() => openModal('receta')} className="col-span-2 p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left flex items-center gap-3 transition-all group">
+                <Printer size={18} className="text-slate-400 group-hover:text-blue-500 transition-colors"/>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Receta Simple</p>
             </button>
         </div>
     </div>
@@ -319,7 +297,6 @@ const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certific
 
 const Dashboard: React.FC = () => {
   const navigate = useNavigate();
-  // Uso estricto de tipado para evitar 'any'
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null); 
   const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
   const [completedTodayCount, setCompletedTodayCount] = useState(0);
@@ -341,11 +318,8 @@ const Dashboard: React.FC = () => {
   const [rescheduleTarget, setRescheduleTarget] = useState<{id: string, title: string} | null>(null);
   const [newDateInput, setNewDateInput] = useState('');
   const [now, setNow] = useState(new Date());
-
-  // ✅ NUEVO ESTADO: Modal de Reto Diario
   const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
 
-  // Reloj interno estable - Única fuente de verdad para el tiempo en todo el dashboard
   useEffect(() => { 
       const timer = setInterval(() => setNow(new Date()), 1000); 
       return () => clearInterval(timer); 
@@ -357,17 +331,9 @@ const Dashboard: React.FC = () => {
     return /^(Dr\.|Dra\.)/i.test(raw) ? raw : `Dr. ${raw}`;
   }, [doctorProfile]);
 
-  // Se eliminó el uso innecesario de estado para greeting, se calcula al vuelo o via hook
-  const dynamicGreeting = useMemo(() => getTimeOfDayGreeting(formattedDocName || ''), [formattedDocName]);
-
   const openDocModal = (type: 'justificante' | 'certificado' | 'receta') => { setDocType(type); setIsDocModalOpen(true); };
   
   const nextPatient = useMemo(() => appointments.find(a => a.status === 'scheduled') || null, [appointments]);
-  const groupedAppointments = useMemo(() => appointments.reduce((acc, apt) => {
-    const day = isToday(parseISO(apt.start_time)) ? 'Hoy' : format(parseISO(apt.start_time), 'EEEE d', { locale: es });
-    if (!acc[day]) acc[day] = []; acc[day].push(apt); return acc;
-  }, {} as Record<string, DashboardAppointment[]>), [appointments]);
-
   const appointmentsToday = appointments.filter(a => isToday(parseISO(a.start_time))).length;
   const totalDailyLoad = completedTodayCount + appointmentsToday;
 
@@ -429,17 +395,12 @@ const Dashboard: React.FC = () => {
       } catch (e) { console.error("Error actualizando clima:", e); }
   }, []);
 
-  // Fix: Gestión correcta del intervalo de geolocalización
   useEffect(() => {
     fetchData(); 
     const cachedLocation = localStorage.getItem('last_known_location');
     if (cachedLocation) { setLocationName(cachedLocation); }
-    
-    // Polling de datos cada 2 min
     const pollingInterval = setInterval(() => { if (document.visibilityState === 'visible') fetchData(true); }, 120000);
-    
     let weatherInterval: NodeJS.Timeout | null = null;
-
     if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(async (position) => {
             const { latitude, longitude } = position.coords;
@@ -450,74 +411,40 @@ const Dashboard: React.FC = () => {
                 setLocationName(newLoc);
                 localStorage.setItem('last_known_location', newLoc);
             } catch (e) { if(!cachedLocation) setLocationName("México"); }
-            
             await updateWeather(latitude, longitude);
-            // Iniciar intervalo SOLO si tenemos coordenadas
             weatherInterval = setInterval(() => { updateWeather(latitude, longitude); }, 30 * 60 * 1000); 
         }, () => { if(!cachedLocation) setLocationName("Ubicación n/a"); });
     }
-    
-    return () => {
-        clearInterval(pollingInterval);
-        if (weatherInterval) clearInterval(weatherInterval);
-    };
+    return () => { clearInterval(pollingInterval); if (weatherInterval) clearInterval(weatherInterval); };
   }, [fetchData, updateWeather]);
 
   const handleStartConsultation = (apt: DashboardAppointment) => { 
-      // Safe navigation with ghost patient handling
-      navigate('/consultation', { 
-          state: { 
-              patientData: apt.patient ? { id: apt.patient.id, name: apt.patient.name } : { id: `ghost_${apt.id}`, name: apt.title, isGhost: true }, 
-              linkedAppointmentId: apt.id 
-          } 
-      }); 
+      navigate('/consultation', { state: { patientData: apt.patient ? { id: apt.patient.id, name: apt.patient.name } : { id: `ghost_${apt.id}`, name: apt.title, isGhost: true }, linkedAppointmentId: apt.id } }); 
   };
 
   const handleRadarClick = (item: PendingItem) => { 
-      if (item.type === 'note') { 
-          navigate('/consultation', { state: { consultationId: item.id, isResume: true } }); 
-      } else if (item.type === 'appt') { 
-          const patientName = item.subtitle.split('•')[0].trim(); 
-          navigate('/consultation', { state: { linkedAppointmentId: item.id, patientData: { id: 'radar_temp', name: patientName, isGhost: true } } }); 
-      } 
+      if (item.type === 'note') { navigate('/consultation', { state: { consultationId: item.id, isResume: true } }); } 
+      else if (item.type === 'appt') { const patientName = item.subtitle.split('•')[0].trim(); navigate('/consultation', { state: { linkedAppointmentId: item.id, patientData: { id: 'radar_temp', name: patientName, isGhost: true } } }); } 
   };
 
   const openRescheduleModal = (e: React.MouseEvent, apt: DashboardAppointment) => { 
-      e.stopPropagation(); 
-      setRescheduleTarget({ id: apt.id, title: apt.title }); 
-      const currentIso = new Date(apt.start_time); 
-      const localIso = new Date(currentIso.getTime() - (currentIso.getTimezoneOffset() * 60000)).toISOString().slice(0, 16); 
-      setNewDateInput(localIso); 
+      e.stopPropagation(); setRescheduleTarget({ id: apt.id, title: apt.title }); 
+      const currentIso = new Date(apt.start_time); const localIso = new Date(currentIso.getTime() - (currentIso.getTimezoneOffset() * 60000)).toISOString().slice(0, 16); setNewDateInput(localIso); 
   };
 
   const confirmReschedule = async () => { 
       if (!rescheduleTarget || !newDateInput) return; 
       try { 
-          const newDate = new Date(newDateInput).toISOString(); 
-          await supabase.from('appointments').update({ start_time: newDate }).eq('id', rescheduleTarget.id); 
-          toast.success(`Cita movida`); 
-          setPendingItems(prev => prev.filter(i => i.id !== rescheduleTarget.id)); 
-          setRescheduleTarget(null); 
-          fetchData(); 
+          const newDate = new Date(newDateInput).toISOString(); await supabase.from('appointments').update({ start_time: newDate }).eq('id', rescheduleTarget.id); 
+          toast.success(`Cita movida`); setPendingItems(prev => prev.filter(i => i.id !== rescheduleTarget.id)); setRescheduleTarget(null); fetchData(); 
       } catch (err) { toast.error("Error al mover cita"); } 
   };
 
   const handleCancelAppointment = async (e: React.MouseEvent, aptId: string) => { 
-      e.stopPropagation(); 
-      if (!confirm("¿Cancelar cita?")) return; 
+      e.stopPropagation(); if (!confirm("¿Cancelar cita?")) return; 
       try { 
-          await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', aptId); 
-          setAppointments(prev => prev.filter(a => a.id !== aptId)); 
-          toast.success("Cita cancelada"); 
+          await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', aptId); setAppointments(prev => prev.filter(a => a.id !== aptId)); toast.success("Cita cancelada"); 
       } catch (err) { toast.error("Error al cancelar"); } 
-  };
-
-  const handleSearchSubmit = (e?: React.FormEvent) => { 
-      if(e) e.preventDefault(); 
-      if(!searchInput.trim()) return; 
-      setInitialAssistantQuery(searchInput); 
-      setIsAssistantOpen(true); 
-      setSearchInput(''); 
   };
 
   // --- RENDER PRINCIPAL ---
@@ -532,42 +459,31 @@ const Dashboard: React.FC = () => {
         .delay-300 { animation-delay: 300ms; }
       `}</style>
       
-      {/* 🚀 VISTA MÓVIL ESTRICTA (v6.8) - FULL FIX: NOMBRE ABAJO Y PÍLDORA COMPLETA */}
-      <div className="md:hidden h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-gradient-to-b from-[#FDFBF7] via-[#F4F7FB] to-[#E2E8F0] p-4 pb-20">
-        <div className="shrink-0 bg-white rounded-2xl p-4 shadow-[0_8px_30px_rgb(0,0,0,0.04)] border border-slate-50 relative overflow-hidden animate-slide-top">
-            {/* ENCABEZADO MÓVIL OPTIMIZADO (2 PISOS) */}
+      {/* 📱 VISTA MÓVIL ESTRICTA (v7.0 - CLINICAL CLEAN + FIXED LAYOUT) */}
+      <div className="md:hidden h-[100dvh] max-h-[100dvh] w-full flex flex-col justify-between overflow-hidden bg-slate-50 p-4 pb-20">
+        <div className="shrink-0 bg-white rounded-xl p-4 shadow-sm border border-slate-200 relative overflow-hidden animate-slide-top">
+            
+            {/* ENCABEZADO MÓVIL (2 PISOS - CLEAN & STACKED FIX) */}
             <div className="flex flex-col gap-2 mb-2">
-                
-                {/* PISO 1: META-INFORMACIÓN (Avatar + Saludo + Píldora) */}
                 <div className="flex justify-between items-center w-full">
-                    {/* IZQUIERDA: Contexto */}
                     <div className="flex items-center gap-2">
-                        <div className="h-9 w-9 bg-teal-50 text-teal-600 rounded-full flex items-center justify-center font-bold text-sm border border-teal-100 shrink-0">
+                        <div className="h-9 w-9 bg-slate-100 text-slate-600 rounded-full flex items-center justify-center font-bold text-sm border border-slate-200 shrink-0">
                             {formattedDocName ? formattedDocName.charAt(0) : 'D'}
                         </div>
                         <p className="text-sm font-medium text-slate-500">Buenas noches,</p>
                     </div>
-
-                    {/* DERECHA: PÍLDORA 'BOLD' (Ahora tiene espacio propio) */}
-                    <div className="flex items-center gap-2 bg-white px-3 py-1.5 rounded-xl border border-slate-100 shadow-[0_2px_8px_rgba(0,0,0,0.06)] shrink-0">
+                    {/* Píldora de Telemetría (Full Info) */}
+                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shrink-0">
                         <div className="flex items-center gap-1">
-                            <span className="text-xs font-black text-slate-700">{weather.temp}°</span>
-                            {weather.code < 3 
-                                ? <Sun size={14} className="text-amber-500 fill-amber-500/20" strokeWidth={2.5}/> 
-                                : <Cloud size={14} className="text-slate-400 fill-slate-200" strokeWidth={2.5}/>
-                            }
+                            <span className="text-xs font-bold text-slate-700">{weather.temp}°</span>
+                            {weather.code < 3 ? <Sun size={14} className="text-amber-500" strokeWidth={2}/> : <Cloud size={14} className="text-slate-400" strokeWidth={2}/>}
                         </div>
-                        <div className="w-px h-3 bg-slate-200 mx-0.5"></div>
-                        <span className="text-sm font-black text-slate-800 tracking-tight tabular-nums">
-                            {format(now, 'h:mm')}
-                        </span>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase">
-                            {format(now, 'a')}
-                        </span>
+                        <div className="w-px h-3 bg-slate-300 mx-0.5"></div>
+                        <span className="text-sm font-bold text-slate-800 tracking-tight tabular-nums">{format(now, 'h:mm')}</span>
+                        <span className="text-[9px] font-bold text-slate-400 uppercase">{format(now, 'a')}</span>
                     </div>
                 </div>
-
-                {/* PISO 2: IDENTIDAD (Nombre Completo - Ancho Total) */}
+                {/* Nombre del Doctor en su propia fila (Ancho completo) */}
                 <div className="w-full pl-1">
                     <h1 className="text-2xl font-black text-slate-900 leading-tight break-words tracking-tight">
                         {formattedDocName}
@@ -575,36 +491,38 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
             
-            <div className="grid grid-cols-2 gap-2 mt-4 pt-2 border-t border-slate-50">
-                <button onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="bg-indigo-50/50 p-2.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform border border-indigo-50">
-                    <Bot size={18} className="text-indigo-600"/>
-                    <span className="text-xs font-bold text-indigo-700">Asistente</span>
+            {/* BOTONES DE ACCIÓN (NEUTROS) */}
+            <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
+                <button onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="bg-white p-3 rounded-lg flex items-center justify-center gap-2 active:scale-95 transition-transform border border-slate-200 shadow-sm">
+                    <Bot size={18} className="text-blue-600"/>
+                    <span className="text-xs font-bold text-slate-700">Asistente</span>
                 </button>
-                <button onClick={() => setIsQuickNoteOpen(true)} className="bg-amber-50/50 p-2.5 rounded-xl flex items-center justify-center gap-2 active:scale-95 transition-transform border border-amber-50">
-                    <Zap size={18} className="text-amber-600"/>
-                    <span className="text-xs font-bold text-amber-700">Nota Flash</span>
+                <button onClick={() => setIsQuickNoteOpen(true)} className="bg-white p-3 rounded-lg flex items-center justify-center gap-2 active:scale-95 transition-transform border border-slate-200 shadow-sm">
+                    <Zap size={18} className="text-amber-500"/>
+                    <span className="text-xs font-bold text-slate-700">Nota Flash</span>
                 </button>
             </div>
         </div>
 
-        <div className="flex-1 min-h-0 bg-white rounded-2xl p-3 border border-slate-50 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] flex flex-col my-2 animate-fade-in delay-150">
+        {/* LISTA DE AGENDA (CLEAN) */}
+        <div className="flex-1 min-h-0 bg-white rounded-xl p-3 border border-slate-200 shadow-sm flex flex-col my-2 animate-fade-in delay-150">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
-                <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-teal-600"/> Agenda de Hoy</h3>
-                <span className="bg-slate-100 text-slate-500 text-[9px] px-2 py-0.5 rounded-full font-bold">{appointments.length} Citas</span>
+                <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-slate-500"/> Agenda de Hoy</h3>
+                <span className="bg-slate-100 text-slate-600 text-[9px] px-2 py-0.5 rounded-full font-bold border border-slate-200">{appointments.length} Citas</span>
             </div>
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-2 pr-1">
                 {appointments.length === 0 ? (
                     <div className="h-full flex flex-col items-center justify-center text-center opacity-40">
                         <CalendarX size={24} className="text-slate-300 mb-1"/>
-                        <p className="text-[10px] text-slate-400 font-medium">Agenda libre por hoy</p>
+                        <p className="text-[10px] text-slate-400 font-medium">Agenda libre</p>
                     </div>
                 ) : (
                     appointments.map(apt => (
-                        <div key={apt.id} onClick={() => handleStartConsultation(apt)} className="bg-slate-50 hover:bg-slate-100 p-2.5 rounded-xl border-l-2 border-teal-500 flex items-center gap-3 active:scale-98 transition-transform shrink-0">
+                        <div key={apt.id} onClick={() => handleStartConsultation(apt)} className="bg-white border border-slate-100 p-3 rounded-lg flex items-center gap-3 active:scale-98 transition-all shadow-sm shrink-0">
                              <div className="font-bold text-slate-500 text-[10px] min-w-[30px]">{format(parseISO(apt.start_time), 'HH:mm')}</div>
                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-slate-700 text-xs truncate">{apt.title}</p>
-                                <p className="text-[9px] text-slate-400 truncate">{apt.patient ? 'Expediente Activo' : 'Primera Vez'}</p>
+                                <p className="font-bold text-slate-800 text-xs truncate">{apt.title}</p>
+                                <p className="text-[9px] text-slate-500 truncate">{apt.patient ? 'Expediente Activo' : 'Primera Vez'}</p>
                              </div>
                              <ChevronRight size={14} className="text-slate-300"/>
                         </div>
@@ -616,37 +534,35 @@ const Dashboard: React.FC = () => {
         <div className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300">
             <div className="grid grid-cols-2 gap-2 h-24">
                 <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
-                <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white rounded-2xl p-3 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform relative overflow-hidden group">
-                     <div className="absolute top-0 right-0 w-16 h-16 bg-gradient-to-br from-indigo-50 to-transparent rounded-bl-full opacity-50"></div>
-                     <div className="p-2.5 bg-indigo-50 rounded-full text-indigo-600 group-hover:scale-110 transition-transform"><UserPlus size={18}/></div>
+                <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white rounded-xl p-3 shadow-sm border border-slate-200 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform group">
+                     <div className="p-2.5 bg-blue-50 rounded-full text-blue-600 group-hover:scale-110 transition-transform"><UserPlus size={18}/></div>
                      <span className="text-xs font-bold text-slate-700 leading-tight text-center">Consulta<br/>Rápida</span>
                 </button>
             </div>
             <div className="grid grid-cols-2 gap-2 h-20">
-                 <button onClick={() => setIsDocModalOpen(true)} className="bg-white rounded-2xl p-2 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform">
-                    <div className="p-1.5 bg-pink-50 rounded-lg text-pink-500"><FileCheck size={16}/></div>
-                    <span className="text-[10px] font-bold text-slate-700">Docs Rápidos</span>
+                 <button onClick={() => setIsDocModalOpen(true)} className="bg-white rounded-xl p-2 shadow-sm border border-slate-200 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform">
+                    <div className="p-1.5 bg-slate-100 rounded-lg text-slate-500"><FileCheck size={16}/></div>
+                    <span className="text-[10px] font-bold text-slate-600">Docs</span>
                  </button>
-                 <button onClick={() => setIsUploadModalOpen(true)} className="bg-white rounded-2xl p-2 shadow-[0_4px_20px_-4px_rgba(0,0,0,0.05)] border border-slate-50 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform">
-                    <div className="p-1.5 bg-slate-100 rounded-lg text-slate-600"><FolderUp size={16}/></div>
-                    <span className="text-[10px] font-bold text-slate-700">Subir Archivo</span>
+                 <button onClick={() => setIsUploadModalOpen(true)} className="bg-white rounded-xl p-2 shadow-sm border border-slate-200 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform">
+                    <div className="p-1.5 bg-slate-100 rounded-lg text-slate-500"><FolderUp size={16}/></div>
+                    <span className="text-[10px] font-bold text-slate-600">Subir</span>
                  </button>
             </div>
-            <button onClick={() => setIsChallengeModalOpen(true)} className="w-full bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2">
+            <button onClick={() => setIsChallengeModalOpen(true)} className="w-full bg-gradient-to-r from-blue-600 to-teal-500 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2">
                 <BrainCircuit size={16}/>
                 <span className="text-xs font-bold uppercase tracking-wide">Reto Clínico</span>
             </button>
         </div>
       </div>
 
-      {/* 🖥️ VISTA DE ESCRITORIO & TABLET (v6.6) ✅ */}
-      <div className="hidden md:block min-h-screen bg-gradient-to-br from-[#FDFBF7] to-[#E2E8F0] p-8 pb-12 w-full">
+      {/* 🖥️ VISTA ESCRITORIO (v6.9 - CLINICAL PRO) */}
+      <div className="hidden md:block min-h-screen bg-slate-50 p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
-             {/* HEADER HERO CON PÍLDORA UNIFICADA */}
              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
                  <div className="flex items-center gap-6">
                      <div>
-                         <h1 className="text-5xl font-black text-slate-900 tracking-tight leading-tight">
+                         <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">
                              {formattedDocName}
                          </h1>
                          <p className="text-slate-500 font-medium text-lg mt-1 flex items-center gap-2">
@@ -655,23 +571,22 @@ const Dashboard: React.FC = () => {
                          </p>
                      </div>
                      <div className="flex gap-2 ml-4">
-                        <button onClick={() => setIsAssistantOpen(true)} className="p-3 bg-indigo-600 text-white rounded-2xl shadow-lg hover:bg-indigo-700 transition-all flex items-center gap-2">
-                            <Bot size={20}/> <span className="text-sm font-bold">Asistente</span>
+                        <button onClick={() => setIsAssistantOpen(true)} className="p-3 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2">
+                            <Bot size={20} className="text-blue-600"/> <span className="text-sm font-bold">Asistente</span>
                         </button>
-                        <button onClick={() => setIsQuickNoteOpen(true)} className="p-3 bg-amber-500 text-white rounded-2xl shadow-lg hover:bg-amber-600 transition-all flex items-center gap-2">
-                            <Zap size={20}/> <span className="text-sm font-bold">Nota Flash</span>
+                        <button onClick={() => setIsQuickNoteOpen(true)} className="p-3 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2">
+                            <Zap size={20} className="text-amber-500"/> <span className="text-sm font-bold">Nota Flash</span>
                         </button>
                      </div>
                  </div>
-                 <div className="flex items-center gap-8 bg-white/60 backdrop-blur-md px-6 py-3 rounded-[2rem] border border-white/50 shadow-sm">
+                 <div className="flex items-center gap-8 bg-white px-8 py-4 rounded-xl border border-slate-200 shadow-sm">
                      <WeatherWidget weather={weather} isDesktop />
-                     <div className="w-px h-12 bg-slate-300"></div>
+                     <div className="w-px h-12 bg-slate-200"></div>
                      <AtomicClock location={locationName} date={now} isDesktop />
                  </div>
              </div>
 
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
-                 {/* COLUMNA IZQUIERDA: Métricas y Radar */}
                  <div className="lg:col-span-3 flex flex-col gap-6">
                      <div className="h-64">
                         <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
@@ -679,46 +594,45 @@ const Dashboard: React.FC = () => {
                      <ActionRadar items={pendingItems} onItemClick={handleRadarClick} />
                  </div>
 
-                 {/* COLUMNA CENTRAL: Agenda Core */}
                  <div className="lg:col-span-6 flex flex-col gap-6">
-                     <div className="bg-white/80 backdrop-blur-md rounded-[2rem] p-8 shadow-sm border border-slate-100 relative overflow-hidden min-h-[280px] flex flex-col justify-between">
+                     <div className="bg-white rounded-xl p-8 border border-slate-200 shadow-sm relative overflow-hidden min-h-[280px] flex flex-col justify-between">
                         <div className="flex justify-between items-start mb-4">
-                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide ${nextPatient ? 'bg-emerald-100 text-emerald-700' : 'bg-slate-100 text-slate-500'}`}>
+                            <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${nextPatient ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
                                 {nextPatient ? 'En Espera' : 'Sala Libre'}
                             </span>
                             {nextPatient && <span className="text-2xl font-bold text-slate-800">{format(parseISO(nextPatient.start_time), 'h:mm a')}</span>}
                         </div>
                         <div className="mb-6">
-                            <h2 className="text-4xl font-black text-slate-800 truncate mb-2">
-                                {nextPatient ? nextPatient.title : 'Sin pacientes en espera'}
+                            <h2 className="text-3xl font-black text-slate-900 truncate mb-2">
+                                {nextPatient ? nextPatient.title : 'Sin pacientes'}
                             </h2>
                             <p className="text-slate-500 text-lg">
                                 {nextPatient ? (nextPatient.patient ? 'Expediente Activo • Consulta Programada' : 'Primera Vez') : 'Agenda despejada.'}
                             </p>
                         </div>
                         {nextPatient && (
-                            <button onClick={() => handleStartConsultation(nextPatient)} className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-2xl font-bold text-sm shadow-lg flex items-center justify-center gap-2">
+                            <button onClick={() => handleStartConsultation(nextPatient)} className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-colors">
                                 <Stethoscope size={18} /> INICIAR CONSULTA
                             </button>
                         )}
                      </div>
 
-                     <div className="bg-white/80 backdrop-blur-md rounded-[2rem] p-8 border border-slate-100 shadow-sm min-h-[400px]">
+                     <div className="bg-white rounded-xl p-8 border border-slate-200 shadow-sm min-h-[400px]">
                         <div className="flex justify-between items-center mb-6">
-                            <h3 className="font-bold text-slate-800 text-xl flex items-center gap-2"><Calendar size={24} className="text-indigo-600"/> Agenda del Día</h3>
+                            <h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Calendar size={20} className="text-slate-400"/> Agenda del Día</h3>
                         </div>
-                        <div className="space-y-3">
+                        <div className="space-y-2">
                             {appointments.length === 0 ? (
                                 <p className="text-center text-slate-400 py-10">No hay más citas programadas.</p>
                             ) : (
                                 appointments.map(apt => (
-                                    <div key={apt.id} className="flex items-center gap-4 p-4 hover:bg-slate-50 rounded-2xl group cursor-pointer border border-transparent hover:border-slate-100 transition-all" onClick={() => handleStartConsultation(apt)}>
+                                    <div key={apt.id} className="flex items-center gap-4 p-4 hover:bg-slate-50 rounded-xl group cursor-pointer border border-transparent hover:border-slate-200 transition-all" onClick={() => handleStartConsultation(apt)}>
                                         <div className="font-bold text-slate-500 text-sm w-12 text-right">{format(parseISO(apt.start_time), 'HH:mm')}</div>
-                                        <div className="w-1.5 h-10 bg-indigo-200 rounded-full group-hover:bg-indigo-500 transition-colors"></div>
+                                        <div className="w-1 h-8 bg-slate-200 rounded-full group-hover:bg-blue-500 transition-colors"></div>
                                         <div className="flex-1 min-w-0">
                                             <p className="font-bold text-slate-800 text-base truncate">{apt.title}</p>
                                         </div>
-                                        <ChevronRight size={20} className="text-slate-300 group-hover:text-indigo-600"/>
+                                        <ChevronRight size={20} className="text-slate-300 group-hover:text-blue-600"/>
                                     </div>
                                 ))
                             )}
@@ -726,15 +640,14 @@ const Dashboard: React.FC = () => {
                      </div>
                  </div>
 
-                 {/* COLUMNA DERECHA: Herramientas */}
                  <div className="lg:col-span-3 flex flex-col gap-6">
                      <div className="grid grid-cols-2 gap-4">
-                        <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white/80 backdrop-blur-md p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center gap-3">
-                            <div className="p-3 bg-indigo-50 text-indigo-600 rounded-xl"><UserPlus size={24}/></div>
+                        <button onClick={() => setIsFastAdmitOpen(true)} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col items-center gap-3 group">
+                            <div className="p-3 bg-blue-50 text-blue-600 rounded-lg group-hover:scale-110 transition-transform"><UserPlus size={24}/></div>
                             <span className="font-bold text-slate-700 text-sm text-center">Consulta<br/>Rápida</span>
                         </button>
-                        <button onClick={() => setIsUploadModalOpen(true)} className="bg-white/80 backdrop-blur-md p-6 rounded-2xl border border-slate-100 shadow-sm hover:shadow-md transition-all flex flex-col items-center gap-3">
-                            <div className="p-3 bg-slate-100 text-slate-600 rounded-xl"><FolderUp size={24}/></div>
+                        <button onClick={() => setIsUploadModalOpen(true)} className="bg-white p-6 rounded-xl border border-slate-200 shadow-sm hover:shadow-md transition-all flex flex-col items-center gap-3 group">
+                            <div className="p-3 bg-slate-100 text-slate-600 rounded-lg group-hover:scale-110 transition-transform"><FolderUp size={24}/></div>
                             <span className="font-bold text-slate-700 text-sm text-center">Subir<br/>Archivo</span>
                         </button>
                      </div>
@@ -743,15 +656,15 @@ const Dashboard: React.FC = () => {
                         <QuickDocs openModal={openDocModal} />
                      </div>
 
-                     <div className="bg-gradient-to-br from-indigo-500/10 to-purple-500/10 rounded-[2rem] p-6 border-2 border-indigo-100/50 flex flex-col gap-3">
-                        <div className="flex items-center gap-2 text-indigo-700 font-bold">
+                     <div className="bg-gradient-to-br from-blue-600 to-teal-600 rounded-xl p-6 shadow-md text-white flex flex-col gap-3">
+                        <div className="flex items-center gap-2 font-bold text-blue-50">
                             <BrainCircuit size={20}/> <span>Reto Diario</span>
                         </div>
-                        <p className="text-slate-600 text-sm leading-relaxed italic">
+                        <p className="text-blue-50 text-sm leading-relaxed italic">
                             ¿Sabes identificar el signo de Leser-Trélat en un paciente adulto?
                         </p>
-                        <button onClick={() => setIsChallengeModalOpen(true)} className="w-full py-3 bg-indigo-600 text-white rounded-xl font-bold text-xs hover:bg-indigo-700 transition-colors">
-                            REVISAR CASO CLÍNICO
+                        <button onClick={() => setIsChallengeModalOpen(true)} className="w-full py-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg font-bold text-xs transition-colors">
+                            REVISAR CASO
                         </button>
                      </div>
                  </div>
@@ -759,6 +672,7 @@ const Dashboard: React.FC = () => {
          </div>
       </div>
 
+      {/* MODALES */}
       {isChallengeModalOpen && (
           <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in">
               <div className="w-full max-w-md bg-transparent relative">
@@ -773,14 +687,14 @@ const Dashboard: React.FC = () => {
       )}
 
       {isUploadModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-xl relative"><button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4"><X size={16}/></button><UploadMedico onUploadComplete={() => {}}/><div className="mt-4 pt-4 border-t"><DoctorFileGallery /></div></div></div>}
-      {rescheduleTarget && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 p-4"><div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm"><h3 className="font-bold text-lg mb-2">Reprogramar</h3><input type="datetime-local" className="w-full p-3 border rounded-xl mb-4" value={newDateInput} onChange={(e) => setNewDateInput(e.target.value)}/><div className="flex justify-end gap-2"><button onClick={() => setRescheduleTarget(null)} className="px-4 py-2 text-slate-500 text-sm">Cancelar</button><button onClick={confirmReschedule} className="px-4 py-2 bg-indigo-600 text-white rounded-lg text-sm">Confirmar</button></div></div></div>}
+      {rescheduleTarget && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 p-4"><div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm"><h3 className="font-bold text-lg mb-2">Reprogramar</h3><input type="datetime-local" className="w-full p-3 border rounded-xl mb-4" value={newDateInput} onChange={(e) => setNewDateInput(e.target.value)}/><div className="flex justify-end gap-2"><button onClick={() => setRescheduleTarget(null)} className="px-4 py-2 text-slate-500 text-sm">Cancelar</button><button onClick={confirmReschedule} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Confirmar</button></div></div></div>}
       {isQuickNoteOpen && <QuickNoteModal onClose={() => setIsQuickNoteOpen(false)} doctorProfile={doctorProfile!}/>}
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile!} defaultType={docType} />
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} initialQuery={initialAssistantQuery} />
       <FastAdmitModal isOpen={isFastAdmitOpen} onClose={() => setIsFastAdmitOpen(false)} /> 
       <UserGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
       
-      <button onClick={() => setIsGuideOpen(true)} className="fixed z-50 bg-indigo-600 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 bottom-24 right-4 w-14 h-14 md:bottom-24 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3">
+      <button onClick={() => setIsGuideOpen(true)} className="fixed z-50 bg-slate-900 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 bottom-24 right-4 w-14 h-14 md:bottom-24 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3">
         <HelpCircle size={24} /> <span className="hidden md:inline">¿Cómo funciona?</span>
       </button>
     </div>
