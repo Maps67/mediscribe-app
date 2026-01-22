@@ -101,6 +101,62 @@ const WeatherWidget = ({ weather, isDesktop = false }: { weather: WeatherState, 
     );
 };
 
+// ✅ WIDGET DE EFICIENCIA (Mantenido por integridad, aunque visualmente se usa ImpactMetrics)
+const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingApts: number }) => {
+    const completed = totalApts - pendingApts;
+    const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
+    
+    return (
+        <div className="bg-[#E3F2FD] md:bg-white dark:bg-slate-900 rounded-xl p-4 border border-blue-100 md:border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden h-full flex flex-col justify-between transition-colors">
+             {/* VISTA MÓVIL */}
+             <div className="flex md:hidden flex-col justify-center h-full gap-1 shrink">
+                 <div className="flex items-center justify-between">
+                    <p className="text-[10px] font-bold text-blue-900/60 uppercase leading-none tracking-wide">Eficiencia</p>
+                    <Activity size={14} className="text-blue-600"/>
+                 </div>
+                 
+                 <div className="flex items-end gap-1 mt-1">
+                    <p className="text-4xl font-bold text-blue-900 dark:text-white leading-none tracking-tight">{progress}%</p>
+                 </div>
+                 
+                 <div className="w-full bg-white rounded-full h-1.5 mt-2">
+                    <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
+                 </div>
+
+                 <div className="flex justify-between mt-1.5">
+                    <span className="text-[9px] font-semibold text-blue-800">{completed} OK</span>
+                    <span className="text-[9px] font-semibold text-blue-600/70">{pendingApts} Pend</span>
+                 </div>
+             </div>
+
+             {/* VISTA DESKTOP */}
+             <div className="hidden md:flex flex-col justify-between h-full relative z-10 text-center">
+                 <div className="flex justify-between items-start">
+                    <div className="text-left">
+                        <p className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-1">Rendimiento</p>
+                        <span className="text-5xl font-bold text-slate-900 dark:text-white tracking-tighter leading-none">
+                            {progress}<span className="text-3xl text-slate-400">%</span>
+                        </span>
+                    </div>
+                    <div className="bg-blue-50 text-blue-600 p-2 rounded-lg">
+                        <Activity size={20} />
+                    </div>
+                 </div>
+                 
+                 <div className="space-y-3 mt-4">
+                    <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
+                        <div className="bg-gradient-to-r from-blue-600 to-teal-500 h-full rounded-full transition-all duration-1000" style={{ width: `${progress}%` }}></div>
+                    </div>
+                    <div className="flex justify-between items-center text-sm">
+                        <span className="text-slate-500 font-medium">Pacientes Atendidos</span>
+                        <span className="font-bold text-slate-900">{completed} / {totalApts}</span>
+                    </div>
+                 </div>
+             </div>
+        </div>
+    );
+};
+
 // --- ASISTENTE MODAL ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void; initialQuery?: string | null }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
@@ -613,7 +669,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 🖥️ VISTA ESCRITORIO (SIN CAMBIOS) */}
+      {/* 🖥️ VISTA ESCRITORIO */}
       <div className="hidden md:block min-h-screen bg-slate-50 p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
@@ -637,7 +693,7 @@ const Dashboard: React.FC = () => {
 
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
                  <div className="lg:col-span-3 flex flex-col gap-6">
-                     {/* ImpactMetrics */}
+                     {/* ImpactMetrics (Antes StatusWidget) - ESCRITORIO CORREGIDO ✅ */}
                      <div className="h-64">
                         <ImpactMetrics 
                             dailyTotal={totalDailyLoad} 
