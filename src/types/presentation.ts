@@ -1,9 +1,14 @@
 import * as LucideIcons from 'lucide-react';
 
+// ✅ CORRECCIÓN CRÍTICA: 
+// Excluimos explícitamente 'createLucideIcon' usando destructuring.
+// Esta función no es un componente React y rompía el tipado estricto.
+const { createLucideIcon, ...icons } = LucideIcons as any;
+
 // 1. Mapeo seguro de iconos
 // Esto permite que en el JSON escribas "Shield" y React renderice el icono real.
 export const IconMap: Record<string, React.ElementType> = {
-  ...LucideIcons
+  ...icons
 };
 
 // 2. Definición de los Tipos de Slide disponibles
