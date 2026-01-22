@@ -4,14 +4,11 @@
   Este componente maneja el Registro Crítico de Médicos.
   PROYECTO: VitalScribe AI
   Estado: FUNCIONANDO (Validado el 03/12/2025).
-  
-  ADVERTENCIA:
-  - No cambiar la lógica de 'handleAuth' sin hacer un backup completo antes.
-  - El registro depende del Trigger 'handle_new_user_automatizado' en Supabase.
-  - Si cambias los nombres de los campos en 'options.data', romperás el Trigger.
+  Protocolo Legal: v5.4 (Conexión con TermsOfService interna)
 */
 
 import React, { useState, useEffect } from 'react';
+import { Link } from 'react-router-dom'; // [MODIFICACIÓN 1: Import para navegación interna]
 import { 
   Mail, Lock, User, Stethoscope, ArrowRight, AlertTriangle, 
   KeyRound, ArrowLeft, CheckCircle2, BookOpen,
@@ -101,9 +98,6 @@ const AuthView: React.FC<AuthProps> = ({
         }
 
         // 2. CREAR CUENTA 
-        // Nota: Ya NO intentamos guardar en 'profiles' manualmente aquí.
-        // El Trigger 'handle_new_user_automatizado' en la base de datos lo hará por nosotros
-        // usando los metadatos que enviamos aquí abajo (data: { ... }).
         const { error } = await supabase.auth.signUp({
           email: formData.email,
           password: formData.password,
@@ -123,7 +117,7 @@ const AuthView: React.FC<AuthProps> = ({
         toast.success("Cuenta creada exitosamente. Revise su correo.");
 
       } else {
-        // --- INICIO DE SESIÓN (Sin Cambios) ---
+        // --- INICIO DE SESIÓN ---
         const { error } = await supabase.auth.signInWithPassword({
             email: formData.email,
             password: formData.password,
@@ -179,7 +173,7 @@ const AuthView: React.FC<AuthProps> = ({
     }
   };
 
-  // --- RENDERIZADO (Con nueva identidad VitalScribe AI) ---
+  // --- RENDERIZADO ---
   if (verificationSent) {
     return (
       <div className="min-h-screen bg-slate-50 flex flex-col items-center justify-center p-4 animate-fade-in-up">
@@ -210,9 +204,7 @@ const AuthView: React.FC<AuthProps> = ({
   return (
     <div className="min-h-screen bg-slate-50 flex flex-col lg:flex-row font-sans">
       
-      {/* 🛑 SECCIÓN ACTUALIZADA VISUALMENTE 🛑 
-         Mantiene la imagen de fondo pero actualiza textos a v8.0 
-      */}
+      {/* 🛑 SECCIÓN IZQUIERDA: ESCAPARATE DE MARCA Y LEGALIDAD 🛑 */}
       <div className="hidden lg:flex lg:w-1/2 bg-slate-900 text-white flex-col justify-center p-12 relative overflow-hidden">
         <div className="absolute top-0 left-0 w-full h-full opacity-40">
             <img src="https://images.unsplash.com/photo-1622253692010-333f2da6031d?q=80&w=1964&auto=format&fit=crop" className="w-full h-full object-cover grayscale" alt="Medical Tech" />
@@ -224,7 +216,7 @@ const AuthView: React.FC<AuthProps> = ({
           <div className="flex items-center gap-4 mb-6">
             <img src="/pwa-192x192.png" alt="Logo VitalScribe" className="w-20 h-20 rounded-2xl bg-white p-1 shadow-lg object-cover" />
             <div>
-                <h1 className="text-4xl font-bold tracking-tight text-white">VitalScribe AI</h1>
+                <h1 className="text-4xl font-bold tracking-tight text-white">VitalScribe AI<span className="text-lg align-top opacity-70">TM</span></h1>
                 <div className="flex items-center gap-2 mt-1">
                     <span className="px-2 py-0.5 rounded text-xs font-bold bg-teal-500/20 text-teal-300 border border-teal-500/30">v8.0 Pilot</span>
                     <span className="px-2 py-0.5 rounded text-xs font-bold bg-slate-700 text-slate-300">NOM-024 Ready</span>
@@ -232,11 +224,11 @@ const AuthView: React.FC<AuthProps> = ({
             </div>
           </div>
           
-          {/* Mensaje Principal de Seguridad */}
+          {/* Mensaje Principal */}
           <h2 className="text-3xl font-bold mb-4 leading-tight text-white">Su escudo de seguridad clínica y farmacológica.</h2>
           <p className="text-slate-400 text-lg mb-8">No solo transcribimos: auditamos sus recetas, bloqueamos riesgos vitales y protegemos su práctica médica en tiempo real.</p>
           
-          {/* Estadísticas / Features */}
+          {/* Estadísticas */}
           <div className="flex gap-8 mb-10">
             <div className="flex flex-col">
                 <span className="text-2xl font-bold text-brand-teal">NOM-024</span>
@@ -252,19 +244,19 @@ const AuthView: React.FC<AuthProps> = ({
             </div>
           </div>
 
-          {/* Aviso Legal al pie */}
+          {/* [MODIFICACIÓN 2]: Aviso Legal Refinado - Estrategia COFEPRIS */}
           <div className="border-t border-slate-700/50 pt-6">
-            <p className="text-[10px] text-slate-500 leading-relaxed text-justify">
-                <strong className="text-slate-400">Aviso Legal:</strong> VitalScribe AI se clasifica como <em>Software de Gestión Administrativa y Documental</em>. 
+            <p className="text-[10px] text-slate-500 leading-relaxed text-justify opacity-80 hover:opacity-100 transition-opacity">
+                <strong className="text-slate-400">Aviso Legal:</strong> VitalScribe AI™ se clasifica como <em>Software de Gestión Administrativa y Documental</em>. 
                 No realiza diagnósticos autónomos. Cumple con la <strong className="text-slate-400">NOM-004-SSA3-2012</strong> para la integración de la Historia Clínica y la <strong className="text-slate-400">NOM-024-SSA3-2012</strong> mediante el uso de estándares de interoperabilidad y seguridad.
             </p>
           </div>
 
         </div>
       </div>
-      {/* 🛑 FIN SECCIÓN ACTUALIZADA 🛑 */}
 
       <div className="flex-1 flex items-center justify-center p-6 relative bg-white dark:bg-slate-950">
+        {/* MANUAL LINK */}
         <a 
             href="/manual.html" 
             target="_blank" 
@@ -369,7 +361,12 @@ const AuthView: React.FC<AuthProps> = ({
                     <div className="flex items-start gap-3 bg-blue-50 p-3 rounded-lg border border-blue-100">
                         <input type="checkbox" required className="mt-1 w-4 h-4 text-brand-teal rounded cursor-pointer" checked={formData.termsAccepted} onChange={e => setFormData({...formData, termsAccepted: e.target.checked})}/>
                         <label className="text-xs text-slate-600">
-                            Acepto los <a href="https://pixelartestudio.art/terminos/" target="_blank" rel="noopener noreferrer" className="text-brand-teal hover:underline font-bold">Términos y Condiciones</a>, así como la verificación de mi <strong>Cédula Profesional</strong>. Datos falsos suspenden la cuenta.
+                            Acepto los 
+                            {/* [MODIFICACIÓN 3]: Enlace interno seguro a /terms */}
+                            <Link to="/terms" target="_blank" className="text-brand-teal hover:underline font-bold mx-1">
+                                Términos y Condiciones
+                            </Link>, 
+                            así como la verificación de mi <strong>Cédula Profesional</strong>. Datos falsos suspenden la cuenta.
                         </label>
                     </div>
                  )}
