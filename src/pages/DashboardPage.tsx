@@ -64,6 +64,7 @@ const BrandLogo = ({ className = "" }: { className?: string }) => (
     />
 );
 
+// --- UTILS & CLOCK ---
 const cleanMarkdown = (text: string): string => text ? text.replace(/[*_#`~]/g, '').replace(/^\s*[-•]\s+/gm, '').replace(/\[.*?\]/g, '').replace(/\n\s*\n/g, '\n').trim() : "";
 
 const AtomicClock = ({ date, isDesktop = false }: { location: string, date: Date, isDesktop?: boolean }) => {
@@ -100,6 +101,7 @@ const WeatherWidget = ({ weather, isDesktop = false }: { weather: WeatherState, 
     );
 };
 
+// ✅ WIDGET DE EFICIENCIA
 const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingApts: number }) => {
     const completed = totalApts - pendingApts;
     const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
@@ -148,6 +150,7 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
     );
 };
 
+// --- ASISTENTE MODAL ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void; initialQuery?: string | null }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'answering'>('idle');
@@ -224,12 +227,12 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
         <div className="p-8">
           {(status === 'idle' || status === 'listening' || status === 'processing') && (
             <div className="flex flex-col items-center gap-8">
-                <div className="text-center text-lg font-medium min-h-[3rem] text-slate-700">"{initialQuery || transcript || (status === 'processing' ? 'Analizando...' : 'Escuchando...')}"</div>
+                <div className="text-center text-lg font-medium min-h-[3rem] text-slate-700 dark:text-slate-200">"{initialQuery || transcript || (status === 'processing' ? 'Analizando...' : 'Escuchando...')}"</div>
                 {status === 'processing' ? (
                   <div className="flex flex-col items-center gap-4"><Loader2 className="animate-spin text-blue-600" size={48} /><button onClick={handleManualCancel} className="px-6 py-2 bg-red-50 text-red-600 rounded-full text-sm font-bold hover:bg-red-100 transition-colors border border-red-100">Cancelar</button></div>
                 ) : (
                   <div className="flex flex-col items-center gap-4">
-                      <button onClick={() => { if (status === 'listening') { processIntent(); } else { resetTranscript(); setStatus('listening'); startListening(); } }} className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 text-slate-700 border border-slate-200'}`}>{status === 'listening' ? <Square size={28} fill="currentColor"/> : <Mic size={28} />}</button>
+                      <button onClick={() => { if (status === 'listening') { processIntent(); } else { resetTranscript(); setStatus('listening'); startListening(); } }} className={`w-20 h-20 rounded-full flex items-center justify-center shadow-lg transition-all transform active:scale-95 ${status === 'listening' ? 'bg-red-500 text-white animate-pulse' : 'bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700'}`}>{status === 'listening' ? <Square size={28} fill="currentColor"/> : <Mic size={28} />}</button>
                       {status === 'listening' && <button onClick={handleManualCancel} className="text-xs font-bold text-slate-400 hover:text-red-500 transition-colors">Cancelar</button>}
                   </div>
                 )}
@@ -242,9 +245,9 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
                       <Volume2 size={12}/> Reproduciendo respuesta
                   </div>
               </div>
-              <div className="bg-slate-50 border border-slate-100 rounded-xl p-4 mb-6 max-h-60 overflow-y-auto"><p className="text-slate-700 text-sm leading-relaxed">{medicalAnswer || aiResponse.message}</p></div>
+              <div className="bg-slate-50 dark:bg-slate-800 border border-slate-100 dark:border-slate-700 rounded-xl p-4 mb-6 max-h-60 overflow-y-auto"><p className="text-slate-700 dark:text-slate-200 text-sm leading-relaxed">{medicalAnswer || aiResponse.message}</p></div>
               <div className="flex gap-3">
-                <button onClick={() => { setStatus('idle'); resetTranscript(); window.speechSynthesis.cancel(); }} className="flex-1 py-3 text-slate-600 font-bold hover:bg-slate-100 rounded-lg border border-slate-200">Nueva</button>
+                <button onClick={() => { setStatus('idle'); resetTranscript(); window.speechSynthesis.cancel(); }} className="flex-1 py-3 text-slate-600 dark:text-slate-300 font-bold hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg border border-slate-200 dark:border-slate-700">Nueva</button>
                 <button onClick={handleExecuteAction} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-lg shadow-md hover:bg-blue-700">{aiResponse.intent === 'MEDICAL_QUERY' ? 'Cerrar' : 'Ejecutar'}</button>
               </div>
             </div>
@@ -259,14 +262,14 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
     if (items.length === 0) return (
         <div className="hidden md:flex bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex-col items-center justify-center text-center h-full min-h-[160px]">
             <CheckCircle2 size={32} className="text-emerald-500 mb-2 opacity-50"/>
-            <p className="font-bold text-slate-600 text-sm">Sin pendientes</p>
+            <p className="font-bold text-slate-600 dark:text-slate-400 text-sm">Sin pendientes</p>
             <p className="text-xs text-slate-400">Bandeja de entrada limpia</p>
         </div>
     );
     return (
         <div className="bg-white dark:bg-slate-900 rounded-xl p-4 md:p-6 border border-slate-200 dark:border-slate-800 shadow-sm h-full">
             <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-3 text-sm">
-                <div className="p-1.5 bg-amber-50 text-amber-600 rounded-md"><AlertTriangle size={16}/></div>
+                <div className="p-1.5 bg-amber-50 dark:bg-amber-900/30 text-amber-600 rounded-md"><AlertTriangle size={16}/></div>
                 Atención Requerida ({items.length})
             </h3>
             <div className="space-y-2 max-h-32 md:max-h-full overflow-y-auto custom-scrollbar">
@@ -275,7 +278,7 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
                         <div className={`w-2 h-2 rounded-full ${item.type === 'note' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
                         <div className="flex-1 min-w-0">
                             <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{item.title}</p>
-                            <p className="text-xs text-slate-500 truncate">{item.subtitle}</p>
+                            <p className="text-xs text-slate-500 dark:text-slate-400 truncate">{item.subtitle}</p>
                         </div>
                         <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500"/>
                     </div>
@@ -294,20 +297,20 @@ const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certific
         <div className="grid grid-cols-2 gap-3 flex-1">
             <button onClick={() => openModal('justificante')} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
                 <FileText size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
-                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800 dark:group-hover:text-white">Justificante</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white">Justificante</p>
             </button>
             <button onClick={() => openModal('certificado')} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
                 <FileSignature size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
-                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800 dark:group-hover:text-white">Certificado</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white">Certificado</p>
             </button>
             <button onClick={() => openModal('receta')} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
                 <Printer size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
-                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800 dark:group-hover:text-white">Receta</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white">Receta</p>
             </button>
             <button onClick={() => openModal('incapacidad')} className="p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-purple-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-8 h-8 bg-purple-50 dark:bg-purple-900/30 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-150"></div>
                 <Scissors size={18} className="text-slate-400 group-hover:text-purple-500 mb-2 transition-colors relative z-10"/>
-                <p className="text-xs font-bold text-slate-600 group-hover:text-purple-700 relative z-10">Incapacidad</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-purple-700 relative z-10">Incapacidad</p>
             </button>
         </div>
     </div>
@@ -322,6 +325,7 @@ const Dashboard: React.FC = () => {
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]); 
   const [weather, setWeather] = useState<WeatherState>({ temp: '--', code: 0 });
   const [locationName, setLocationName] = useState('México');
+  const [systemStatus, setSystemStatus] = useState(true); 
   const [isLoading, setIsLoading] = useState(true); 
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -332,6 +336,9 @@ const Dashboard: React.FC = () => {
   const [isFastAdmitOpen, setIsFastAdmitOpen] = useState(false); 
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
+  const [searchInput, setSearchInput] = useState('');
+  const [rescheduleTarget, setRescheduleTarget] = useState<{id: string, title: string} | null>(null);
+  const [newDateInput, setNewDateInput] = useState('');
   const [now, setNow] = useState(new Date());
   const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
 
@@ -341,7 +348,7 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const formattedDocName = useMemo(() => {
-    if (!doctorProfile?.full_name) return 'Sincronizando...';
+    if (!doctorProfile?.full_name) return 'Cargando...';
     const raw = doctorProfile.full_name.trim();
     return /^(Dr\.|Dra\.)/i.test(raw) ? raw : `Dr. ${raw}`;
   }, [doctorProfile]);
@@ -364,7 +371,13 @@ const Dashboard: React.FC = () => {
           const { data: { session } } = await supabase.auth.getSession();
           const user = session?.user;
 
-          if (!user) return;
+          // ✅ CORRECCIÓN CRÍTICA: Si no hay usuario, liberamos el loading para no congelar la UI
+          if (!user) { 
+              setSystemStatus(false); 
+              if (!isBackgroundRefresh) setIsLoading(false);
+              return; 
+          }
+          setSystemStatus(true);
 
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
           if (profile) setDoctorProfile(profile as DoctorProfile);
@@ -412,9 +425,9 @@ const Dashboard: React.FC = () => {
             .gte('start_time', monthStart.toISOString())
             .lte('start_time', monthEnd.toISOString());
 
-          setRealPendingCount(pendingCount || 0);
+           setRealPendingCount(pendingCount || 0);
 
-          // ✅ CORRECCIÓN CRÍTICA DE COLUMNA: Se usa join con 'patients' para obtener el nombre
+          // ✅ CORRECCIÓN DE COLUMNA: Join con tabla patients
           const radar: PendingItem[] = [];
           const { data: openConsults } = await supabase
             .from('consultations')
@@ -432,6 +445,7 @@ const Dashboard: React.FC = () => {
           setPendingItems(radar);
 
       } catch (e) { 
+          setSystemStatus(false); 
           console.error("Error Dashboard:", e); 
       } finally { 
           if (!isBackgroundRefresh) setIsLoading(false); 
@@ -451,9 +465,11 @@ const Dashboard: React.FC = () => {
   useEffect(() => {
     fetchData(); 
     
-    // Listener reactivo para asegurar carga en móviles tras login
+    // ✅ LISTENER DE AUTH: El corazón de la solución móvil
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') fetchData(true);
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+            fetchData(true);
+        }
     });
 
     const cachedLocation = localStorage.getItem('last_known_location');
@@ -515,7 +531,7 @@ const Dashboard: React.FC = () => {
         .animate-slide-top { animation: slideInTop 0.5s ease-out forwards; }
       `}</style>
       
-      {/* 📱 VISTA MÓVIL */}
+      {/* 📱 VISTA MÓVIL - CORRECCIÓN DE Z-INDEX Y PERSISTENCIA */}
       <div className="md:hidden fixed inset-0 z-10 flex flex-col bg-slate-50 dark:bg-slate-950 p-4 pb-24 overflow-hidden overscroll-none">
         <header className="shrink-0 bg-white dark:bg-slate-900 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 relative animate-slide-top">
             <div className="flex flex-col gap-2 mb-2">
@@ -530,7 +546,7 @@ const Dashboard: React.FC = () => {
                             {weather.code < 3 ? <Sun size={14} className="text-amber-500" strokeWidth={2}/> : <Cloud size={14} className="text-slate-400" strokeWidth={2}/>}
                         </div>
                         <div className="w-px h-3 bg-slate-300 dark:bg-slate-600 mx-0.5"></div>
-                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tabular-nums">{format(now, 'h:mm')}</span>
+                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight tabular-nums">{format(now, 'h:mm')}</span>
                     </div>
                 </div>
                 <div className="w-full pl-1">
@@ -541,12 +557,10 @@ const Dashboard: React.FC = () => {
             </div>
             <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
                 <button onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="bg-white dark:bg-slate-800 p-3 rounded-lg flex items-center justify-center gap-2 active:scale-95 transition-transform border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <Bot size={18} className="text-blue-600"/>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Asistente</span>
+                    <Bot size={18} className="text-blue-600"/><span className="text-xs font-bold text-slate-700 dark:text-slate-200">Asistente</span>
                 </button>
                 <button onClick={() => setIsQuickNoteOpen(true)} className="bg-white dark:bg-slate-800 p-3 rounded-lg flex items-center justify-center gap-2 active:scale-95 transition-transform border border-slate-200 dark:border-slate-700 shadow-sm">
-                    <Zap size={18} className="text-amber-500"/>
-                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Nota Flash</span>
+                    <Zap size={18} className="text-amber-500"/><span className="text-xs font-bold text-slate-700 dark:text-slate-200">Nota Flash</span>
                 </button>
             </div>
         </header>
@@ -554,17 +568,13 @@ const Dashboard: React.FC = () => {
         <section className="flex-1 min-h-0 flex flex-col my-4 animate-fade-in delay-150">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
                 <h3 className="font-bold text-slate-700 dark:text-slate-300 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-blue-500"/> Agenda de Hoy</h3>
-                <div className="flex items-center gap-2">
-                    <button onClick={() => fetchData(true)} className="p-1 text-slate-400 hover:text-blue-600 active:rotate-180 transition-all"><RefreshCcw size={12}/></button>
-                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[9px] px-2 py-0.5 rounded-full font-bold border border-slate-200 dark:border-slate-700">{appointments.length} Citas</span>
-                </div>
+                <span className="bg-blue-100 dark:bg-blue-900/30 text-blue-600 dark:text-blue-400 text-[9px] px-2 py-0.5 rounded-full font-bold border border-slate-200 dark:border-slate-700">{appointments.length} Citas</span>
             </div>
             
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1 pb-2">
                 {appointments.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center opacity-40 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 border-dashed">
-                        <CalendarX size={24} className="text-slate-300 mb-1"/>
-                        <p className="text-[10px] text-slate-400 font-medium">Agenda libre</p>
+                    <div className="py-12 flex flex-col items-center justify-center text-center opacity-40 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 border-dashed">
+                        <CalendarX size={24} className="text-slate-300 mb-1"/><p className="text-[10px] text-slate-400 font-medium">Agenda libre</p>
                     </div>
                 ) : (
                     appointments.map((apt, index) => (
@@ -588,7 +598,7 @@ const Dashboard: React.FC = () => {
         <footer className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300">
             <div className="grid grid-cols-2 gap-2 h-44">
                 <ImpactMetrics dailyTotal={totalDailyLoad} dailyCompleted={completedTodayCount} refreshTrigger={appointments.length} />
-                <button onClick={() => setIsFastAdmitOpen(true)} className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-3 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02]">
+                <button onClick={() => setIsFastAdmitOpen(true)} className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-3 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02] active:scale-95">
                   <div className="absolute -right-4 -bottom-4 text-white opacity-10 rotate-12 scale-125"><UserPlus size={70} strokeWidth={1.5} /></div>
                   <div className="relative z-10 bg-white/20 w-8 h-8 flex items-center justify-center rounded-lg backdrop-blur-sm"><UserPlus className="text-white" size={16} /></div>
                   <div className="relative z-10"><h3 className="text-white font-bold text-xs leading-tight">Consulta<br/>Rápida</h3></div>
@@ -620,7 +630,7 @@ const Dashboard: React.FC = () => {
                  </div>
              </header>
 
-             <div className="grid grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
+             <main className="grid grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
                  <aside className="lg:col-span-3 flex flex-col gap-6">
                      <div className="h-64"><ImpactMetrics dailyTotal={totalDailyLoad} dailyCompleted={completedTodayCount} refreshTrigger={appointments.length} /></div>
                      <ActionRadar items={pendingItems} onItemClick={handleRadarClick} />
@@ -671,12 +681,12 @@ const Dashboard: React.FC = () => {
                         <button onClick={() => setIsChallengeModalOpen(true)} className="w-full py-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg font-bold text-xs transition-colors">REVISAR CASO</button>
                      </div>
                  </aside>
-             </div>
+             </main>
          </div>
       </div>
 
       {/* MODALES GLOBALES */}
-      {isChallengeModalOpen && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in"><div className="w-full max-w-md bg-transparent relative"><button onClick={() => setIsChallengeModalOpen(false)} className="absolute -top-12 right-0 text-white p-2 bg-white/20 rounded-full backdrop-blur-md transition-colors hover:bg-white/30"><X size={24}/></button><div className="h-[400px]"><DailyChallengeCard specialty={doctorProfile?.specialty || 'General'} /></div></div></div>}
+      {isChallengeModalOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in"><div className="w-full max-w-md bg-transparent relative"><button onClick={() => setIsChallengeModalOpen(false)} className="absolute -top-12 right-0 text-white p-2 bg-white/20 rounded-full backdrop-blur-md transition-colors hover:bg-white/30"><X size={24}/></button><div className="h-[400px]"><DailyChallengeCard specialty={doctorProfile?.specialty || 'General'} /></div></div></div>}
       {isUploadModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl p-6 shadow-xl relative"><button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"><X size={16}/></button><UploadMedico onUploadComplete={() => {}}/><div className="mt-4 pt-4 border-t dark:border-slate-800"><DoctorFileGallery /></div></div></div>}
       {isQuickNoteOpen && <QuickNoteModal onClose={() => setIsQuickNoteOpen(false)} doctorProfile={doctorProfile!}/>}
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile!} defaultType={docType} />
