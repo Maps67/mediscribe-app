@@ -21,8 +21,11 @@ export const ImpactMetrics = ({ dailyTotal = 0, dailyCompleted = 0, refreshTrigg
 
     useEffect(() => {
         let isMounted = true;
+        
         const loadHistoricalMetrics = async () => {
             try {
+                // setIsLoading(true); // Opcional: Desactivado para evitar parpadeo en actualizaciones rápidas
+
                 const { data: { user } } = await supabase.auth.getUser();
                 if (!user) return;
 
@@ -48,14 +51,17 @@ export const ImpactMetrics = ({ dailyTotal = 0, dailyCompleted = 0, refreshTrigg
                         totalPatients: total || 0, 
                         monthConsultations: month || 0 
                     });
-                    setIsLoading(false);
                 }
             } catch (e) {
                 console.error("Error métricas históricas:", e);
+            } finally {
+                // ✅ CORRECCIÓN CRÍTICA: El spinner se detiene SIEMPRE, haya error o no.
                 if (isMounted) setIsLoading(false);
             }
         };
+
         loadHistoricalMetrics();
+
         return () => { isMounted = false; };
     }, [refreshTrigger]);
 
@@ -93,7 +99,6 @@ export const ImpactMetrics = ({ dailyTotal = 0, dailyCompleted = 0, refreshTrigg
             {/* GRID DE DATOS HISTÓRICOS */}
             {isLoading ? (
                 <div className="flex-1 flex items-center justify-center text-slate-300 min-h-[60px] md:min-h-[80px]">
-                    {/* ✅ CORRECCIÓN APLICADA: Atributos className fusionados aquí */}
                     <Loader2 className="animate-spin md:w-6 md:h-6" size={20} />
                 </div>
             ) : (

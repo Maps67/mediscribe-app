@@ -10,7 +10,6 @@ import {
   Scissors, Volume2 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
-// ✅ IMPORT ACTUALIZADO: Agregado startOfMonth y endOfMonth
 import { format, isToday, parseISO, startOfDay, endOfDay, addDays, startOfMonth, endOfMonth } from 'date-fns';
 import { es } from 'date-fns/locale';
 import { toast } from 'sonner';
@@ -515,7 +514,7 @@ const Dashboard: React.FC = () => {
         .delay-300 { animation-delay: 300ms; }
       `}</style>
       
-      {/* 📱 VISTA MÓVIL */}
+      {/* 📱 VISTA MÓVIL - CORREGIDA Y RESTAURADA */}
       <div className="md:hidden fixed inset-0 z-0 flex flex-col bg-slate-50 p-4 pb-24 overflow-hidden overscroll-none">
         <div className="shrink-0 bg-white rounded-xl p-4 shadow-sm border border-slate-200 relative animate-slide-top z-10">
             <div className="flex flex-col gap-2 mb-2">
@@ -524,6 +523,7 @@ const Dashboard: React.FC = () => {
                         <BrandLogo className="h-9 w-9 rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.06)]" />
                         <p className="text-sm font-medium text-slate-500">{greetingText},</p>
                     </div>
+                    {/* RESTAURACIÓN STATUS DEL SISTEMA (CLIMA/HORA) */}
                     <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shrink-0">
                         <div className="flex items-center gap-1">
                             <span className="text-xs font-bold text-slate-700">{weather.temp}°</span>
@@ -534,6 +534,7 @@ const Dashboard: React.FC = () => {
                         <span className="text-[9px] font-bold text-slate-400 uppercase">{format(now, 'a')}</span>
                     </div>
                 </div>
+                {/* RESTAURACIÓN NOMBRE DEL MÉDICO */}
                 <div className="w-full pl-1">
                     <h1 className="text-2xl font-black text-slate-900 leading-tight break-words tracking-tight">
                         {formattedDocName}
@@ -612,7 +613,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 🖥️ VISTA ESCRITORIO */}
+      {/* 🖥️ VISTA ESCRITORIO (SIN CAMBIOS) */}
       <div className="hidden md:block min-h-screen bg-slate-50 p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
@@ -636,7 +637,7 @@ const Dashboard: React.FC = () => {
 
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
                  <div className="lg:col-span-3 flex flex-col gap-6">
-                     {/* ImpactMetrics (Antes StatusWidget) - ESCRITORIO CORREGIDO ✅ */}
+                     {/* ImpactMetrics */}
                      <div className="h-64">
                         <ImpactMetrics 
                             dailyTotal={totalDailyLoad} 
