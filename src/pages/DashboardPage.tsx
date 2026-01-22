@@ -64,7 +64,6 @@ const BrandLogo = ({ className = "" }: { className?: string }) => (
     />
 );
 
-// --- UTILS & CLOCK ---
 const cleanMarkdown = (text: string): string => text ? text.replace(/[*_#`~]/g, '').replace(/^\s*[-•]\s+/gm, '').replace(/\[.*?\]/g, '').replace(/\n\s*\n/g, '\n').trim() : "";
 
 const AtomicClock = ({ date, isDesktop = false }: { location: string, date: Date, isDesktop?: boolean }) => {
@@ -101,35 +100,28 @@ const WeatherWidget = ({ weather, isDesktop = false }: { weather: WeatherState, 
     );
 };
 
-// ✅ WIDGET DE EFICIENCIA (Mantenido por integridad, aunque visualmente se usa ImpactMetrics)
 const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingApts: number }) => {
     const completed = totalApts - pendingApts;
     const progress = totalApts > 0 ? Math.round((completed / totalApts) * 100) : 0;
     
     return (
         <div className="bg-[#E3F2FD] md:bg-white dark:bg-slate-900 rounded-xl p-4 border border-blue-100 md:border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden h-full flex flex-col justify-between transition-colors">
-             {/* VISTA MÓVIL */}
              <div className="flex md:hidden flex-col justify-center h-full gap-1 shrink">
                  <div className="flex items-center justify-between">
                     <p className="text-[10px] font-bold text-blue-900/60 uppercase leading-none tracking-wide">Eficiencia</p>
                     <Activity size={14} className="text-blue-600"/>
                  </div>
-                 
                  <div className="flex items-end gap-1 mt-1">
                     <p className="text-4xl font-bold text-blue-900 dark:text-white leading-none tracking-tight">{progress}%</p>
                  </div>
-                 
                  <div className="w-full bg-white rounded-full h-1.5 mt-2">
                     <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
                  </div>
-
                  <div className="flex justify-between mt-1.5">
                     <span className="text-[9px] font-semibold text-blue-800">{completed} OK</span>
                     <span className="text-[9px] font-semibold text-blue-600/70">{pendingApts} Pend</span>
                  </div>
              </div>
-
-             {/* VISTA DESKTOP */}
              <div className="hidden md:flex flex-col justify-between h-full relative z-10 text-center">
                  <div className="flex justify-between items-start">
                     <div className="text-left">
@@ -142,7 +134,6 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
                         <Activity size={20} />
                     </div>
                  </div>
-                 
                  <div className="space-y-3 mt-4">
                     <div className="w-full bg-slate-100 h-2 rounded-full overflow-hidden">
                         <div className="bg-gradient-to-r from-blue-600 to-teal-500 h-full rounded-full transition-all duration-1000" style={{ width: `${progress}%` }}></div>
@@ -157,7 +148,6 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
     );
 };
 
-// --- ASISTENTE MODAL ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void; initialQuery?: string | null }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'answering'>('idle');
@@ -178,10 +168,7 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   useEffect(() => {
     if (isOpen && initialQuery) { setStatus('processing'); processIntent(initialQuery); } 
     else if (isOpen) { resetTranscript(); setStatus('listening'); startListening(); setAiResponse(null); setMedicalAnswer(null); setIsExecuting(false); } 
-    else { 
-        stopListening(); 
-        window.speechSynthesis.cancel();
-    }
+    else { stopListening(); window.speechSynthesis.cancel(); }
   }, [isOpen, initialQuery]);
 
   const handleManualCancel = () => { stopListening(); resetTranscript(); setStatus('idle'); window.speechSynthesis.cancel(); };
@@ -268,7 +255,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   );
 };
 
-// --- COMPONENTE RADAR ---
 const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick: (item: PendingItem) => void }) => {
     if (items.length === 0) return (
         <div className="hidden md:flex bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex-col items-center justify-center text-center h-full min-h-[160px]">
@@ -299,7 +285,6 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
     );
 };
 
-// --- QUICK DOCS ---
 const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certificado' | 'receta' | 'incapacidad') => void }) => (
     <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm h-full flex flex-col justify-between">
         <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-4 text-sm">
@@ -309,20 +294,20 @@ const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certific
         <div className="grid grid-cols-2 gap-3 flex-1">
             <button onClick={() => openModal('justificante')} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
                 <FileText size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white">Justificante</p>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800 dark:group-hover:text-white">Justificante</p>
             </button>
             <button onClick={() => openModal('certificado')} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
                 <FileSignature size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white">Certificado</p>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800 dark:group-hover:text-white">Certificado</p>
             </button>
             <button onClick={() => openModal('receta')} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
                 <Printer size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white">Receta</p>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800 dark:group-hover:text-white">Receta</p>
             </button>
             <button onClick={() => openModal('incapacidad')} className="p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-purple-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-8 h-8 bg-purple-50 dark:bg-purple-900/30 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-150"></div>
                 <Scissors size={18} className="text-slate-400 group-hover:text-purple-500 mb-2 transition-colors relative z-10"/>
-                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-purple-700 relative z-10">Incapacidad</p>
+                <p className="text-xs font-bold text-slate-600 group-hover:text-purple-700 relative z-10">Incapacidad</p>
             </button>
         </div>
     </div>
@@ -333,11 +318,10 @@ const Dashboard: React.FC = () => {
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null); 
   const [appointments, setAppointments] = useState<DashboardAppointment[]>([]);
   const [completedTodayCount, setCompletedTodayCount] = useState(0);
-  const [realPendingCount, setRealPendingCount] = useState(0); // ✅ MÉTRICA REAL INYECTADA
+  const [realPendingCount, setRealPendingCount] = useState(0); 
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]); 
   const [weather, setWeather] = useState<WeatherState>({ temp: '--', code: 0 });
   const [locationName, setLocationName] = useState('México');
-  const [systemStatus, setSystemStatus] = useState(true); 
   const [isLoading, setIsLoading] = useState(true); 
 
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -348,9 +332,6 @@ const Dashboard: React.FC = () => {
   const [isFastAdmitOpen, setIsFastAdmitOpen] = useState(false); 
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
-  const [searchInput, setSearchInput] = useState('');
-  const [rescheduleTarget, setRescheduleTarget] = useState<{id: string, title: string} | null>(null);
-  const [newDateInput, setNewDateInput] = useState('');
   const [now, setNow] = useState(new Date());
   const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
 
@@ -376,35 +357,24 @@ const Dashboard: React.FC = () => {
   
   const nextPatient = useMemo(() => appointments.find(a => a.status === 'scheduled') || null, [appointments]);
   
-  // ✅ REEMPLAZO DE BLOQUE: fetchData robusto para entornos con latencia (PWA/Mobile)
   const fetchData = useCallback(async (isBackgroundRefresh = false) => {
       try {
           if (!isBackgroundRefresh) setIsLoading(true);
           
-          // Priorizamos getSession para recuperar caché local de inmediato
           const { data: { session } } = await supabase.auth.getSession();
           const user = session?.user;
 
-          if (!user) { 
-              setSystemStatus(false); 
-              return; 
-          }
-          setSystemStatus(true);
+          if (!user) return;
 
-          // 1. Carga de Perfil
           const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
           if (profile) setDoctorProfile(profile as DoctorProfile);
           
-          // 2. Definición de rangos de tiempo
           const nowRef = new Date();
           const todayStart = startOfDay(nowRef); 
           const nextWeekEnd = endOfDay(addDays(nowRef, 7));
-          
-          // ✅ NUEVOS RANGOS MENSUALES PARA MÉTRICAS
           const monthStart = startOfMonth(nowRef);
           const monthEnd = endOfMonth(nowRef);
           
-          // 3.A Citas Pendientes/Agendadas (LISTA VISUAL)
           const { data: aptsData } = await supabase
             .from('appointments')
             .select(`id, title, start_time, status, patient:patients (id, name, history)`)
@@ -423,8 +393,7 @@ const Dashboard: React.FC = () => {
               })));
           }
 
-          // 3.B Conteo real de pacientes atendidos (MENSUAL)
-          const { count: completedCount, error: countError } = await supabase
+          const { count: completedCount } = await supabase
             .from('appointments')
             .select('*', { count: 'exact', head: true })
             .eq('doctor_id', user.id)
@@ -432,12 +401,9 @@ const Dashboard: React.FC = () => {
             .gte('start_time', monthStart.toISOString())
             .lte('start_time', monthEnd.toISOString());
 
-          if (!countError) {
-              setCompletedTodayCount(completedCount || 0);
-          }
+          setCompletedTodayCount(completedCount || 0);
 
-          // 3.C Conteo real de pacientes pendientes (MENSUAL)
-          const { count: pendingCount, error: pendingError } = await supabase
+          const { count: pendingCount } = await supabase
             .from('appointments')
             .select('*', { count: 'exact', head: true })
             .eq('doctor_id', user.id)
@@ -446,15 +412,13 @@ const Dashboard: React.FC = () => {
             .gte('start_time', monthStart.toISOString())
             .lte('start_time', monthEnd.toISOString());
 
-           if (!pendingError) {
-              setRealPendingCount(pendingCount || 0);
-           }
+          setRealPendingCount(pendingCount || 0);
 
-          // 4. Radar de Pendientes
+          // ✅ CORRECCIÓN CRÍTICA DE COLUMNA: Se usa join con 'patients' para obtener el nombre
           const radar: PendingItem[] = [];
           const { data: openConsults } = await supabase
             .from('consultations')
-            .select('id, created_at, patient_name')
+            .select('id, created_at, patient:patients(name)') 
             .eq('doctor_id', user.id)
             .eq('status', 'in_progress')
             .limit(3);
@@ -462,14 +426,13 @@ const Dashboard: React.FC = () => {
           if (openConsults) {
               openConsults.forEach(c => radar.push({
                   id: c.id, type: 'note', title: 'Nota Incompleta',
-                  subtitle: `${c.patient_name || 'Sin nombre'}`, date: c.created_at
+                  subtitle: `${(c.patient as any)?.name || 'Sin nombre'}`, date: c.created_at
               }));
           }
           setPendingItems(radar);
 
       } catch (e) { 
-          setSystemStatus(false); 
-          console.error("Error sincronizando Dashboard:", e); 
+          console.error("Error Dashboard:", e); 
       } finally { 
           if (!isBackgroundRefresh) setIsLoading(false); 
       }
@@ -486,14 +449,11 @@ const Dashboard: React.FC = () => {
   }, []);
 
   useEffect(() => {
-    // Intento inicial
     fetchData(); 
     
-    // ✅ LISTENER DE AUTH: Disparador crítico para asegurar la carga en móviles tras la restauración de sesión
+    // Listener reactivo para asegurar carga en móviles tras login
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
-        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
-            fetchData(true);
-        }
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') fetchData(true);
     });
 
     const cachedLocation = localStorage.getItem('last_known_location');
@@ -528,7 +488,6 @@ const Dashboard: React.FC = () => {
             await updateWeather(latitude, longitude);
         });
     }
-
     return () => { 
         subscription.unsubscribe();
         clearInterval(pollingInterval); 
@@ -547,28 +506,6 @@ const Dashboard: React.FC = () => {
       else if (item.type === 'appt') { const patientName = item.subtitle.split('•')[0].trim(); navigate('/consultation', { state: { linkedAppointmentId: item.id, patientData: { id: 'radar_temp', name: patientName, isGhost: true } } }); } 
   };
 
-  const openRescheduleModal = (e: React.MouseEvent, apt: DashboardAppointment) => { 
-      e.stopPropagation(); setRescheduleTarget({ id: apt.id, title: apt.title }); 
-      const currentIso = new Date(apt.start_time); const localIso = new Date(currentIso.getTime() - (currentIso.getTimezoneOffset() * 60000)).toISOString().slice(0, 16); setNewDateInput(localIso); 
-  };
-
-  const confirmReschedule = async () => { 
-      if (!rescheduleTarget || !newDateInput) return; 
-      try { 
-          const newDate = new Date(newDateInput).toISOString(); await supabase.from('appointments').update({ start_time: newDate }).eq('id', rescheduleTarget.id); 
-          toast.success(`Cita movida`); setPendingItems(prev => prev.filter(i => i.id !== rescheduleTarget.id)); setRescheduleTarget(null); fetchData(); 
-      } catch (err) { toast.error("Error al mover cita"); } 
-  };
-
-  const handleCancelAppointment = async (e: React.MouseEvent, aptId: string) => { 
-      e.stopPropagation(); if (!confirm("¿Cancelar cita?")) return; 
-      try { 
-          await supabase.from('appointments').update({ status: 'cancelled' }).eq('id', aptId); setAppointments(prev => prev.filter(a => a.id !== aptId)); toast.success("Cita cancelada"); 
-      } catch (err) { toast.error("Error al cancelar"); } 
-  };
-
-  const handleSearchSubmit = (e?: React.FormEvent) => { if(e) e.preventDefault(); if(!searchInput.trim()) return; setInitialAssistantQuery(searchInput); setIsAssistantOpen(true); setSearchInput(''); };
-
   return (
     <div className="md:h-auto h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans relative overflow-hidden md:overflow-y-auto">
       <style>{`
@@ -576,11 +513,9 @@ const Dashboard: React.FC = () => {
         @keyframes slideInTop { from { opacity: 0; transform: translateY(-1rem); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fadeIn 0.6s ease-out forwards; }
         .animate-slide-top { animation: slideInTop 0.5s ease-out forwards; }
-        .delay-150 { animation-delay: 150ms; }
-        .delay-300 { animation-delay: 300ms; }
       `}</style>
       
-      {/* 📱 VISTA MÓVIL - CORRECCIÓN DE PROFUNDIDAD (Z-INDEX) Y PERSISTENCIA */}
+      {/* 📱 VISTA MÓVIL */}
       <div className="md:hidden fixed inset-0 z-10 flex flex-col bg-slate-50 dark:bg-slate-950 p-4 pb-24 overflow-hidden overscroll-none">
         <header className="shrink-0 bg-white dark:bg-slate-900 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 relative animate-slide-top">
             <div className="flex flex-col gap-2 mb-2">
@@ -589,18 +524,15 @@ const Dashboard: React.FC = () => {
                         <BrandLogo className="h-9 w-9 rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.06)]" />
                         <p className="text-sm font-medium text-slate-500">{greetingText},</p>
                     </div>
-                    {/* STATUS SISTEMA MÓVIL */}
                     <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
                         <div className="flex items-center gap-1">
                             <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{weather.temp}°</span>
                             {weather.code < 3 ? <Sun size={14} className="text-amber-500" strokeWidth={2}/> : <Cloud size={14} className="text-slate-400" strokeWidth={2}/>}
                         </div>
                         <div className="w-px h-3 bg-slate-300 dark:bg-slate-600 mx-0.5"></div>
-                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight tabular-nums">{format(now, 'h:mm')}</span>
-                        <span className="text-[9px] font-bold text-slate-400 uppercase">{format(now, 'a')}</span>
+                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tabular-nums">{format(now, 'h:mm')}</span>
                     </div>
                 </div>
-                {/* IDENTIDAD DOCTOR MÓVIL */}
                 <div className="w-full pl-1">
                     <h1 className="text-2xl font-black text-slate-900 dark:text-white leading-tight break-words tracking-tight">
                         {formattedDocName}
@@ -619,7 +551,7 @@ const Dashboard: React.FC = () => {
             </div>
         </header>
 
-        <section className="flex-1 min-h-0 flex flex-col my-2 animate-fade-in delay-150">
+        <section className="flex-1 min-h-0 flex flex-col my-4 animate-fade-in delay-150">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
                 <h3 className="font-bold text-slate-700 dark:text-slate-300 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-blue-500"/> Agenda de Hoy</h3>
                 <div className="flex items-center gap-2">
@@ -655,30 +587,18 @@ const Dashboard: React.FC = () => {
 
         <footer className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300">
             <div className="grid grid-cols-2 gap-2 h-44">
-                <ImpactMetrics 
-                    dailyTotal={totalDailyLoad} 
-                    dailyCompleted={completedTodayCount} 
-                    refreshTrigger={appointments.length} 
-                />
-                <button onClick={() => setIsFastAdmitOpen(true)} className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-3 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02] active:scale-95">
-                  <div className="absolute -right-4 -bottom-4 text-white opacity-10 group-hover:opacity-20 transition-all duration-500 rotate-12 scale-125"><UserPlus size={70} strokeWidth={1.5} /></div>
+                <ImpactMetrics dailyTotal={totalDailyLoad} dailyCompleted={completedTodayCount} refreshTrigger={appointments.length} />
+                <button onClick={() => setIsFastAdmitOpen(true)} className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-3 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02]">
+                  <div className="absolute -right-4 -bottom-4 text-white opacity-10 rotate-12 scale-125"><UserPlus size={70} strokeWidth={1.5} /></div>
                   <div className="relative z-10 bg-white/20 w-8 h-8 flex items-center justify-center rounded-lg backdrop-blur-sm"><UserPlus className="text-white" size={16} /></div>
                   <div className="relative z-10"><h3 className="text-white font-bold text-xs leading-tight">Consulta<br/>Rápida</h3></div>
                 </button>
-            </div>
-            <div className="grid grid-cols-2 gap-2 h-20">
-                 <button onClick={() => setIsDocModalOpen(true)} className="bg-white dark:bg-slate-900 rounded-xl p-2 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform"><div className="p-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-500"><FileCheck size={16}/></div><span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Docs</span></button>
-                 <button onClick={() => setIsUploadModalOpen(true)} className="relative bg-white dark:bg-slate-900 rounded-xl p-2 shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden group flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform hover:border-teal-400">
-                    <div className="absolute -right-2 -bottom-2 text-teal-50 opacity-0 group-hover:opacity-100 transition-all duration-500 rotate-12 scale-125"><FolderUp size={50} /></div>
-                    <div className="relative z-10 p-1.5 bg-slate-100 dark:bg-slate-800 group-hover:bg-teal-50 rounded-lg text-slate-500 group-hover:text-teal-600 transition-colors"><FolderUp size={16}/></div>
-                    <span className="relative z-10 text-[10px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-teal-700 transition-colors">Subir</span>
-                 </button>
             </div>
             <button onClick={() => setIsChallengeModalOpen(true)} className="w-full bg-gradient-to-r from-blue-600 to-teal-500 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2"><BrainCircuit size={16}/><span className="text-xs font-bold uppercase tracking-wide">Reto Clínico</span></button>
         </footer>
       </div>
 
-      {/* 🖥️ VISTA ESCRITORIO - MONOLÍTICA */}
+      {/* 🖥️ VISTA ESCRITORIO */}
       <div className="hidden md:block min-h-screen bg-slate-50 dark:bg-slate-950 p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
              <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
@@ -700,18 +620,11 @@ const Dashboard: React.FC = () => {
                  </div>
              </header>
 
-             <main className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
+             <div className="grid grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
                  <aside className="lg:col-span-3 flex flex-col gap-6">
-                     <div className="h-64">
-                        <ImpactMetrics 
-                            dailyTotal={totalDailyLoad} 
-                            dailyCompleted={completedTodayCount} 
-                            refreshTrigger={appointments.length} 
-                        />
-                     </div>
+                     <div className="h-64"><ImpactMetrics dailyTotal={totalDailyLoad} dailyCompleted={completedTodayCount} refreshTrigger={appointments.length} /></div>
                      <ActionRadar items={pendingItems} onItemClick={handleRadarClick} />
                  </aside>
-                 
                  <section className="lg:col-span-6 flex flex-col gap-6">
                      <div className="bg-white dark:bg-slate-900 rounded-xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden min-h-[280px] flex flex-col justify-between">
                         <div className="flex justify-between items-start mb-4">
@@ -724,14 +637,13 @@ const Dashboard: React.FC = () => {
                         </div>
                         {nextPatient && <button onClick={() => handleStartConsultation(nextPatient)} className="w-full py-4 bg-slate-900 dark:bg-blue-600 hover:opacity-90 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-colors"><Stethoscope size={18} /> INICIAR CONSULTA</button>}
                      </div>
-                     
                      <div className="bg-white dark:bg-slate-900 rounded-xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm min-h-[400px]">
                         <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-slate-800 dark:text-white text-lg flex items-center gap-2"><Calendar size={20} className="text-blue-600"/> Agenda del Día</h3></div>
                         <div className="space-y-3">
                             {appointments.length === 0 ? <p className="text-center text-slate-400 py-10">No hay más citas programadas.</p> : appointments.map((apt, index) => (
                                 <div key={apt.id} className={`flex items-center gap-4 p-4 rounded-xl group cursor-pointer border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-blue-200 transition-all ${index % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-800/30'}`} onClick={() => handleStartConsultation(apt)}>
                                     <div className="font-bold text-slate-500 dark:text-slate-400 text-sm w-12 text-right">{format(parseISO(apt.start_time), 'HH:mm')}</div>
-                                    <div className="w-1.5 h-10 bg-slate-200 dark:bg-slate-700 rounded-full group-hover:bg-blue-500 transition-colors"></div>
+                                    <div className="w-1.5 h-10 bg-slate-200 dark:bg-slate-700 rounded-full group-hover:bg-blue-600 transition-colors"></div>
                                     <div className="flex-1 min-w-0"><p className="font-bold text-slate-800 dark:text-white text-base truncate">{apt.title}</p></div>
                                     <ChevronRight size={20} className="text-slate-300 group-hover:text-blue-600"/>
                                 </div>
@@ -739,7 +651,6 @@ const Dashboard: React.FC = () => {
                         </div>
                      </div>
                  </section>
-
                  <aside className="lg:col-span-3 flex flex-col gap-6">
                      <div className="grid grid-cols-2 gap-4">
                         <button onClick={() => setIsFastAdmitOpen(true)} className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-4 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02]">
@@ -760,26 +671,21 @@ const Dashboard: React.FC = () => {
                         <button onClick={() => setIsChallengeModalOpen(true)} className="w-full py-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg font-bold text-xs transition-colors">REVISAR CASO</button>
                      </div>
                  </aside>
-             </main>
+             </div>
          </div>
       </div>
 
       {/* MODALES GLOBALES */}
-      {isChallengeModalOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in"><div className="w-full max-w-md bg-transparent relative"><button onClick={() => setIsChallengeModalOpen(false)} className="absolute -top-12 right-0 text-white p-2 bg-white/20 rounded-full backdrop-blur-md transition-colors hover:bg-white/30"><X size={24}/></button><div className="h-[400px]"><DailyChallengeCard specialty={doctorProfile?.specialty || 'General'} /></div></div></div>}
-      
+      {isChallengeModalOpen && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in"><div className="w-full max-w-md bg-transparent relative"><button onClick={() => setIsChallengeModalOpen(false)} className="absolute -top-12 right-0 text-white p-2 bg-white/20 rounded-full backdrop-blur-md transition-colors hover:bg-white/30"><X size={24}/></button><div className="h-[400px]"><DailyChallengeCard specialty={doctorProfile?.specialty || 'General'} /></div></div></div>}
       {isUploadModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl p-6 shadow-xl relative"><button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"><X size={16}/></button><UploadMedico onUploadComplete={() => {}}/><div className="mt-4 pt-4 border-t dark:border-slate-800"><DoctorFileGallery /></div></div></div>}
-      
-      {rescheduleTarget && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 p-4"><div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-xl w-full max-sm"><h3 className="font-bold text-lg mb-2 dark:text-white">Reprogramar</h3><input type="datetime-local" className="w-full p-3 border dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl mb-4" value={newDateInput} onChange={(e) => setNewDateInput(e.target.value)}/><div className="flex justify-end gap-2"><button onClick={() => setRescheduleTarget(null)} className="px-4 py-2 text-slate-500 text-sm">Cancelar</button><button onClick={confirmReschedule} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-blue-700 transition-colors">Confirmar</button></div></div></div>}
-      
       {isQuickNoteOpen && <QuickNoteModal onClose={() => setIsQuickNoteOpen(false)} doctorProfile={doctorProfile!}/>}
-      
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile!} defaultType={docType} />
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} initialQuery={initialAssistantQuery} />
       <FastAdmitModal isOpen={isFastAdmitOpen} onClose={() => setIsFastAdmitOpen(false)} /> 
       <UserGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
       
       <button onClick={() => setIsGuideOpen(true)} className="fixed z-50 bg-slate-900 dark:bg-blue-600 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 bottom-24 right-4 w-14 h-14 md:bottom-24 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3 hover:scale-105 active:scale-95 transition-all">
-        <HelpCircle size={24} /> <span className="hidden md:inline">¿Cómo funciona?</span>
+        <HelpCircle size={24} /> <span className="hidden md:inline text-xs uppercase tracking-widest">¿Necesitas ayuda?</span>
       </button>
     </div>
   );
