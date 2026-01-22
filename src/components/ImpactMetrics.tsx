@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import { supabase } from '../lib/supabase';
-import { Loader2, UserCircle, Calendar, Activity, BarChart3, TrendingUp } from 'lucide-react';
+import { Loader2, UserCircle, BarChart3, TrendingUp } from 'lucide-react';
 
 // DEFINICIÓN DE PROPS (El Puente de Datos)
 interface ImpactMetricsProps {
@@ -14,7 +14,7 @@ export const ImpactMetrics = ({ dailyTotal = 0, dailyCompleted = 0, refreshTrigg
     const [metrics, setMetrics] = useState({ totalPatients: 0, monthConsultations: 0 });
     const [isLoading, setIsLoading] = useState(true);
 
-    // CÁLCULO DE EFICIENCIA
+    // CÁLCULO DE EFICIENCIA (Métrica en tiempo real)
     const efficiencyPercent = dailyTotal > 0 
         ? Math.round((dailyCompleted / dailyTotal) * 100) 
         : 0;
@@ -24,12 +24,16 @@ export const ImpactMetrics = ({ dailyTotal = 0, dailyCompleted = 0, refreshTrigg
         
         const loadHistoricalMetrics = async () => {
             try {
-                // setIsLoading(true); // Opcional: Desactivado para evitar parpadeo en actualizaciones rápidas
+                // Priorizamos getSession para mayor velocidad en móviles
+                const { data: { session } } = await supabase.auth.getSession();
+                if (!session?.user) {
+                    if (isMounted) setIsLoading(false);
+                    return;
+                }
 
-                const { data: { user } } = await supabase.auth.getUser();
-                if (!user) return;
+                const user = session.user;
 
-                // 1. Total Histórico
+                // 1. Total Histórico de Pacientes
                 const { count: total } = await supabase
                     .from('patients')
                     .select('*', { count: 'exact', head: true })
@@ -55,20 +59,27 @@ export const ImpactMetrics = ({ dailyTotal = 0, dailyCompleted = 0, refreshTrigg
             } catch (e) {
                 console.error("Error métricas históricas:", e);
             } finally {
-                // ✅ CORRECCIÓN CRÍTICA: El spinner se detiene SIEMPRE, haya error o no.
                 if (isMounted) setIsLoading(false);
             }
         };
 
         loadHistoricalMetrics();
 
-        return () => { isMounted = false; };
+        // Listener de Auth para re-hidratar si la sesión tarda en móviles
+        const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+            if (event === 'SIGNED_IN') loadHistoricalMetrics();
+        });
+
+        return () => { 
+            isMounted = false; 
+            subscription.unsubscribe();
+        };
     }, [refreshTrigger]);
 
     return (
         <div className="bg-gradient-to-br from-white to-blue-50/50 dark:from-slate-900 dark:to-slate-900 rounded-[1.5rem] md:rounded-[2rem] p-3 md:p-6 border border-slate-100 dark:border-slate-800 shadow-sm h-full flex flex-col justify-between transition-colors relative overflow-hidden">
             
-            {/* CABECERA */}
+            {/* CABECERA DE RENDIMIENTO */}
             <div className="flex justify-between items-start mb-2 md:mb-4 z-10 relative">
                 <div>
                     <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-1 md:gap-2 mb-1 text-xs md:text-base">
@@ -83,12 +94,12 @@ export const ImpactMetrics = ({ dailyTotal = 0, dailyCompleted = 0, refreshTrigg
                         {efficiencyPercent}%
                     </span>
                     <span className="text-[8px] md:text-[10px] font-bold text-emerald-600 bg-emerald-50 px-1.5 md:px-2 py-0.5 rounded-full inline-block mt-1">
-                        {dailyCompleted}/{dailyTotal} Completados
+                        {dailyCompleted}/{dailyTotal} Atendidos
                     </span>
                 </div>
             </div>
 
-            {/* BARRA DE PROGRESO */}
+            {/* BARRA DE PROGRESO VISUAL */}
             <div className="w-full bg-slate-100 dark:bg-slate-800 h-2 md:h-3 rounded-full overflow-hidden mb-3 md:mb-6 z-10 relative">
                  <div 
                     className="bg-gradient-to-r from-blue-600 to-teal-400 h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(37,99,235,0.3)]" 

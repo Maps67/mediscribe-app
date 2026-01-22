@@ -271,7 +271,7 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
 // --- COMPONENTE RADAR ---
 const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick: (item: PendingItem) => void }) => {
     if (items.length === 0) return (
-        <div className="hidden md:flex bg-white rounded-xl p-6 border border-slate-200 shadow-sm flex-col items-center justify-center text-center h-full min-h-[160px]">
+        <div className="hidden md:flex bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm flex-col items-center justify-center text-center h-full min-h-[160px]">
             <CheckCircle2 size={32} className="text-emerald-500 mb-2 opacity-50"/>
             <p className="font-bold text-slate-600 text-sm">Sin pendientes</p>
             <p className="text-xs text-slate-400">Bandeja de entrada limpia</p>
@@ -285,10 +285,10 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
             </h3>
             <div className="space-y-2 max-h-32 md:max-h-full overflow-y-auto custom-scrollbar">
                 {items.slice(0, 3).map((item) => (
-                    <div key={item.id} onClick={() => onItemClick(item)} className="flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:bg-slate-50 hover:border-slate-100 cursor-pointer transition-all group">
+                    <div key={item.id} onClick={() => onItemClick(item)} className="flex items-center gap-3 p-2.5 rounded-lg border border-transparent hover:bg-slate-50 dark:hover:bg-slate-800 hover:border-slate-100 cursor-pointer transition-all group">
                         <div className={`w-2 h-2 rounded-full ${item.type === 'note' ? 'bg-red-500' : 'bg-amber-500'}`}></div>
                         <div className="flex-1 min-w-0">
-                            <p className="text-sm font-bold text-slate-700 truncate">{item.title}</p>
+                            <p className="text-sm font-bold text-slate-700 dark:text-slate-200 truncate">{item.title}</p>
                             <p className="text-xs text-slate-500 truncate">{item.subtitle}</p>
                         </div>
                         <ChevronRight size={16} className="text-slate-300 group-hover:text-slate-500"/>
@@ -301,28 +301,28 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
 
 // --- QUICK DOCS ---
 const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certificado' | 'receta' | 'incapacidad') => void }) => (
-    <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm h-full flex flex-col justify-between">
-        <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4 text-sm">
-            <div className="p-1.5 bg-slate-100 text-slate-600 rounded-md"><FileCheck size={16}/></div>
+    <div className="bg-white dark:bg-slate-900 rounded-xl p-6 border border-slate-200 dark:border-slate-800 shadow-sm h-full flex flex-col justify-between">
+        <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 mb-4 text-sm">
+            <div className="p-1.5 bg-slate-100 dark:bg-slate-800 text-slate-600 rounded-md"><FileCheck size={16}/></div>
             Documentación Rápida
         </h3>
         <div className="grid grid-cols-2 gap-3 flex-1">
-            <button onClick={() => openModal('justificante')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
+            <button onClick={() => openModal('justificante')} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
                 <FileText size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
-                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Justificante</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white">Justificante</p>
             </button>
-            <button onClick={() => openModal('certificado')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
+            <button onClick={() => openModal('certificado')} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
                 <FileSignature size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
-                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Certificado</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white">Certificado</p>
             </button>
-            <button onClick={() => openModal('receta')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
+            <button onClick={() => openModal('receta')} className="p-3 bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
                 <Printer size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
-                <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Receta</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-slate-800 dark:group-hover:text-white">Receta</p>
             </button>
-            <button onClick={() => openModal('incapacidad')} className="p-3 bg-white border border-slate-100 hover:border-purple-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between relative overflow-hidden">
-                <div className="absolute top-0 right-0 w-8 h-8 bg-purple-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-150"></div>
+            <button onClick={() => openModal('incapacidad')} className="p-3 bg-white dark:bg-slate-800 border border-slate-100 dark:border-slate-700 hover:border-purple-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between relative overflow-hidden">
+                <div className="absolute top-0 right-0 w-8 h-8 bg-purple-50 dark:bg-purple-900/30 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-150"></div>
                 <Scissors size={18} className="text-slate-400 group-hover:text-purple-500 mb-2 transition-colors relative z-10"/>
-                <p className="text-xs font-bold text-slate-600 group-hover:text-purple-700 relative z-10">Incapacidad</p>
+                <p className="text-xs font-bold text-slate-600 dark:text-slate-400 group-hover:text-purple-700 relative z-10">Incapacidad</p>
             </button>
         </div>
     </div>
@@ -336,7 +336,7 @@ const Dashboard: React.FC = () => {
   const [realPendingCount, setRealPendingCount] = useState(0); // ✅ MÉTRICA REAL INYECTADA
   const [pendingItems, setPendingItems] = useState<PendingItem[]>([]); 
   const [weather, setWeather] = useState<WeatherState>({ temp: '--', code: 0 });
-  const [locationName, setLocationName] = useState('Localizando...');
+  const [locationName, setLocationName] = useState('México');
   const [systemStatus, setSystemStatus] = useState(true); 
   const [isLoading, setIsLoading] = useState(true); 
 
@@ -360,7 +360,7 @@ const Dashboard: React.FC = () => {
   }, []);
 
   const formattedDocName = useMemo(() => {
-    if (!doctorProfile?.full_name) return '';
+    if (!doctorProfile?.full_name) return 'Sincronizando...';
     const raw = doctorProfile.full_name.trim();
     return /^(Dr\.|Dra\.)/i.test(raw) ? raw : `Dr. ${raw}`;
   }, [doctorProfile]);
@@ -376,13 +376,19 @@ const Dashboard: React.FC = () => {
   
   const nextPatient = useMemo(() => appointments.find(a => a.status === 'scheduled') || null, [appointments]);
   
-  // ✅ REEMPLAZO DE BLOQUE: fetchData con auditoría de integridad de métricas
+  // ✅ REEMPLAZO DE BLOQUE: fetchData robusto para entornos con latencia (PWA/Mobile)
   const fetchData = useCallback(async (isBackgroundRefresh = false) => {
       try {
           if (!isBackgroundRefresh) setIsLoading(true);
           
-          const { data: { user } } = await supabase.auth.getUser();
-          if (!user) { setSystemStatus(false); return; }
+          // Priorizamos getSession para recuperar caché local de inmediato
+          const { data: { session } } = await supabase.auth.getSession();
+          const user = session?.user;
+
+          if (!user) { 
+              setSystemStatus(false); 
+              return; 
+          }
           setSystemStatus(true);
 
           // 1. Carga de Perfil
@@ -398,7 +404,7 @@ const Dashboard: React.FC = () => {
           const monthStart = startOfMonth(nowRef);
           const monthEnd = endOfMonth(nowRef);
           
-          // 3.A Citas Pendientes/Agendadas (LISTA VISUAL - Mantiene agenda próxima)
+          // 3.A Citas Pendientes/Agendadas (LISTA VISUAL)
           const { data: aptsData } = await supabase
             .from('appointments')
             .select(`id, title, start_time, status, patient:patients (id, name, history)`)
@@ -417,28 +423,28 @@ const Dashboard: React.FC = () => {
               })));
           }
 
-          // 3.B Conteo real de pacientes atendidos (AHORA MENSUAL)
+          // 3.B Conteo real de pacientes atendidos (MENSUAL)
           const { count: completedCount, error: countError } = await supabase
             .from('appointments')
             .select('*', { count: 'exact', head: true })
             .eq('doctor_id', user.id)
             .eq('status', 'completed')
-            .gte('start_time', monthStart.toISOString()) // Inicio Mes
-            .lte('start_time', monthEnd.toISOString()); // Fin Mes
+            .gte('start_time', monthStart.toISOString())
+            .lte('start_time', monthEnd.toISOString());
 
           if (!countError) {
               setCompletedTodayCount(completedCount || 0);
           }
 
-          // 3.C Conteo real de pacientes pendientes (AHORA MENSUAL)
+          // 3.C Conteo real de pacientes pendientes (MENSUAL)
           const { count: pendingCount, error: pendingError } = await supabase
             .from('appointments')
             .select('*', { count: 'exact', head: true })
             .eq('doctor_id', user.id)
             .neq('status', 'cancelled')
             .neq('status', 'completed')
-            .gte('start_time', monthStart.toISOString()) // Inicio Mes
-            .lte('start_time', monthEnd.toISOString()); // Fin Mes
+            .gte('start_time', monthStart.toISOString())
+            .lte('start_time', monthEnd.toISOString());
 
            if (!pendingError) {
               setRealPendingCount(pendingCount || 0);
@@ -469,22 +475,27 @@ const Dashboard: React.FC = () => {
       }
   }, []);
 
-  // ✅ BLOQUE ACTUALIZADO: Variables calculadas con datos reales de la BD
-  // Ya no dependen del array visual limitado
-  const totalDailyLoad = useMemo(() => 
-    completedTodayCount + realPendingCount
-  , [completedTodayCount, realPendingCount]);
+  const totalDailyLoad = useMemo(() => completedTodayCount + realPendingCount, [completedTodayCount, realPendingCount]);
 
   const updateWeather = useCallback(async (latitude: number, longitude: number) => {
       try {
           const res = await fetch(`https://api.open-meteo.com/v1/forecast?latitude=${latitude}&longitude=${longitude}&current=temperature_2m,weather_code&timezone=auto`);
           const data = await res.json();
           setWeather({ temp: Math.round(data.current.temperature_2m).toString(), code: data.current.weather_code });
-      } catch (e) { console.error("Error actualizando clima:", e); }
+      } catch (e) { console.error("Error clima:", e); }
   }, []);
 
   useEffect(() => {
+    // Intento inicial
     fetchData(); 
+    
+    // ✅ LISTENER DE AUTH: Disparador crítico para asegurar la carga en móviles tras la restauración de sesión
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event) => {
+        if (event === 'SIGNED_IN' || event === 'INITIAL_SESSION') {
+            fetchData(true);
+        }
+    });
+
     const cachedLocation = localStorage.getItem('last_known_location');
     if (cachedLocation) { setLocationName(cachedLocation); }
     
@@ -504,7 +515,6 @@ const Dashboard: React.FC = () => {
         .on('postgres_changes', { event: '*', schema: 'public', table: 'appointments' }, () => { fetchData(true); })
         .subscribe();
 
-    let weatherInterval: NodeJS.Timeout | null = null;
     if ("geolocation" in navigator) {
         navigator.geolocation.getCurrentPosition(async (position) => {
             const { latitude, longitude } = position.coords;
@@ -516,12 +526,12 @@ const Dashboard: React.FC = () => {
                 localStorage.setItem('last_known_location', newLoc);
             } catch (e) { if(!cachedLocation) setLocationName("México"); }
             await updateWeather(latitude, longitude);
-            weatherInterval = setInterval(() => { updateWeather(latitude, longitude); }, 30 * 60 * 1000); 
-        }, () => { if(!cachedLocation) setLocationName("Ubicación n/a"); });
+        });
     }
+
     return () => { 
+        subscription.unsubscribe();
         clearInterval(pollingInterval); 
-        if (weatherInterval) clearInterval(weatherInterval);
         document.removeEventListener('visibilitychange', handleVisibilityChange);
         window.removeEventListener('focus', handleVisibilityChange);
         supabase.removeChannel(realtimeChannel);
@@ -570,70 +580,70 @@ const Dashboard: React.FC = () => {
         .delay-300 { animation-delay: 300ms; }
       `}</style>
       
-      {/* 📱 VISTA MÓVIL - CORREGIDA Y RESTAURADA */}
-      <div className="md:hidden fixed inset-0 z-0 flex flex-col bg-slate-50 p-4 pb-24 overflow-hidden overscroll-none">
-        <div className="shrink-0 bg-white rounded-xl p-4 shadow-sm border border-slate-200 relative animate-slide-top z-10">
+      {/* 📱 VISTA MÓVIL - CORRECCIÓN DE PROFUNDIDAD (Z-INDEX) Y PERSISTENCIA */}
+      <div className="md:hidden fixed inset-0 z-10 flex flex-col bg-slate-50 dark:bg-slate-950 p-4 pb-24 overflow-hidden overscroll-none">
+        <header className="shrink-0 bg-white dark:bg-slate-900 rounded-xl p-4 shadow-sm border border-slate-200 dark:border-slate-800 relative animate-slide-top">
             <div className="flex flex-col gap-2 mb-2">
                 <div className="flex justify-between items-center w-full">
                     <div className="flex items-center gap-2">
                         <BrandLogo className="h-9 w-9 rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.06)]" />
                         <p className="text-sm font-medium text-slate-500">{greetingText},</p>
                     </div>
-                    {/* RESTAURACIÓN STATUS DEL SISTEMA (CLIMA/HORA) */}
-                    <div className="flex items-center gap-2 bg-slate-50 px-3 py-1.5 rounded-lg border border-slate-200 shrink-0">
+                    {/* STATUS SISTEMA MÓVIL */}
+                    <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
                         <div className="flex items-center gap-1">
-                            <span className="text-xs font-bold text-slate-700">{weather.temp}°</span>
+                            <span className="text-xs font-bold text-slate-700 dark:text-slate-200">{weather.temp}°</span>
                             {weather.code < 3 ? <Sun size={14} className="text-amber-500" strokeWidth={2}/> : <Cloud size={14} className="text-slate-400" strokeWidth={2}/>}
                         </div>
-                        <div className="w-px h-3 bg-slate-300 mx-0.5"></div>
-                        <span className="text-sm font-bold text-slate-800 tracking-tight tabular-nums">{format(now, 'h:mm')}</span>
+                        <div className="w-px h-3 bg-slate-300 dark:bg-slate-600 mx-0.5"></div>
+                        <span className="text-sm font-bold text-slate-800 dark:text-slate-200 tracking-tight tabular-nums">{format(now, 'h:mm')}</span>
                         <span className="text-[9px] font-bold text-slate-400 uppercase">{format(now, 'a')}</span>
                     </div>
                 </div>
-                {/* RESTAURACIÓN NOMBRE DEL MÉDICO */}
+                {/* IDENTIDAD DOCTOR MÓVIL */}
                 <div className="w-full pl-1">
-                    <h1 className="text-2xl font-black text-slate-900 leading-tight break-words tracking-tight">
+                    <h1 className="text-2xl font-black text-slate-900 dark:text-white leading-tight break-words tracking-tight">
                         {formattedDocName}
                     </h1>
                 </div>
             </div>
-            <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100">
-                <button onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="bg-white p-3 rounded-lg flex items-center justify-center gap-2 active:scale-95 transition-transform border border-slate-200 shadow-sm">
+            <div className="grid grid-cols-2 gap-2 mt-4 pt-3 border-t border-slate-100 dark:border-slate-800">
+                <button onClick={() => { setInitialAssistantQuery(null); setIsAssistantOpen(true); }} className="bg-white dark:bg-slate-800 p-3 rounded-lg flex items-center justify-center gap-2 active:scale-95 transition-transform border border-slate-200 dark:border-slate-700 shadow-sm">
                     <Bot size={18} className="text-blue-600"/>
-                    <span className="text-xs font-bold text-slate-700">Asistente</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Asistente</span>
                 </button>
-                <button onClick={() => setIsQuickNoteOpen(true)} className="bg-white p-3 rounded-lg flex items-center justify-center gap-2 active:scale-95 transition-transform border border-slate-200 shadow-sm">
+                <button onClick={() => setIsQuickNoteOpen(true)} className="bg-white dark:bg-slate-800 p-3 rounded-lg flex items-center justify-center gap-2 active:scale-95 transition-transform border border-slate-200 dark:border-slate-700 shadow-sm">
                     <Zap size={18} className="text-amber-500"/>
-                    <span className="text-xs font-bold text-slate-700">Nota Flash</span>
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-200">Nota Flash</span>
                 </button>
             </div>
-        </div>
+        </header>
 
-        <div className="flex-1 min-h-0 flex flex-col my-2 animate-fade-in delay-150 relative z-0">
+        <section className="flex-1 min-h-0 flex flex-col my-2 animate-fade-in delay-150">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
-                <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-slate-500"/> Agenda de Hoy</h3>
+                <h3 className="font-bold text-slate-700 dark:text-slate-300 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-blue-500"/> Agenda de Hoy</h3>
                 <div className="flex items-center gap-2">
                     <button onClick={() => fetchData(true)} className="p-1 text-slate-400 hover:text-blue-600 active:rotate-180 transition-all"><RefreshCcw size={12}/></button>
-                    <span className="bg-slate-100 text-slate-600 text-[9px] px-2 py-0.5 rounded-full font-bold border border-slate-200">{appointments.length} Citas</span>
+                    <span className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-400 text-[9px] px-2 py-0.5 rounded-full font-bold border border-slate-200 dark:border-slate-700">{appointments.length} Citas</span>
                 </div>
             </div>
             
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1 pb-2">
                 {appointments.length === 0 ? (
-                    <div className="h-full flex flex-col items-center justify-center text-center opacity-40 bg-white/50 rounded-xl border border-slate-100 border-dashed">
+                    <div className="h-full flex flex-col items-center justify-center text-center opacity-40 bg-white/50 dark:bg-slate-900/50 rounded-xl border border-slate-100 dark:border-slate-800 border-dashed">
                         <CalendarX size={24} className="text-slate-300 mb-1"/>
                         <p className="text-[10px] text-slate-400 font-medium">Agenda libre</p>
                     </div>
                 ) : (
                     appointments.map((apt, index) => (
-                        <div key={apt.id} onClick={() => handleStartConsultation(apt)} className={`relative overflow-hidden p-4 rounded-xl shadow-[0_2px_8px_rgba(0,0,0,0.04)] border border-slate-100/60 flex items-center gap-4 active:scale-[0.98] transition-all shrink-0 ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/80'}`}>
+                        <div key={apt.id} onClick={() => handleStartConsultation(apt)} className={`relative overflow-hidden p-4 rounded-xl shadow-sm border border-slate-100 dark:border-slate-800 flex items-center gap-4 active:scale-[0.98] transition-all shrink-0 ${index % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/80 dark:bg-slate-800/40'}`}>
                              <div className="absolute left-0 top-0 bottom-0 w-1 bg-blue-500"></div>
-                             <div className="font-bold text-slate-500 text-xs min-w-[35px] text-center bg-slate-100 rounded-md py-1 px-1.5">{format(parseISO(apt.start_time), 'HH:mm')}</div>
+                             <div className="font-bold text-slate-500 dark:text-slate-400 text-xs min-w-[35px] text-center bg-slate-100 dark:bg-slate-800 rounded-md py-1 px-1.5">{format(parseISO(apt.start_time), 'HH:mm')}</div>
                              <div className="flex-1 min-w-0">
-                                <p className="font-bold text-slate-800 text-sm truncate leading-tight">{apt.title}</p>
+                                <p className="font-bold text-slate-800 dark:text-white text-sm truncate leading-tight">{apt.title}</p>
                                 <div className="flex items-center gap-1.5 mt-0.5">
                                     <div className={`w-1.5 h-1.5 rounded-full ${apt.patient ? 'bg-emerald-400' : 'bg-amber-400'}`}></div>
-                                    <p className="text-[10px] text-slate-500 truncate">{apt.patient ? 'Expediente Activo' : 'Primera Vez'}</p>
+                                    <p className="text-[10px] text-slate-500 dark:text-slate-400 truncate">{apt.patient ? 'Expediente Activo' : 'Primera Vez'}</p>
                                 </div>
                              </div>
                              <ChevronRight size={16} className="text-slate-300"/>
@@ -641,59 +651,57 @@ const Dashboard: React.FC = () => {
                     ))
                 )}
             </div>
-        </div>
+        </section>
 
-        <div className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300 relative z-10">
-            {/* CORRECCIÓN MÓVIL: Altura aumentada a h-44 para evitar desbordamiento */}
+        <footer className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300">
             <div className="grid grid-cols-2 gap-2 h-44">
                 <ImpactMetrics 
                     dailyTotal={totalDailyLoad} 
                     dailyCompleted={completedTodayCount} 
                     refreshTrigger={appointments.length} 
                 />
-                <button onClick={() => setIsFastAdmitOpen(true)} className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-3 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02]">
+                <button onClick={() => setIsFastAdmitOpen(true)} className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-3 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02] active:scale-95">
                   <div className="absolute -right-4 -bottom-4 text-white opacity-10 group-hover:opacity-20 transition-all duration-500 rotate-12 scale-125"><UserPlus size={70} strokeWidth={1.5} /></div>
                   <div className="relative z-10 bg-white/20 w-8 h-8 flex items-center justify-center rounded-lg backdrop-blur-sm"><UserPlus className="text-white" size={16} /></div>
                   <div className="relative z-10"><h3 className="text-white font-bold text-xs leading-tight">Consulta<br/>Rápida</h3></div>
                 </button>
             </div>
             <div className="grid grid-cols-2 gap-2 h-20">
-                 <button onClick={() => setIsDocModalOpen(true)} className="bg-white rounded-xl p-2 shadow-sm border border-slate-200 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform"><div className="p-1.5 bg-slate-100 rounded-lg text-slate-500"><FileCheck size={16}/></div><span className="text-[10px] font-bold text-slate-600">Docs</span></button>
-                 <button onClick={() => setIsUploadModalOpen(true)} className="relative bg-white rounded-xl p-2 shadow-sm border border-slate-200 overflow-hidden group flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform hover:border-teal-400">
+                 <button onClick={() => setIsDocModalOpen(true)} className="bg-white dark:bg-slate-900 rounded-xl p-2 shadow-sm border border-slate-200 dark:border-slate-800 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform"><div className="p-1.5 bg-slate-100 dark:bg-slate-800 rounded-lg text-slate-500"><FileCheck size={16}/></div><span className="text-[10px] font-bold text-slate-600 dark:text-slate-400">Docs</span></button>
+                 <button onClick={() => setIsUploadModalOpen(true)} className="relative bg-white dark:bg-slate-900 rounded-xl p-2 shadow-sm border border-slate-200 dark:border-slate-800 overflow-hidden group flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform hover:border-teal-400">
                     <div className="absolute -right-2 -bottom-2 text-teal-50 opacity-0 group-hover:opacity-100 transition-all duration-500 rotate-12 scale-125"><FolderUp size={50} /></div>
-                    <div className="relative z-10 p-1.5 bg-slate-100 group-hover:bg-teal-50 rounded-lg text-slate-500 group-hover:text-teal-600 transition-colors"><FolderUp size={16}/></div>
-                    <span className="relative z-10 text-[10px] font-bold text-slate-600 group-hover:text-teal-700 transition-colors">Subir</span>
+                    <div className="relative z-10 p-1.5 bg-slate-100 dark:bg-slate-800 group-hover:bg-teal-50 rounded-lg text-slate-500 group-hover:text-teal-600 transition-colors"><FolderUp size={16}/></div>
+                    <span className="relative z-10 text-[10px] font-bold text-slate-600 dark:text-slate-400 group-hover:text-teal-700 transition-colors">Subir</span>
                  </button>
             </div>
             <button onClick={() => setIsChallengeModalOpen(true)} className="w-full bg-gradient-to-r from-blue-600 to-teal-500 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2"><BrainCircuit size={16}/><span className="text-xs font-bold uppercase tracking-wide">Reto Clínico</span></button>
-        </div>
+        </footer>
       </div>
 
-      {/* 🖥️ VISTA ESCRITORIO */}
-      <div className="hidden md:block min-h-screen bg-slate-50 p-8 pb-12 w-full">
+      {/* 🖥️ VISTA ESCRITORIO - MONOLÍTICA */}
+      <div className="hidden md:block min-h-screen bg-slate-50 dark:bg-slate-950 p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
-             <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
+             <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
                  <div className="flex items-center gap-6">
-                     <BrandLogo className="h-16 w-16 rounded-2xl shadow-md border-2 border-white" />
+                     <BrandLogo className="h-16 w-16 rounded-2xl shadow-md border-2 border-white dark:border-slate-800" />
                      <div>
-                         <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">{formattedDocName}</h1>
+                         <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">{formattedDocName}</h1>
                          <p className="text-slate-500 font-medium text-lg mt-1 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Panel de Control Clínico</p>
                      </div>
                      <div className="flex gap-2 ml-4">
-                        <button onClick={() => setIsAssistantOpen(true)} className="p-3 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2"><Bot size={20} className="text-blue-600"/> <span className="text-sm font-bold">Asistente</span></button>
-                        <button onClick={() => setIsQuickNoteOpen(true)} className="p-3 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2"><Zap size={20} className="text-amber-500"/> <span className="text-sm font-bold">Nota Flash</span></button>
+                        <button onClick={() => setIsAssistantOpen(true)} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2"><Bot size={20} className="text-blue-600"/> <span className="text-sm font-bold">Asistente</span></button>
+                        <button onClick={() => setIsQuickNoteOpen(true)} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2"><Zap size={20} className="text-amber-500"/> <span className="text-sm font-bold">Nota Flash</span></button>
                      </div>
                  </div>
-                 <div className="flex items-center gap-8 bg-white px-8 py-4 rounded-xl border border-slate-200 shadow-sm">
+                 <div className="flex items-center gap-8 bg-white dark:bg-slate-900 px-8 py-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
                      <WeatherWidget weather={weather} isDesktop />
-                     <div className="w-px h-12 bg-slate-200"></div>
+                     <div className="w-px h-12 bg-slate-200 dark:bg-slate-800"></div>
                      <AtomicClock location={locationName} date={now} isDesktop />
                  </div>
-             </div>
+             </header>
 
-             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
-                 <div className="lg:col-span-3 flex flex-col gap-6">
-                     {/* ImpactMetrics (Antes StatusWidget) - ESCRITORIO CORREGIDO ✅ */}
+             <main className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
+                 <aside className="lg:col-span-3 flex flex-col gap-6">
                      <div className="h-64">
                         <ImpactMetrics 
                             dailyTotal={totalDailyLoad} 
@@ -702,73 +710,79 @@ const Dashboard: React.FC = () => {
                         />
                      </div>
                      <ActionRadar items={pendingItems} onItemClick={handleRadarClick} />
-                 </div>
-                 <div className="lg:col-span-6 flex flex-col gap-6">
-                     <div className="bg-white rounded-xl p-8 border border-slate-200 shadow-sm relative overflow-hidden min-h-[280px] flex flex-col justify-between">
+                 </aside>
+                 
+                 <section className="lg:col-span-6 flex flex-col gap-6">
+                     <div className="bg-white dark:bg-slate-900 rounded-xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden min-h-[280px] flex flex-col justify-between">
                         <div className="flex justify-between items-start mb-4">
                             <span className={`px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide border ${nextPatient ? 'bg-emerald-50 text-emerald-700 border-emerald-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>{nextPatient ? 'En Espera' : 'Sala Libre'}</span>
-                            {nextPatient && <span className="text-2xl font-bold text-slate-800">{format(parseISO(nextPatient.start_time), 'h:mm a')}</span>}
+                            {nextPatient && <span className="text-2xl font-bold text-slate-800 dark:text-white">{format(parseISO(nextPatient.start_time), 'h:mm a')}</span>}
                         </div>
                         <div className="mb-6">
-                            <h2 className="text-3xl font-black text-slate-900 truncate mb-2">{nextPatient ? nextPatient.title : 'Sin pacientes'}</h2>
+                            <h2 className="text-3xl font-black text-slate-900 dark:text-white truncate mb-2">{nextPatient ? nextPatient.title : 'Sin pacientes'}</h2>
                             <p className="text-slate-500 text-lg">{nextPatient ? (nextPatient.patient ? 'Expediente Activo • Consulta Programada' : 'Primera Vez') : 'Agenda despejada.'}</p>
                         </div>
-                        {nextPatient && <button onClick={() => handleStartConsultation(nextPatient)} className="w-full py-4 bg-slate-900 hover:bg-slate-800 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-colors"><Stethoscope size={18} /> INICIAR CONSULTA</button>}
+                        {nextPatient && <button onClick={() => handleStartConsultation(nextPatient)} className="w-full py-4 bg-slate-900 dark:bg-blue-600 hover:opacity-90 text-white rounded-xl font-bold text-sm shadow-md flex items-center justify-center gap-2 transition-colors"><Stethoscope size={18} /> INICIAR CONSULTA</button>}
                      </div>
-                     <div className="bg-white rounded-xl p-8 border border-slate-200 shadow-sm min-h-[400px]">
-                        <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-slate-800 text-lg flex items-center gap-2"><Calendar size={20} className="text-slate-400"/> Agenda del Día</h3></div>
+                     
+                     <div className="bg-white dark:bg-slate-900 rounded-xl p-8 border border-slate-200 dark:border-slate-800 shadow-sm min-h-[400px]">
+                        <div className="flex justify-between items-center mb-6"><h3 className="font-bold text-slate-800 dark:text-white text-lg flex items-center gap-2"><Calendar size={20} className="text-blue-600"/> Agenda del Día</h3></div>
                         <div className="space-y-3">
                             {appointments.length === 0 ? <p className="text-center text-slate-400 py-10">No hay más citas programadas.</p> : appointments.map((apt, index) => (
-                                <div key={apt.id} className={`flex items-center gap-4 p-4 rounded-xl group cursor-pointer border border-slate-100 shadow-sm hover:shadow-md hover:border-blue-200 transition-all ${index % 2 === 0 ? 'bg-white' : 'bg-slate-50/50'}`} onClick={() => handleStartConsultation(apt)}>
-                                    <div className="font-bold text-slate-500 text-sm w-12 text-right">{format(parseISO(apt.start_time), 'HH:mm')}</div>
-                                    <div className="w-1.5 h-10 bg-slate-200 rounded-full group-hover:bg-blue-500 transition-colors"></div>
-                                    <div className="flex-1 min-w-0"><p className="font-bold text-slate-800 text-base truncate">{apt.title}</p></div>
+                                <div key={apt.id} className={`flex items-center gap-4 p-4 rounded-xl group cursor-pointer border border-slate-100 dark:border-slate-800 shadow-sm hover:shadow-md hover:border-blue-200 transition-all ${index % 2 === 0 ? 'bg-white dark:bg-slate-900' : 'bg-slate-50/50 dark:bg-slate-800/30'}`} onClick={() => handleStartConsultation(apt)}>
+                                    <div className="font-bold text-slate-500 dark:text-slate-400 text-sm w-12 text-right">{format(parseISO(apt.start_time), 'HH:mm')}</div>
+                                    <div className="w-1.5 h-10 bg-slate-200 dark:bg-slate-700 rounded-full group-hover:bg-blue-500 transition-colors"></div>
+                                    <div className="flex-1 min-w-0"><p className="font-bold text-slate-800 dark:text-white text-base truncate">{apt.title}</p></div>
                                     <ChevronRight size={20} className="text-slate-300 group-hover:text-blue-600"/>
                                 </div>
                             ))}
                         </div>
                      </div>
-                 </div>
-                 <div className="lg:col-span-3 flex flex-col gap-6">
+                 </section>
+
+                 <aside className="lg:col-span-3 flex flex-col gap-6">
                      <div className="grid grid-cols-2 gap-4">
                         <button onClick={() => setIsFastAdmitOpen(true)} className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-4 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02]">
-                          <div className="absolute -right-6 -bottom-6 text-white opacity-10 group-hover:opacity-20 group-hover:scale-110 transition-all duration-500 rotate-12"><UserPlus size={120} strokeWidth={1} /></div>
-                          <div className="absolute top-0 right-0 w-32 h-32 bg-white opacity-5 rounded-full blur-2xl -mr-10 -mt-10"></div>
+                          <div className="absolute -right-6 -bottom-6 text-white opacity-10 group-hover:opacity-20 transition-all duration-500 rotate-12"><UserPlus size={120} strokeWidth={1} /></div>
                           <div className="relative z-10 bg-white/20 w-fit p-2 rounded-lg backdrop-blur-sm mb-2"><UserPlus className="text-white" size={24} /></div>
-                          <div className="relative z-10"><h3 className="text-white font-bold text-lg leading-tight">Consulta<br/>Rápida</h3><p className="text-blue-100 text-[10px] mt-1 opacity-80">Ingreso Express</p></div>
+                          <div className="relative z-10 text-white"><h3 className="font-bold text-lg leading-tight">Consulta<br/>Rápida</h3><p className="text-blue-100 text-[10px] mt-1 opacity-80">Ingreso Express</p></div>
                         </button>
-                        <button onClick={() => setIsUploadModalOpen(true)} className="relative w-full h-full bg-white border border-slate-200 rounded-xl p-4 shadow-sm overflow-hidden group text-left flex flex-col justify-between transition-all hover:border-teal-400 hover:shadow-md">
+                        <button onClick={() => setIsUploadModalOpen(true)} className="relative w-full h-full bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-xl p-4 shadow-sm overflow-hidden group text-left flex flex-col justify-between transition-all hover:border-teal-400 hover:shadow-md">
                           <div className="absolute -right-4 -bottom-4 text-teal-50 opacity-0 group-hover:opacity-100 transition-all duration-500 scale-150"><FolderUp size={100} /></div>
-                          <div className="absolute top-0 right-0 w-20 h-20 bg-teal-50 rounded-bl-full opacity-50 transition-all group-hover:bg-teal-100"></div>
-                          <div className="relative z-10 bg-teal-50 w-fit p-2 rounded-lg group-hover:bg-teal-600 group-hover:text-white transition-colors mb-2"><FolderUp size={24} className="text-teal-600 group-hover:text-white" /></div>
-                          <div className="relative z-10"><h3 className="text-slate-700 font-bold text-lg leading-tight group-hover:text-teal-700">Subir<br/>Archivo</h3><p className="text-slate-400 text-[10px] mt-1 group-hover:text-teal-600">Digitalización</p></div>
+                          <div className="relative z-10 bg-teal-50 dark:bg-teal-900/30 w-fit p-2 rounded-lg group-hover:bg-teal-600 group-hover:text-white transition-colors mb-2"><FolderUp size={24} className="text-teal-600 group-hover:text-white" /></div>
+                          <div className="relative z-10"><h3 className="text-slate-700 dark:text-slate-200 font-bold text-lg leading-tight group-hover:text-teal-700">Subir<br/>Archivo</h3><p className="text-slate-400 text-[10px] mt-1 group-hover:text-teal-600">Digitalización</p></div>
                         </button>
                      </div>
-                     <div className="flex-none"><QuickDocs openModal={openDocModal} /></div>
+                     <QuickDocs openModal={openDocModal} />
                      <div className="bg-gradient-to-br from-blue-600 to-teal-600 rounded-xl p-6 shadow-md text-white flex flex-col gap-3">
                         <div className="flex items-center gap-2 font-bold text-blue-50"><BrainCircuit size={20}/> <span>Reto Diario</span></div>
                         <p className="text-blue-50 text-sm leading-relaxed italic">¿Sabes identificar el signo de Leser-Trélat en un paciente adulto?</p>
                         <button onClick={() => setIsChallengeModalOpen(true)} className="w-full py-3 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg font-bold text-xs transition-colors">REVISAR CASO</button>
                      </div>
-                 </div>
-             </div>
+                 </aside>
+             </main>
          </div>
       </div>
 
-      {isChallengeModalOpen && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in"><div className="w-full max-w-md bg-transparent relative"><button onClick={() => setIsChallengeModalOpen(false)} className="absolute -top-12 right-0 text-white p-2 bg-white/20 rounded-full backdrop-blur-md"><X size={24}/></button><div className="h-[400px]"><DailyChallengeCard specialty={doctorProfile?.specialty || 'General'} /></div></div></div>}
-      {isUploadModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-xl relative"><button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4"><X size={16}/></button><UploadMedico onUploadComplete={() => {}}/><div className="mt-4 pt-4 border-t"><DoctorFileGallery /></div></div></div>}
-      {rescheduleTarget && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 p-4"><div className="bg-white p-6 rounded-2xl shadow-xl w-full max-sm"><h3 className="font-bold text-lg mb-2">Reprogramar</h3><input type="datetime-local" className="w-full p-3 border rounded-xl mb-4" value={newDateInput} onChange={(e) => setNewDateInput(e.target.value)}/><div className="flex justify-end gap-2"><button onClick={() => setRescheduleTarget(null)} className="px-4 py-2 text-slate-500 text-sm">Cancelar</button><button onClick={confirmReschedule} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Confirmar</button></div></div></div>}
+      {/* MODALES GLOBALES */}
+      {isChallengeModalOpen && <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in"><div className="w-full max-w-md bg-transparent relative"><button onClick={() => setIsChallengeModalOpen(false)} className="absolute -top-12 right-0 text-white p-2 bg-white/20 rounded-full backdrop-blur-md transition-colors hover:bg-white/30"><X size={24}/></button><div className="h-[400px]"><DailyChallengeCard specialty={doctorProfile?.specialty || 'General'} /></div></div></div>}
+      
+      {isUploadModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="bg-white dark:bg-slate-900 w-full max-w-md rounded-2xl p-6 shadow-xl relative"><button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors"><X size={16}/></button><UploadMedico onUploadComplete={() => {}}/><div className="mt-4 pt-4 border-t dark:border-slate-800"><DoctorFileGallery /></div></div></div>}
+      
+      {rescheduleTarget && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 p-4"><div className="bg-white dark:bg-slate-900 p-6 rounded-2xl shadow-xl w-full max-sm"><h3 className="font-bold text-lg mb-2 dark:text-white">Reprogramar</h3><input type="datetime-local" className="w-full p-3 border dark:border-slate-700 dark:bg-slate-800 dark:text-white rounded-xl mb-4" value={newDateInput} onChange={(e) => setNewDateInput(e.target.value)}/><div className="flex justify-end gap-2"><button onClick={() => setRescheduleTarget(null)} className="px-4 py-2 text-slate-500 text-sm">Cancelar</button><button onClick={confirmReschedule} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm font-bold shadow-md hover:bg-blue-700 transition-colors">Confirmar</button></div></div></div>}
+      
       {isQuickNoteOpen && <QuickNoteModal onClose={() => setIsQuickNoteOpen(false)} doctorProfile={doctorProfile!}/>}
+      
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile!} defaultType={docType} />
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} initialQuery={initialAssistantQuery} />
       <FastAdmitModal isOpen={isFastAdmitOpen} onClose={() => setIsFastAdmitOpen(false)} /> 
       <UserGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
       
-      <button onClick={() => setIsGuideOpen(true)} className="fixed z-50 bg-slate-900 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 bottom-24 right-4 w-14 h-14 md:bottom-24 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3">
+      <button onClick={() => setIsGuideOpen(true)} className="fixed z-50 bg-slate-900 dark:bg-blue-600 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 bottom-24 right-4 w-14 h-14 md:bottom-24 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3 hover:scale-105 active:scale-95 transition-all">
         <HelpCircle size={24} /> <span className="hidden md:inline">¿Cómo funciona?</span>
       </button>
     </div>
   );
 };
-        
+
 export default Dashboard;
