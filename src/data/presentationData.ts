@@ -1,7 +1,7 @@
 import { SlideData } from '../types/presentation'; 
 
 export const presentationData: SlideData[] = [
-  // SLIDE 1: PORTADA (HERO) - Actualizado a v8.0
+  // SLIDE 1: PORTADA (HERO)
   {
     id: "intro",
     type: "hero",
@@ -12,17 +12,17 @@ export const presentationData: SlideData[] = [
     meta: { gradient: "from-teal-600 to-slate-900" }
   },
   
-  // SLIDE 2: GESTIÓN OPERATIVA (GRID) - ACTUALIZADO (Lógica de Blindaje)
+  // SLIDE 2: GESTIÓN OPERATIVA (GRID)
   {
     id: "operational",
     type: "grid",
     title: "Pilar 1: Gestión Operativa",
-    content: "Control total del flujo de trabajo, desde la recepción hasta el expediente.",
+    content: "Control total del flujo de trabajo, optimizado para la velocidad y la legalidad.",
     items: [
-      { iconName: "Calendar", title: "Agenda Inteligente", text: "Gestión de citas Drag & Drop y admisión rápida con 'Lazy Registration' para pacientes nuevos." },
-      { iconName: "Users", title: "Identidad Profesional", text: "Configuración de perfil, firma digital y carga de logotipos para personalización total." },
-      { iconName: "Lock", title: "Blindaje de Especialidad", text: "Vinculación estricta a Cédula. La IA calibra sus protocolos según la competencia legal, bloqueando cambios arbitrarios." },
-      { iconName: "FileText", title: "Gestión de Archivos", text: "Carga y visualización de estudios externos (PDF/DICOM) vinculados al timeline." }
+      { iconName: "Calendar", title: "Agenda Inteligente", text: "Gestión Drag & Drop y admisión exprés ('Lazy Registration') para no detener la consulta." },
+      { iconName: "Users", title: "Identidad Profesional", text: "Configuración granular de perfil, firma digital autógrafa y branding clínico." },
+      { iconName: "Lock", title: "Blindaje de Especialidad", text: "Vinculación estricta a Cédula. La IA restringe protocolos según competencia legal, evitando intrusismo." },
+      { iconName: "FileText", title: "Expediente Multimedia", text: "Timeline clínico con visualización integrada de estudios externos (PDF/DICOM)." }
     ]
   },
 
@@ -32,15 +32,15 @@ export const presentationData: SlideData[] = [
     type: "split",
     title: "La Trampa de la Doble Mortalidad",
     content: [
-      "Ceguera Cognitiva: La fatiga provoca omisiones en contraindicaciones cruzadas (ej. Renal + AINEs).",
+      "Ceguera Cognitiva: La fatiga provoca el 40% de omisiones en contraindicaciones cruzadas.",
       "Arranque en Frío: Perder tiempo 'reconstruyendo' mentalmente al paciente aumenta el error diagnóstico.",
       "Indefensión Jurídica: Notas que no cumplen NOM-004 dejan al médico expuesto ante COFEPRIS.",
-      "Fuga de Datos: Sistemas web estándar sin aislamiento real (RLS) entre consultorios."
+      "Fuga de Datos: Sistemas web estándar sin aislamiento real (Row Level Security) entre consultorios."
     ],
     image: "https://images.unsplash.com/photo-1532938911079-1b06ac7ceec7?auto=format&fit=crop&q=80&w=2032"
   },
 
-  // SLIDE 4: SOLUCIÓN (SPLIT) - Actualizado con Escudo Visual
+  // SLIDE 4: SOLUCIÓN (SPLIT)
   {
     id: "solution",
     type: "split",
@@ -53,34 +53,34 @@ export const presentationData: SlideData[] = [
     image: "https://images.unsplash.com/photo-1576091160399-112ba8d25d1d?auto=format&fit=crop&q=80&w=2070"
   },
 
-  // SLIDE 5: MOTOR IA (GRID) - Actualizado con Sidekick y Balance 360 (Cubre Pilar 2)
+  // SLIDE 5: MOTOR IA (GRID)
   {
     id: "engine",
     type: "grid",
     title: "Pilar 2: Core de Inteligencia",
     content: "Más que transcripción: Un copiloto que analiza, sugiere y protege.",
     items: [
-      { iconName: "Activity", title: "Vital Snapshot & Balance 360°", text: "Síntesis inmediata de antecedentes y signos vitales para una visión holística antes de diagnosticar." },
-      { iconName: "MessageSquare", title: "Chat Sidekick IA", text: "Interrogatorio activo al expediente. Pregunta '¿Cuándo receté antibiótico?' sin salir de la nota." },
+      { iconName: "Activity", title: "Vital Snapshot", text: "Resumen ejecutivo inmediato de antecedentes y signos vitales. Entiende al paciente antes de saludar." },
+      { iconName: "MessageSquare", title: "Chat Sidekick IA", text: "Memoria infinita. Pregunta '¿Qué antibiótico le di en 2023?' y obtén respuesta sin buscar en notas antiguas." },
       { iconName: "Lightbulb", title: "Sugerencias Contextuales", text: "Tarjetas flotantes con Guías de Práctica Clínica y alertas sanitarias según la patología detectada." },
-      { iconName: "Mic", title: "Escucha de Alta Entropía", text: "Procesamiento de audio robusto. Filtra ruido y separa interlocutores en sesiones largas." }
+      { iconName: "Mic", title: "Escucha de Alta Entropía", text: "Procesamiento de audio Whisper-class. Filtra ruido y separa interlocutores en sesiones largas." }
     ]
   },
 
-  // SLIDE 6: RECETAS (GRID) - Actualizado con COFEPRIS y Sanitización
+  // SLIDE 6: RECETAS (GRID)
   {
     id: "prescriptions",
     type: "grid",
     title: "Motor de Recetas Seguro",
     content: "Cumplimiento normativo estricto y seguridad del paciente.",
     items: [
-      { iconName: "FileCheck", title: "COFEPRIS Compliant", text: "Cumple Art. 28-30 RIS: Cédulas, Institución, Domicilio y Firma Digitalizada." },
-      { iconName: "Shield", title: "Sanitización Documental", text: "Expurga automáticamente fármacos bloqueados o de uso intrahospitalario del PDF del paciente." },
-      { iconName: "Eye", title: "Clasificación Semántica", text: "Distinción visual clara: INICIO, CONTINUAR, SUSPENDER." }
+      { iconName: "FileCheck", title: "COFEPRIS Compliant", text: "Cumple Art. 28-30 RIS: Cédulas, Institución, Domicilio y Firma Digitalizada Automática." },
+      { iconName: "Shield", title: "Sanitización Documental", text: "Expurga automáticamente fármacos internos o bloqueados del PDF final que recibe el paciente." },
+      { iconName: "Eye", title: "Claridad Semántica", text: "Distinción visual clara en la receta: INICIO, CONTINUAR, SUSPENDER." }
     ]
   },
 
-  // SLIDE 7: INFRAESTRUCTURA (SPLIT) - (Cubre Pilar 3)
+  // SLIDE 7: INFRAESTRUCTURA (SPLIT)
   {
     id: "tech",
     type: "split",
@@ -93,28 +93,28 @@ export const presentationData: SlideData[] = [
     image: "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&q=80&w=2070"
   },
 
-  // SLIDE 8: LEGAL (GRID) - Actualizado con Disclaimer
+  // SLIDE 8: LEGAL (GRID)
   {
     id: "legal",
     type: "grid",
     title: "Blindaje Regulatorio (NOM-004)",
     content: "Cumplimiento normativo integrado en la experiencia de usuario.",
     items: [
-      { iconName: "Fingerprint", title: "Bitácora Forense", text: "Registro inmutable (Append-only). Las correcciones se añaden, no sobrescriben." },
-      { iconName: "Scale", title: "Disclaimer de Responsabilidad", text: "Texto legal vinculado al botón de guardado (SaMD Compliance)." },
-      { iconName: "FileText", title: "Redacción SOAP Legal", text: "Estructuración automática válida para auditorías y peritajes." }
+      { iconName: "Fingerprint", title: "Bitácora Forense", text: "Registro inmutable (Append-only). Las correcciones se añaden como anexos, protegiendo la integridad jurídica." },
+      { iconName: "Scale", title: "Disclaimer Activo", text: "Texto legal dinámico vinculado al botón de guardado (SaMD Compliance)." },
+      { iconName: "FileText", title: "Redacción SOAP Legal", text: "Estructuración automática válida para auditorías y peritajes médicos." }
     ]
   },
 
-  // SLIDE 9: INTEROPERABILIDAD (SPLIT) - (Cubre Pilar 4)
+  // SLIDE 9: INTEROPERABILIDAD (SPLIT)
   {
     id: "insurance",
     type: "split",
     title: "Pilar 4: Valor & Seguros",
     content: [
-      "Codificación CIE-10 Embebida: Traducción automática de síntomas a códigos para mesas de control.",
-      "Biblioteca de Formatos: Repositorio centralizado (GNP, AXA, MetLife) para llenado directo.",
-      "Soberanía de Datos: Exportación masiva (CSV/JSON) y descarga de Expediente Legal completo en PDF."
+      "Motor CIE-10: Traducción automática de lenguaje natural a códigos internacionales para mesas de control.",
+      "Biblioteca de Aseguradoras: Formatos pre-cargados para llenado directo de informes médicos.",
+      "Soberanía de Datos: Exportación masiva (JSON) y descarga de Expediente Legal completo en un clic."
     ],
     image: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=2000"
   },
