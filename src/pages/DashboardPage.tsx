@@ -107,10 +107,9 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
     
     return (
         <div className="bg-[#E3F2FD] md:bg-white dark:bg-slate-900 rounded-xl p-4 border border-blue-100 md:border-slate-200 dark:border-slate-800 shadow-sm relative overflow-hidden h-full flex flex-col justify-between transition-colors">
-             {/* VISTA MÓVIL (Estilos ajustados para fondo Azul Claro) */}
+             {/* VISTA MÓVIL */}
              <div className="flex md:hidden flex-col justify-center h-full gap-1 shrink">
                  <div className="flex items-center justify-between">
-                    {/* Texto ajustado a Azul Oscuro para contraste */}
                     <p className="text-[10px] font-bold text-blue-900/60 uppercase leading-none tracking-wide">Eficiencia</p>
                     <Activity size={14} className="text-blue-600"/>
                  </div>
@@ -119,7 +118,6 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
                     <p className="text-4xl font-bold text-blue-900 dark:text-white leading-none tracking-tight">{progress}%</p>
                  </div>
                  
-                 {/* Fondo de barra en blanco para resaltar sobre el azul */}
                  <div className="w-full bg-white rounded-full h-1.5 mt-2">
                     <div className="bg-blue-600 h-1.5 rounded-full" style={{ width: `${progress}%` }}></div>
                  </div>
@@ -130,7 +128,7 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
                  </div>
              </div>
 
-             {/* VISTA DESKTOP (Mantiene estilos originales Slate/White) */}
+             {/* VISTA DESKTOP */}
              <div className="hidden md:flex flex-col justify-between h-full relative z-10 text-center">
                  <div className="flex justify-between items-start">
                     <div className="text-left">
@@ -158,7 +156,7 @@ const StatusWidget = ({ totalApts, pendingApts }: { totalApts: number, pendingAp
     );
 };
 
-// --- ASISTENTE MODAL (TTS ACTIVADO) ---
+// --- ASISTENTE MODAL ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void; initialQuery?: string | null }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'answering'>('idle');
@@ -167,13 +165,12 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   const [isExecuting, setIsExecuting] = useState(false); 
   const navigate = useNavigate(); 
   
-  // 🔊 TTS HELPER: Motor de Voz
   const speakResponse = (text: string) => {
-      window.speechSynthesis.cancel(); // Detener cualquier audio previo
-      const cleanText = cleanMarkdown(text); // Limpiar MD para no leer asteriscos
+      window.speechSynthesis.cancel();
+      const cleanText = cleanMarkdown(text);
       const utterance = new SpeechSynthesisUtterance(cleanText);
-      utterance.lang = 'es-MX'; // Forzar Español Latino
-      utterance.rate = 1.0; // Velocidad normal
+      utterance.lang = 'es-MX';
+      utterance.rate = 1.0;
       window.speechSynthesis.speak(utterance);
   };
 
@@ -182,7 +179,7 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
     else if (isOpen) { resetTranscript(); setStatus('listening'); startListening(); setAiResponse(null); setMedicalAnswer(null); setIsExecuting(false); } 
     else { 
         stopListening(); 
-        window.speechSynthesis.cancel(); // 🔇 Mute al cerrar
+        window.speechSynthesis.cancel();
     }
   }, [isOpen, initialQuery]);
 
@@ -199,13 +196,13 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
                   const msg = `Navegando a ${textToProcess}`;
                   setAiResponse({ intent: 'NAVIGATION', data: { destination: textToProcess }, message: msg, originalText: textToProcess, confidence: 1.0 });
                   setStatus('answering');
-                  speakResponse(msg); // 🔊 TRIGGER AUDIO
+                  speakResponse(msg);
               } else {
                   const rawAnswer = await GeminiMedicalService.chatWithContext("Contexto: Dashboard Médico.", textToProcess);
                   setMedicalAnswer(cleanMarkdown(rawAnswer));
                   setAiResponse({ intent: 'MEDICAL_QUERY', data: {}, message: 'Consulta Clínica', originalText: textToProcess, confidence: 1.0 });
                   setStatus('answering');
-                  speakResponse(rawAnswer); // 🔊 TRIGGER AUDIO
+                  speakResponse(rawAnswer);
               }
           };
           await executeLogic();
@@ -252,7 +249,6 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
           )}
           {status === 'answering' && aiResponse && (
             <div className="animate-in slide-in-from-bottom-4 fade-in">
-              {/* Indicador de Audio Activo */}
               <div className="flex justify-center mb-4">
                   <div className="flex items-center gap-2 px-3 py-1 bg-blue-50 text-blue-600 rounded-full text-[10px] font-bold uppercase tracking-widest animate-pulse">
                       <Volume2 size={12}/> Reproduciendo respuesta
@@ -302,8 +298,7 @@ const ActionRadar = ({ items, onItemClick }: { items: PendingItem[], onItemClick
     );
 };
 
-// --- QUICK DOCS (UPDATED v8.5) ---
-// ✨ Grid Simétrico con Incapacidades
+// --- QUICK DOCS ---
 const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certificado' | 'receta' | 'incapacidad') => void }) => (
     <div className="bg-white rounded-xl p-6 border border-slate-200 shadow-sm h-full flex flex-col justify-between">
         <h3 className="font-bold text-slate-800 flex items-center gap-2 mb-4 text-sm">
@@ -319,12 +314,10 @@ const QuickDocs = ({ openModal }: { openModal: (type: 'justificante' | 'certific
                 <FileSignature size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
                 <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Certificado</p>
             </button>
-            
             <button onClick={() => openModal('receta')} className="p-3 bg-white border border-slate-200 hover:border-blue-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between">
                 <Printer size={18} className="text-slate-400 group-hover:text-blue-500 mb-2 transition-colors"/>
                 <p className="text-xs font-bold text-slate-600 group-hover:text-slate-800">Receta</p>
             </button>
-            {/* ✨ NUEVO: MÓDULO INCAPACIDAD */}
             <button onClick={() => openModal('incapacidad')} className="p-3 bg-white border border-slate-100 hover:border-purple-300 hover:shadow-md rounded-lg text-left transition-all group flex flex-col justify-between relative overflow-hidden">
                 <div className="absolute top-0 right-0 w-8 h-8 bg-purple-50 rounded-bl-full -mr-2 -mt-2 transition-transform group-hover:scale-150"></div>
                 <Scissors size={18} className="text-slate-400 group-hover:text-purple-500 mb-2 transition-colors relative z-10"/>
@@ -377,62 +370,94 @@ const Dashboard: React.FC = () => {
     return 'Buenas noches';
   }, [now]);
 
-  // ✨ UPDATE FUNCTION: Añadido 'incapacidad'
   const openDocModal = (type: 'justificante' | 'certificado' | 'receta' | 'incapacidad') => { setDocType(type); setIsDocModalOpen(true); };
   
   const nextPatient = useMemo(() => appointments.find(a => a.status === 'scheduled') || null, [appointments]);
-  const appointmentsToday = appointments.filter(a => isToday(parseISO(a.start_time))).length;
-  const totalDailyLoad = completedTodayCount + appointmentsToday;
-
+  
+  // ✅ REEMPLAZO DE BLOQUE: fetchData corregido para sincronización real
   const fetchData = useCallback(async (isBackgroundRefresh = false) => {
       try {
           if (!isBackgroundRefresh) setIsLoading(true);
-          const dataFetch = (async () => {
-              const { data: { user } } = await supabase.auth.getUser();
-              if (!user) { setSystemStatus(false); return; }
-              setSystemStatus(true);
-              const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-              if (profile) setDoctorProfile(profile as DoctorProfile);
-              
-              const todayStart = startOfDay(new Date()); 
-              const nextWeekEnd = endOfDay(addDays(new Date(), 7));
-              
-              const { data: aptsData } = await supabase
-                .from('appointments')
-                .select(`id, title, start_time, status, patient:patients (id, name, history)`)
-                .eq('doctor_id', user.id)
-                .gte('start_time', todayStart.toISOString())
-                .lte('start_time', nextWeekEnd.toISOString())
-                .neq('status', 'cancelled')
-                .neq('status', 'completed')
-                .order('start_time', { ascending: true })
-                .limit(10);
-              
-              if (aptsData) {
-                  const formattedApts: DashboardAppointment[] = aptsData.map((item: any) => ({
-                      id: item.id, 
-                      title: item.title, 
-                      start_time: item.start_time, 
-                      status: item.status, 
-                      patient: item.patient, 
-                      criticalAlert: null 
-                  }));
-                  setAppointments(formattedApts);
-              }
+          
+          const { data: { user } } = await supabase.auth.getUser();
+          if (!user) { setSystemStatus(false); return; }
+          setSystemStatus(true);
 
-              const { count: completedCount } = await supabase.from('appointments').select('*', { count: 'exact', head: true }).eq('doctor_id', user.id).eq('status', 'completed').gte('start_time', todayStart.toISOString()).lte('start_time', endOfDay(new Date()).toISOString());
+          // 1. Carga de Perfil
+          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
+          if (profile) setDoctorProfile(profile as DoctorProfile);
+          
+          // 2. Definición de rangos de tiempo
+          const nowRef = new Date();
+          const todayStart = startOfDay(nowRef); 
+          const todayEnd = endOfDay(nowRef);
+          const nextWeekEnd = endOfDay(addDays(nowRef, 7));
+          
+          // 3. Citas Pendientes/Agendadas
+          const { data: aptsData } = await supabase
+            .from('appointments')
+            .select(`id, title, start_time, status, patient:patients (id, name, history)`)
+            .eq('doctor_id', user.id)
+            .gte('start_time', todayStart.toISOString())
+            .lte('start_time', nextWeekEnd.toISOString())
+            .neq('status', 'cancelled')
+            .neq('status', 'completed')
+            .order('start_time', { ascending: true })
+            .limit(10);
+          
+          if (aptsData) {
+              setAppointments(aptsData.map((item: any) => ({
+                  id: item.id, title: item.title, start_time: item.start_time, 
+                  status: item.status, patient: item.patient, criticalAlert: null 
+              })));
+          }
+
+          // ✅ CORRECCIÓN CRÍTICA: Conteo real de pacientes atendidos hoy
+          const { count: completedCount, error: countError } = await supabase
+            .from('appointments')
+            .select('*', { count: 'exact', head: true })
+            .eq('doctor_id', user.id)
+            .eq('status', 'completed')
+            .gte('start_time', todayStart.toISOString())
+            .lte('start_time', todayEnd.toISOString());
+
+          if (!countError) {
               setCompletedTodayCount(completedCount || 0);
+          }
 
-              const radar: PendingItem[] = [];
-              const { data: openConsults } = await supabase.from('consultations').select('id, created_at, patient_name').eq('doctor_id', user.id).eq('status', 'in_progress').limit(3);
-              if (openConsults) { openConsults.forEach(c => radar.push({ id: c.id, type: 'note', title: 'Nota Incompleta', subtitle: `${c.patient_name || 'Sin nombre'} • ${format(parseISO(c.created_at), 'dd/MM')}`, date: c.created_at })); }
-              const { data: lostApts } = await supabase.from('appointments').select('id, title, start_time').eq('doctor_id', user.id).eq('status', 'scheduled').lt('start_time', new Date().toISOString()).limit(3);
-              if (lostApts) { lostApts.forEach(a => radar.push({ id: a.id, type: 'appt', title: 'Cita por Cerrar', subtitle: `${a.title} • ${format(parseISO(a.start_time), 'dd/MM HH:mm')}`, date: a.start_time })); }
-              setPendingItems(radar);
-          })();
-          await dataFetch; 
-      } catch (e) { setSystemStatus(false); console.error(e); } finally { if (!isBackgroundRefresh) setIsLoading(false); }
+          // 4. Radar de Pendientes
+          const radar: PendingItem[] = [];
+          const { data: openConsults } = await supabase
+            .from('consultations')
+            .select('id, created_at, patient_name')
+            .eq('doctor_id', user.id)
+            .eq('status', 'in_progress')
+            .limit(3);
+
+          if (openConsults) {
+              openConsults.forEach(c => radar.push({
+                  id: c.id, type: 'note', title: 'Nota Incompleta',
+                  subtitle: `${c.patient_name || 'Sin nombre'}`, date: c.created_at
+              }));
+          }
+          setPendingItems(radar);
+
+      } catch (e) { 
+          setSystemStatus(false); 
+          console.error("Error sincronizando Dashboard:", e); 
+      } finally { 
+          if (!isBackgroundRefresh) setIsLoading(false); 
+      }
   }, []);
+
+  // ✅ BLOQUE AGREGADO: Variables calculadas para el Widget de Eficiencia
+  const appointmentsScheduledToday = useMemo(() => 
+    appointments.filter(a => isToday(parseISO(a.start_time))).length
+  , [appointments]);
+
+  const totalDailyLoad = useMemo(() => 
+    completedTodayCount + appointmentsScheduledToday
+  , [completedTodayCount, appointmentsScheduledToday]);
 
   const updateWeather = useCallback(async (latitude: number, longitude: number) => {
       try {
@@ -518,7 +543,6 @@ const Dashboard: React.FC = () => {
 
   const handleSearchSubmit = (e?: React.FormEvent) => { if(e) e.preventDefault(); if(!searchInput.trim()) return; setInitialAssistantQuery(searchInput); setIsAssistantOpen(true); setSearchInput(''); };
 
-  // --- RENDER PRINCIPAL ---
   return (
     <div className="md:h-auto h-screen w-full bg-slate-50 dark:bg-slate-950 font-sans relative overflow-hidden md:overflow-y-auto">
       <style>{`
@@ -530,15 +554,12 @@ const Dashboard: React.FC = () => {
         .delay-300 { animation-delay: 300ms; }
       `}</style>
       
-      {/* 📱 VISTA MÓVIL (v8.5 - FIXED LAYOUT BLOCKED) */}
+      {/* 📱 VISTA MÓVIL */}
       <div className="md:hidden fixed inset-0 z-0 flex flex-col bg-slate-50 p-4 pb-24 overflow-hidden overscroll-none">
-        
-        {/* HEADER (No Scroll) */}
         <div className="shrink-0 bg-white rounded-xl p-4 shadow-sm border border-slate-200 relative animate-slide-top z-10">
             <div className="flex flex-col gap-2 mb-2">
                 <div className="flex justify-between items-center w-full">
                     <div className="flex items-center gap-2">
-                        {/* 🌟 LOGOTIPO OFICIAL */}
                         <BrandLogo className="h-9 w-9 rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.06)]" />
                         <p className="text-sm font-medium text-slate-500">{greetingText},</p>
                     </div>
@@ -570,7 +591,6 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* LISTA AGENDA (Scroll Interno Habilitado) */}
         <div className="flex-1 min-h-0 flex flex-col my-2 animate-fade-in delay-150 relative z-0">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
                 <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-slate-500"/> Agenda de Hoy</h3>
@@ -605,17 +625,16 @@ const Dashboard: React.FC = () => {
             </div>
         </div>
 
-        {/* FOOTER CARDS (No Scroll) */}
         <div className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300 relative z-10">
             <div className="grid grid-cols-2 gap-2 h-24">
-                <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} />
+                {/* StatusWidget actualizado */}
+                <StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsScheduledToday} />
                 <button onClick={() => setIsFastAdmitOpen(true)} className="relative w-full h-full bg-gradient-to-br from-blue-600 to-indigo-700 rounded-xl p-3 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all hover:scale-[1.02]">
                   <div className="absolute -right-4 -bottom-4 text-white opacity-10 group-hover:opacity-20 transition-all duration-500 rotate-12 scale-125"><UserPlus size={70} strokeWidth={1.5} /></div>
                   <div className="relative z-10 bg-white/20 w-8 h-8 flex items-center justify-center rounded-lg backdrop-blur-sm"><UserPlus className="text-white" size={16} /></div>
                   <div className="relative z-10"><h3 className="text-white font-bold text-xs leading-tight">Consulta<br/>Rápida</h3></div>
                 </button>
             </div>
-            {/* QuickDocs (Actualizado) */}
             <div className="grid grid-cols-2 gap-2 h-20">
                  <button onClick={() => setIsDocModalOpen(true)} className="bg-white rounded-xl p-2 shadow-sm border border-slate-200 flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform"><div className="p-1.5 bg-slate-100 rounded-lg text-slate-500"><FileCheck size={16}/></div><span className="text-[10px] font-bold text-slate-600">Docs</span></button>
                  <button onClick={() => setIsUploadModalOpen(true)} className="relative bg-white rounded-xl p-2 shadow-sm border border-slate-200 overflow-hidden group flex flex-col justify-center items-center gap-1 active:scale-95 transition-transform hover:border-teal-400">
@@ -628,7 +647,7 @@ const Dashboard: React.FC = () => {
         </div>
       </div>
 
-      {/* 🖥️ VISTA ESCRITORIO (v8.4 - BRAND IDENTITY) */}
+      {/* 🖥️ VISTA ESCRITORIO */}
       <div className="hidden md:block min-h-screen bg-slate-50 p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
              <div className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
@@ -652,7 +671,8 @@ const Dashboard: React.FC = () => {
 
              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-12 gap-6 h-auto animate-fade-in delay-150">
                  <div className="lg:col-span-3 flex flex-col gap-6">
-                     <div className="h-64"><StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsToday} /></div>
+                     {/* StatusWidget Desktop actualizado */}
+                     <div className="h-64"><StatusWidget totalApts={totalDailyLoad} pendingApts={appointmentsScheduledToday} /></div>
                      <ActionRadar items={pendingItems} onItemClick={handleRadarClick} />
                  </div>
                  <div className="lg:col-span-6 flex flex-col gap-6">
@@ -709,7 +729,7 @@ const Dashboard: React.FC = () => {
 
       {isChallengeModalOpen && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in"><div className="w-full max-w-md bg-transparent relative"><button onClick={() => setIsChallengeModalOpen(false)} className="absolute -top-12 right-0 text-white p-2 bg-white/20 rounded-full backdrop-blur-md"><X size={24}/></button><div className="h-[400px]"><DailyChallengeCard specialty={doctorProfile?.specialty || 'General'} /></div></div></div>}
       {isUploadModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-xl relative"><button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4"><X size={16}/></button><UploadMedico onUploadComplete={() => {}}/><div className="mt-4 pt-4 border-t"><DoctorFileGallery /></div></div></div>}
-      {rescheduleTarget && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 p-4"><div className="bg-white p-6 rounded-2xl shadow-xl w-full max-w-sm"><h3 className="font-bold text-lg mb-2">Reprogramar</h3><input type="datetime-local" className="w-full p-3 border rounded-xl mb-4" value={newDateInput} onChange={(e) => setNewDateInput(e.target.value)}/><div className="flex justify-end gap-2"><button onClick={() => setRescheduleTarget(null)} className="px-4 py-2 text-slate-500 text-sm">Cancelar</button><button onClick={confirmReschedule} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Confirmar</button></div></div></div>}
+      {rescheduleTarget && <div className="fixed inset-0 z-[70] flex items-center justify-center bg-slate-900/30 p-4"><div className="bg-white p-6 rounded-2xl shadow-xl w-full max-sm"><h3 className="font-bold text-lg mb-2">Reprogramar</h3><input type="datetime-local" className="w-full p-3 border rounded-xl mb-4" value={newDateInput} onChange={(e) => setNewDateInput(e.target.value)}/><div className="flex justify-end gap-2"><button onClick={() => setRescheduleTarget(null)} className="px-4 py-2 text-slate-500 text-sm">Cancelar</button><button onClick={confirmReschedule} className="px-4 py-2 bg-blue-600 text-white rounded-lg text-sm">Confirmar</button></div></div></div>}
       {isQuickNoteOpen && <QuickNoteModal onClose={() => setIsQuickNoteOpen(false)} doctorProfile={doctorProfile!}/>}
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile!} defaultType={docType} />
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} initialQuery={initialAssistantQuery} />

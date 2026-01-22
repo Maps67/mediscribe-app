@@ -7,12 +7,12 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-console.log("🚀 SUPABASE EDGE: MEDICINE AI - FINAL RECOVERY [WITH TOOLS]");
+console.log("🚀 SUPABASE EDGE: MEDICINE AI - FINAL RECOVERY [SCHEMA BLINDED]");
 
 // TU LISTA EXACTA
 const MODELS_TO_TRY = [
   "gemini-3-flash-preview", 
-  "gemini-2.0-flash-exp", 
+  "gemini-2.5-flash", 
   "gemini-1.5-flash-002", 
   "gemini-1.5-pro-002"
 ];
@@ -39,16 +39,44 @@ serve(async (req) => {
     const jsonMode = reqBody.jsonMode !== false; // Default a true si no se especifica
 
     // Si no hay prompt directo, buscamos transcript
+    // AQUI ES DONDE APLICAMOS EL BLINDAJE ESTRUCTURAL
     if (!prompt) {
         const transcript = reqBody.transcript || ""; // Si es undefined, usa ""
         if (!transcript.trim()) {
            throw new Error("La transcripción está vacía.");
         }
         
-        // Construcción segura del prompt
+        // Construcción segura del prompt (Protocolo VitalScribe v5.4)
         const specialty = reqBody.specialty || "Medicina General";
         const history = reqBody.patientHistory || "No disponible";
-        prompt = `ACTÚA COMO: ${specialty}. TRANSCRIPCIÓN: "${transcript}". HISTORIAL: "${history}". Genera JSON clínico.`;
+
+        prompt = `
+          ROL: Eres un médico especialista en ${specialty}. Redacta con terminología clínica precisa.
+          
+          ENTRADA:
+          - Transcripción de la consulta: "${transcript}"
+          - Historial previo: "${history}"
+
+          INSTRUCCIONES:
+          Genera una estructura JSON válida que coincida con la interfaz del sistema. 
+          No incluyas bloques de código markdown (\`\`\`json), solo el objeto raw.
+
+          ESTRUCTURA JSON REQUERIDA:
+          {
+            "clinicalNote": "Nota clínica narrativa completa, profesional y detallada.",
+            "soapData": {
+              "subjective": "Resumen detallado de síntomas y motivo de consulta (S)",
+              "objective": "Hallazgos físicos, signos vitales y observaciones (O)",
+              "analysis": "Razonamiento clínico, diagnóstico presuntivo y diagnósticos diferenciales (A)",
+              "plan": "Plan farmacológico, estudios solicitados y recomendaciones (P)"
+            },
+            "patientInstructions": "Explicación clara y empática dirigida al paciente sobre su tratamiento",
+            "risk_analysis": {
+              "level": "Elegir uno: Bajo, Medio, o Alto",
+              "reason": "Justificación clínica breve del nivel de riesgo asignado"
+            }
+          }
+        `;
     }
 
     // 3. Ejecución Segura (Sin librerías externas)
