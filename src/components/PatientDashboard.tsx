@@ -22,7 +22,8 @@ interface Patient {
   email?: string;
   phone?: string;
   gender?: string;
-  history?: string; 
+  history?: string;
+  doctor_id: string; 
 }
 
 interface Consultation {

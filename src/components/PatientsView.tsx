@@ -656,7 +656,8 @@ const PatientsView: React.FC = () => {
                   birth_date: selectedDashboardPatient.birth_date,
                   email: selectedDashboardPatient.email,
                   phone: selectedDashboardPatient.phone,
-                  gender: selectedDashboardPatient.gender
+                  gender: selectedDashboardPatient.gender,
+                  doctor_id: doctorProfile?.id || '' 
               }}
               onClose={() => setSelectedDashboardPatient(null)}
           />
@@ -670,7 +671,7 @@ const PatientsView: React.FC = () => {
         patientName={analyzingPatientName}
       />
       
-      {selectedPatientForRx && doctorProfile && <QuickRxModal isOpen={!!selectedPatientForRx} onClose={() => setSelectedPatientForRx(null)} initialTranscript="" patientName={selectedPatientForRx.name} doctorProfile={doctorProfile} />}
+      {selectedPatientForRx && doctorProfile && <QuickRxModal isOpen={!!selectedPatientForRx} onClose={() => setSelectedPatientForRx(null)} initialTranscript="" patientName={selectedPatientForRx.name} patientId={selectedPatientForRx.id} doctorProfile={doctorProfile} />}
     
       {/* ✅ INTEGRACIÓN 4: Renderizado del Modal de Exportación */}
       {showExportModal && (
