@@ -29,8 +29,12 @@ const TermsOfService = () => {
                <Shield size={24} />
                <span className="text-sm font-bold uppercase tracking-wider">Compliance & Trust v5.4</span>
             </div>
-            <h1 className="text-3xl font-bold text-slate-900">Centro de Transparencia y Legalidad</h1>
-            <p className="text-slate-500 mt-1">Marco normativo, seguridad técnica y términos de uso de VitalScribe AI.</p>
+            <h1 className="text-3xl font-bold text-slate-900">
+              Centro de Transparencia y Legalidad
+            </h1>
+            <p className="text-slate-500 mt-1">
+              Marco normativo, seguridad técnica y términos de uso de <span className="font-semibold text-slate-700">VitalScribe AI™</span>.
+            </p>
           </div>
           <button className="flex items-center gap-2 px-4 py-2 bg-white border border-slate-200 rounded-lg text-slate-600 hover:text-slate-900 hover:border-slate-300 shadow-sm transition-all">
             <Download size={18} />
@@ -78,8 +82,8 @@ const TermsOfService = () => {
               <div className="absolute top-0 left-0 w-1 h-full bg-teal-500"></div>
               <h3 className="text-xl font-bold text-slate-900 mb-4">Resumen Ejecutivo de Arquitectura</h3>
               <p className="text-slate-600 leading-relaxed text-sm md:text-base">
-                **VitalScribe AI (v5.4)** es una plataforma de **Inteligencia Ambiental Clínica** diseñada para mitigar el *burnout* médico. 
-                Opera bajo una arquitectura **Hybrid-Cloud** segura y cumple con las normativas **NOM-004** y **NOM-024** como 
+                <strong>VitalScribe AI™ (v5.4)</strong> es una plataforma de <strong>Inteligencia Ambiental Clínica</strong> diseñada para mitigar el <em>burnout</em> médico. 
+                Opera bajo una arquitectura <strong>Hybrid-Cloud</strong> segura y cumple con las normativas <strong>NOM-004</strong> y <strong>NOM-024</strong> como 
                 Software de Apoyo a la Gestión Administrativa, garantizando la soberanía de datos y la responsabilidad clínica humana.
               </p>
 
@@ -89,7 +93,7 @@ const TermsOfService = () => {
                    <div>
                       <h4 className="font-bold text-slate-800 text-base">Clasificación Regulatoria (COFEPRIS/México)</h4>
                       <p className="text-slate-500 text-sm mt-1 leading-relaxed">
-                        VitalScribe AI se clasifica como <strong>Software de Gestión Administrativa y Documental</strong>. 
+                        VitalScribe AI™ se clasifica como <strong>Software de Gestión Administrativa y Documental</strong>. 
                         No realiza diagnósticos autónomos. Cumple con la <strong>NOM-004-SSA3-2012</strong> para la integración de la Historia Clínica y la <strong>NOM-024-SSA3-2012</strong> mediante el uso de estándares de interoperabilidad y seguridad.
                       </p>
                    </div>
@@ -142,7 +146,7 @@ const TermsOfService = () => {
                 <h4 className="font-bold text-amber-800 mb-2 flex items-center gap-2">
                   <AlertTriangle size={18}/> Descargo de Responsabilidad Médica
                 </h4>
-                <p className="text-amber-900/80 italic">VitalScribe AI es una herramienta de asistencia. La validación, edición y firma final de cualquier documento clínico generado por el sistema es responsabilidad absoluta y exclusiva del médico usuario facultado.</p>
+                <p className="text-amber-900/80 italic">VitalScribe AI™ es una herramienta de asistencia. La validación, edición y firma final de cualquier documento clínico generado por el sistema es responsabilidad absoluta y exclusiva del médico usuario facultado.</p>
               </section>
 
               <section>
@@ -154,6 +158,35 @@ const TermsOfService = () => {
                 <h4 className="font-bold text-slate-800 mb-2">2. Uso de la IA y Consentimiento</h4>
                 <p>El médico debe obtener el consentimiento verbal del paciente antes de utilizar la función de escucha activa. El software genera un "borrador" que debe ser supervisado por el ojo humano antes de ser legalizado.</p>
               </section>
+
+              {/* CLÁUSULA DE PROPIEDAD INTELECTUAL INYECTADA */}
+              <section className="p-4 bg-indigo-50 rounded-xl border border-indigo-100">
+                <h4 className="font-bold text-indigo-900 mb-2 flex items-center gap-2">
+                  <FileText size={18}/> 3. Propiedad Intelectual y Uso de IA
+                </h4>
+                <div className="space-y-3 text-indigo-900/80">
+                  <p>
+                    La marca <strong>"VitalScribe AI™"</strong>, así como el logotipo, interfaces visuales, 
+                    código fuente (incluyendo algoritmos de estructuración clínica) y la 
+                    arquitectura del sistema, son propiedad exclusiva de los desarrolladores 
+                    y se encuentran en proceso de registro ante el Instituto Mexicano de la 
+                    Propiedad Industrial (IMPI) y protegidos por derechos de autor.
+                  </p>
+                  <p>
+                    <strong>USO DE INTELIGENCIA ARTIFICIAL:</strong> El Usuario reconoce que VitalScribe AI™ utiliza modelos de lenguaje avanzados 
+                    (Google Gemini) para asistir en la redacción clínica. Las sugerencias de 
+                    tratamiento, análisis de riesgo y notas generadas son herramientas 
+                    de apoyo y <strong>NO sustituyen el juicio clínico profesional</strong> del médico.
+                  </p>
+                  <p>
+                    El médico usuario asume total responsabilidad por la verificación, edición y 
+                    validación de cualquier contenido generado automáticamente antes de guardarlo 
+                    en el expediente clínico o emitir una receta, liberando a VitalScribe AI™ de 
+                    responsabilidad por decisiones médicas basadas en dichas sugerencias automatizadas.
+                  </p>
+                </div>
+              </section>
+
             </div>
           </div>
         )}
