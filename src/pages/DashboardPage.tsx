@@ -37,7 +37,7 @@ interface DashboardAppointment {
   title: string; 
   start_time: string; 
   status: 'scheduled' | 'completed' | 'cancelled' | 'no_show';
-  patient?: { id: string; name: string; history?: string; } | any; // Any para flexibilidad con Supabase arrays
+  patient?: { id: string; name: string; history?: string; } | any; 
   criticalAlert?: string | null;
 }
 
@@ -54,7 +54,6 @@ interface WeatherState {
     code: number;
 }
 
-// 🌟 BRAND COMPONENT
 const BrandLogo = ({ className = "" }: { className?: string }) => (
     <img 
         src="/pwa-192x192.png" 
@@ -64,17 +63,14 @@ const BrandLogo = ({ className = "" }: { className?: string }) => (
     />
 );
 
-// --- UTILS & CLOCK ---
 const cleanMarkdown = (text: string): string => text ? text.replace(/[*_#`~]/g, '').replace(/^\s*[-•]\s+/gm, '').replace(/\[.*?\]/g, '').replace(/\n\s*\n/g, '\n').trim() : "";
 
 const AtomicClock = ({ location, isDesktop = false }: { location: string, isDesktop?: boolean }) => {
     const [date, setDate] = useState(new Date());
-
     useEffect(() => {
         const timer = setInterval(() => setDate(new Date()), 1000);
         return () => clearInterval(timer);
     }, []);
-
     return (
         <div className={`flex flex-col ${isDesktop ? 'items-end' : 'justify-center'}`}>
             <div className={`flex items-baseline gap-1 text-slate-900 dark:text-white ${isDesktop ? 'flex-row-reverse' : ''}`}>
@@ -108,7 +104,6 @@ const WeatherWidget = ({ weather, isDesktop = false }: { weather: WeatherState, 
     );
 };
 
-// --- ASISTENTE MODAL ---
 const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { isOpen: boolean; onClose: () => void; onActionComplete: () => void; initialQuery?: string | null }) => {
   const { isListening, transcript, startListening, stopListening, resetTranscript } = useSpeechRecognition();
   const [status, setStatus] = useState<'idle' | 'listening' | 'processing' | 'answering'>('idle');
@@ -315,6 +310,7 @@ const Dashboard: React.FC = () => {
   
   const nextPatient = useMemo(() => appointments.find(a => a.status === 'scheduled') || null, [appointments]);
   
+  // 🚀 OPTIMIZACIÓN CRÍTICA (V5.5 TURBO): Carga Paralela con Promise.all
   const fetchData = useCallback(async (isBackgroundRefresh = false) => {
       try {
           if (!isBackgroundRefresh) setIsLoading(true);
@@ -329,90 +325,97 @@ const Dashboard: React.FC = () => {
           }
           setSystemStatus(true);
 
-          const { data: profile } = await supabase.from('profiles').select('*').eq('id', user.id).single();
-          if (profile) setDoctorProfile(profile as DoctorProfile);
-          
+          // Referencias temporales para consultas
           const nowRef = new Date();
-          const todayStart = startOfDay(nowRef); 
-          const nextWeekEnd = endOfDay(addDays(nowRef, 7));
-          const monthStart = startOfMonth(nowRef);
-          const monthEnd = endOfMonth(nowRef);
+          const todayStart = startOfDay(nowRef).toISOString(); 
+          const nextWeekEnd = endOfDay(addDays(nowRef, 7)).toISOString();
+          const monthStart = startOfMonth(nowRef).toISOString();
+          const monthEnd = endOfMonth(nowRef).toISOString();
+
+          // ⚡ EJECUCIÓN PARALELA: Disparamos todas las peticiones a la vez
+          const [profileRes, aptsRes, completedRes, pendingRes, openConsultsRes] = await Promise.all([
+              // 1. Perfil
+              supabase.from('profiles').select('*').eq('id', user.id).single(),
+              
+              // 2. Citas (Agenda)
+              supabase.from('appointments')
+                .select(`id, title, start_time, status, patient:patients (id, name, history)`)
+                .eq('doctor_id', user.id)
+                .gte('start_time', todayStart)
+                .lte('start_time', nextWeekEnd)
+                .neq('status', 'cancelled')
+                .neq('status', 'completed')
+                .order('start_time', { ascending: true })
+                .limit(10),
+              
+              // 3. Métricas (Completadas)
+              supabase.from('appointments')
+                .select('*', { count: 'exact', head: true })
+                .eq('doctor_id', user.id)
+                .eq('status', 'completed')
+                .gte('start_time', monthStart)
+                .lte('start_time', monthEnd),
+              
+              // 4. Métricas (Pendientes)
+              supabase.from('appointments')
+                .select('*', { count: 'exact', head: true })
+                .eq('doctor_id', user.id)
+                .neq('status', 'cancelled')
+                .neq('status', 'completed')
+                .gte('start_time', monthStart)
+                .lte('start_time', monthEnd),
+                
+              // 5. Radar (Notas abiertas)
+              supabase.from('consultations')
+                .select('id, created_at, patient_id') 
+                .eq('doctor_id', user.id)
+                .eq('status', 'in_progress')
+                .limit(3)
+          ]);
+
+          // --- PROCESAMIENTO DE RESULTADOS ---
           
-          const { data: aptsData } = await supabase
-            .from('appointments')
-            .select(`id, title, start_time, status, patient:patients (id, name, history)`)
-            .eq('doctor_id', user.id)
-            .gte('start_time', todayStart.toISOString())
-            .lte('start_time', nextWeekEnd.toISOString())
-            .neq('status', 'cancelled')
-            .neq('status', 'completed')
-            .order('start_time', { ascending: true })
-            .limit(10); 
-          
-          if (aptsData) {
-              setAppointments(aptsData.map((item: any) => {
+          // 1. Perfil
+          if (profileRes.data) setDoctorProfile(profileRes.data as DoctorProfile);
+
+          // 2. Citas
+          let currentApts: DashboardAppointment[] = [];
+          if (aptsRes.data) {
+              currentApts = aptsRes.data.map((item: any) => {
                   const patientObj = Array.isArray(item.patient) ? item.patient[0] : item.patient;
-                  
                   return {
                       id: item.id, title: item.title, start_time: item.start_time, 
                       status: item.status, 
                       patient: patientObj, 
                       criticalAlert: null 
                   };
-              }));
+              });
+              setAppointments(currentApts);
           }
 
-          const { count: completedCount } = await supabase
-            .from('appointments')
-            .select('*', { count: 'exact', head: true })
-            .eq('doctor_id', user.id)
-            .eq('status', 'completed')
-            .gte('start_time', monthStart.toISOString())
-            .lte('start_time', monthEnd.toISOString());
+          // 3 & 4. Métricas
+          setCompletedTodayCount(completedRes.count || 0);
+          setRealPendingCount(pendingRes.count || 0);
 
-          setCompletedTodayCount(completedCount || 0);
-
-          const { count: pendingCount } = await supabase
-            .from('appointments')
-            .select('*', { count: 'exact', head: true })
-            .eq('doctor_id', user.id)
-            .neq('status', 'cancelled')
-            .neq('status', 'completed')
-            .gte('start_time', monthStart.toISOString())
-            .lte('start_time', monthEnd.toISOString());
-
-           setRealPendingCount(pendingCount || 0);
-
+          // 5. Radar de Pendientes
           const radar: PendingItem[] = [];
-          
-          try {
-             const { data: openConsults } = await supabase
-                .from('consultations')
-                .select('id, created_at, patient_id') 
-                .eq('doctor_id', user.id)
-                .eq('status', 'in_progress')
-                .limit(3);
+          if (openConsultsRes.data) {
+             openConsultsRes.data.forEach(c => {
+                // Buscamos info del paciente en las citas ya cargadas para optimizar
+                const knownPatient = currentApts.find(a => {
+                    const pRef = Array.isArray(a.patient) ? a.patient[0] : a.patient;
+                    return pRef?.id === c.patient_id;
+                });
 
-             if (openConsults) {
-                 openConsults.forEach(c => {
-                    const knownPatient = aptsData?.find((a: any) => {
-                        const pRef = Array.isArray(a.patient) ? a.patient[0] : a.patient;
-                        return pRef?.id === c.patient_id;
-                    });
-
-                    const patientObj = Array.isArray(knownPatient?.patient) ? knownPatient.patient[0] : knownPatient?.patient;
-                    const patientName = patientObj?.name || `Paciente ${c.patient_id?.slice(0,6) || 'N/A'}`;
-                    
-                    radar.push({
-                        id: c.id, type: 'note', title: 'Nota Incompleta',
-                        subtitle: patientName, date: c.created_at
-                    });
-                 });
-             }
-          } catch (err) {
-             console.warn("Error fetching pending consults, skipping radar", err);
+                const patientObj = Array.isArray(knownPatient?.patient) ? knownPatient.patient[0] : knownPatient?.patient;
+                const patientName = patientObj?.name || `Paciente ${c.patient_id?.slice(0,6) || 'N/A'}`;
+                
+                radar.push({
+                    id: c.id, type: 'note', title: 'Nota Incompleta',
+                    subtitle: patientName, date: c.created_at
+                });
+             });
           }
-          
           setPendingItems(radar);
 
       } catch (e) { 
@@ -463,6 +466,7 @@ const Dashboard: React.FC = () => {
     const cachedLocation = localStorage.getItem('last_known_location');
     if (cachedLocation) { setLocationName(cachedLocation); }
     
+    // Polling más lento para ahorrar datos
     const pollingInterval = setInterval(() => { if (document.visibilityState === 'visible') fetchData(true); }, 120000);
     
     const handleVisibilityChange = () => {
