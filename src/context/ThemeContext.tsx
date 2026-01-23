@@ -1,5 +1,6 @@
 import React, { createContext, useContext, useEffect, useState } from 'react';
 
+// Mantenemos los tipos para que TypeScript no se queje en otros archivos
 type Theme = 'light' | 'dark';
 
 interface ThemeContextType {
@@ -10,29 +11,33 @@ interface ThemeContextType {
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
 
 export const ThemeProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
-  // 1. Verificar preferencia guardada o del sistema
-  const [theme, setTheme] = useState<Theme>(() => {
-    if (typeof window !== 'undefined') {
-      const savedTheme = localStorage.getItem('theme') as Theme;
-      if (savedTheme) return savedTheme;
-      return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
-    }
-    return 'light';
-  });
+  // 1. CAMBIO RADICAL: El estado inicial SIEMPRE es 'light'.
+  // Eliminamos la lectura de localStorage y la detección del sistema operativo.
+  const [theme] = useState<Theme>('light');
 
-  // 2. Aplicar la clase 'dark' al HTML
+  // 2. EL GUARDIÁN DE LA LUZ
+  // Este efecto se asegura de limpiar la clase 'dark' violentamente al iniciar.
   useEffect(() => {
     const root = window.document.documentElement;
-    if (theme === 'dark') {
-      root.classList.add('dark');
-    } else {
-      root.classList.remove('dark');
-    }
-    localStorage.setItem('theme', theme);
-  }, [theme]);
+    
+    // Eliminamos la clase oscura si existe
+    root.classList.remove('dark');
+    // Forzamos la clase clara
+    root.classList.add('light');
+    
+    // Forzamos el esquema de color nativo del navegador (scrollbars, inputs)
+    root.style.colorScheme = 'light';
+    
+    // Limpiamos cualquier preferencia guardada anteriormente para evitar conflictos
+    localStorage.removeItem('theme');
+  }, []);
 
+  // 3. NEUTRALIZAR EL TOGGLE
+  // Si algún botón en la interfaz intenta cambiar el tema, esta función no hace nada
+  // o simplemente refuerza el modo claro.
   const toggleTheme = () => {
-    setTheme((prev) => (prev === 'light' ? 'dark' : 'light'));
+    console.log('🚫 Cambio de tema deshabilitado: VitalScribe es Light Mode Only.');
+    // No llamamos a setTheme. El estado permanece inmutable en 'light'.
   };
 
   return (
