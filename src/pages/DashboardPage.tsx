@@ -1,12 +1,13 @@
 import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
+// ✅ IMPORTACIONES CORRECTAS (INCLUYENDO HelpCircle)
 import { 
   Calendar, Sun, Moon, Cloud, 
   Upload, X, Bot, Mic, Square, Loader2, CheckCircle2,
   Stethoscope, AlertTriangle, FileText,
   UserPlus, Activity, ChevronRight,
   CalendarX, FileSignature, Printer, FileCheck,
-  HelpCircle, Zap, FolderUp, BrainCircuit, RefreshCcw, // ✅ AGREGADO HelpCircle AQUÍ
+  HelpCircle, Zap, FolderUp, BrainCircuit, RefreshCcw,
   Scissors, Volume2, Play, ArrowUpRight
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
@@ -31,7 +32,6 @@ import { QuickNoteModal } from '../components/QuickNoteModal';
 // Tipos del Sistema
 import { DoctorProfile } from '../types'; 
 
-// --- TYPES LOCALES ---
 interface DashboardAppointment {
   id: string; 
   title: string; 
@@ -436,7 +436,7 @@ const Dashboard: React.FC = () => {
     
     const handleVisibilityChange = () => {
         if (document.visibilityState === 'visible') {
-            setCurrentTimeHour(new Date().getHours()); 
+            setCurrentTimeHour(new Date().getHours()); // ✅ CORREGIDO: ERA setCurrentTimeTime
             fetchData(true);    
         }
     };
@@ -734,6 +734,7 @@ const Dashboard: React.FC = () => {
       <UserGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
       
       <button onClick={() => setIsGuideOpen(true)} className="fixed z-50 bg-slate-900 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 bottom-24 right-4 w-14 h-14 md:bottom-24 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3 hover:scale-105 active:scale-95 transition-all">
+        {/* 🔥 CONFIRMADO: HelpCircle ESTÁ AQUÍ Y FUE IMPORTADO ARRIBA 🔥 */}
         <HelpCircle size={24} /> <span className="hidden md:inline">¿Cómo funciona?</span>
       </button>
     </div>
