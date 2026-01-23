@@ -1,11 +1,9 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 // @ts-ignore
 import { useRegisterSW } from 'virtual:pwa-register/react';
-import { RefreshCw, X, Wifi, Download } from 'lucide-react';
+import { RefreshCw, X, Wifi, Download, CheckCircle2 } from 'lucide-react';
 
 const ReloadPrompt: React.FC = () => {
-  // ⚡ OPTIMIZACIÓN: Intervalo ajustado a 60 segundos
-  // Balance ideal para no saturar la red móvil en consultas largas.
   const UPDATE_CHECK_INTERVAL = 60 * 1000; 
 
   const {
@@ -14,30 +12,18 @@ const ReloadPrompt: React.FC = () => {
     updateServiceWorker,
   } = useRegisterSW({
     onRegisteredSW(swUrl: string, r: ServiceWorkerRegistration) {
-      console.log('SW Registrado: ' + swUrl);
-      
-      // --- SISTEMA DE LATIDO (HEARTBEAT) ---
       if (r) {
         setInterval(async () => {
-          // Solo chequeamos si el SW está instalado y no esperando
           if (!(!r.installing && !r.waiting)) return;
           if ('connection' in navigator && !(navigator as any).onLine) return;
 
           try {
             const resp = await fetch(swUrl, {
               cache: 'no-store',
-              headers: {
-                'cache': 'no-store',
-                'cache-control': 'no-cache',
-              },
+              headers: { 'cache': 'no-store', 'cache-control': 'no-cache' },
             });
-
-            if (resp?.status === 200) {
-              await r.update();
-            }
-          } catch (e) {
-            console.log('Fallo silencioso al buscar actualizaciones', e);
-          }
+            if (resp?.status === 200) await r.update();
+          } catch (e) { /* Fallo silencioso */ }
         }, UPDATE_CHECK_INTERVAL);
       }
     },
@@ -48,7 +34,16 @@ const ReloadPrompt: React.FC = () => {
     setNeedRefresh(false);
   };
 
-  // No mostrar si no hay nada
+  // 🧠 LÓGICA INTELIGENTE:
+  // Si solo es el mensaje de "Listo para Offline", ciérralo automáticamente a los 4 segundos.
+  // Si es "Actualizar", déjalo fijo hasta que el usuario decida.
+  useEffect(() => {
+    if (offlineReady && !needRefresh) {
+        const timer = setTimeout(() => setOfflineReady(false), 4000);
+        return () => clearTimeout(timer);
+    }
+  }, [offlineReady, needRefresh]);
+
   if (!offlineReady && !needRefresh) return null;
 
   return (
@@ -57,23 +52,26 @@ const ReloadPrompt: React.FC = () => {
         
         <div className="flex justify-between items-start">
             <div className="flex gap-3">
-                <div className="mt-1 text-teal-400">
-                    {needRefresh ? <Download size={20} className="animate-bounce"/> : <Wifi size={20}/>}
+                <div className={`mt-1 ${needRefresh ? 'text-teal-400' : 'text-emerald-400'}`}>
+                    {needRefresh ? <Download size={20} className="animate-bounce"/> : <CheckCircle2 size={20}/>}
                 </div>
                 <div>
                     <h3 className="font-bold text-sm">
-                        {needRefresh ? 'Nueva Versión Disponible' : 'Listo para Offline'}
+                        {needRefresh ? 'Nueva Versión Disponible' : 'Instalación Completa'}
                     </h3>
                     <p className="text-xs text-slate-300 mt-1 leading-relaxed">
                         {needRefresh 
                             ? 'Hay una mejora lista. Actualiza cuando termines tu tarea.' 
-                            : 'La aplicación funciona sin internet.'}
+                            : 'VitalScribe está listo para funcionar sin conexión.'}
                     </p>
                 </div>
             </div>
-            <button onClick={close} className="text-slate-400 hover:text-white p-1">
-                <X size={18} />
-            </button>
+            {/* Solo mostramos la X si es actualización, el offline se cierra solo */}
+            {needRefresh && (
+                <button onClick={close} className="text-slate-400 hover:text-white p-1">
+                    <X size={18} />
+                </button>
+            )}
         </div>
 
         {needRefresh && (
