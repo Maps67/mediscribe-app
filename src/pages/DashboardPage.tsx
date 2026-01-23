@@ -1,4 +1,4 @@
-import React, { useEffect, useState, useMemo, useCallback } from 'react';
+import React, { useEffect, useState, useMemo, useCallback, useRef } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { 
   Calendar, Sun, Moon, Cloud, 
@@ -293,6 +293,9 @@ const Dashboard: React.FC = () => {
   const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
   const [currentTimeHour, setCurrentTimeHour] = useState(new Date().getHours());
 
+  // 🛡️ REFERENCIA DE SEGURIDAD PARA EL FRENO DE MANO
+  const lastFetchTime = useRef<number>(0);
+
   const formattedDocName = useMemo(() => {
     if (!doctorProfile?.full_name) return 'Cargando...';
     const raw = doctorProfile.full_name.trim();
@@ -310,8 +313,16 @@ const Dashboard: React.FC = () => {
   
   const nextPatient = useMemo(() => appointments.find(a => a.status === 'scheduled') || null, [appointments]);
   
-  // 🚀 OPTIMIZACIÓN CRÍTICA (V5.5 TURBO): Carga Paralela con Promise.all
+  // 🚀 OPTIMIZACIÓN CRÍTICA (V5.7 TURBO): Carga Paralela con Freno de Mano
   const fetchData = useCallback(async (isBackgroundRefresh = false) => {
+      // 🛡️ FRENO DE MANO: Evita llamadas repetidas en menos de 2 segundos (Anti-DDoS Loop)
+      const now = Date.now();
+      if (now - lastFetchTime.current < 2000) {
+          console.warn("🚫 Fetch bloqueado por protección anti-bucle");
+          return;
+      }
+      lastFetchTime.current = now;
+
       try {
           if (!isBackgroundRefresh) setIsLoading(true);
           
@@ -530,7 +541,7 @@ const Dashboard: React.FC = () => {
                 <div className="flex justify-between items-center w-full">
                     <div className="flex items-center gap-2">
                         <BrandLogo className="h-9 w-9 rounded-xl shadow-[0_2px_4px_rgba(0,0,0,0.06)]" />
-                        <p className="text-sm font-medium text-slate-500">{greetingText}, (v5.6)</p>
+                        <p className="text-sm font-medium text-slate-500">{greetingText}, (v5.7)</p>
                     </div>
                     <div className="flex items-center gap-2 bg-slate-50 dark:bg-slate-800 px-3 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 shrink-0">
                         <div className="flex items-center gap-1">
@@ -646,11 +657,15 @@ const Dashboard: React.FC = () => {
                      <BrandLogo className="h-16 w-16 rounded-2xl shadow-md border-2 border-white dark:border-slate-800" />
                      <div>
                          <h1 className="text-4xl font-black text-slate-900 dark:text-white tracking-tight leading-tight">{formattedDocName}</h1>
-                         <p className="text-slate-500 font-medium text-lg mt-1 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Panel de Control Clínico</p>
+                         <p className="text-slate-500 font-medium text-lg mt-1 flex items-center gap-2"><span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span> Panel de Control Clínico (v5.7)</p>
                      </div>
                      <div className="flex gap-2 ml-4">
                         <button onClick={() => setIsAssistantOpen(true)} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2"><Bot size={20} className="text-blue-600"/> <span className="text-sm font-bold">Asistente</span></button>
                         <button onClick={() => setIsQuickNoteOpen(true)} className="p-3 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 text-slate-700 dark:text-slate-200 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2"><Zap size={20} className="text-amber-500"/> <span className="text-sm font-bold">Nota Flash</span></button>
+                        {/* 🛠️ BOTÓN MANUAL DE RECARGA PARA ESCRITORIO */}
+                        <button onClick={() => window.location.reload()} className="p-3 bg-slate-100 dark:bg-slate-800 text-slate-400 hover:text-blue-600 rounded-xl transition-colors" title="Forzar Recarga del Sistema">
+                            <RefreshCcw size={20} />
+                        </button>
                      </div>
                  </div>
                  <div className="flex items-center gap-8 bg-white dark:bg-slate-900 px-8 py-4 rounded-xl border border-slate-200 dark:border-slate-800 shadow-sm">
