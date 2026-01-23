@@ -8,26 +8,14 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      // 🛡️ ESTRATEGIA UPDATE-ON-DEMAND (RESTITUIDA)
-      // Cambiamos a 'prompt' para que el Service Worker espere confirmación
-      // antes de tomar el control. Esto evita recargas inesperadas.
-      registerType: 'prompt', 
-      
+      registerType: 'prompt', // Mantenemos la actualización manual segura
       includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
       
-      // CONFIGURACIÓN WORKBOX
       workbox: {
         cleanupOutdatedCaches: true,
         clientsClaim: true,
-        
-        // 🛡️ PROTOCOLO ZERO-INTERRUPTION
-        // skipWaiting: false asegura que la nueva versión se instale en segundo plano
-        // pero se quede en estado "waiting" hasta que el usuario pulse "Actualizar".
         skipWaiting: false,
-        
         globPatterns: ['**/*.{js,css,html,ico,png,svg}'],
-        
-        // Mantenemos tu fix de tamaño de imágenes (10MB)
         maximumFileSizeToCacheInBytes: 10 * 1024 * 1024 
       },
 
@@ -35,8 +23,11 @@ export default defineConfig({
         name: 'VitalScribe AI',
         short_name: 'VitalScribe',
         description: 'Asistente Médico Inteligente',
-        theme_color: '#0d9488',
-        background_color: '#0f172a',
+        // 🛡️ CORRECCIÓN DE COLORES PARA CHROME Y SAMSUNG
+        // Cambiamos todo a BLANCO (#ffffff) y TEAL (#0d9488)
+        theme_color: '#ffffff',
+        background_color: '#ffffff',
+        
         display: 'standalone',
         orientation: 'portrait',
         scope: '/',
