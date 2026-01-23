@@ -4,7 +4,7 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from './context/ThemeContext';
-import { Moon, Sun, CloudSun, Trash2 } from 'lucide-react'; 
+import { Moon, Sun, CloudSun, Trash2, WifiOff } from 'lucide-react'; 
 
 // Components & Pages
 import Sidebar from './components/Sidebar';
@@ -57,7 +57,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
   }, [session]);
   
   return (
-    // 🧹 LIMPIEZA: Eliminadas las clases 'dark:bg-slate-900' y 'dark:text-slate-100'
     <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 transition-colors duration-300 relative">
       {!isPremium && <TrialMonitor />}
       <div className="flex flex-1 overflow-hidden relative">
@@ -67,7 +66,6 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
           <div className="md:hidden">
               <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} onLogout={onLogout} />
           </div>
-          {/* 🧹 LIMPIEZA: Eliminada la clase 'dark:bg-slate-950' */}
           <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col h-full bg-gray-50 overflow-hidden">
             <div className="flex-1 overflow-y-auto pb-20 md:pb-0"> 
               <Routes>
@@ -99,8 +97,8 @@ const App: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [showSplash, setShowSplash] = useState(true);
   
-  // DIAGNÓSTICO EN PANTALLA (Para ver qué pasa en el móvil)
-  const [debugLog, setDebugLog] = useState<string[]>(['🚀 Arranque v5.7 iniciado...']);
+  // DIAGNÓSTICO EN PANTALLA
+  const [debugLog, setDebugLog] = useState<string[]>(['🚀 Arranque v5.8 iniciado...']);
   const [showPanicButton, setShowPanicButton] = useState(false);
 
   const [isClosing, setIsClosing] = useState(false);
@@ -110,8 +108,7 @@ const App: React.FC = () => {
   
   const addLog = (msg: string) => setDebugLog(prev => [...prev.slice(-4), msg]);
 
-  // 🛡️ POLICÍA ANTI-OSCURIDAD (NUEVO BLOQUE)
-  // Esto garantiza que la app siempre sea CLARA (Light Mode) al arrancar
+  // 🛡️ POLICÍA ANTI-OSCURIDAD
   useEffect(() => {
     document.documentElement.classList.remove('dark');
     document.documentElement.classList.add('light');
@@ -124,17 +121,28 @@ const App: React.FC = () => {
     const initSession = async () => {
         try {
             addLog('📡 Contactando Supabase...');
-            const { data: { session: initialSession }, error } = await supabase.auth.getSession();
+
+            // ⚡ TIMEOUT DE RED: Si Supabase no responde en 8 segundos, asumimos desconexión
+            // Esto evita el "Bucle Infinito" en redes lentas.
+            const sessionPromise = supabase.auth.getSession();
+            const timeoutPromise = new Promise((_, reject) => 
+                setTimeout(() => reject(new Error("Timeout de red")), 8000)
+            );
+
+            // @ts-ignore
+            const { data, error } = await Promise.race([sessionPromise, timeoutPromise])
+                .catch(e => ({ data: { session: null }, error: e }));
             
             if (error) {
-                addLog(`❌ Error SB: ${error.message}`);
-                throw error;
+                addLog(`⚠️ Red lenta/Error: ${error.message}`);
+                // No lanzamos error fatal, mejor dejamos pasar al usuario al login
+                // para que no se quede atorado en el splash.
             }
 
             if (mounted) {
-              if (initialSession) {
+              if (data?.session) {
                   addLog('✅ Sesión recuperada.');
-                  setSession(initialSession);
+                  setSession(data.session);
               } else {
                   addLog('ℹ️ Sin sesión activa.');
               }
@@ -150,33 +158,27 @@ const App: React.FC = () => {
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, newSession) => {
         if (!mounted) return;
-        
-        // Ignoramos ruido
         if (event === 'TOKEN_REFRESHED' && !newSession) return;
-
-        addLog(`🔄 Evento: ${event}`);
         setSession(newSession);
         setLoading(false);
     });
 
-    // Timer estético
     const splashTimer = setTimeout(() => { 
         if (mounted) {
-            addLog('⏱️ Timer splash completado');
             setShowSplash(false); 
         }
     }, 2500);
 
-    // Válvula de Seguridad + Botón de Pánico
+    // 🛡️ VÁLVULA DE SEGURIDAD EXTENDIDA (15 SEGUNDOS)
+    // Aumentamos el tiempo para dar oportunidad a redes 4G lentas
     const safetyValve = setTimeout(() => {
         if (mounted && (loading || showSplash)) {
-            addLog('🚨 TIEMPO AGOTADO. Activando modo rescate.');
+            addLog('🚨 TIEMPO AGOTADO (15s). Activando rescate.');
             setShowPanicButton(true);
-            // Intentamos forzar la entrada aunque falle
             setLoading(false);
             setShowSplash(false);
         }
-    }, 5000);
+    }, 15000); // 15 segundos
 
     return () => { 
         mounted = false; 
@@ -187,20 +189,18 @@ const App: React.FC = () => {
   }, []);
 
   const handlePanicReset = async () => {
-      if (!confirm("Esto borrará la caché local y recargará la app. ¿Continuar?")) return;
+      if (!confirm("Se detectó un problema de carga. ¿Limpiar caché y reiniciar?")) return;
       
       addLog('🧹 Limpiando almacenamiento...');
       localStorage.clear();
       sessionStorage.clear();
       
-      // Intentar desregistrar Service Workers (PWA)
       if ('serviceWorker' in navigator) {
           const registrations = await navigator.serviceWorker.getRegistrations();
           for (const registration of registrations) {
               await registration.unregister();
           }
       }
-
       window.location.reload();
   };
 
@@ -220,27 +220,30 @@ const App: React.FC = () => {
     setIsClosing(false);
   };
 
-  // 🛡️ PANTALLA DE CARGA CON DIAGNÓSTICO (Overlay)
   if (showSplash || loading) {
       return (
         <ThemeProvider>
             <div className="relative">
                 <SplashScreen />
-                {/* CAPA DE DIAGNÓSTICO (Visible solo si tarda mucho) */}
-                <div className="absolute bottom-10 left-0 right-0 flex flex-col items-center gap-2 z-[9999]">
-                    <div className="bg-black/50 text-white text-[10px] font-mono p-2 rounded max-w-[300px] backdrop-blur-sm border border-white/10">
-                        <p className="font-bold text-yellow-400 border-b border-white/10 mb-1 pb-1">VITALSCRIBE v5.7 (DIAGNOSTIC MODE)</p>
-                        {debugLog.map((log, i) => <div key={i}>{log}</div>)}
+                {/* CAPA DE DIAGNÓSTICO MENOS INVASIVA */}
+                {showPanicButton && (
+                    <div className="absolute bottom-10 left-0 right-0 flex flex-col items-center gap-2 z-[9999]">
+                        <div className="bg-red-50 text-red-600 p-4 rounded-xl shadow-xl border border-red-100 flex flex-col items-center max-w-[300px] text-center">
+                            <WifiOff size={32} className="mb-2" />
+                            <p className="font-bold text-sm">La conexión está tardando mucho</p>
+                            <p className="text-xs mb-3">¿Deseas reiniciar la aplicación?</p>
+                            <button 
+                                onClick={handlePanicReset}
+                                className="bg-red-600 hover:bg-red-700 text-white px-6 py-2 rounded-full font-bold shadow-md flex items-center gap-2 text-sm"
+                            >
+                                <Trash2 size={16}/> REINICIAR AHORA
+                            </button>
+                        </div>
                     </div>
-                    
-                    {showPanicButton && (
-                        <button 
-                            onClick={handlePanicReset}
-                            className="bg-red-600 hover:bg-red-700 text-white px-6 py-3 rounded-full font-bold shadow-2xl animate-bounce flex items-center gap-2"
-                        >
-                            <Trash2 size={18}/> REPARAR INICIO
-                        </button>
-                    )}
+                )}
+                {/* LOG DISCRETO */}
+                <div className="fixed bottom-1 left-1 text-[8px] text-slate-300 font-mono opacity-50">
+                    {debugLog[debugLog.length - 1]}
                 </div>
             </div>
         </ThemeProvider>
@@ -275,20 +278,16 @@ const App: React.FC = () => {
       );
   }
 
-  // 2. NO LOGUEADO -> PANTALLA DE ACCESO
   if (!session) {
     return (
       <ThemeProvider>
         <Toaster richColors position="top-center" />
         <ReloadPrompt />
         <AuthView onLoginSuccess={() => {}} />
-        {/* Debug en Login */}
-        <div className="fixed bottom-2 right-2 text-[9px] text-slate-300 opacity-50 pointer-events-none">v5.7 Active</div>
       </ThemeProvider>
     );
   }
 
-  // 3. LOGUEADO -> APP
   return (
     <ThemeProvider>
       <BrowserRouter>
