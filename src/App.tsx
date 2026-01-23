@@ -4,7 +4,7 @@ import { Session } from '@supabase/supabase-js';
 import { supabase } from './lib/supabase';
 import { Toaster } from 'sonner';
 import { ThemeProvider } from './context/ThemeContext';
-import { Moon, Sun, CloudSun, AlertTriangle, RefreshCw, Trash2 } from 'lucide-react'; 
+import { Moon, Sun, CloudSun, Trash2 } from 'lucide-react'; 
 
 // Components & Pages
 import Sidebar from './components/Sidebar';
@@ -57,7 +57,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
   }, [session]);
   
   return (
-    <div className="min-h-screen bg-slate-50 dark:bg-slate-900 flex flex-col font-sans text-slate-900 dark:text-slate-100 transition-colors duration-300 relative">
+    // 🧹 LIMPIEZA: Eliminadas las clases 'dark:bg-slate-900' y 'dark:text-slate-100'
+    <div className="min-h-screen bg-slate-50 flex flex-col font-sans text-slate-900 transition-colors duration-300 relative">
       {!isPremium && <TrialMonitor />}
       <div className="flex flex-1 overflow-hidden relative">
           <div className="hidden md:flex z-20 h-full">
@@ -66,7 +67,8 @@ const MainLayout: React.FC<MainLayoutProps> = ({ session, onLogout }) => {
           <div className="md:hidden">
               <Sidebar isOpen={isSidebarOpen} onClose={() => setIsSidebarOpen(false)} onLogout={onLogout} />
           </div>
-          <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col h-full bg-gray-50 dark:bg-slate-950 overflow-hidden">
+          {/* 🧹 LIMPIEZA: Eliminada la clase 'dark:bg-slate-950' */}
+          <main className="flex-1 md:ml-64 transition-all duration-300 flex flex-col h-full bg-gray-50 overflow-hidden">
             <div className="flex-1 overflow-y-auto pb-20 md:pb-0"> 
               <Routes>
                 <Route path="/" element={<Dashboard />} />
@@ -98,7 +100,7 @@ const App: React.FC = () => {
   const [showSplash, setShowSplash] = useState(true);
   
   // DIAGNÓSTICO EN PANTALLA (Para ver qué pasa en el móvil)
-  const [debugLog, setDebugLog] = useState<string[]>(['🚀 Arranque v5.5 iniciado...']);
+  const [debugLog, setDebugLog] = useState<string[]>(['🚀 Arranque v5.7 iniciado...']);
   const [showPanicButton, setShowPanicButton] = useState(false);
 
   const [isClosing, setIsClosing] = useState(false);
@@ -107,6 +109,14 @@ const App: React.FC = () => {
   const isUpdatePasswordRoute = window.location.pathname === '/update-password';
   
   const addLog = (msg: string) => setDebugLog(prev => [...prev.slice(-4), msg]);
+
+  // 🛡️ POLICÍA ANTI-OSCURIDAD (NUEVO BLOQUE)
+  // Esto garantiza que la app siempre sea CLARA (Light Mode) al arrancar
+  useEffect(() => {
+    document.documentElement.classList.remove('dark');
+    document.documentElement.classList.add('light');
+    document.documentElement.style.colorScheme = 'light';
+  }, []);
 
   useEffect(() => {
     let mounted = true;
@@ -219,7 +229,7 @@ const App: React.FC = () => {
                 {/* CAPA DE DIAGNÓSTICO (Visible solo si tarda mucho) */}
                 <div className="absolute bottom-10 left-0 right-0 flex flex-col items-center gap-2 z-[9999]">
                     <div className="bg-black/50 text-white text-[10px] font-mono p-2 rounded max-w-[300px] backdrop-blur-sm border border-white/10">
-                        <p className="font-bold text-yellow-400 border-b border-white/10 mb-1 pb-1">VITALSCRIBE v5.5 (DIAGNOSTIC MODE)</p>
+                        <p className="font-bold text-yellow-400 border-b border-white/10 mb-1 pb-1">VITALSCRIBE v5.7 (DIAGNOSTIC MODE)</p>
                         {debugLog.map((log, i) => <div key={i}>{log}</div>)}
                     </div>
                     
@@ -273,7 +283,7 @@ const App: React.FC = () => {
         <ReloadPrompt />
         <AuthView onLoginSuccess={() => {}} />
         {/* Debug en Login */}
-        <div className="fixed bottom-2 right-2 text-[9px] text-slate-300 opacity-50 pointer-events-none">v5.5 Active</div>
+        <div className="fixed bottom-2 right-2 text-[9px] text-slate-300 opacity-50 pointer-events-none">v5.7 Active</div>
       </ThemeProvider>
     );
   }
