@@ -1,13 +1,15 @@
 import React from 'react';
-import { AlertTriangle, CheckSquare, Activity, ClipboardList } from 'lucide-react';
-import { PatientInsight } from '../types';
+import { AlertTriangle, CheckSquare, Activity, ClipboardList, BookOpen } from 'lucide-react';
+// Eliminamos la importación estricta para permitir flexibilidad en el JSON
+// import { PatientInsight } from '../types'; 
 
 interface VitalSnapshotProps {
-  insight: PatientInsight | null;
+  insight: any; // Cambiado a any temporalmente para permitir el mapeo de campos legacy
   isLoading: boolean;
 }
 
 export const VitalSnapshotCard: React.FC<VitalSnapshotProps> = ({ insight, isLoading }) => {
+  // 1. Estado de Carga (Skeleton UI)
   if (isLoading) {
     return (
       <div className="bg-amber-50 border-l-4 border-amber-400 p-4 rounded-md shadow-sm animate-pulse">
@@ -22,8 +24,37 @@ export const VitalSnapshotCard: React.FC<VitalSnapshotProps> = ({ insight, isLoa
 
   if (!insight) return null;
 
-  // Determinar severidad visual basada en riesgos
-  const hasRisks = insight.risk_flags.length > 0;
+  // --- MOTOR DE NORMALIZACIÓN (ADAPTADOR DE ESQUEMA) ---
+  // Detectamos qué formato de datos trae la BD y lo unificamos.
+  
+  // 1. Recuperación del Texto Principal (Evolución o Antecedentes)
+  // Prioridad: evolution (nuevo) -> background (legacy) -> history_summary -> Texto genérico
+  const displayEvolution = 
+    insight.evolution || 
+    insight.background || 
+    insight.history_summary || 
+    "Sin resumen clínico disponible.";
+
+  // 2. Recuperación de Riesgos
+  // Si no hay risk_flags pero hay 'allergies', las mostramos como alerta
+  let safeRisks: string[] = [];
+  if (Array.isArray(insight.risk_flags)) {
+    safeRisks = insight.risk_flags;
+  } else if (insight.allergies && insight.allergies.length > 2) {
+    // Fallback: Mostrar alergias como riesgos si es formato antiguo
+    safeRisks = [`Alergias: ${insight.allergies}`];
+  }
+
+  // 3. Recuperación de Acciones
+  const safeActions = Array.isArray(insight.pending_actions) ? insight.pending_actions : [];
+
+  // 4. Auditoría Farmacológica (o Estilo de Vida en legacy)
+  const displayAudit = 
+    insight.medication_audit || 
+    (insight.lifestyle ? `Estilo de vida: ${insight.lifestyle}` : "Sin auditoría disponible.");
+
+  // Determinar severidad visual
+  const hasRisks = safeRisks.length > 0;
   const containerClass = hasRisks 
     ? "bg-amber-50 border-amber-500" 
     : "bg-blue-50 border-blue-500";
@@ -36,10 +67,10 @@ export const VitalSnapshotCard: React.FC<VitalSnapshotProps> = ({ insight, isLoa
         <div className="flex-1">
           <h3 className="text-sm font-bold uppercase tracking-wider text-gray-500 flex items-center gap-2">
             <Activity className="w-4 h-4" />
-            Vital Snapshot (Contexto Inmediato)
+            Vital Snapshot (Contexto Unificado)
           </h3>
           <p className="mt-1 text-lg font-semibold text-gray-800 leading-snug">
-            {insight.evolution}
+            {displayEvolution}
           </p>
         </div>
       </div>
@@ -48,23 +79,35 @@ export const VitalSnapshotCard: React.FC<VitalSnapshotProps> = ({ insight, isLoa
         
         {/* COLUMNA 1: RIESGOS Y AUDITORÍA */}
         <div className="space-y-3">
-          {hasRisks && (
+          {hasRisks ? (
             <div className="bg-red-50 p-2 rounded border border-red-100">
               <h4 className="text-xs font-bold text-red-700 flex items-center gap-1 mb-1">
                 <AlertTriangle className="w-3 h-3" /> BANDERAS ROJAS
               </h4>
               <ul className="list-disc list-inside text-sm text-red-800">
-                {insight.risk_flags.map((flag, idx) => (
+                {safeRisks.map((flag, idx) => (
                   <li key={idx}>{flag}</li>
                 ))}
               </ul>
             </div>
+          ) : (
+             /* Si no hay riesgos, mostramos info familiar (Legacy fallback) */
+             insight.family && (
+                <div className="bg-gray-50 p-2 rounded border border-gray-100">
+                    <h4 className="text-xs font-bold text-gray-500 flex items-center gap-1 mb-1">
+                        <BookOpen className="w-3 h-3" /> ANTECEDENTES FAMILIARES
+                    </h4>
+                    <p className="text-xs text-gray-600">{insight.family}</p>
+                </div>
+             )
           )}
           
           <div>
-            <h4 className="text-xs font-bold text-gray-500 mb-1">AUDITORÍA FARMACOLÓGICA</h4>
+            <h4 className="text-xs font-bold text-gray-500 mb-1">
+                {insight.medication_audit ? "AUDITORÍA FARMACOLÓGICA" : "FACTORES ASOCIADOS"}
+            </h4>
             <p className="text-sm text-gray-700 italic">
-              "{insight.medication_audit}"
+              "{displayAudit}"
             </p>
           </div>
         </div>
@@ -72,11 +115,11 @@ export const VitalSnapshotCard: React.FC<VitalSnapshotProps> = ({ insight, isLoa
         {/* COLUMNA 2: ACCIONES PENDIENTES (CHECKLIST) */}
         <div>
           <h4 className="text-xs font-bold text-gray-500 flex items-center gap-1 mb-2">
-            <ClipboardList className="w-3 h-3" /> PLAN DE ACCIÓN / PENDIENTES
+            <ClipboardList className="w-3 h-3" /> PLAN / PENDIENTES
           </h4>
-          {insight.pending_actions.length > 0 ? (
+          {safeActions.length > 0 ? (
             <ul className="space-y-2">
-              {insight.pending_actions.map((action, idx) => (
+              {safeActions.map((action, idx) => (
                 <li key={idx} className="flex items-start gap-2 text-sm text-gray-700 bg-white/60 p-1 rounded">
                   <CheckSquare className="w-4 h-4 text-amber-500 mt-0.5 shrink-0" />
                   <span>{action}</span>
@@ -84,7 +127,15 @@ export const VitalSnapshotCard: React.FC<VitalSnapshotProps> = ({ insight, isLoa
               ))}
             </ul>
           ) : (
-            <span className="text-xs text-green-600 font-medium">✅ Sin pendientes críticos</span>
+            <div className="flex flex-col gap-2">
+                 <span className="text-xs text-green-600 font-medium">✅ Sin pendientes críticos</span>
+                 {/* Fallback para mostrar OBGYN si no hay acciones (Legacy) */}
+                 {insight.obgyn && (
+                     <div className="mt-2 text-xs text-gray-500 border-t border-dashed pt-2">
+                         <strong>Gineco-Obstetricia:</strong> {insight.obgyn}
+                     </div>
+                 )}
+            </div>
           )}
         </div>
       </div>

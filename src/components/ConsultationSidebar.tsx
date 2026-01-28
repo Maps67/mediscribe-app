@@ -4,7 +4,7 @@ import {
   Stethoscope, Search, X, Calendar, UserPlus, ChevronUp, 
   ChevronDown, Activity, AlertCircle, ShieldCheck, Check, 
   Sparkles, Paperclip, User, CornerDownLeft, Download, Loader2,
-  Lock, Microscope 
+  Lock, Microscope, FileText 
 } from 'lucide-react';
 import { VitalSnapshotCard } from './VitalSnapshotCard';
 import { UploadMedico } from './UploadMedico';
@@ -245,19 +245,28 @@ export const ConsultationSidebar: React.FC<ConsultationSidebarProps> = ({
 
       <div className="flex-1 min-h-0 overflow-y-auto custom-scrollbar overscroll-contain flex flex-col gap-2 pr-1">
           <div className="w-full transition-all duration-300 ease-in-out shrink-0">
-            {vitalSnapshot && (
+            {/* CORRECCIÓN: Mostrar controles si hay paciente, aunque vitalSnapshot sea null (cargando) */}
+            {selectedPatient && (
               <div className="md:hidden flex justify-between items-center mb-2 px-1">
-                  <span className="text-xs font-bold text-slate-500 flex items-center gap-1"><Activity size={12}/> Contexto Vital</span>
+                  <span className="text-xs font-bold text-slate-500 flex items-center gap-1">
+                    {loadingSnapshot ? <Loader2 size={12} className="animate-spin"/> : <Activity size={12}/>} 
+                    {loadingSnapshot ? 'Generando Contexto...' : 'Contexto Vital'}
+                  </span>
                   <button onClick={() => setIsMobileSnapshotVisible(!isMobileSnapshotVisible)} className="p-1 bg-slate-200 rounded text-slate-600 dark:bg-slate-700 dark:text-slate-300">
                       {isMobileSnapshotVisible ? <ChevronUp size={14}/> : <ChevronDown size={14}/>}
                   </button>
               </div>
             )}
-            <div className={`${!isMobileSnapshotVisible ? 'hidden' : 'block'} md:block`}>
-              <VitalSnapshotCard 
-                insight={vitalSnapshot ? { ...vitalSnapshot, pending_actions: vitalSnapshot.pending_actions } : null} 
-                isLoading={loadingSnapshot} 
-              />
+            
+            {/* CORRECCIÓN: Renderizar tarjeta siempre si hay paciente, el estado loading se maneja dentro */}
+            <div className={`${!isMobileSnapshotVisible && !loadingSnapshot ? 'hidden' : 'block'} md:block`}>
+              {selectedPatient && (
+                  <VitalSnapshotCard 
+                    insight={vitalSnapshot ? { ...vitalSnapshot, pending_actions: vitalSnapshot.pending_actions } : null} 
+                    isLoading={loadingSnapshot} 
+                  />
+              )}
+              
               {vitalSnapshot && (
                 <button onClick={() => setIsMobileSnapshotVisible(false)} className="md:hidden w-full mt-2 py-2 bg-slate-100 dark:bg-slate-800 text-slate-500 text-xs font-bold rounded-lg border border-slate-200 dark:border-slate-700 flex items-center justify-center gap-2">
                   <ChevronUp size={12}/> Ocultar y Ver Micrófono

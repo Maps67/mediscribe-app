@@ -1,17 +1,19 @@
 import React, { useEffect, useState, memo } from 'react';
 import { supabase } from '../lib/supabase';
-import { Loader2, UserCircle, TrendingUp, Info } from 'lucide-react';
+import { Loader2, UserCircle, TrendingUp } from 'lucide-react';
 
 interface ImpactMetricsProps {
-    dailyTotal?: number;      
-    dailyCompleted?: number;  
-    refreshTrigger?: number;  
+  dailyTotal?: number;      
+  dailyCompleted?: number;  
+  refreshTrigger?: number;  
 }
 
 export const ImpactMetrics = memo(({ dailyTotal = 0, dailyCompleted = 0, refreshTrigger = 0 }: ImpactMetricsProps) => {
+    // Estado inicial seguro
     const [metrics, setMetrics] = useState({ totalPatients: 0, monthConsultations: 0 });
     const [isLoading, setIsLoading] = useState(true);
 
+    // Cálculo seguro de porcentaje (evitar NaN)
     const efficiencyPercent = dailyTotal > 0 
         ? Math.round((dailyCompleted / dailyTotal) * 100) 
         : 0;
@@ -19,6 +21,7 @@ export const ImpactMetrics = memo(({ dailyTotal = 0, dailyCompleted = 0, refresh
     // Lógica del Círculo SVG
     const radius = 30;
     const circumference = 2 * Math.PI * radius;
+    // Offset inverso para animación de progreso
     const strokeDashoffset = circumference - (efficiencyPercent / 100) * circumference;
 
     useEffect(() => {
@@ -26,40 +29,51 @@ export const ImpactMetrics = memo(({ dailyTotal = 0, dailyCompleted = 0, refresh
         
         const loadHistoricalMetrics = async () => {
             try {
-                const { data: { session } } = await supabase.auth.getSession();
+                // Validación de Sesión
+                const { data: { session }, error: sessionError } = await supabase.auth.getSession();
                 
-                if (!session?.user) {
+                if (sessionError || !session?.user) {
                     if (isMounted) setIsLoading(false);
                     return;
                 }
 
                 const user = session.user;
 
-                // 1. Total Histórico de Pacientes
-                const { count: total } = await supabase
+                // 1. Total Histórico de Pacientes (Con manejo de error explícito)
+                const { count: total, error: patientError } = await supabase
                     .from('patients')
                     .select('*', { count: 'exact', head: true })
                     .eq('doctor_id', user.id);
 
-                // 2. Actividad del Mes
+                if (patientError) {
+                    console.error('❌ [ImpactMetrics] Error cargando total pacientes:', patientError.message);
+                }
+
+                // 2. Actividad del Mes (Con manejo de error explícito)
                 const now = new Date();
                 const startOfCurrentMonth = new Date(now.getFullYear(), now.getMonth(), 1).toISOString();
                 
-                const { count: month } = await supabase
+                const { count: month, error: consultError } = await supabase
                     .from('consultations')
                     .select('*', { count: 'exact', head: true })
                     .eq('doctor_id', user.id)
                     .gte('created_at', startOfCurrentMonth)
                     .neq('status', 'cancelled');
 
+                if (consultError) {
+                     console.error('❌ [ImpactMetrics] Error cargando consultas mes:', consultError.message);
+                }
+
+                // Actualización de estado solo si el componente sigue montado
                 if (isMounted) {
                     setMetrics({ 
                         totalPatients: total || 0, 
                         monthConsultations: month || 0 
                     });
                 }
+
             } catch (e) {
-                console.error("Error métricas históricas móvil:", e);
+                console.error("❌ [ImpactMetrics] Excepción crítica:", e);
             } finally {
                 if (isMounted) setIsLoading(false);
             }
@@ -70,6 +84,7 @@ export const ImpactMetrics = memo(({ dailyTotal = 0, dailyCompleted = 0, refresh
         return () => { isMounted = false; };
     }, [refreshTrigger]);
 
+    // Renderizado UI
     return (
         <div className="bg-white dark:bg-slate-900 rounded-[1.5rem] md:rounded-[2rem] p-4 border border-slate-200 dark:border-slate-800 shadow-sm h-full flex flex-col justify-between relative overflow-visible group/card">
             
@@ -87,11 +102,11 @@ export const ImpactMetrics = memo(({ dailyTotal = 0, dailyCompleted = 0, refresh
                     </div>
                 </div>
 
-                {/* 🎨 GRÁFICO DONUT SVG (Sin librerías) */}
+                {/* 🎨 GRÁFICO DONUT SVG (Sin librerías, optimizado) */}
                 <div className="relative w-16 h-16 md:w-20 md:h-20 flex items-center justify-center group/chart cursor-help">
                     {/* Tooltip Flotante */}
                     <div className="absolute -top-10 right-0 bg-slate-800 text-white text-[10px] py-1 px-2 rounded-lg opacity-0 group-hover/chart:opacity-100 transition-opacity pointer-events-none whitespace-nowrap z-20 shadow-xl">
-                        {dailyTotal - dailyCompleted} pendientes
+                        {Math.max(0, dailyTotal - dailyCompleted)} pendientes
                         <div className="absolute bottom-[-4px] right-4 w-2 h-2 bg-slate-800 rotate-45"></div>
                     </div>
 
@@ -111,7 +126,7 @@ export const ImpactMetrics = memo(({ dailyTotal = 0, dailyCompleted = 0, refresh
                             strokeWidth="6"
                             fill="transparent"
                             strokeDasharray={circumference}
-                            strokeDashoffset={strokeDashoffset}
+                            strokeDashoffset={isNaN(strokeDashoffset) ? circumference : strokeDashoffset}
                             strokeLinecap="round"
                             className={`transition-all duration-1000 ease-out ${efficiencyPercent === 100 ? 'text-emerald-500' : 'text-blue-600'}`}
                         />

@@ -47,14 +47,22 @@ export const PatientService = {
     return data;
   },
 
+  /**
+   * Obtiene un paciente por ID de forma segura.
+   * FIX 406 ERROR: Usamos .maybeSingle() en lugar de .single()
+   * Esto previene que la app colapse si el RLS bloquea el acceso o el ID no existe.
+   */
   async getPatientById(id: string): Promise<Patient | null> {
     const { data, error } = await supabase
       .from('patients')
       .select('*')
       .eq('id', id)
-      .single();
+      .maybeSingle(); // CORRECCIÓN CRÍTICA: maybeSingle evita el error JSON/406
       
-    if (error) return null;
+    if (error) {
+      console.error('Error fetching patient details:', error);
+      return null;
+    }
     return data;
   },
 

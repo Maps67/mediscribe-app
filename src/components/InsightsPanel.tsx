@@ -1,5 +1,5 @@
 import React from 'react';
-import { TrendingUp, Pill, AlertTriangle, ListChecks, X, Copy, ShieldAlert } from 'lucide-react';
+import { TrendingUp, Pill, AlertTriangle, ListChecks, X, Copy, ShieldAlert, FileText } from 'lucide-react';
 import { toast } from 'sonner';
 import { PatientInsight } from '../types';
 
@@ -16,9 +16,50 @@ interface InsightsPanelProps {
 export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights, isOpen, onClose, isLoading, patientName, data }) => {
   if (!isOpen) return null;
 
-  const activeData = insights || data;
+  const rawData = insights || data;
+
+  // --- MOTOR DE NORMALIZACIÓN (ADAPTADOR DE ESQUEMA) ---
+  // Transforma datos Legacy/Sucios en el formato estricto que la UI espera.
+  
+  // 1. Unificar Evolución (Texto Principal)
+  const displayEvolution = 
+    rawData?.evolution || 
+    rawData?.background || 
+    rawData?.history_summary || 
+    rawData?.analysis || 
+    rawData?.clinical_summary ||
+    null;
+
+  // 2. Unificar Riesgos (Arrays o Strings de Alergias)
+  let safeRisks: string[] = [];
+  if (Array.isArray(rawData?.risk_flags)) {
+    safeRisks = rawData.risk_flags;
+  } else if (rawData?.allergies) {
+    // Fallback: Si no hay riesgos calculados, mostrar alergias críticas
+    safeRisks = [`Antecedente Alérgico: ${rawData.allergies}`];
+  }
+
+  // 3. Unificar Auditoría (Medicamentos o Estilo de Vida)
+  const displayAudit = 
+    rawData?.medication_audit || 
+    rawData?.lifestyle || 
+    "Sin datos farmacológicos específicos registrados.";
+
+  // 4. Unificar Acciones (Plan o Recomendaciones)
+  const safeActions = Array.isArray(rawData?.pending_actions) ? rawData.pending_actions : [];
+
+  // Objeto final normalizado para renderizado seguro
+  const activeData = {
+      evolution: displayEvolution,
+      risk_flags: safeRisks,
+      medication_audit: displayAudit,
+      pending_actions: safeActions
+  };
+
+  const hasData = Boolean(displayEvolution || safeRisks.length > 0 || safeActions.length > 0);
 
   const handleCopy = (text: string, label: string) => {
+      if (!text) return;
       navigator.clipboard.writeText(text);
       toast.success(`${label} copiado al portapapeles`);
   };
@@ -51,16 +92,16 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights, isOpen, 
               </div>
               <p className="text-slate-500 font-medium animate-pulse">Analizando historial clínico...</p>
             </div>
-          ) : activeData ? (
+          ) : hasData ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               
               <div className="md:col-span-2 bg-white dark:bg-slate-800 p-5 rounded-xl shadow-sm border-l-4 border-blue-500 relative group">
-                <button onClick={() => handleCopy(activeData.evolution, 'Evolución')} className="absolute top-4 right-4 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100"><Copy size={16}/></button>
+                <button onClick={() => handleCopy(activeData.evolution || '', 'Evolución')} className="absolute top-4 right-4 text-slate-300 hover:text-blue-500 transition-colors opacity-0 group-hover:opacity-100"><Copy size={16}/></button>
                 <h4 className="font-bold text-blue-700 dark:text-blue-400 mb-2 flex items-center gap-2 uppercase text-xs tracking-wider">
-                  <TrendingUp size={16} /> Evolución Cronológica
+                  <TrendingUp size={16} /> Evolución Cronológica / Resumen
                 </h4>
                 <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed whitespace-pre-line">
-                  {activeData.evolution || "Sin datos suficientes."}
+                  {activeData.evolution || "Sin resumen narrativo disponible."}
                 </p>
               </div>
 
@@ -69,7 +110,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights, isOpen, 
                   <AlertTriangle size={16} /> Banderas Rojas
                 </h4>
                 <ul className="space-y-2">
-                  {activeData.risk_flags && activeData.risk_flags.length > 0 ? activeData.risk_flags.map((flag: string, idx: number) => (
+                  {activeData.risk_flags.length > 0 ? activeData.risk_flags.map((flag: string, idx: number) => (
                     <li key={idx} className="flex items-start gap-2 text-sm text-red-800 dark:text-red-200">
                       <span className="mt-1.5 w-1.5 h-1.5 bg-red-500 rounded-full shrink-0"></span>
                       {flag}
@@ -84,7 +125,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights, isOpen, 
                   <Pill size={16} /> Auditoría Farmacológica
                 </h4>
                 <p className="text-slate-700 dark:text-slate-300 text-sm leading-relaxed">
-                  {activeData.medication_audit || "Sin cambios recientes."}
+                  {activeData.medication_audit}
                 </p>
               </div>
 
@@ -93,7 +134,7 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights, isOpen, 
                   <ListChecks size={16} /> Brechas y Pendientes
                 </h4>
                 <ul className="grid grid-cols-1 sm:grid-cols-2 gap-2">
-                  {activeData.pending_actions && activeData.pending_actions.length > 0 ? activeData.pending_actions.map((action: string, idx: number) => (
+                  {activeData.pending_actions.length > 0 ? activeData.pending_actions.map((action: string, idx: number) => (
                     <li key={idx} className="flex items-center gap-2 text-sm text-amber-900 dark:text-amber-100 bg-white dark:bg-slate-800 px-3 py-2 rounded-lg border border-amber-100 dark:border-amber-900/50">
                       <span className="w-4 h-4 border-2 border-amber-400 rounded-full shrink-0"></span>
                       {action}
@@ -104,7 +145,11 @@ export const InsightsPanel: React.FC<InsightsPanelProps> = ({ insights, isOpen, 
 
             </div>
           ) : (
-            <div className="text-center text-slate-400 py-12">No hay datos de análisis disponibles.</div>
+            <div className="flex flex-col items-center justify-center h-full text-center space-y-3 opacity-60">
+                <FileText size={48} className="text-slate-300"/>
+                <p className="text-slate-400 font-medium">No hay datos de análisis disponibles para este paciente.</p>
+                <p className="text-xs text-slate-400 max-w-xs">Intente generar una nueva consulta para crear el primer registro histórico.</p>
+            </div>
           )}
         </div>
         
