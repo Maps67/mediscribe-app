@@ -121,28 +121,55 @@ const SURGICAL_SPECIALTIES = [
   'Urología'
 ];
 
+/**
+ * 🧹 MOTOR DE NORMALIZACIÓN DE HISTORIAL (VITALSCRIBE CLEANER v2.0)
+ * Convierte cualquier formato de basura (JSON legacy, Strings sucios, Objetos parciales)
+ * en un texto limpio y legible para la IA y la UI.
+ */
 const cleanHistoryString = (input: any): string => {
       if (!input) return "";
-      if (typeof input === 'object') {
-          if (input.clinicalNote && typeof input.clinicalNote === 'string') return input.clinicalNote;
-          if (input.legacyNote) return input.legacyNote;
-          if (input.resumen_clinico) return input.resumen_clinico;
-          return JSON.stringify(input); 
-      }
-      if (typeof input === 'string') {
-          const trimmed = input.trim();
-          if (trimmed.startsWith("{") || trimmed.startsWith("[")) {
-              try {
-                  const parsed = JSON.parse(trimmed);
-                  if (parsed.clinicalNote) return parsed.clinicalNote;
-                  if (parsed.legacyNote) return parsed.legacyNote;
-                  if (parsed.resumen_clinico) return parsed.resumen_clinico;
-              } catch (e) {
-                  return input; 
-              }
-          }
+
+      // Si es string puro y no parece JSON, devolverlo tal cual
+      if (typeof input === 'string' && !input.trim().startsWith('{') && !input.trim().startsWith('[')) {
           return input;
       }
+
+      let data = input;
+      // Intentar parsear si es string JSON
+      if (typeof input === 'string') {
+          try {
+              data = JSON.parse(input);
+          } catch (e) {
+              return input; // Si falla, devolver original
+          }
+      }
+
+      // Si es objeto, aplicar estrategias de extracción
+      if (typeof data === 'object' && data !== null) {
+          // ESTRATEGIA 1: Formato Nuevo (VitalScribe v5+)
+          if (data.clinicalNote && typeof data.clinicalNote === 'string') return data.clinicalNote;
+          if (data.resumen_clinico) return data.resumen_clinico;
+
+          // ESTRATEGIA 2: Formato Legacy (Antecedentes separados) - EL FIX CRÍTICO
+          // Esto soluciona que la tarjeta amarilla aparezca vacía o con JSON crudo
+          if (data.background || data.lifestyle || data.family) {
+              const parts = [];
+              if (data.background) parts.push(`🔹 ANTECEDENTES PATOLÓGICOS: ${data.background}`);
+              if (data.lifestyle) parts.push(`🔹 ESTILO DE VIDA: ${data.lifestyle}`);
+              if (data.family) parts.push(`🔹 HEREDOFAMILIARES: ${data.family}`);
+              if (data.allergies) parts.push(`⚠️ ALERGIAS: ${data.allergies}`);
+              if (data.obgyn) parts.push(`🔹 GINECO-OBSTETRICIA: ${data.obgyn}`);
+              
+              if (parts.length > 0) return parts.join("\n\n");
+          }
+
+          // ESTRATEGIA 3: Fallback genérico
+          if (data.legacyNote) return data.legacyNote;
+          
+          // Si todo falla, devolver stringify (último recurso)
+          return JSON.stringify(data); 
+      }
+
       return String(input);
 };
 
@@ -160,7 +187,7 @@ const ConsultationView: React.FC = () => {
       setTranscript, 
       isAPISupported 
   } = useSpeechRecognition();
-  
+   
   // --- [MOTOR 2] CHAT ASISTENTE (CANAL SECUNDARIO AISLADO) ---
   const {
       isListening: isChatListening,
@@ -176,14 +203,14 @@ const ConsultationView: React.FC = () => {
           setChatInput(chatTranscript);
       }
   }, [chatTranscript, isChatListening]);
-  
+   
   const location = useLocation(); 
-  
+   
   const [patients, setPatients] = useState<any[]>([]); 
   const [selectedPatient, setSelectedPatient] = useState<Patient | null>(null);
   const [doctorProfile, setDoctorProfile] = useState<DoctorProfile | null>(null);
   const [currentUserId, setCurrentUserId] = useState<string | null>(null); 
-  
+   
   const [activeMedicalContext, setActiveMedicalContext] = useState<{ 
       history: string; 
       allergies: string; 
@@ -198,9 +225,9 @@ const ConsultationView: React.FC = () => {
   const [isProcessing, setIsProcessing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  
+   
   const [generatedNote, setGeneratedNote] = useState<EnhancedGeminiResponse | null>(null);
-  
+   
   // --- NUEVO ESTADO: ID DE CONSULTA (Para Update/Delete) ---
   const [consultationId, setConsultationId] = useState<string | null>(null);
 
@@ -209,17 +236,17 @@ const ConsultationView: React.FC = () => {
 
   const [consentGiven, setConsentGiven] = useState(false);
   const [activeTab, setActiveTab] = useState<TabType>('record');
-  
+   
   // Este estado se mantiene para sincronizar el dropdown visual, pero NO afecta la lógica legal
   const [selectedSpecialty, setSelectedSpecialty] = useState('Medicina General');
-  
+   
   const [editableInstructions, setEditableInstructions] = useState('');
   const [editablePrescriptions, setEditablePrescriptions] = useState<MedicationItem[]>([]);
   const [isEditingInstructions, setIsEditingInstructions] = useState(false);
 
   // --- Feature: Folio Controlado (Estado Local) ---
   const [specialFolio, setSpecialFolio] = useState('');
-  
+   
   const [insuranceData, setInsuranceData] = useState<{provider: string, policyNumber: string, accidentDate: string} | null>(null);
 
   const [isAppointmentModalOpen, setIsAppointmentModalOpen] = useState(false);
@@ -228,7 +255,7 @@ const ConsultationView: React.FC = () => {
   const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
   const [chatInput, setChatInput] = useState('');
   const [isChatting, setIsChatting] = useState(false);
-  
+   
   const [isAttachmentsOpen, setIsAttachmentsOpen] = useState(false);
   const [isOnline, setIsOnline] = useState(navigator.onLine);
 
@@ -237,9 +264,9 @@ const ConsultationView: React.FC = () => {
   const [isInsightsOpen, setIsInsightsOpen] = useState(false);
   const [patientInsights, setPatientInsights] = useState<PatientInsight | null>(null);
   const [isLoadingInsights, setIsLoadingInsights] = useState(false);
-  
+   
   const [linkedAppointmentId, setLinkedAppointmentId] = useState<string | null>(null);
-  
+   
   const [editingSection, setEditingSection] = useState<string | null>(null);
 
   const [segments, setSegments] = useState<TranscriptSegment[]>([]);
@@ -251,7 +278,7 @@ const ConsultationView: React.FC = () => {
   // --- NUEVOS ESTADOS: BRIEFING & MANUAL CONTEXT ---
   const [clinicalInsights, setClinicalInsights] = useState<ClinicalInsight[]>([]);
   const [loadingClinicalInsights, setLoadingClinicalInsights] = useState(false);
-  
+   
   const [showBriefing, setShowBriefing] = useState(false);
   const [manualContext, setManualContext] = useState<string>("");
 
@@ -516,6 +543,7 @@ const ConsultationView: React.FC = () => {
                 let lastInsuranceData = undefined;
 
                 if (!patientError && patientData) {
+                    // USA EL MOTOR DE LIMPIEZA MEJORADO AQUÍ
                     const rawHistory = patientData.history || patientData.pathological_history;
                     cleanHistory = cleanHistoryString(rawHistory);
                     
@@ -571,8 +599,8 @@ const ConsultationView: React.FC = () => {
         setLoadingSnapshot(true);
         setIsMobileSnapshotVisible(true); 
         
-        const rawHistory = selectedPatient.history || '';
-        const historyStr = typeof rawHistory === 'string' ? rawHistory : JSON.stringify(rawHistory);
+        // 🔥 CORRECCIÓN APLICADA: Usar activeMedicalContext.history como fuente de verdad
+        const historyStr = activeMedicalContext.history || cleanHistoryString(selectedPatient.history);
         
         let lastConsultationContext = "";
         if (activeMedicalContext.lastConsultation) {
@@ -601,13 +629,17 @@ const ConsultationView: React.FC = () => {
                 }
             })
             .catch(err => {
-                console.error("Error generando Vital Snapshot:", err);
-                setVitalSnapshot({
-                    evolution: "⚠️ No se pudo generar el análisis.",
-                    medication_audit: "Error de conexión con el motor de IA.",
-                    risk_flags: ["Verifique su conexión a internet"],
+                console.error("Error generando Vital Snapshot (Usando Fallback Local):", err);
+                
+                // --- FALLBACK LOCAL INTELLIGENT (Solución Pantalla Vacía) ---
+                // Si la IA falla, construimos un snapshot básico con los datos que tenemos.
+                const fallbackSnapshot: PatientInsight = {
+                    evolution: historyStr.substring(0, 150) + "..." || "Historial disponible para revisión manual.",
+                    medication_audit: "Revisión manual requerida (Sin conexión a IA).",
+                    risk_flags: ["Verifique conexión a internet", "Datos cargados en modo local"],
                     pending_actions: []
-                });
+                };
+                setVitalSnapshot(fallbackSnapshot);
             })
             .finally(() => setLoadingSnapshot(false));
             
@@ -924,9 +956,12 @@ const ConsultationView: React.FC = () => {
           
           const consultationsText = history?.map(h => `[Fecha: ${new Date(h.created_at).toLocaleDateString()}] ${h.summary}`) || [];
           
+          // 🔥 CORRECCIÓN APLICADA: Priorizar activeMedicalContext.history
+          const historyText = activeMedicalContext?.history || cleanHistoryString(selectedPatient.history);
+
           const analysis = await GeminiMedicalService.generatePatient360Analysis(
               selectedPatient.name, 
-              selectedPatient.history || "No registrado", 
+              historyText || "No registrado", 
               consultationsText
           );
           
@@ -1306,7 +1341,7 @@ const ConsultationView: React.FC = () => {
       toast.dismiss(loadingToast);
     }
   };
-  
+   
   const handleShareWhatsApp = async () => { 
     if (!editableInstructions || !selectedPatient) return toast.error("No hay instrucciones.");
     const drName = doctorProfile?.full_name || 'su médico';
@@ -1644,9 +1679,9 @@ const ConsultationView: React.FC = () => {
   const showControlledInput = SPECIALTIES_WITH_CONTROLLED_RX.some(s => 
       selectedSpecialty?.toLowerCase().includes(s.toLowerCase())
   );
-  
+   
   const isSurgicalSpecialty = selectedSpecialty?.toLowerCase().includes('cirug') || 
-                                doctorProfile?.specialty?.toLowerCase().includes('cirug');
+                              doctorProfile?.specialty?.toLowerCase().includes('cirug');
 
   return (
     <div className="flex flex-col md:flex-row h-[calc(100vh-64px)] bg-slate-100 dark:bg-slate-950 relative">
@@ -1983,7 +2018,7 @@ const ConsultationView: React.FC = () => {
                                                                         onChange={(e) => setSpecialFolio(e.target.value)}
                                                                     />
                                                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                                                                Solo para Fracción I / II
+                                                                                    Solo para Fracción I / II
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -2027,7 +2062,7 @@ const ConsultationView: React.FC = () => {
 
                                                             return (
                                                             <div key={idx} className={`flex gap-3 items-start p-3 rounded-lg border group transition-all duration-200 ${containerClasses}`}>
-                                                                    
+                                                                        
                                                                 {isManualBlocked ? (
                                                                     <div className="flex-1 flex flex-col gap-1">
                                                                         <div className="flex items-center gap-2">
@@ -2039,7 +2074,7 @@ const ConsultationView: React.FC = () => {
                                                                             />
                                                                         </div>
                                                                         <div className="text-xs text-red-700 dark:text-red-200 bg-red-100/50 dark:bg-red-900/40 p-2 rounded border border-red-200 dark:border-red-800/50 break-words font-mono">
-                                                                                {med.dose.replace(/\*\*\*/g, '').trim() || "Fármaco bloqueado por protocolo de seguridad."}
+                                                                                        {med.dose.replace(/\*\*\*/g, '').trim() || "Fármaco bloqueado por protocolo de seguridad."}
                                                                         </div>
                                                                     </div>
                                                                 ) : (
@@ -2047,18 +2082,18 @@ const ConsultationView: React.FC = () => {
                                                                                 <div className="flex items-start gap-2 w-full">
                                                                                     <div className="relative flex-1">
                                                                                         <textarea 
-                                                                                            rows={1}
-                                                                                            className={`w-full font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors resize-none overflow-hidden block ${
-                                                                                                isRisky ? 'text-amber-700 dark:text-amber-400 pr-6' : 'text-slate-800 dark:text-white'
-                                                                                            }`} 
-                                                                                            value={med.drug} 
-                                                                                            onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} 
-                                                                                            placeholder="Nombre del medicamento" 
-                                                                                            ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
+                                                                                                rows={1}
+                                                                                                className={`w-full font-bold bg-transparent outline-none border-b border-transparent focus:border-indigo-300 transition-colors resize-none overflow-hidden block ${
+                                                                                                    isRisky ? 'text-amber-700 dark:text-amber-400 pr-6' : 'text-slate-800 dark:text-white'
+                                                                                                }`} 
+                                                                                                value={med.drug} 
+                                                                                                onChange={e=>handleUpdateMedication(idx,'drug',e.target.value)} 
+                                                                                                placeholder="Nombre del medicamento" 
+                                                                                                ref={(el) => { if(el) { el.style.height = 'auto'; el.style.height = el.scrollHeight + 'px'; }}}
                                                                                         />
                                                                                         {isRisky && (
                                                                                             <div className="absolute right-0 top-1/2 -translate-y-1/2 text-amber-500 cursor-help" title={`Precaución: Posible interacción detectada en análisis clínico.`}>
-                                                                                                    <AlertCircle size={16}/>
+                                                                                                        <AlertCircle size={16}/>
                                                                                             </div>
                                                                                         )}
                                                                                     </div>
