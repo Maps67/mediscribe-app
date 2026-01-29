@@ -40,6 +40,9 @@ import SurgicalLeavePDF from './SurgicalLeavePDF';
 import { SurgicalReportView } from './SurgicalReportView';
 // ✅ INYECCIÓN BALANCE 360: Importar el servicio de auditoría
 import { analizarConBalance360 } from '../services/BalanceService';
+// ✅ INYECCIÓN RIESGO QUIRÚRGICO
+import { RiskCalculatorModal } from './tools/RiskCalculatorModal';
+import { RiskAssessmentResult } from '../types/RiskModels';
 
 // ✅ CORRECCIÓN DE ARQUITECTURA: 'balance_360' es ahora una Pestaña Independiente
 type TabType = 'record' | 'patient' | 'chat' | 'insurance' | 'surgical_report' | 'balance_360';
@@ -268,6 +271,9 @@ const ConsultationView: React.FC = () => {
   // ✅ [BALANCE 360°] Estados para la auditoría (AHORA AISLADOS EN SU PESTAÑA)
   const [isAuditingBalance, setIsAuditingBalance] = useState(false);
   const [balanceAuditResult, setBalanceAuditResult] = useState<string | null>(null);
+
+  // ✅ [RIESGO QUIRÚRGICO] Estado del Modal
+  const [isRiskCalcOpen, setIsRiskCalcOpen] = useState(false);
 
   const startTimeRef = useRef<number>(Date.now());
 
@@ -1138,6 +1144,26 @@ const ConsultationView: React.FC = () => {
     }
   };
 
+  // ✅ [NUEVO] Handler para resultado de Riesgo Quirúrgico
+  const handleRiskResult = (textResult: string, rawData: RiskAssessmentResult) => {
+      // 1. Mostrar feedback
+      toast.success("Cálculo agregado a la nota");
+
+      // 2. Inyectar en el campo PLAN de la nota SOAP
+      setGeneratedNote(prev => {
+          if (!prev || !prev.soapData) return prev;
+          
+          const currentPlan = prev.soapData.plan || "";
+          return {
+              ...prev,
+              soapData: {
+                  ...prev.soapData,
+                  plan: currentPlan + "\n\n" + textResult // Concatenar al final
+              }
+          };
+      });
+  };
+
   // --- [NUEVA FUNCIÓN DE ENLACE] ---
   // Esta función es la que el Sidebar llamará cuando el usuario intente cambiar la especialidad
   const handleSidebarInterconsultation = (specialty: string) => {
@@ -1252,6 +1278,36 @@ const ConsultationView: React.FC = () => {
       } catch (e) {
           return "No registrada";
       }
+  };
+
+  // Función auxiliar robusta para la edad (Versión Híbrida)
+  const getNumericAge = (): number => {
+      if (!selectedPatient) return 0;
+      const p = selectedPatient as any;
+      
+      // 1. INTENTO DE PRECISIÓN: Calcular desde Fecha de Nacimiento
+      const dob = p.birthdate || p.dob || p.fecha_nacimiento || p.date_of_birth;
+      
+      if (dob) {
+          const birthDate = new Date(dob);
+          // Verificar si es una fecha válida
+          if (!isNaN(birthDate.getTime())) {
+              const today = new Date();
+              let age = today.getFullYear() - birthDate.getFullYear();
+              const m = today.getMonth() - birthDate.getMonth();
+              if (m < 0 || (m === 0 && today.getDate() < birthDate.getDate())) {
+                  age--;
+              }
+              return age > 0 ? age : 0;
+          }
+      }
+
+      // 2. PLAN B (SOLUCIÓN A TU PROBLEMA): Leer edad numérica directa
+      // Si la fecha falló o no existe, leemos el campo 'age' o 'edad' numérico
+      if (p.age && !isNaN(parseInt(p.age))) return parseInt(p.age);
+      if (p.edad && !isNaN(parseInt(p.edad))) return parseInt(p.edad);
+
+      return 0;
   };
 
   const generatePDFBlob = async () => {
@@ -1824,60 +1880,60 @@ const ConsultationView: React.FC = () => {
                                 {/* Aquí es donde vive la nueva funcionalidad, sin molestar al resto */}
                                 {activeTab === 'balance_360' && generatedNote && (
                                     <div className="bg-white dark:bg-slate-900 p-8 rounded-xl shadow-lg border border-indigo-100 dark:border-slate-800 animate-fade-in-up">
-                                        
-                                        <div className="flex flex-col items-center justify-center text-center mb-8 border-b border-slate-100 pb-8 dark:border-slate-800">
-                                            <div className="bg-indigo-50 p-4 rounded-full mb-4 dark:bg-indigo-900/30">
-                                                <Shield size={48} className="text-indigo-600 dark:text-indigo-400" />
-                                            </div>
-                                            <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Auditoría Clínica Balance 360°</h2>
-                                            <p className="text-slate-500 max-w-md mx-auto">
-                                                Este módulo analiza la información de la Nota de Evolución actual en busca de brechas, interacciones farmacológicas y banderas rojas.
-                                            </p>
-                                        </div>
-
-                                        {!balanceAuditResult ? (
-                                            <div className="flex flex-col items-center justify-center py-8">
-                                                <button 
-                                                    onClick={handleBalanceAudit}
-                                                    disabled={isAuditingBalance}
-                                                    className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-3 hover:bg-indigo-700 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed"
-                                                >
-                                                    {isAuditingBalance ? (
-                                                        <>
-                                                            <RefreshCw className="animate-spin" size={24} />
-                                                            Auditando Expediente...
-                                                        </>
-                                                    ) : (
-                                                        <>
-                                                            <ShieldCheck size={24} />
-                                                            Ejecutar Análisis de Seguridad
-                                                        </>
-                                                    )}
-                                                </button>
-                                                <p className="mt-4 text-xs text-slate-400">
-                                                    La auditoría lee la nota actual. No modifica su contenido.
+                                            
+                                            <div className="flex flex-col items-center justify-center text-center mb-8 border-b border-slate-100 pb-8 dark:border-slate-800">
+                                                <div className="bg-indigo-50 p-4 rounded-full mb-4 dark:bg-indigo-900/30">
+                                                    <Shield size={48} className="text-indigo-600 dark:text-indigo-400" />
+                                                </div>
+                                                <h2 className="text-2xl font-bold text-slate-800 dark:text-white mb-2">Auditoría Clínica Balance 360°</h2>
+                                                <p className="text-slate-500 max-w-md mx-auto">
+                                                    Este módulo analiza la información de la Nota de Evolución actual en busca de brechas, interacciones farmacológicas y banderas rojas.
                                                 </p>
                                             </div>
-                                        ) : (
-                                            <div className="animate-fade-in">
-                                                <div className="flex justify-between items-center mb-6 bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-100 dark:border-green-800">
-                                                    <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-bold">
-                                                        <CheckCircle size={20} />
-                                                        Auditoría Completada
-                                                    </div>
+
+                                            {!balanceAuditResult ? (
+                                                <div className="flex flex-col items-center justify-center py-8">
                                                     <button 
-                                                        onClick={() => setBalanceAuditResult(null)} 
-                                                        className="text-sm text-slate-500 hover:text-slate-700 font-medium underline"
+                                                        onClick={handleBalanceAudit}
+                                                        disabled={isAuditingBalance}
+                                                        className="bg-indigo-600 text-white px-8 py-4 rounded-xl font-bold text-lg flex items-center gap-3 hover:bg-indigo-700 transition-all shadow-xl hover:shadow-2xl hover:-translate-y-1 active:translate-y-0 disabled:opacity-50 disabled:cursor-not-allowed"
                                                     >
-                                                        Reiniciar Análisis
+                                                        {isAuditingBalance ? (
+                                                            <>
+                                                                <RefreshCw className="animate-spin" size={24} />
+                                                                Auditando Expediente...
+                                                            </>
+                                                        ) : (
+                                                            <>
+                                                                <ShieldCheck size={24} />
+                                                                Ejecutar Análisis de Seguridad
+                                                            </>
+                                                        )}
                                                     </button>
+                                                    <p className="mt-4 text-xs text-slate-400">
+                                                        La auditoría lee la nota actual. No modifica su contenido.
+                                                    </p>
                                                 </div>
-                                                
-                                                <div className="prose dark:prose-invert max-w-none p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
-                                                    <FormattedText content={balanceAuditResult} />
+                                            ) : (
+                                                <div className="animate-fade-in">
+                                                    <div className="flex justify-between items-center mb-6 bg-green-50 dark:bg-green-900/20 p-4 rounded-lg border border-green-100 dark:border-green-800">
+                                                        <div className="flex items-center gap-2 text-green-700 dark:text-green-400 font-bold">
+                                                            <CheckCircle size={20} />
+                                                            Auditoría Completada
+                                                        </div>
+                                                        <button 
+                                                            onClick={() => setBalanceAuditResult(null)} 
+                                                            className="text-sm text-slate-500 hover:text-slate-700 font-medium underline"
+                                                        >
+                                                            Reiniciar Análisis
+                                                        </button>
+                                                    </div>
+                                                    
+                                                    <div className="prose dark:prose-invert max-w-none p-6 bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700">
+                                                        <FormattedText content={balanceAuditResult} />
+                                                    </div>
                                                 </div>
-                                            </div>
-                                        )}
+                                            )}
 
                                     </div>
                                 )}
@@ -1911,6 +1967,18 @@ const ConsultationView: React.FC = () => {
                                                     (Se movió a su propia pestaña para no estorbar)
                                                 */}
 
+                                                {/* ✅ BOTÓN DE RIESGO QUIRÚRGICO (Solo para Qx) */}
+                                                {isSurgicalProfile && (
+                                                    <button 
+                                                        onClick={() => setIsRiskCalcOpen(true)}
+                                                        className="bg-slate-100 dark:bg-slate-800 text-slate-600 dark:text-slate-300 px-4 py-2 rounded-lg font-bold flex items-center gap-2 hover:bg-slate-200 transition-all border border-slate-200 dark:border-slate-700"
+                                                        title="Calculadora de Riesgo Quirúrgico"
+                                                    >
+                                                        <Activity size={16}/> 
+                                                        <span className="hidden sm:inline">Riesgo</span>
+                                                    </button>
+                                                )}
+
                                                 <button 
                                                     onClick={handleSaveConsultation} 
                                                     disabled={isSaving} 
@@ -1932,20 +2000,20 @@ const ConsultationView: React.FC = () => {
                                     </div>
 
                                     {/* 🔴 ELIMINADO: BLOQUE DE RESULTADOS BALANCE 360 AQUÍ
-                                        (Se movió a su propia pestaña)
+                                            (Se movió a su propia pestaña)
                                     */}
 
                                     {generatedNote.risk_analysis && (
                                     <div className="mt-2">
-                                        <RiskBadge 
-                                        level={generatedNote.risk_analysis.level as "Alto" | "Medio" | "Bajo"} 
-                                        reason={generatedNote.risk_analysis.reason} 
-                                        />
+                                            <RiskBadge 
+                                            level={generatedNote.risk_analysis.level as "Alto" | "Medio" | "Bajo"} 
+                                            reason={generatedNote.risk_analysis.reason} 
+                                            />
                                     </div>
                                     )}
 
                                     <div className="text-xs font-bold text-slate-800 dark:text-slate-200 self-end">
-                                        {selectedPatient?.name || "Paciente no registrado"}
+                                            {selectedPatient?.name || "Paciente no registrado"}
                                     </div>
                                     </div>
 
@@ -1963,7 +2031,7 @@ const ConsultationView: React.FC = () => {
                                                                         : 'bg-white border border-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-200 dark:border-slate-700 rounded-tl-none'
                                                                 }`}>
                                                                     <span className={`text-[10px] font-bold block mb-1 uppercase opacity-70 ${line.speaker === 'Médico' ? 'text-right' : 'text-left'}`}>
-                                                                                {line.speaker}
+                                                                                        {line.speaker}
                                                                     </span>
                                                                     {line.text}
                                                                 </div>
@@ -2110,7 +2178,7 @@ const ConsultationView: React.FC = () => {
                                                                         onChange={(e) => setSpecialFolio(e.target.value)}
                                                                     />
                                                                     <div className="absolute bottom-full left-1/2 -translate-x-1/2 mb-2 px-2 py-1 bg-slate-800 text-white text-[10px] rounded opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none">
-                                                                                        Solo para Fracción I / II
+                                                                                                        Solo para Fracción I / II
                                                                     </div>
                                                                 </div>
                                                             </div>
@@ -2154,7 +2222,7 @@ const ConsultationView: React.FC = () => {
 
                                                             return (
                                                             <div key={idx} className={`flex gap-3 items-start p-3 rounded-lg border group transition-all duration-200 ${containerClasses}`}>
-                                                                    
+                                                                        
                                                                 {isManualBlocked ? (
                                                                     <div className="flex-1 flex flex-col gap-1">
                                                                         <div className="flex items-center gap-2">
@@ -2467,6 +2535,17 @@ const ConsultationView: React.FC = () => {
                 />
             </div>
         </div>
+      )}
+
+      {/* ✅ NUEVO: MODAL DE CALCULADORA DE RIESGO QUIRÚRGICO */}
+      {isRiskCalcOpen && selectedPatient && (
+          <RiskCalculatorModal
+              isOpen={isRiskCalcOpen}
+              onClose={() => setIsRiskCalcOpen(false)}
+              patientName={selectedPatient.name}
+              patientAge={getNumericAge()}
+              onInsertResult={handleRiskResult}
+          />
       )}
 
     </div>
