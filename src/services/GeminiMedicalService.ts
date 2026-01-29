@@ -1,5 +1,5 @@
 import { supabase } from '../lib/supabase';
-import { GoogleGenerativeAI } from "@google/generative-ai";
+import { GoogleGenerativeAI, GenerationConfig } from "@google/generative-ai";
 // Importamos los tipos definidos en la arquitectura v5.2
 import { 
   GeminiResponse, 
@@ -9,7 +9,7 @@ import {
   FollowUpMessage 
 } from '../types';
 
-console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v8.2 - MODEL NAME FIX) [Active]");
+console.log("🚀 V-STABLE DEPLOY: Safety Override Protocol (v8.5 - DIRECT CHAT BYPASS) [Active]");
 
 // ==========================================
 // 🛡️ 1. CONSTANTE DE SEGURIDAD (FALLBACK - RED DE EMERGENCIA)
@@ -129,9 +129,21 @@ const cleanJSON = (text: string): string => {
 /**
  * MOTOR DE CONEXIÓN SEGURO (SUPABASE EDGE)
  * Ejecuta la IA en servidor seguro para evitar exponer keys y manejar timeouts.
+ * ✅ MODIFICADO (v8.4): Soporte para GenerationConfig, pero el Chat hará bypass de esto.
  */
-async function generateWithFailover(prompt: string, jsonMode: boolean = false, useTools: boolean = false): Promise<string> {
+async function generateWithFailover(prompt: string, jsonMode: boolean = false, useTools: boolean = false, config?: GenerationConfig): Promise<string> {
   // console.log("🛡️ Iniciando transmisión segura a Supabase Edge Function...");
+
+  // Configuración por defecto (BLINDAJE MÁXIMO - Determinista)
+  const defaultConfig: GenerationConfig = {
+      temperature: 0.0,
+      topK: 1,
+      topP: 1,
+      maxOutputTokens: 4096
+  };
+
+  // Fusión de configuración (Prioridad a lo inyectado)
+  const finalConfig = { ...defaultConfig, ...config };
 
   try {
     const { data, error } = await supabase.functions.invoke('generate-clinical-note', {
@@ -140,12 +152,7 @@ async function generateWithFailover(prompt: string, jsonMode: boolean = false, u
         jsonMode: jsonMode,
         useTools: useTools,
         // 🔒 PROTOCOLO DE IDENTIDAD DE CONSULTA (v7.5)
-        generationConfig: {
-            temperature: 0.0, // CERO ABSOLUTO: Creatividad anulada para precisión clínica.
-            topK: 1,          // Selección única del token más probable.
-            topP: 1,          // Determinismo probabilístico total.
-            maxOutputTokens: 4096
-        }
+        generationConfig: finalConfig
       }
     });
 
@@ -336,6 +343,7 @@ export const GeminiMedicalService = {
         }
       `;
 
+      // 🔐 LLAMADA SEGURA: No pasamos config, usa TopK 1 por defecto
       const rawText = await generateWithFailover(prompt, true);
       const parsedData = JSON.parse(cleanJSON(rawText));
 
@@ -398,6 +406,7 @@ export const GeminiMedicalService = {
             NOTAS: Si el historial está vacío o es ilegible, devuelve arrays vacíos.
         `;
 
+        // 🔐 LLAMADA SEGURA: No pasamos config, usa TopK 1 por defecto
         const rawText = await generateWithFailover(prompt, true);
         const parsed = JSON.parse(cleanJSON(rawText));
         return parsed as PatientInsight;
@@ -474,6 +483,7 @@ export const GeminiMedicalService = {
         - RESPONDE SOLO CON EL JSON ARRAY.
       `;
       
+      // 🔐 LLAMADA SEGURA: No pasamos config, usa TopK 1 por defecto
       const rawText = await generateWithFailover(prompt, true);
       const res = JSON.parse(cleanJSON(rawText));
       return Array.isArray(res) ? res : [];
@@ -490,6 +500,7 @@ export const GeminiMedicalService = {
         ACTÚA COMO: Auditor de Calidad. Evalúa nota: "${noteContent}".
         SALIDA JSON: { "riskLevel": "...", "score": 85, "analysis": "...", "recommendations": ["..."] }
       `;
+      // 🔐 LLAMADA SEGURA: No pasamos config, usa TopK 1 por defecto
       const rawText = await generateWithFailover(prompt, true);
       return JSON.parse(cleanJSON(rawText));
     } catch (e) { return { riskLevel: "Medio", score: 0, analysis: "", recommendations: [] }; }
@@ -503,16 +514,36 @@ export const GeminiMedicalService = {
         Contexto: "${clinicalNote}". Instrucciones: "${instructions}".
         SALIDA JSON ARRAY: [{ "day": 1, "message": "..." }, { "day": 3, "message": "..." }, { "day": 7, "message": "..." }]
       `;
+      // 🔐 LLAMADA SEGURA: No pasamos config, usa TopK 1 por defecto
       const rawText = await generateWithFailover(prompt, true);
       const res = JSON.parse(cleanJSON(rawText));
       return Array.isArray(res) ? res : [];
     } catch (e) { return []; }
   },
 
-  // --- G. CHAT AVANZADO HÍBRIDO (ROUTER v5.7) ---
-  // ✅ ACTUALIZADO: AHORA SOPORTA DOBLE CONTEXTO
+  // --- G. CHAT AVANZADO HÍBRIDO (ROUTER v5.8 - DIRECT CLIENT) ---
+  // ✅ ACTUALIZADO: CONEXIÓN DIRECTA CLIENT-SIDE PARA BYPASS DE EDGE FUNCTION (TOPK LIBERADO)
   async chatWithContext(context: string, userMessage: string): Promise<string> {
     try {
+        // 1. Recuperar API Key Global
+        const apiKey = import.meta.env.VITE_GOOGLE_AI_KEY || 
+                       import.meta.env.VITE_GEMINI_API_KEY || 
+                       import.meta.env.VITE_GEMINI_KEY || 
+                       import.meta.env.VITE_GOOGLE_API_KEY;
+
+        if (!apiKey) throw new Error("No se encontró la API KEY en .env");
+
+        // 2. Configurar Cliente Directo (Igual que el Dashboard)
+        const client = new GoogleGenerativeAI(apiKey);
+        const model = client.getGenerativeModel({ 
+            model: "gemini-2.5-flash",
+            generationConfig: {
+                temperature: 0.5, // Creatividad media
+                topK: 40,         // Amplitud de pensamiento (SOLUCIÓN REAL)
+                topP: 0.95        // Nuance probabilístico
+            }
+        }); 
+
         const prompt = `
             ERES VITALSCRIBE AI, UN ASISTENTE CLÍNICO AVANZADO.
             TIENES DOS MODOS DE OPERACIÓN EXCLUYENTES. TU PRIMERA TAREA ES CLASIFICAR LA INTENCIÓN DEL USUARIO.
@@ -553,17 +584,16 @@ export const GeminiMedicalService = {
             3. Responde con TEXTO NATURAL (Markdown), NO envíes objetos JSON.
         `;
         
-        const response = await generateWithFailover(prompt, false, true);
+        // 3. Generación Directa
+        const result = await model.generateContent(prompt);
+        const response = result.response;
+        const text = response.text();
         
-        if (!response || typeof response !== 'string') {
-          throw new Error("Respuesta de IA no válida");
-        }
-
-        return response;
+        return text;
 
     } catch (e) { 
-      console.error("Error en chatWithContext:", e);
-      return "Lo siento, tuve un problema al procesar esta consulta compleja. Por favor, intenta simplificar la pregunta o revisa la conexión."; 
+      console.error("Error en chatWithContext (Direct Mode):", e);
+      return "Lo siento, tuve un problema de conexión directa. Por favor verifica tu internet."; 
     }
   },
 
@@ -723,7 +753,7 @@ export const GeminiMedicalService = {
         }
       `;
 
-      // Llamada segura a la Edge Function
+      // 🔐 LLAMADA SEGURA: No pasamos config, usa TopK 1 por defecto
       const rawText = await generateWithFailover(prompt, true);
       const cleanJson = cleanJSON(rawText);
       
@@ -767,7 +797,7 @@ export const GeminiMedicalService = {
         }
       `;
 
-      // Canal seguro con modo JSON activo
+      // Canal seguro con modo JSON activo y default temp (0.0)
       const rawResponse = await generateWithFailover(prompt, true); 
       
       try {
