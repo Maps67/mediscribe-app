@@ -120,7 +120,9 @@ EVALUACIÓN DE RIESGO QUIRÚRGICO (Dual Model)
         
         {/* === COLUMNA IZQUIERDA: INPUTS (40%) === */}
         <div className="w-full md:w-[40%] flex flex-col min-h-0 bg-slate-50 dark:bg-slate-800/30 border-r border-slate-200 dark:border-slate-700">
-          <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-900">
+          
+          {/* HEADER PRINCIPAL */}
+          <div className="p-5 border-b border-slate-200 dark:border-slate-700 flex justify-between items-center bg-white dark:bg-slate-900 shrink-0">
             <div>
               <h3 className="font-bold text-slate-800 dark:text-white flex items-center gap-2">
                 <Activity className="text-teal-600" size={20}/> 
@@ -131,27 +133,33 @@ EVALUACIÓN DE RIESGO QUIRÚRGICO (Dual Model)
             <button onClick={onClose} className="text-slate-400 hover:text-red-500 transition-colors"><X size={24}/></button>
           </div>
 
+          {/* ✅ CORRECCIÓN: ZONA DE DATOS FIJOS (CONTEXTO) */}
+          {/* Esta sección ya NO hace scroll, se queda fija arriba */}
+          <div className="px-6 py-4 bg-slate-100/50 dark:bg-slate-800/50 border-b border-slate-200 dark:border-slate-700 shrink-0">
+             <div className="grid grid-cols-2 gap-4">
+                <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
+                   <span className="text-[10px] uppercase font-bold text-slate-400 block">Paciente</span>
+                   <span className="font-bold text-slate-700 dark:text-slate-200 truncate block text-sm">{patientName}</span>
+                </div>
+                <div className={`p-3 rounded-lg border shadow-sm ${inputs.age === 0 ? 'bg-red-50 border-red-200' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
+                   <span className="text-[10px] uppercase font-bold text-slate-400 block">Edad</span>
+                   <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{inputs.age} años</span>
+                </div>
+             </div>
+          </div>
+
+          {/* CONTENEDOR SCROLLABLE (SOLO PARA INPUTS) */}
           <div className="flex-1 overflow-y-auto p-6 space-y-6">
             
-            {/* Aviso de Edad 0 */}
+            {/* Aviso de Edad 0 (Mantenido aquí por espacio) */}
             {inputs.age === 0 && (
-                <div className="bg-red-50 text-red-700 p-3 rounded-lg text-xs flex gap-2 items-center border border-red-100">
+                <div className="bg-red-50 text-red-700 p-3 rounded-lg text-xs flex gap-2 items-center border border-red-100 animate-pulse">
                     <AlertTriangle size={16}/>
-                    <span><strong>¡Atención!</strong> Edad no detectada (0 años). El riesgo será subestimado.</span>
+                    <span><strong>¡Atención!</strong> Edad no detectada. Riesgo subestimado.</span>
                 </div>
             )}
 
-            <div className="grid grid-cols-2 gap-4">
-               <div className="p-3 bg-white dark:bg-slate-800 rounded-lg border border-slate-200 dark:border-slate-700 shadow-sm">
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Paciente</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-200 truncate block text-sm">{patientName}</span>
-               </div>
-               <div className={`p-3 rounded-lg border shadow-sm ${inputs.age === 0 ? 'bg-red-50 border-red-200' : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700'}`}>
-                  <span className="text-[10px] uppercase font-bold text-slate-400 block">Edad</span>
-                  <span className="font-bold text-slate-700 dark:text-slate-200 text-sm">{inputs.age} años</span>
-               </div>
-            </div>
-
+            {/* INPUTS: ASA */}
             <div>
               <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2 block">Clase ASA</label>
               <div className="grid grid-cols-5 gap-1">
@@ -171,6 +179,7 @@ EVALUACIÓN DE RIESGO QUIRÚRGICO (Dual Model)
               </div>
             </div>
 
+            {/* INPUTS: Estado Funcional */}
             <div>
               <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2 block">Estado Funcional</label>
               <div className="space-y-2">
@@ -195,6 +204,7 @@ EVALUACIÓN DE RIESGO QUIRÚRGICO (Dual Model)
               </div>
             </div>
 
+            {/* INPUTS: Procedimiento y Lab */}
             <div className="space-y-4">
                <div>
                   <label className="text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-2 block">Procedimiento</label>
