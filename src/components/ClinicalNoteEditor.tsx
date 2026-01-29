@@ -163,14 +163,16 @@ export const ClinicalNoteEditor = React.memo(({
                    <div className="bg-white dark:bg-slate-900 rounded-sm shadow-lg border border-slate-200 dark:border-slate-800 p-4 md:p-12 min-h-full h-fit pb-32 animate-fade-in-up relative">
                        {/* HEADER DEL DOCUMENTO */}
                        <div className="sticky top-0 z-20 bg-white/95 dark:bg-slate-900/95 backdrop-blur-sm border-b border-slate-100 dark:border-slate-800 pb-4 mb-8 -mx-2 px-2 flex flex-col gap-2">
-                           <div className="flex justify-between items-start gap-2">
+                           
+                           {/* ✅ FIX RESPONSIVE: Stack vertical en móvil, fila en escritorio */}
+                           <div className="flex flex-col sm:flex-row justify-between items-start gap-4">
                                <div className="flex-1 min-w-0">
                                    <h1 className="text-xl md:text-2xl font-bold text-slate-900 dark:text-white truncate">Nota de Evolución</h1>
                                    <p className="text-xs md:text-sm text-slate-500 dark:text-slate-400 uppercase tracking-wide truncate">{selectedSpecialty}</p>
                                </div>
                                
                                {/* --- ZONA DE ACCIONES Y BLINDAJE --- */}
-                               <div className="flex flex-col items-end gap-2 shrink-0">
+                               <div className="flex flex-col items-end gap-2 shrink-0 w-full sm:w-auto">
                                    
                                    {/* 🛡️ BLINDAJE VISUAL */}
                                    <span className="hidden md:flex text-[10px] uppercase tracking-wider font-bold text-slate-400 items-center gap-1 select-none">
@@ -178,7 +180,8 @@ export const ClinicalNoteEditor = React.memo(({
                                    </span>
                                    {/* ----------------------------------------------- */}
                                    
-                                   <div className="flex items-center gap-2">
+                                   {/* ✅ FIX: Wrap y Justify End para los botones */}
+                                   <div className="flex flex-wrap items-center justify-end gap-2 w-full">
                                        {/* Aquí iría tu botón de Calculadora si lo agregas de nuevo */}
                                        
                                        <button 
@@ -239,9 +242,11 @@ export const ClinicalNoteEditor = React.memo(({
                {/* === TAB 2: PLAN PACIENTE (RECETA) === */}
                {activeTab==='patient' && (
                    <div className="flex flex-col h-full gap-4 animate-fade-in-up">
-                       <div className="flex justify-between items-center mb-2">
+                       
+                       {/* ✅ FIX RESPONSIVE: Stack vertical en móvil */}
+                       <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-2 gap-3">
                            <h3 className="font-bold text-xl dark:text-white">Plan de Tratamiento</h3>
-                           <div className="flex gap-2">
+                           <div className="flex flex-wrap gap-2 w-full sm:w-auto justify-end">
                                <button onClick={onShareWhatsApp} className="p-2 bg-green-100 text-green-600 rounded-lg hover:bg-green-200 dark:bg-green-900/30 dark:text-green-400"><Share2 size={18}/></button>
                                <button onClick={onPrint} className="p-2 bg-blue-100 text-blue-600 rounded-lg hover:bg-blue-200 dark:bg-blue-900/30 dark:text-blue-400"><Download size={18}/></button>
                            </div>
@@ -251,6 +256,7 @@ export const ClinicalNoteEditor = React.memo(({
                        <div className="bg-white dark:bg-slate-900 p-6 rounded-xl shadow-sm border border-slate-200 dark:border-slate-800">
                            
                            {/* --- HEADER CON FOLIO CONTROLADO (Feature Request) --- */}
+                           {/* ✅ FIX RESPONSIVE: Adaptación del Folio */}
                            <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
                                <div className="flex items-center gap-4 w-full md:w-auto">
                                    <h3 className="font-bold text-lg flex items-center gap-2 text-indigo-600 dark:text-indigo-400">
