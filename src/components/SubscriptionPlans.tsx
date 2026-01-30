@@ -1,132 +1,162 @@
 import { useState } from 'react';
 
 export const SubscriptionPlans = () => {
-  const [billingCycle, setBillingCycle] = useState<'monthly' | 'yearly'>('monthly');
+  const [billingCycle, setBillingCycle] = useState('monthly');
 
-  // CONFIGURACIÓN DE PRECIOS (Ajusta esto a tu modelo real)
+  // ESTRATEGIA DE PRECIOS 2026
   const prices = {
-    monthly: { id: 'price_monthly_id', amount: '999', label: '/mes' },
-    yearly: { id: 'price_yearly_id', amount: '9,990', label: '/año' }, // 2 meses gratis aprox
+    monthly: { id: 'price_monthly', amount: '1,200', label: '/mes' },
+    yearly: { id: 'price_yearly', amount: '11,500', label: '/año' },
   };
 
-  const handleSubscribe = (plan: string) => {
-    // AQUÍ PONDREMOS TU LINK DE STRIPE MÁS ADELANTE
-    // Por ahora, simula la acción o lleva a WhatsApp de ventas
-    const message = `Hola Pixelarte, quiero contratar el plan ${plan} de VitalScribe.`;
+  const handleSubscribe = (plan) => {
+    const cycleText = plan === 'monthly' ? 'Mensual ($1,200 + IVA)' : 'Anual con descuento ($11,500 + IVA)';
+    const message = `Hola, quiero activar mi *Consultorio Inteligente* con el plan ${cycleText}.`;
     window.open(`https://wa.me/5213347211199?text=${encodeURIComponent(message)}`, '_blank');
   };
 
   return (
     <div className="w-full max-w-4xl mx-auto p-6 bg-white rounded-2xl shadow-xl border border-slate-200">
       <div className="text-center mb-10">
-        <h2 className="text-3xl font-bold text-slate-900">Elige tu Plan Profesional</h2>
-        <p className="text-slate-500 mt-2">Recupera 2 horas de tu vida diaria por el costo de una consulta.</p>
+        <h2 className="text-3xl font-extrabold text-slate-900 tracking-tight">
+          Tu Consultorio Inteligente, Sin Límites
+        </h2>
+        <p className="text-slate-500 mt-3 text-lg">
+          Todo el poder de la IA clínica y herramientas de especialidad en una sola suite.
+        </p>
         
         {/* Toggle Mensual/Anual */}
-        <div className="flex justify-center mt-6">
-          <div className="relative flex bg-slate-100 p-1 rounded-xl">
+        <div className="flex justify-center mt-8">
+          <div className="relative flex bg-slate-100 p-1 rounded-xl border border-slate-200">
             <button
               onClick={() => setBillingCycle('monthly')}
               className={`${
-                billingCycle === 'monthly' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-900'
-              } relative z-10 w-32 py-2 text-sm font-bold rounded-lg transition-all duration-200`}
+                billingCycle === 'monthly' ? 'bg-white shadow-sm text-slate-900 font-bold' : 'text-slate-500 hover:text-slate-700 font-medium'
+              } relative z-10 w-32 py-2 text-sm rounded-lg transition-all duration-200`}
             >
               Mensual
             </button>
             <button
               onClick={() => setBillingCycle('yearly')}
               className={`${
-                billingCycle === 'yearly' ? 'bg-white shadow-sm text-slate-900' : 'text-slate-500 hover:text-slate-900'
-              } relative z-10 w-32 py-2 text-sm font-bold rounded-lg transition-all duration-200`}
+                billingCycle === 'yearly' ? 'bg-white shadow-sm text-slate-900 font-bold' : 'text-slate-500 hover:text-slate-700 font-medium'
+              } relative z-10 w-32 py-2 text-sm rounded-lg transition-all duration-200`}
             >
               Anual
-              <span className="absolute -top-3 -right-3 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] rounded-full font-bold border border-green-200">
-                -20% OFF
+              <span className="absolute -top-3 -right-4 px-2 py-0.5 bg-green-100 text-green-700 text-[10px] uppercase tracking-wide rounded-full font-bold border border-green-200 shadow-sm">
+                Ahorra 20%
               </span>
             </button>
           </div>
         </div>
       </div>
 
-      <div className="grid md:grid-cols-2 gap-8">
-        {/* PLAN ESTÁNDAR */}
-        <div className="border-2 border-teal-500 rounded-2xl p-8 relative group bg-teal-50/30">
-          <div className="absolute -top-4 left-1/2 -translate-x-1/2 bg-teal-500 text-white px-3 py-1 rounded-full text-xs font-bold uppercase tracking-wide">
-            Acceso Beta
+      <div className="grid md:grid-cols-2 gap-8 items-start">
+        
+        {/* === PLAN IZQUIERDO: PROFESIONAL (ACTIVO) === */}
+        {/* CORRECCIÓN: Se eliminó 'overflow-hidden' para que se vea el badge completo */}
+        <div className="border-2 border-teal-500 rounded-2xl p-8 relative bg-white shadow-lg ring-4 ring-teal-50/50 z-10 isolate">
+          
+          {/* Badge Recomendado (Ahora visible por completo) */}
+          <div className="absolute top-0 left-1/2 -translate-x-1/2 -translate-y-1/2 bg-gradient-to-r from-teal-500 to-emerald-500 text-white px-4 py-1 rounded-full text-xs font-bold uppercase tracking-wider shadow-md z-30">
+            Recomendado
           </div>
           
-          <h3 className="text-lg font-bold text-slate-900">Médico Independiente</h3>
-          <p className="text-sm text-slate-500 mb-6">Para consultorios privados.</p>
+          <h3 className="text-xl font-bold text-slate-900 relative z-20">Plan Profesional Integral</h3>
+          <p className="text-sm text-slate-500 mb-6 relative z-20">La herramienta definitiva para el médico moderno.</p>
           
-          <div className="flex items-baseline mb-6">
-            <span className="text-4xl font-extrabold text-slate-900">${billingCycle === 'monthly' ? prices.monthly.amount : Math.round(parseInt(prices.yearly.amount.replace(',',''))/12)}</span>
-            <span className="text-slate-500 ml-2">MXN / mes</span>
-          </div>
-          {billingCycle === 'yearly' && (
-            <p className="text-xs text-green-600 font-bold mb-6 bg-green-50 inline-block px-2 py-1 rounded">
-              Facturado anualmente (${prices.yearly.amount})
+          {/* Precio Blindado */}
+          <div className="mb-2 relative z-30 bg-white w-fit pr-4">
+            <div className="flex items-baseline">
+              <span className="text-5xl font-extrabold text-slate-900 tracking-tight">
+                ${billingCycle === 'monthly' ? prices.monthly.amount : prices.yearly.amount}
+              </span>
+              <span className="text-slate-500 ml-2 font-medium">MXN {billingCycle === 'monthly' ? '/ mes' : '/ año'}</span>
+            </div>
+            <p className="text-xs text-slate-400 font-medium mt-1 ml-1 block">
+              + IVA
             </p>
-          )}
+          </div>
 
-          <ul className="space-y-4 mb-8">
-            <li className="flex items-center text-sm text-slate-600">
-              {/* CORRECCIÓN: strokeLinecap, strokeLinejoin, strokeWidth */}
-              <svg className="w-5 h-5 text-teal-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-              Consultas Ilimitadas
+          <div className="h-6 mb-6 relative z-20">
+            {billingCycle === 'yearly' && (
+              <p className="text-xs text-emerald-700 font-bold bg-emerald-50 inline-block px-2 py-1 rounded border border-emerald-100">
+                Estás ahorrando $2,900 MXN al año
+              </p>
+            )}
+             {billingCycle === 'monthly' && (
+              <p className="text-xs text-slate-400">
+                Facturación mensual recurrente.
+              </p>
+            )}
+          </div>
+
+          <ul className="space-y-4 mb-8 relative z-20">
+            <li className="flex items-start text-sm text-slate-700 font-medium">
+              <svg className="w-5 h-5 text-teal-500 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              Asistente IA Híbrido (Contextual + Abierto)
             </li>
-            <li className="flex items-center text-sm text-slate-600">
-              <svg className="w-5 h-5 text-teal-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-              Formatos NOM-004
+            <li className="flex items-start text-sm text-slate-700 font-medium">
+              <svg className="w-5 h-5 text-teal-500 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              Calculadoras de Riesgo & Herramientas Qx
             </li>
-            <li className="flex items-center text-sm text-slate-600">
-              <svg className="w-5 h-5 text-teal-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-              App Móvil (PWA) + Web
+            <li className="flex items-start text-sm text-slate-700 font-medium">
+              <svg className="w-5 h-5 text-teal-500 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              Notas Médicas Automatizadas & Expediente
+            </li>
+             <li className="flex items-start text-sm text-slate-700 font-medium">
+              <svg className="w-5 h-5 text-teal-500 mr-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
+              Consultas y Pacientes Ilimitados
             </li>
           </ul>
 
           <button
-            disabled={true}
-            className="w-full py-3 px-4 bg-green-100 text-green-700 border border-green-200 font-bold rounded-xl cursor-default flex items-center justify-center gap-2"
+            onClick={() => handleSubscribe(billingCycle)}
+            className="w-full py-3.5 px-4 bg-slate-900 text-white hover:bg-slate-800 font-bold rounded-xl transition-all shadow-lg hover:shadow-xl transform hover:-translate-y-0.5 flex items-center justify-center gap-2 relative z-20"
           >
-            <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
-            Desbloqueado
+            Comenzar Ahora
+            <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M14 5l7 7m0 0l-7 7m7-7H3" /></svg>
           </button>
         </div>
 
-        {/* PLAN CLÍNICA (Upsell) */}
-        <div className="border border-slate-100 bg-slate-50 rounded-2xl p-8 opacity-75 hover:opacity-100 transition-opacity relative">
-          <div className="absolute top-0 right-0 bg-slate-200 text-slate-600 text-xs font-bold px-3 py-1 rounded-bl-xl rounded-tr-xl">
-            PRÓXIMAMENTE
+        {/* === PLAN DERECHO: CLÍNICAS (PRÓXIMAMENTE) === */}
+        <div className="border border-slate-200 bg-slate-50 rounded-2xl p-8 relative mt-4 md:mt-0 z-0">
+          <div className="absolute top-0 right-0 bg-slate-200 text-slate-500 text-[10px] font-bold px-3 py-1 rounded-bl-xl rounded-tr-xl tracking-wide uppercase">
+            Próximamente
           </div>
-          <h3 className="text-lg font-bold text-slate-700">Clínicas & Hospitales</h3>
-          <p className="text-sm text-slate-500 mb-6">Para equipos multidisciplinarios.</p>
           
-          <div className="flex items-baseline mb-6">
-            <span className="text-3xl font-bold text-slate-700">Cotizar</span>
+          <h3 className="text-lg font-bold text-slate-400">Clínicas & Hospitales</h3>
+          <p className="text-sm text-slate-400 mb-6">Control centralizado para equipos médicos.</p>
+          
+          <div className="flex flex-col mb-8">
+            <span className="text-2xl font-bold text-slate-300">En Desarrollo</span>
+            <span className="text-xs text-slate-400 mt-1">
+              Disponible en Q4 2026
+            </span>
           </div>
 
-          <ul className="space-y-4 mb-8 grayscale">
-            <li className="flex items-center text-sm text-slate-500">
-              <svg className="w-5 h-5 text-slate-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-              Multi-usuario
+          <ul className="space-y-4 mb-10 opacity-50 grayscale">
+            <li className="flex items-center text-sm text-slate-400">
+              <svg className="w-5 h-5 text-slate-300 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>
+              Multi-usuario y Roles
             </li>
-            <li className="flex items-center text-sm text-slate-500">
-              <svg className="w-5 h-5 text-slate-400 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" /></svg>
-              Panel Administrativo
+            <li className="flex items-center text-sm text-slate-400">
+              <svg className="w-5 h-5 text-slate-300 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" /></svg>
+              Panel Administrativo y Analíticas
             </li>
           </ul>
 
           <button
-            onClick={() => window.open('mailto:contacto@pixelartestudio.art')}
-            className="w-full py-3 px-4 border-2 border-slate-300 text-slate-600 font-bold rounded-xl hover:border-slate-400 hover:text-slate-800 transition-colors"
+            disabled
+            className="w-full py-3 px-4 border border-slate-200 bg-slate-100 text-slate-400 font-bold rounded-xl cursor-not-allowed"
           >
-            Contactar Ventas
+            Lista de Espera
           </button>
         </div>
       </div>
       
-      <p className="text-center text-xs text-slate-400 mt-8">
-        Pagos seguros procesados por Stripe. Puedes cancelar en cualquier momento.
+      <p className="text-center text-xs text-slate-400 mt-8 mx-auto max-w-lg">
+        Garantía de satisfacción. La suscripción se renueva automáticamente. Puedes cancelar en cualquier momento desde tu perfil.
       </p>
     </div>
   );
