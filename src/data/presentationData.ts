@@ -67,7 +67,21 @@ export const presentationData: SlideData[] = [
     ]
   },
 
-  // SLIDE 6: RECETAS (GRID)
+  // --- ✨ NUEVA SLIDE: CALCULADORA DE RIESGO ---
+  {
+    id: "risk_calc",
+    type: "grid",
+    title: "Módulo de Seguridad Quirúrgica",
+    content: "Matemática médica de precisión (NSQIP/RCRI) integrada para decisiones críticas.",
+    items: [
+      { iconName: "Calculator", title: "Algoritmos Gold-Standard", text: "Implementación nativa de Gupta MICA (Regresión Logística) y Lee RCRI (Aditivo). Misma certeza científica que MDCalc." },
+      { iconName: "WifiOff", title: "Privacidad Edge-Computing", text: "Cálculo matemático 100% local. Los datos sensibles del paciente nunca abandonan el dispositivo." },
+      { iconName: "Zap", title: "Auto-Llenado Contextual", text: "El sistema extrae variables (Edad, Creatinina, ASA) directamente del expediente activo. Cero error humano." },
+      { iconName: "Shield", title: "Respaldo Médico-Legal", text: "Justificación objetiva de decisiones (ej. solicitud de terapia intensiva) basada en probabilidad estadística documentada." }
+    ]
+  },
+
+  // SLIDE 7: RECETAS (GRID)
   {
     id: "prescriptions",
     type: "grid",
@@ -80,7 +94,7 @@ export const presentationData: SlideData[] = [
     ]
   },
 
-  // SLIDE 7: INFRAESTRUCTURA (SPLIT)
+  // SLIDE 8: INFRAESTRUCTURA (SPLIT)
   {
     id: "tech",
     type: "split",
@@ -93,7 +107,7 @@ export const presentationData: SlideData[] = [
     image: "https://images.unsplash.com/photo-1563986768609-322da13575f3?auto=format&fit=crop&q=80&w=2070"
   },
 
-  // SLIDE 8: LEGAL (GRID)
+  // SLIDE 9: LEGAL (GRID)
   {
     id: "legal",
     type: "grid",
@@ -106,7 +120,7 @@ export const presentationData: SlideData[] = [
     ]
   },
 
-  // SLIDE 9: INTEROPERABILIDAD (SPLIT)
+  // SLIDE 10: INTEROPERABILIDAD (SPLIT)
   {
     id: "insurance",
     type: "split",
@@ -119,7 +133,7 @@ export const presentationData: SlideData[] = [
     image: "https://images.unsplash.com/photo-1454165804606-c3d57bc86b40?auto=format&fit=crop&q=80&w=2000"
   },
 
-  // SLIDE 10: CIERRE (HERO)
+  // SLIDE 11: CIERRE (HERO)
   {
     id: "closing",
     type: "hero",
