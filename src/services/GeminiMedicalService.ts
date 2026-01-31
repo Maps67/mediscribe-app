@@ -51,6 +51,21 @@ Analiza la lista de fármacos entrante. Si detectas cualquier discrepancia de se
 `;
 
 // ==========================================
+// 🍼 1.5 FARMACOPEA PEDIÁTRICA (TABLA DE REFERENCIA)
+// ==========================================
+const PEDIATRIC_FORMULARY = `
+TABLA DE CONCENTRACIONES ESTÁNDAR (MÉXICO/LATAM):
+1. Amoxicilina Suspensión: 250mg/5ml (Estándar) o 500mg/5ml (Forte).
+2. Amoxicilina/Clavulanato: 200mg/28.5mg en 5ml (Ped), 400mg/57mg en 5ml (12h), 600mg/42.9mg en 5ml (ES).
+3. Paracetamol (Acetaminofén): Gotas (100mg/1ml) o Jarabe (120mg/5ml o 160mg/5ml).
+4. Ibuprofeno Suspensión: 100mg/5ml (Pediátrico) o 200mg/5ml (Infantil).
+5. Azitromicina Suspensión: 200mg/5ml.
+6. Cefalexina Suspensión: 125mg/5ml o 250mg/5ml.
+7. Trimetoprima/Sulfametoxazol: 40mg/200mg en 5ml.
+8. Ambroxol Jarabe: 15mg/5ml (Infantil) o 7.5mg/ml (Solución).
+`;
+
+// ==========================================
 // 🧠 2. GESTIÓN DE CEREBRO CENTRALIZADO (NUEVO v8.0)
 // ==========================================
 
@@ -182,12 +197,12 @@ const getSpecialtyPromptConfig = (specialty: string) => {
     "Cardiología": {
       role: "Cardiólogo Intervencionista",
       focus: "Hemodinamia, ritmo, presión arterial, perfusión, soplos y riesgo cardiovascular.",
-      bias: "Prioriza el impacto hemodinámico. Traduce síntomas vagos a equivalentes cardiológicos."
+      bias: "Obsesión con el TIEMPO y la estratificación de riesgo (TIMI/GRACE). Ante dolor torácico, asume SICA hasta demostrar lo contrario. Prioriza antiagregación y estatinas."
     },
     "Traumatología y Ortopedia": {
       role: "Cirujano Ortopedista",
-      focus: "Sistema musculoesquelético, arcos de movilidad, estabilidad, fuerza y marcha.",
-      bias: "Describe la biomecánica de la lesión."
+      focus: "Integridad ósea, pero PRIORITARIAMENTE estado neurovascular distal (pulsos, llenado capilar, sensibilidad).",
+      bias: "Descartar Síndrome Compartimental en dolor desproporcionado. Inmovilización funcional inmediata."
     },
     "Dermatología": {
       role: "Dermatólogo",
@@ -196,23 +211,23 @@ const getSpecialtyPromptConfig = (specialty: string) => {
     },
     "Pediatría": {
       role: "Pediatra",
-      focus: "Desarrollo, crecimiento, hitos, alimentación y vacunación. DOSIS POR KILO DE PESO.",
-      bias: "Evalúa todo en contexto de la edad. ALERTA MÁXIMA a fármacos prohibidos en niños."
+      focus: "Desarrollo, vacunas y ESTADO DE HIDRATACIÓN (Llenado capilar, mucosa, llanto). CÁLCULO DE DOSIS EN MILILITROS.",
+      bias: "El niño no es un adulto chiquito. Ante fiebre sin foco, descartar IVU o Bacteriemia. Conversión obligatoria de mg a ml en recetas."
     },
     "Ginecología y Obstetricia": {
       role: "Ginecólogo Obstetra",
       focus: "Salud reproductiva, ciclo menstrual, embarazo, vitalidad fetal. CLASIFICACIÓN FDA.",
-      bias: "Enfoque en bienestar materno-fetal. ALERTA MÁXIMA a teratógenos."
+      bias: "En paciente femenina en edad fértil con dolor abdominal, TU PRIMERA PRIORIDAD es descartar Embarazo Ectópico. Rigurosidad extrema con Teratógenos (FDA X/D)."
     },
     "Medicina General": {
       role: "Médico de Familia",
       focus: "Visión integral, semiología general y referencia oportuna.",
-      bias: "Enfoque holístico y preventivo."
+      bias: "Pensamiento sistémico. BUSCA INTERACCIONES MEDICAMENTOSAS GRAVES (CYP450). Prioriza la 'Deprescripción' de fármacos innecesarios en ancianos."
     },
     "Urgencias Médicas": {
         role: "Urgenciólogo Senior",
-        focus: "ABCDE, estabilización. CRÍTICO: Detectar errores fatales antes de tratar.",
-        bias: "Primero NO hacer daño (Primum non nocere). Verifica contraindicaciones antes de recetar."
+        focus: "Estabilización inmediata (ABCDE). Identificación de 'Red Flags' de vida o muerte.",
+        bias: "Piensa en el peor escenario posible primero (Rule-out worst case). Asigna Triaje (Rojo/Amarillo/Verde) en el Análisis."
     },
     "Endocrinología": {
         role: "Endocrinólogo Experto",
@@ -257,12 +272,37 @@ export const GeminiMedicalService = {
       const dynamicSecurityPrompt = await getSystemPrompt('security_core_v1');
       const specialtyConfig = getSpecialtyPromptConfig(specialty);
       
+      
       const prompt = `
-        ACTÚA COMO: ${specialtyConfig.role}.
-        ENFOQUE: ${specialtyConfig.focus}
-        SESGO CLÍNICO: ${specialtyConfig.bias}
+  ACTÚA COMO: ${specialtyConfig.role} y Escriba Médico Forense.
+  ENFOQUE: ${specialtyConfig.focus}
+  
+  ${dynamicSecurityPrompt} // Mantiene tu seguridad
+  ${PEDIATRIC_FORMULARY}
 
-        ${dynamicSecurityPrompt}
+  ⚠️ REGLA DE INTEGRIDAD FARMACÉUTICA:
+  1. USA ESTRICTAMENTE LAS CONCENTRACIONES DE LA LISTA DE ARRIBA.
+  2. NO INVENTES OTRAS (Ej: Si la dosis meta es 450mg, NO inventes "Suspensión 400mg/5ml").
+  3. MEJOR AJUSTA EL VOLUMEN (ml) para encajar en una concentración real de la lista (Ej: Usa la de 500mg/5ml y calcula los ml necesarios).
+
+  ===================================================
+  🎙️ PROTOCOLO DE TRANSCRIPCIÓN: MODO "VERBATIM STRICTO"
+  ===================================================
+  TU TAREA NO ES RESUMIR, ES DOCUMENTAR EVIDENCIA.
+  
+  🔴 PROHIBICIONES ABSOLUTAS (SI LAS ROMPES, FALLAS):
+  1. PROHIBIDO USAR PARÉNTESIS PARA DESCRIBIR ACTOS (Ej: ❌ "(El paciente llora)", ❌ "(Asiente con la cabeza)"). 
+  2. PROHIBIDO RESUMIR BLOQUES DE TEXTO (Ej: ❌ "Paciente refiere síntomas depresivos...").
+  3. PROHIBIDO "LIMPIAR" EL LENGUAJE: Si el paciente dice "loquero", ESCRIBE "loquero". Si dice "agüitado", ESCRIBE "agüitado".
+  
+  🟢 INSTRUCCIONES DE EJECUCIÓN:
+  1. CITA TEXTUAL: Usa comillas para cada frase.
+  2. FORMATO GUIÓN: 
+     MÉDICO: "..."
+     PACIENTE: "..."
+  3. DENSIDAD MÁXIMA: Prefiero que el texto sea largo y redundante a que sea corto e interpretado.
+
+  TRANSCRIPCIÓN CRUDA: "${transcript}"
 
         TAREA: Analizar transcripción y generar Nota Clínica + Auditoría de Seguridad + RECETA ESTRUCTURADA DETERMINISTA.
 
