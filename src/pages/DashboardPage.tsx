@@ -20,7 +20,7 @@ import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
-// Componentes modulares - ACTUALIZACIÓN AQUÍ
+// Componentes modulares
 import { InteractiveClinicalCase } from '../components/InteractiveClinicalCase';
 import { ImpactMetrics } from '../components/ImpactMetrics';
 import { QuickDocModal } from '../components/QuickDocModal';
@@ -63,6 +63,21 @@ const BrandLogo = ({ className = "" }: { className?: string }) => (
 );
 
 const cleanMarkdown = (text: string): string => text ? text.replace(/[*_#`~]/g, '').replace(/^\s*[-•]\s+/gm, '').replace(/\[.*?\]/g, '').replace(/\n\s*\n/g, '\n').trim() : "";
+
+// --- ✅ MODIFICACIÓN 1: Función de limpieza profunda para voz (Anti-Emojis) ---
+const cleanTextForSpeech = (text: string): string => {
+    if (!text) return "";
+    return text
+        // Filtro de Emojis (Rangos Unicode completos)
+        .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}]/gu, '')
+        // Filtro de Markdown visual y caracteres ruidosos
+        .replace(/[*_#`~]/g, '')
+        .replace(/^\s*[-•]\s+/gm, '') 
+        .replace(/\[.*?\]/g, '') // Elimina referencias tipo [1]
+        .replace(/https?:\/\/\S+/g, 'enlace') // URLs -> "enlace"
+        .replace(/\s+/g, ' ') // Normalizar espacios
+        .trim();
+};
 
 const AtomicClock = ({ location, isDesktop = false }: { location: string, isDesktop?: boolean }) => {
     const [date, setDate] = useState(new Date());
@@ -111,10 +126,17 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   const [isExecuting, setIsExecuting] = useState(false); 
   const navigate = useNavigate(); 
   
+  // --- ✅ MODIFICACIÓN 2: Actualización de la función de voz ---
   const speakResponse = (text: string) => {
       window.speechSynthesis.cancel();
-      const cleanText = cleanMarkdown(text);
-      const utterance = new SpeechSynthesisUtterance(cleanText);
+      
+      // CAMBIO AUDITADO: Usamos cleanTextForSpeech para limpiar emojis
+      const textToRead = cleanTextForSpeech(text);
+      
+      // Validación: Si el mensaje era solo emojis, evitamos leer vacío
+      if (!textToRead) return;
+
+      const utterance = new SpeechSynthesisUtterance(textToRead);
       utterance.lang = 'es-MX';
       utterance.rate = 1.0;
       window.speechSynthesis.speak(utterance);
@@ -142,10 +164,10 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
                   speakResponse(msg);
               } else {
                   const rawAnswer = await GeminiMedicalService.chatWithContext("Contexto: Dashboard Médico.", textToProcess);
-                  setMedicalAnswer(cleanMarkdown(rawAnswer));
+                  setMedicalAnswer(cleanMarkdown(rawAnswer)); // Mantiene cleanMarkdown para visualización
                   setAiResponse({ intent: 'MEDICAL_QUERY', data: {}, message: 'Consulta Clínica', originalText: textToProcess, confidence: 1.0 });
                   setStatus('answering');
-                  speakResponse(rawAnswer);
+                  speakResponse(rawAnswer); // Usa la nueva limpieza internamente
               }
           };
           await executeLogic();
@@ -704,39 +726,39 @@ const Dashboard: React.FC = () => {
                  
                  <aside className="lg:col-span-1 flex flex-col gap-6">
                      <div className="grid grid-cols-2 gap-4">
-                        {/* 🎨 ANIMACIÓN PREMIUM DE HOVER (Consulta Rápida) */}
-                        <button onClick={() => setIsFastAdmitOpen(true)} className="aspect-square bg-gradient-to-br from-teal-500 to-blue-600 rounded-xl p-4 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl relative active:scale-95">
-                          <div className="absolute -right-4 -bottom-4 text-white opacity-20 transform transition-transform duration-500 group-hover:rotate-45 group-hover:scale-110"><UserPlus size={80} strokeWidth={1.5} /></div>
-                          <div className="relative z-10 bg-white/20 w-10 h-10 flex items-center justify-center rounded-full backdrop-blur-sm"><UserPlus className="text-white" size={20} /></div>
-                          <div className="relative z-10"><h3 className="text-white font-bold text-sm leading-tight">Consulta<br/>Rápida</h3></div>
-                          
-                          {/* ↗️ ÍCONO DE REVELACIÓN (Flecha aparece al hacer hover) */}
-                          <div className="absolute top-4 right-4 text-white opacity-0 transform translate-y-2 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-0">
-                              <ArrowUpRight size={20} />
-                          </div>
-                        </button>
-                        
-                        {/* 🎨 ANIMACIÓN PREMIUM DE HOVER (Subir Archivo) */}
-                        <button onClick={() => setIsUploadModalOpen(true)} className="aspect-square bg-white border border-slate-200 rounded-xl p-4 shadow-sm overflow-hidden group text-left flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-1 hover:border-teal-400 hover:shadow-md hover:bg-teal-50 relative active:scale-95">
-                          <div className="absolute -right-4 -bottom-4 text-teal-50 opacity-0 group-hover:opacity-100 transition-all duration-500 scale-150"><FolderUp size={80} /></div>
-                          <div className="relative z-10 bg-teal-50 w-10 h-10 flex items-center justify-center rounded-full group-hover:bg-teal-600 group-hover:text-white transition-colors"><FolderUp size={20} className="text-teal-600 group-hover:text-white" /></div>
-                          <div className="relative z-10"><h3 className="text-slate-700 font-bold text-sm leading-tight group-hover:text-teal-700">Subir<br/>Archivo</h3></div>
-                          
+                       {/* 🎨 ANIMACIÓN PREMIUM DE HOVER (Consulta Rápida) */}
+                       <button onClick={() => setIsFastAdmitOpen(true)} className="aspect-square bg-gradient-to-br from-teal-500 to-blue-600 rounded-xl p-4 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl relative active:scale-95">
+                         <div className="absolute -right-4 -bottom-4 text-white opacity-20 transform transition-transform duration-500 group-hover:rotate-45 group-hover:scale-110"><UserPlus size={80} strokeWidth={1.5} /></div>
+                         <div className="relative z-10 bg-white/20 w-10 h-10 flex items-center justify-center rounded-full backdrop-blur-sm"><UserPlus className="text-white" size={20} /></div>
+                         <div className="relative z-10"><h3 className="text-white font-bold text-sm leading-tight">Consulta<br/>Rápida</h3></div>
+                         
+                         {/* ↗️ ÍCONO DE REVELACIÓN (Flecha aparece al hacer hover) */}
+                         <div className="absolute top-4 right-4 text-white opacity-0 transform translate-y-2 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-0">
+                             <ArrowUpRight size={20} />
+                         </div>
+                       </button>
+                       
+                       {/* 🎨 ANIMACIÓN PREMIUM DE HOVER (Subir Archivo) */}
+                       <button onClick={() => setIsUploadModalOpen(true)} className="aspect-square bg-white border border-slate-200 rounded-xl p-4 shadow-sm overflow-hidden group text-left flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-1 hover:border-teal-400 hover:shadow-md hover:bg-teal-50 relative active:scale-95">
+                         <div className="absolute -right-4 -bottom-4 text-teal-50 opacity-0 group-hover:opacity-100 transition-all duration-500 scale-150"><FolderUp size={80} /></div>
+                         <div className="relative z-10 bg-teal-50 w-10 h-10 flex items-center justify-center rounded-full group-hover:bg-teal-600 group-hover:text-white transition-colors"><FolderUp size={20} className="text-teal-600 group-hover:text-white" /></div>
+                         <div className="relative z-10"><h3 className="text-slate-700 font-bold text-sm leading-tight group-hover:text-teal-700">Subir<br/>Archivo</h3></div>
+                         
                            {/* ↗️ ÍCONO DE REVELACIÓN (Flecha aparece al hacer hover en Teal) */}
                            <div className="absolute top-4 right-4 text-teal-600 opacity-0 transform translate-y-2 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-0">
                               <ArrowUpRight size={20} />
                           </div>
-                        </button>
+                       </button>
                      </div>
 
                      <div className="h-auto">
-                        <ImpactMetrics dailyTotal={totalDailyLoad} dailyCompleted={completedTodayCount} refreshTrigger={appointments.length} />
+                       <ImpactMetrics dailyTotal={totalDailyLoad} dailyCompleted={completedTodayCount} refreshTrigger={appointments.length} />
                      </div>
                      
                      <div className="bg-gradient-to-br from-blue-600 to-teal-600 rounded-xl p-6 shadow-md text-white flex flex-col gap-3">
-                        <div className="flex items-center gap-2 font-bold text-blue-50"><BrainCircuit size={20}/> <span>Reto Diario</span></div>
-                        <p className="text-blue-50 text-sm leading-relaxed italic line-clamp-3">¿Sabes identificar el signo de Leser-Trélat en un paciente adulto?</p>
-                        <button onClick={() => setIsChallengeModalOpen(true)} className="w-full py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg font-bold text-xs transition-colors">REVISAR CASO</button>
+                       <div className="flex items-center gap-2 font-bold text-blue-50"><BrainCircuit size={20}/> <span>Reto Diario</span></div>
+                       <p className="text-blue-50 text-sm leading-relaxed italic line-clamp-3">¿Sabes identificar el signo de Leser-Trélat en un paciente adulto?</p>
+                       <button onClick={() => setIsChallengeModalOpen(true)} className="w-full py-2 bg-white/10 hover:bg-white/20 text-white border border-white/20 rounded-lg font-bold text-xs transition-colors">REVISAR CASO</button>
                      </div>
                  </aside>
              </main>
