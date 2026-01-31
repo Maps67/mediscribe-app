@@ -58,4 +58,10 @@ export const PROCEDURES_DB: ProcedureDefinition[] = [
   { id: 'breast', label: 'Mastectomía / Lumpectomía', category: ProcedureCategory.BREAST, keywords: ['seno', 'mama', 'cancer'] },
   // Corrección: Usamos OTHER en lugar de INTRACRANIAL que no existía
   { id: 'craniotomy', label: 'Craneotomía', category: ProcedureCategory.OTHER, keywords: ['cerebro', 'tumor', 'hematoma'] },
+
+  // --- PROCTOLOGÍA (NUEVO BLOQUE: Mapeado a OTHER por bajo riesgo hemodinámico) ---
+  { id: 'hemorrhoidectomy', label: 'Hemorroidectomía (Láser/Tradicional)', category: ProcedureCategory.OTHER, keywords: ['hemorroides', 'almorranas', 'ano', 'sangrado'] },
+  { id: 'fistulotomy', label: 'Fistulotomía / Fisurectomía Anal', category: ProcedureCategory.OTHER, keywords: ['fistula', 'fisura', 'absceso perianal', 'ano'] },
+  { id: 'sphincterotomy', label: 'Esfinterotomía / Anoplastía', category: ProcedureCategory.OTHER, keywords: ['esfinter', 'estenosis', 'reparacion anal'] },
+  { id: 'pilonidal', label: 'Resección Quiste Pilonidal', category: ProcedureCategory.OTHER, keywords: ['quiste', 'sacro', 'colita'] },
 ];
