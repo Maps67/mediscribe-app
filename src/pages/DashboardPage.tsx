@@ -20,8 +20,8 @@ import { GeminiMedicalService } from '../services/GeminiMedicalService';
 import { UploadMedico } from '../components/UploadMedico';
 import { DoctorFileGallery } from '../components/DoctorFileGallery';
 
-// Componentes modulares
-import { DailyChallengeCard } from '../components/DailyChallengeCard';
+// Componentes modulares - ACTUALIZACIÓN AQUÍ
+import { InteractiveClinicalCase } from '../components/InteractiveClinicalCase';
 import { ImpactMetrics } from '../components/ImpactMetrics';
 import { QuickDocModal } from '../components/QuickDocModal';
 import { FastAdmitModal } from '../components/FastAdmitModal';
@@ -743,7 +743,22 @@ const Dashboard: React.FC = () => {
          </div>
       </div>
 
-      {isChallengeModalOpen && <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/80 backdrop-blur-sm p-4 animate-fade-in"><div className="w-full max-w-md bg-transparent relative"><button onClick={() => setIsChallengeModalOpen(false)} className="absolute -top-12 right-0 text-white p-2 bg-white/20 rounded-full backdrop-blur-md transition-colors hover:bg-white/30"><X size={24}/></button><div className="h-[400px]"><DailyChallengeCard specialty={doctorProfile?.specialty || 'General'} /></div></div></div>}
+      {/* --- INICIO DEL MODAL DE RETO DIARIO (ARREGLADO) --- */}
+      {isChallengeModalOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 animate-fade-in">
+          <div className="relative w-full max-w-md">
+            <button 
+              onClick={() => setIsChallengeModalOpen(false)}
+              className="absolute -top-12 right-0 bg-white/10 hover:bg-white/20 text-white p-2 rounded-full transition-all backdrop-blur-sm"
+            >
+              <X size={24} />
+            </button>
+            <InteractiveClinicalCase />
+          </div>
+        </div>
+      )}
+      {/* --- FIN DEL MODAL --- */}
+
       {isUploadModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-xl relative"><button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"><X size={16}/></button><UploadMedico onUploadComplete={() => {}}/><div className="mt-4 pt-4 border-t"><DoctorFileGallery /></div></div></div>}
       {isQuickNoteOpen && <QuickNoteModal onClose={() => setIsQuickNoteOpen(false)} doctorProfile={doctorProfile!}/>}
       <QuickDocModal isOpen={isDocModalOpen} onClose={() => setIsDocModalOpen(false)} doctorProfile={doctorProfile!} defaultType={docType} />
