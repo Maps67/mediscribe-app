@@ -255,17 +255,19 @@ const AuthView: React.FC<AuthProps> = ({
         </div>
       </div>
 
-      <div className="flex-1 flex items-center justify-center p-6 relative bg-white dark:bg-slate-950">
-        {/* MANUAL LINK */}
-        <a 
-            href="/manual.html" 
-            target="_blank" 
-            rel="noopener noreferrer" 
-            className="absolute top-6 right-6 flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-brand-teal transition-colors bg-slate-50 hover:bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:shadow-md"
-        >
-          <BookOpen className="w-4 h-4" />
-          <span>Manual de Usuario</span>
-        </a>
+      <div className="flex-1 flex items-center justify-center p-6 relative bg-white dark:bg-slate-950 flex-col">
+        {/* 🔥 CORRECCIÓN: Botón Manual de Usuario ahora es Flex y Responsivo 🔥 */}
+        <div className="w-full max-w-md flex justify-end mb-4 md:absolute md:top-6 md:right-6 md:mb-0">
+            <a 
+                href="/manual.html" 
+                target="_blank" 
+                rel="noopener noreferrer" 
+                className="flex items-center gap-2 text-xs font-bold text-slate-500 hover:text-brand-teal transition-colors bg-slate-50 hover:bg-white px-4 py-2 rounded-full border border-slate-200 shadow-sm hover:shadow-md"
+            >
+              <BookOpen className="w-4 h-4" />
+              <span>Manual de Usuario</span>
+            </a>
+        </div>
 
         <div className="w-full max-w-md space-y-8 animate-fade-in-up">
           {isResettingPassword ? (
