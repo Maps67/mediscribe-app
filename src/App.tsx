@@ -123,7 +123,6 @@ const App: React.FC = () => {
             addLog('📡 Contactando Supabase...');
 
             // ⚡ TIMEOUT DE RED: Si Supabase no responde en 8 segundos, asumimos desconexión
-            // Esto evita el "Bucle Infinito" en redes lentas.
             const sessionPromise = supabase.auth.getSession();
             const timeoutPromise = new Promise((_, reject) => 
                 setTimeout(() => reject(new Error("Timeout de red")), 8000)
@@ -135,8 +134,6 @@ const App: React.FC = () => {
             
             if (error) {
                 addLog(`⚠️ Red lenta/Error: ${error.message}`);
-                // No lanzamos error fatal, mejor dejamos pasar al usuario al login
-                // para que no se quede atorado en el splash.
             }
 
             if (mounted) {
@@ -170,7 +167,6 @@ const App: React.FC = () => {
     }, 2500);
 
     // 🛡️ VÁLVULA DE SEGURIDAD EXTENDIDA (15 SEGUNDOS)
-    // Aumentamos el tiempo para dar oportunidad a redes 4G lentas
     const safetyValve = setTimeout(() => {
         if (mounted && (loading || showSplash)) {
             addLog('🚨 TIEMPO AGOTADO (15s). Activando rescate.');
@@ -178,7 +174,7 @@ const App: React.FC = () => {
             setLoading(false);
             setShowSplash(false);
         }
-    }, 15000); // 15 segundos
+    }, 15000); 
 
     return () => { 
         mounted = false; 
@@ -269,25 +265,32 @@ const App: React.FC = () => {
       );
   }
 
+  // --- CORRECCIÓN 1: VISTA UPDATE PASSWORD ---
   if (isUpdatePasswordRoute) {
       return (
         <ThemeProvider>
-            <Toaster richColors position="top-center" />
-            <UpdatePassword onSuccess={() => window.location.href = '/'} />
+            <BrowserRouter> {/* ✅ AGREGADO: Router necesario para navegación */}
+                <Toaster richColors position="top-center" />
+                <UpdatePassword onSuccess={() => window.location.href = '/'} />
+            </BrowserRouter> {/* ✅ AGREGADO */}
         </ThemeProvider>
       );
   }
 
+  // --- CORRECCIÓN 2: VISTA DE LOGIN/REGISTRO ---
   if (!session) {
     return (
       <ThemeProvider>
-        <Toaster richColors position="top-center" />
-        <ReloadPrompt />
-        <AuthView onLoginSuccess={() => {}} />
+        <BrowserRouter> {/* ✅ AGREGADO: Soluciona pantalla blanca en registro */}
+            <Toaster richColors position="top-center" />
+            <ReloadPrompt />
+            <AuthView onLoginSuccess={() => {}} />
+        </BrowserRouter> {/* ✅ AGREGADO */}
       </ThemeProvider>
     );
   }
 
+  // VISTA AUTENTICADA (Ya tenía Router, se mantiene igual)
   return (
     <ThemeProvider>
       <BrowserRouter>
