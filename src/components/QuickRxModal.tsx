@@ -1,21 +1,20 @@
 import React, { useState } from 'react';
 import { 
   X, Plus, Trash2, FileText, Printer, Share2, Pill, 
-  FileSignature, Loader2, Lock, Paperclip, UploadCloud, AlertCircle
+  FileSignature, Loader2, Lock, Paperclip, UploadCloud, AlertCircle, Save
 } from 'lucide-react';
 import { toast } from 'sonner';
 import { MedicationItem, DoctorProfile } from '../types';
 import { pdf } from '@react-pdf/renderer';
 import PrescriptionPDF from './PrescriptionPDF';
-// ✅ IMPORTACIÓN DEL GESTOR DE ARCHIVOS
 import { UploadMedico } from './UploadMedico';
+import { supabase } from '../lib/supabase';
 
 interface QuickRxModalProps {
   isOpen: boolean;
   onClose: () => void;
   initialTranscript?: string; 
   patientName: string;
-  // ✅ ID CRÍTICO para vinculación de archivos
   patientId?: string; 
   doctorProfile: DoctorProfile;
 }
@@ -23,8 +22,12 @@ interface QuickRxModalProps {
 const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, patientName, patientId, doctorProfile }) => {
   const [medications, setMedications] = useState<MedicationItem[]>([]);
   const [isGeneratingShare, setIsGeneratingShare] = useState(false); 
-  
-  // ✅ ESTADO: Comentarios Internos (Expediente)
+  const [isSaving, setIsSaving] = useState(false); 
+
+  // ✅ NUEVO: Estado para recordar el ID y no duplicar
+  const [savedRecordId, setSavedRecordId] = useState<string | null>(null);
+
+  // Comentarios Internos (Expediente)
   const [internalNote, setInternalNote] = useState('');
 
   // Estado para el formulario manual
@@ -55,9 +58,92 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, patientNam
     setMedications(medications.filter((_, i) => i !== index));
   };
 
+  // ✅ FUNCIÓN INTELIGENTE: INSERT O UPDATE
+  const saveToHistory = async (showSuccessToast = false) => {
+    if (!patientId || !doctorProfile.id) {
+        if (showSuccessToast) toast.error("Error: No se puede guardar sin un Paciente vinculado.");
+        return;
+    }
+
+    // Validación para no guardar vacíos
+    if (medications.length === 0 && !internalNote.trim()) {
+        if (showSuccessToast) toast.warning("La receta está vacía.");
+        return;
+    }
+
+    setIsSaving(true);
+    try {
+        const medSummary = medications.length > 0 
+            ? medications.map(m => `${m.drug} (${m.frequency})`).join(', ') 
+            : 'Sin medicamentos';
+        
+        let summaryTitle = `Receta Rápida`;
+        if (internalNote.trim()) {
+             summaryTitle += `: ${internalNote.substring(0, 40)}${internalNote.length > 40 ? '...' : ''}`;
+        } else {
+             summaryTitle += `: ${medSummary.substring(0, 40)}...`;
+        }
+
+        const payload = {
+            patient_id: patientId,
+            doctor_id: doctorProfile.id,
+            summary: summaryTitle,
+            transcript: `[NOTA PRIVADA DEL MÉDICO]:\n${internalNote || 'Sin notas adicionales.'}\n\n[DETALLE DE RECETA]:\n${medSummary}`,
+            status: 'completed',
+            // Solo actualizamos la fecha si es nuevo registro
+            ...(savedRecordId ? {} : { created_at: new Date().toISOString() }),
+            ai_analysis_data: {
+                type: 'quick_prescription', 
+                medications: medications,
+                private_note: internalNote 
+            }
+        };
+
+        if (savedRecordId) {
+            // 🔄 MODO ACTUALIZACIÓN (Si ya existe ID, actualizamos)
+            const { error } = await supabase
+                .from('consultations')
+                .update(payload)
+                .eq('id', savedRecordId); // Actualizamos SOLO este ID
+            
+            if (error) throw error;
+            console.log("Registro actualizado (No duplicado).");
+
+        } else {
+            // 🆕 MODO CREACIÓN (Si es nuevo)
+            const { data, error } = await supabase
+                .from('consultations')
+                .insert(payload)
+                .select('id') // Pedimos que nos devuelva el ID creado
+                .single();
+
+            if (error) throw error;
+            
+            // ¡Guardamos el ID en memoria para la próxima!
+            if (data) setSavedRecordId(data.id);
+            console.log("Nuevo registro creado.");
+        }
+
+        if (showSuccessToast) {
+            toast.success(savedRecordId ? "✅ Cambios guardados." : "✅ Nota creada en expediente.");
+        }
+
+    } catch (err: any) {
+        console.error("Error guardando:", err);
+        toast.error(`No se pudo guardar: ${err.message}`);
+    } finally {
+        setIsSaving(false);
+    }
+  };
+
   const handlePrint = async () => {
     if (medications.length === 0) return toast.error("Agrega al menos un medicamento");
-    const loadingToast = toast.loading("Generando PDF...");
+    
+    const savingToast = toast.loading("Sincronizando expediente...");
+    await saveToHistory(false); 
+    toast.dismiss(savingToast);
+    
+    const pdfToast = toast.loading("Generando PDF...");
     try {
       const blob = await pdf(
         <PrescriptionPDF 
@@ -81,13 +167,17 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, patientNam
       console.error(e);
       toast.error("Error generando PDF");
     } finally {
-        toast.dismiss(loadingToast);
+        toast.dismiss(pdfToast);
     }
   };
 
   const handleWhatsApp = async () => {
     if (medications.length === 0) return toast.error("La receta está vacía");
     
+    const savingToast = toast.loading("Sincronizando expediente...");
+    await saveToHistory(false);
+    toast.dismiss(savingToast);
+
     setIsGeneratingShare(true);
     const loadingToast = toast.loading("Preparando PDF para compartir...");
 
@@ -127,16 +217,10 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, patientNam
         a.download = fileName;
         a.click();
         URL.revokeObjectURL(url);
-        
-        toast.info("PDF Descargado. Por favor adjúntelo en WhatsApp Web.");
-        window.open(`https://web.whatsapp.com/send?text=${encodeURIComponent(`Hola, adjunto la receta médica para ${patientName}.`)}`, '_blank');
+        toast.info("PDF Descargado para WhatsApp Web.");
       }
-
     } catch (e: any) {
-      console.error("Error al compartir:", e);
-      if (e.name !== 'AbortError') { 
-         toast.error("No se pudo compartir el archivo directamente.");
-      }
+      console.error("Error sharing:", e);
     } finally {
       setIsGeneratingShare(false);
       toast.dismiss(loadingToast);
@@ -144,7 +228,7 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, patientNam
   };
 
   const handleUploadComplete = () => {
-      toast.success("Archivo adjuntado al expediente correctamente.");
+      toast.success("Archivo guardado. Recuerde guardar la nota antes de salir.");
   };
 
   if (!isOpen) return null;
@@ -188,92 +272,46 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, patientNam
                         autoFocus
                     />
                 </div>
-                
                 <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Presentación / Dosis</label>
-                    <input 
-                        placeholder="Ej: Tableta de 500mg" 
-                        value={newMed.details} 
-                        onChange={e => setNewMed({...newMed, details: e.target.value})} 
-                        className="input-std" 
-                    />
+                    <input placeholder="Ej: Tableta de 500mg" value={newMed.details} onChange={e => setNewMed({...newMed, details: e.target.value})} className="input-std" />
                 </div>
-
                 <div>
                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Tiempo de Tratamiento</label>
-                    <input 
-                        placeholder="Ej: 3 días / 1 semana" 
-                        value={newMed.duration} 
-                        onChange={e => setNewMed({...newMed, duration: e.target.value})} 
-                        className="input-std" 
-                    />
+                    <input placeholder="Ej: 3 días / 1 semana" value={newMed.duration} onChange={e => setNewMed({...newMed, duration: e.target.value})} className="input-std" />
                 </div>
-
                 <div className="md:col-span-2">
-                    <label className="text-[10px] font-bold text-teal-600 uppercase ml-1 mb-1 flex items-center gap-1">
-                        Indicación Completa (Posología) <span className="text-red-400">*</span>
-                    </label>
-                    <input 
-                        placeholder="Ej: Tomar 1 tableta vía oral cada 8 horas (Sea descriptivo)" 
-                        value={newMed.frequency} 
-                        onChange={e => setNewMed({...newMed, frequency: e.target.value})} 
-                        className="input-std border-teal-100 bg-teal-50/30 focus:bg-white" 
-                    />
+                    <label className="text-[10px] font-bold text-teal-600 uppercase ml-1 mb-1 flex items-center gap-1">Indicación Completa (Posología) <span className="text-red-400">*</span></label>
+                    <input placeholder="Ej: Tomar 1 tableta vía oral cada 8 horas" value={newMed.frequency} onChange={e => setNewMed({...newMed, frequency: e.target.value})} className="input-std border-teal-100 bg-teal-50/30 focus:bg-white" />
                 </div>
-
                 <div className="md:col-span-2">
                     <label className="text-[10px] font-bold text-slate-400 uppercase ml-1 mb-1 block">Observaciones (Para el paciente)</label>
-                    <input 
-                        placeholder="Ej: Suspender en caso de alergia, tomar con alimentos..." 
-                        value={newMed.notes} 
-                        onChange={e => setNewMed({...newMed, notes: e.target.value})} 
-                        className="input-std" 
-                    />
+                    <input placeholder="Ej: Suspender en caso de alergia..." value={newMed.notes} onChange={e => setNewMed({...newMed, notes: e.target.value})} className="input-std" />
                 </div>
-
-                <button 
-                    onClick={addManualMed} 
-                    className="md:col-span-2 w-full py-3 bg-slate-800 dark:bg-slate-700 text-white rounded-xl font-bold text-sm hover:bg-slate-900 flex items-center justify-center gap-2 transition-colors shadow-md mt-2 active:scale-[0.98]"
-                >
+                <button onClick={addManualMed} className="md:col-span-2 w-full py-3 bg-slate-800 dark:bg-slate-700 text-white rounded-xl font-bold text-sm hover:bg-slate-900 flex items-center justify-center gap-2 transition-colors shadow-md mt-2 active:scale-[0.98]">
                    <Plus size={18}/> Agregar a la Receta
                 </button>
              </div>
           </div>
 
-          {/* 2. LISTA DE MEDICAMENTOS (PREVIEW) */}
+          {/* 2. LISTA PREVIA */}
           {medications.length > 0 && (
             <div className="mb-2">
                 <div className="flex justify-between items-center mb-3 px-1">
                     <h4 className="text-xs font-bold text-slate-400 uppercase">Vista Previa ({medications.length})</h4>
-                    <button onClick={() => setMedications([])} className="text-xs text-red-400 hover:text-red-500 flex items-center gap-1">
-                        <Trash2 size={12}/> Borrar Todo
-                    </button>
+                    <button onClick={() => setMedications([])} className="text-xs text-red-400 hover:text-red-500 flex items-center gap-1"><Trash2 size={12}/> Borrar Todo</button>
                 </div>
-                
                 <div className="space-y-3">
                     {medications.map((med, idx) => (
-                        <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex justify-between items-start group hover:border-teal-200 transition-colors animate-in fade-in slide-in-from-bottom-2">
+                        <div key={idx} className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-slate-200 dark:border-slate-700 shadow-sm flex justify-between items-start">
                         <div>
                             <h4 className="font-bold text-slate-800 dark:text-white flex items-center gap-2 text-lg">
                                 <span className="w-6 h-6 rounded-full bg-teal-100 text-teal-700 flex items-center justify-center text-xs font-bold shrink-0">{idx + 1}</span>
                                 {med.drug} 
-                                {med.details && <span className="text-xs font-normal text-slate-500 bg-slate-100 dark:bg-slate-700 px-2 py-0.5 rounded border dark:border-slate-600 align-middle ml-2">{med.details}</span>}
                             </h4>
-                            <div className="mt-2 pl-8 space-y-1">
-                                <p className="text-sm text-slate-700 dark:text-slate-300 font-medium">
-                                    <span className="font-bold text-teal-700">Ind:</span> {med.frequency}
-                                </p>
-                                <p className="text-sm text-slate-600 dark:text-slate-400">
-                                    <span className="text-xs uppercase text-slate-400 font-bold">Tiempo:</span> {med.duration}
-                                </p>
-                                {med.notes && (
-                                    <p className="text-xs text-slate-500 dark:text-slate-400 italic bg-yellow-50 dark:bg-yellow-900/10 p-1.5 rounded inline-block mt-1">
-                                        Nota: {med.notes}
-                                    </p>
-                                )}
-                            </div>
+                            <p className="text-sm text-slate-600 dark:text-slate-400 ml-8">{med.frequency}</p>
                         </div>
-                        <button onClick={() => removeMed(idx)} className="text-slate-300 hover:text-red-500 transition-colors p-2 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-full"><Trash2 size={18}/></button>
+                        <button onClick={() => removeMed(idx)} className="text-slate-300 hover:text-red-500 p-2"><Trash2 size={18}/></button>
                         </div>
                     ))}
                 </div>
@@ -282,50 +320,31 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, patientNam
 
           <hr className="border-slate-200 dark:border-slate-800" />
 
-          {/* 3. ✅ ZONA DE GESTIÓN DE ARCHIVOS (UNIVERSAL) */}
+          {/* 3. ARCHIVOS */}
           <div className="bg-indigo-50 dark:bg-indigo-900/10 p-4 rounded-xl border border-indigo-100 dark:border-indigo-800/50">
               <div className="flex items-center gap-2 mb-3">
                   <Paperclip size={18} className="text-indigo-600 dark:text-indigo-400"/>
                   <h4 className="font-bold text-sm text-indigo-900 dark:text-indigo-200">Adjuntos Universales (Expediente)</h4>
               </div>
-              
               {patientId ? (
-                  <>
-                    <UploadMedico 
-                        // Creamos un objeto paciente mínimo compatible con el componente UploadMedico
-                        preSelectedPatient={{ 
-                          id: patientId, 
-                          name: patientName,
-                          doctor_id: doctorProfile.id 
-                      } as any}
-                      onUploadComplete={handleUploadComplete}
-                    />
-                    <p className="text-[10px] text-indigo-400 mt-2 text-center">
-                        Soporta Imágenes, PDF y DICOM. Se guardarán automáticamente en el historial.
-                    </p>
-                  </>
+                  <UploadMedico preSelectedPatient={{ id: patientId, name: patientName, doctor_id: doctorProfile.id } as any} onUploadComplete={handleUploadComplete}/>
               ) : (
-                  <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-100 text-xs">
-                      <AlertCircle size={16}/>
-                      <span>Error de Vinculación: No se detecta ID del paciente. Actualice el listado.</span>
-                  </div>
+                  <div className="flex items-center gap-2 text-amber-600 bg-amber-50 p-3 rounded-lg border border-amber-100 text-xs"><AlertCircle size={16}/><span>Error: ID de paciente no detectado.</span></div>
               )}
           </div>
 
-          {/* 4. ✅ COMENTARIOS TÉCNICOS INTERNOS */}
+          {/* 4. COMENTARIOS PRIVADOS */}
           <div className="bg-amber-50 dark:bg-amber-900/10 p-4 rounded-xl border border-amber-100 dark:border-amber-800/50">
               <div className="flex justify-between items-center mb-2">
                   <h4 className="font-bold text-amber-800 dark:text-amber-200 text-sm flex items-center gap-2">
                       <Lock size={14}/> Comentarios Privados (Uso Interno)
                   </h4>
-                  <span className="text-[9px] uppercase font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">
-                      No visible en receta
-                  </span>
+                  <span className="text-[9px] uppercase font-bold text-amber-600 bg-amber-100 px-2 py-0.5 rounded-full border border-amber-200">No visible en receta</span>
               </div>
               <textarea 
                   value={internalNote}
                   onChange={(e) => setInternalNote(e.target.value)}
-                  placeholder="Escriba aquí notas técnicas, justificación clínica o recordatorios personales sobre esta prescripción..."
+                  placeholder="Escriba aquí notas que quiera guardar en el expediente..."
                   className="w-full bg-white dark:bg-slate-900 border border-amber-200 dark:border-amber-800 rounded-lg p-3 text-sm text-slate-700 dark:text-slate-300 outline-none focus:ring-2 focus:ring-amber-400 min-h-[80px]"
               />
           </div>
@@ -333,18 +352,28 @@ const QuickRxModal: React.FC<QuickRxModalProps> = ({ isOpen, onClose, patientNam
         </div>
 
         {/* FOOTER DE ACCIONES */}
-        <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-3 shrink-0 z-10">
+        <div className="p-4 bg-white dark:bg-slate-900 border-t border-slate-200 dark:border-slate-800 flex justify-end gap-2 shrink-0 z-10 overflow-x-auto">
+           
+           <button 
+                onClick={() => saveToHistory(true)} 
+                disabled={isSaving || (!internalNote && medications.length === 0)}
+                className="flex items-center gap-2 px-4 py-3 text-slate-600 bg-slate-100 hover:bg-slate-200 rounded-xl font-bold transition-colors border border-slate-200 disabled:opacity-50 whitespace-nowrap"
+            >
+              {isSaving ? <Loader2 size={18} className="animate-spin"/> : <Save size={18} />} 
+              Guardar Nota
+           </button>
+
            <button 
                 onClick={handleWhatsApp} 
                 disabled={medications.length === 0 || isGeneratingShare} 
-                className="flex items-center gap-2 px-4 py-3 text-green-600 bg-green-50 hover:bg-green-100 rounded-xl font-bold transition-colors border border-green-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="flex items-center gap-2 px-4 py-3 text-green-600 bg-green-50 hover:bg-green-100 rounded-xl font-bold transition-colors border border-green-200 disabled:opacity-50 whitespace-nowrap"
             >
               {isGeneratingShare ? <Loader2 size={18} className="animate-spin"/> : <Share2 size={18} />} 
-              {isGeneratingShare ? 'Creando PDF...' : 'WhatsApp (PDF)'}
+              WhatsApp
            </button>
            
-           <button onClick={handlePrint} disabled={medications.length === 0} className="flex items-center gap-2 px-8 py-3 bg-teal-600 text-white hover:bg-teal-700 rounded-xl font-bold transition-colors shadow-lg shadow-teal-500/20 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed disabled:bg-slate-400">
-              <Printer size={18} /> Imprimir Receta
+           <button onClick={handlePrint} disabled={medications.length === 0} className="flex items-center gap-2 px-6 py-3 bg-teal-600 text-white hover:bg-teal-700 rounded-xl font-bold transition-colors shadow-lg shadow-teal-500/20 disabled:opacity-50 disabled:shadow-none whitespace-nowrap">
+              <Printer size={18} /> Imprimir
            </button>
         </div>
 
