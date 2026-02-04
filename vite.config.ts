@@ -8,8 +8,9 @@ export default defineConfig({
   plugins: [
     react(),
     VitePWA({
-      registerType: 'prompt', // Mantenemos la actualización manual segura
-      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg'],
+      registerType: 'prompt',
+      // CAMBIO 1: Agregamos explícitamente los iconos PWA aquí para forzar su inclusión
+      includeAssets: ['favicon.ico', 'apple-touch-icon.png', 'mask-icon.svg', 'pwa-192x192.png', 'pwa-512x512.png'],
       
       workbox: {
         cleanupOutdatedCaches: true,
@@ -23,8 +24,6 @@ export default defineConfig({
         name: 'VitalScribe AI',
         short_name: 'VitalScribe',
         description: 'Asistente Médico Inteligente',
-        // 🛡️ CORRECCIÓN DE COLORES PARA CHROME Y SAMSUNG
-        // Cambiamos todo a BLANCO (#ffffff) y TEAL (#0d9488)
         theme_color: '#ffffff',
         background_color: '#ffffff',
         
@@ -34,13 +33,15 @@ export default defineConfig({
         start_url: '/',
         icons: [
           {
-            src: '/pwa-192x192.png',
+            // CAMBIO 2: Quitamos la barra '/' inicial. 
+            // Esto hace que la ruta sea relativa al manifiesto generado.
+            src: 'pwa-192x192.png',
             sizes: '192x192',
             type: 'image/png',
             purpose: 'any'
           },
           {
-            src: '/pwa-512x512.png',
+            src: 'pwa-512x512.png',
             sizes: '512x512',
             type: 'image/png',
             purpose: 'any maskable'
