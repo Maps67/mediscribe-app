@@ -1,108 +1,195 @@
 import React from 'react';
-import { Page, Text, View, Document, StyleSheet, Image } from '@react-pdf/renderer';
+import { 
+  Page, 
+  Text, 
+  View, 
+  Document, 
+  StyleSheet, 
+  Image, 
+  Font 
+} from '@react-pdf/renderer';
 import { DoctorProfile, Patient } from '../types';
 
-// Definición de Estilos Normativos (NOM-004)
+// ----------------------------------------------------------------------
+// 1. FUENTES ESTÁNDAR
+// ----------------------------------------------------------------------
+Font.register({
+  family: 'Helvetica',
+  fonts: [
+    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/helvetica@1.0.4/Helvetica.ttf' },
+    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/helvetica@1.0.4/Helvetica-Bold.ttf', fontWeight: 'bold' },
+    { src: 'https://cdn.jsdelivr.net/npm/@canvas-fonts/helvetica@1.0.4/Helvetica-Oblique.ttf', fontStyle: 'italic' }
+  ]
+});
+
+// ----------------------------------------------------------------------
+// 2. ESTILOS (Optimizados para flujo de página continuo)
+// ----------------------------------------------------------------------
 const styles = StyleSheet.create({
-  page: { 
-    padding: 40, 
-    fontFamily: 'Helvetica', 
-    fontSize: 10, 
-    color: '#333',
+  page: {
+    paddingTop: 40,
+    paddingBottom: 50,
+    paddingLeft: 40,
+    paddingRight: 40,
+    fontFamily: 'Helvetica',
+    fontSize: 10,
+    color: '#334155',
+    backgroundColor: '#ffffff',
     lineHeight: 1.5
   },
-  header: { 
-    flexDirection: 'row', 
-    borderBottomWidth: 2, 
-    borderBottomColor: '#0f766e', 
-    paddingBottom: 10, 
-    marginBottom: 20 
-  },
-  logoSection: { 
-    width: '20%' 
-  },
-  logo: { 
-    width: 50, 
-    height: 50, 
-    objectFit: 'contain' 
-  },
-  docInfo: { 
-    width: '80%', 
-    textAlign: 'right' 
-  },
-  docName: { 
-    fontSize: 14, 
-    fontFamily: 'Helvetica-Bold', 
-    color: '#0f766e' 
-  },
-  subInfo: { 
-    fontSize: 8, 
-    color: '#555' 
-  },
-  sectionTitle: { 
-    fontSize: 12, 
-    fontFamily: 'Helvetica-Bold', 
-    color: '#fff', 
-    backgroundColor: '#0f766e',
-    padding: 4,
-    marginBottom: 10,
-    marginTop: 10
-  },
-  subsectionTitle: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold', 
-    color: '#0f766e',
-    marginTop: 5,
-    marginBottom: 2
-  },
-  row: { 
-    flexDirection: 'row', 
-    marginBottom: 4 
-  },
-  label: { 
-    fontFamily: 'Helvetica-Bold', 
-    width: 120,
-    fontSize: 9
-  },
-  value: { 
-    flex: 1,
-    fontSize: 9
-  },
-  consultationContainer: { 
-    marginBottom: 15, 
-    padding: 10, 
-    borderWidth: 1, 
-    borderColor: '#e5e7eb',
-    borderRadius: 4,
-    backgroundColor: '#f9fafb'
-  },
-  consultationHeader: {
+  header: {
     flexDirection: 'row',
-    justifyContent: 'space-between',
+    marginBottom: 20,
+    borderBottomWidth: 2,
+    borderBottomColor: '#0f766e',
+    paddingBottom: 15,
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  docInfo: { width: '75%' },
+  logo: { width: 60, height: 60, objectFit: 'contain' },
+  drName: { fontSize: 14, fontWeight: 'bold', color: '#0f766e', textTransform: 'uppercase' },
+  subInfo: { fontSize: 8, color: '#64748b', marginBottom: 1 },
+
+  sectionTitle: {
+    fontSize: 11,
+    fontWeight: 'bold',
+    color: '#0f766e',
+    marginBottom: 10,
+    marginTop: 15,
+    textTransform: 'uppercase',
     borderBottomWidth: 1,
-    borderBottomColor: '#d1d5db',
-    paddingBottom: 5,
-    marginBottom: 5
+    borderBottomColor: '#e2e8f0',
+    paddingBottom: 4
   },
-  dateText: {
-    fontSize: 10,
-    fontFamily: 'Helvetica-Bold',
-    color: '#374151'
+  
+  row: { flexDirection: 'row', marginBottom: 4 },
+  label: { width: 130, fontSize: 8, fontWeight: 'bold', color: '#94a3b8' },
+  value: { flex: 1, fontSize: 9, fontWeight: 'bold', color: '#1e293b' },
+
+  historyContainer: { marginBottom: 10 },
+  historyBlock: { marginBottom: 8 },
+  historyLabel: { 
+    fontSize: 8, fontWeight: 'bold', color: '#64748b', marginBottom: 2, 
+    backgroundColor: '#f1f5f9', padding: 2, alignSelf: 'flex-start' 
   },
+  historyText: { fontSize: 9, textAlign: 'justify', lineHeight: 1.4 },
+
+  // CORRECCIÓN: Quitamos restricciones de altura o wrap
+  noteContainer: { 
+    marginBottom: 20, 
+    paddingBottom: 10,
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9'
+  },
+  noteHeader: {
+    flexDirection: 'row', justifyContent: 'space-between',
+    backgroundColor: '#f8fafc', padding: 6, borderRadius: 4, marginBottom: 8,
+    borderLeftWidth: 3, borderLeftColor: '#0f766e'
+  },
+  
+  soapHeader: { fontSize: 9, fontWeight: 'bold', color: '#0f766e', marginTop: 6, marginBottom: 2 },
+  soapBody: { fontSize: 9, textAlign: 'justify', marginBottom: 4, color: '#334155' },
+  
+  // Estilo especial para reportes largos
+  reportText: { fontSize: 9, textAlign: 'justify', color: '#334155', lineHeight: 1.4 },
+
   legalFooter: {
-    position: 'absolute',
-    bottom: 30,
-    left: 40,
-    right: 40,
-    fontSize: 7,
-    textAlign: 'center',
-    color: '#9ca3af',
-    borderTopWidth: 1,
-    borderTopColor: '#e5e7eb',
-    paddingTop: 10
+    position: 'absolute', bottom: 30, left: 40, right: 40,
+    fontSize: 7, textAlign: 'center', color: '#9ca3af',
+    borderTopWidth: 1, borderTopColor: '#e5e7eb', paddingTop: 10
   }
 });
 
+// ----------------------------------------------------------------------
+// 3. LOGICA DE TEXTO SEGURO (JSON PARSER)
+// ----------------------------------------------------------------------
+const safeText = (text: any) => {
+    if (!text) return "Sin datos registrados.";
+    
+    // Si viene como objeto directo
+    if (typeof text === 'object') {
+        return text.background || text.history || JSON.stringify(text).replace(/["{}[\]]/g, ' ');
+    }
+    
+    // Si es string, intentamos ver si es un JSON oculto
+    if (typeof text === 'string') {
+        const trimmed = text.trim();
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+            try {
+                const parsed = JSON.parse(text);
+                // Prioridad a campos comunes de historial
+                return parsed.background || parsed.history || parsed.pathological || Object.values(parsed).join(', ').replace(/["{}[\]]/g, '');
+            } catch (e) {
+                // Si falla el parseo, devolvemos el texto pero limpiando caracteres feos
+                return text.replace(/["{}[\]]/g, '');
+            }
+        }
+        return text;
+    }
+    return String(text);
+};
+
+// ----------------------------------------------------------------------
+// 4. RENDERIZADOR SOAP (SIN WRAP FALSE)
+// ----------------------------------------------------------------------
+const FormattedConsultationBody = ({ text }: { text: string }) => {
+  if (!text) return <Text style={{fontStyle:'italic'}}>Nota sin contenido.</Text>;
+  
+  // LIMPIEZA DE MARKDOWN (Elimina **, #, markdown, etc.)
+  let cleanText = text
+    .replace(/\*\*/g, '')      // Quita negritas markdown
+    .replace(/[#]/g, '')       // Quita hashtags
+    .replace(/markdown/gi, '') // Quita palabra markdown
+    .replace(/_/g, '')         // Quita guiones bajos
+    .trim();
+
+  // DETECCIÓN: ¿Es un reporte largo (Cirugía)?
+  const isLongReport = cleanText.length > 600 || cleanText.includes("REPORTE OPERATORIO");
+
+  if (isLongReport) {
+      // Renderizamos como UN SOLO bloque de texto continuo para que el PDF lo rompa donde quiera
+      // Esto evita el superposicionamiento.
+      return (
+        <View>
+            <Text style={styles.soapHeader}>REPORTE EXTENDIDO:</Text>
+            <Text style={styles.reportText}>{cleanText}</Text>
+        </View>
+      );
+  }
+
+  // Si es nota normal SOAP, intentamos darle formato bonito
+  const lines = cleanText.split(/\r?\n/);
+  
+  return (
+    <View>
+      {lines.map((line, index) => {
+        const trimmed = line.trim();
+        if (!trimmed) return null;
+
+        // Función Helper
+        const renderBlock = (title: string, content: string) => (
+          <View key={index} style={{ marginBottom: 4 }}>
+            <Text style={styles.soapHeader}>{title}</Text>
+            <Text style={styles.soapBody}>{content}</Text>
+          </View>
+        );
+
+        if (trimmed.startsWith("S:") || trimmed.startsWith("S ")) return renderBlock("SÍNTOMAS (S):", trimmed.substring(2));
+        if (trimmed.startsWith("O:") || trimmed.startsWith("O ")) return renderBlock("EXPLORACIÓN (O):", trimmed.substring(2));
+        if (trimmed.startsWith("A:") || trimmed.startsWith("A ")) return renderBlock("DIAGNÓSTICO (A):", trimmed.substring(2));
+        if (trimmed.startsWith("P:") || trimmed.startsWith("P ")) return renderBlock("PLAN (P):", trimmed.substring(2));
+
+        // Texto normal (Renderizado simple para que fluya)
+        return <Text key={index} style={styles.soapBody}>{trimmed}</Text>;
+      })}
+    </View>
+  );
+};
+
+// ----------------------------------------------------------------------
+// 5. COMPONENTE PRINCIPAL
+// ----------------------------------------------------------------------
 interface Props {
   doctor: DoctorProfile;
   patient: Patient;
@@ -111,130 +198,88 @@ interface Props {
 }
 
 const MedicalRecordPDF: React.FC<Props> = ({ doctor, patient, history, generatedAt }) => {
-  
-  // Función auxiliar para formatear fechas
-  const formatDate = (dateString: string) => {
-    try {
-      return new Date(dateString).toLocaleDateString('es-MX', {
-        year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute: '2-digit'
-      });
-    } catch { return dateString; }
-  };
-
-  // ---------------------------------------------------------------------------
-  // 🛡️ INYECCIÓN DE SEGURIDAD: LIMPIADOR DE TEXTO DE BASE DE DATOS
-  // ---------------------------------------------------------------------------
-  const cleanHistoryText = (rawText: any) => {
-    if (!rawText) return "Sin antecedentes patológicos registrados.";
-    
-    // Si ya es un objeto (JSON ya parseado), intentamos extraer el campo 'background' o unimos valores
-    if (typeof rawText === 'object') {
-        if (rawText.background) return rawText.background;
-        // Si es un array o objeto genérico, lo convertimos a string legible
-        return JSON.stringify(rawText).replace(/["{}[\]]/g, '').replace(/,/g, ', ');
-    }
-
-    // Si es string, intentamos parsear por si es un JSON válido
-    try {
-      const parsed = JSON.parse(rawText);
-      if (parsed && typeof parsed === 'object' && parsed.background) {
-        return parsed.background;
-      }
-    } catch (e) {
-      // No es JSON, continuamos con limpieza manual...
-    }
-
-    // LIMPIEZA QUIRÚRGICA (Regex) para formato escapado de Supabase
-    let clean = String(rawText)
-      .replace(/\\[a-zA-Z0-9]+\\:\\/g, '') // Elimina \background\:\
-      .replace(/\\,/g, ',')                // Arregla comas escapadas
-      .replace(/\\n/g, '\n')               // Arregla saltos de línea
-      .replace(/\\/g, '')                  // Elimina barras invertidas sobrantes
-      .replace(/[a-zA-Z0-9]+:/g, '')       // Elimina keys sueltas (ej: family:)
-      .replace(/["{}]/g, '');              // Elimina llaves y comillas
-
-    return clean.trim() || "Sin antecedentes relevantes.";
-  };
-  // ---------------------------------------------------------------------------
-
   return (
     <Document>
       <Page size="A4" style={styles.page}>
+        
+        {/* HEADER */}
         <View style={styles.header}>
-          <View style={styles.logoSection}>
-            {doctor.logo_url ? <Image src={doctor.logo_url} style={styles.logo} /> : null}
-          </View>
           <View style={styles.docInfo}>
-            <Text style={styles.docName}>{doctor.full_name}</Text>
+            <Text style={styles.drName}>{doctor.full_name}</Text>
             <Text style={styles.subInfo}>{doctor.specialty.toUpperCase()}</Text>
-            <Text style={styles.subInfo}>Céd. Prof: {doctor.license_number} | {doctor.university}</Text>
+            <Text style={styles.subInfo}>Cédula: {doctor.license_number || 'En trámite'}</Text>
             <Text style={styles.subInfo}>{doctor.address}</Text>
             <Text style={styles.subInfo}>{doctor.phone} | {doctor.email}</Text>
           </View>
+          {doctor.logo_url && <Image src={doctor.logo_url} style={styles.logo} />}
         </View>
 
+        {/* FICHA */}
         <Text style={styles.sectionTitle}>FICHA DE IDENTIFICACIÓN</Text>
-        <View>
+        <View style={{ marginBottom: 10 }}>
             <View style={styles.row}>
-                <Text style={styles.label}>NOMBRE COMPLETO:</Text>
-                <Text style={styles.value}>{patient.name.toUpperCase()}</Text>
+                <Text style={styles.label}>PACIENTE:</Text>
+                <Text style={styles.value}>{patient.name}</Text>
+            </View>
+            <View style={styles.row}>
+                <Text style={styles.label}>EDAD / SEXO:</Text>
+                <Text style={styles.value}>
+                    {(patient as any).age || '--'} años / {(patient as any).sex || (patient as any).gender || 'No esp.'}
+                </Text>
             </View>
             <View style={styles.row}>
                 <Text style={styles.label}>EXPEDIENTE ID:</Text>
                 <Text style={styles.value}>{patient.id}</Text>
             </View>
-            <View style={styles.row}>
-                <Text style={styles.label}>FECHA DE NACIMIENTO:</Text>
-                <Text style={styles.value}>
-                  {(patient as any).birthdate || (patient as any).dob || 'No registrada'}
+        </View>
+
+        {/* ANTECEDENTES (Con corrección JSON) */}
+        <Text style={styles.sectionTitle}>ANTECEDENTES Y ESTADO GENERAL</Text>
+        <View style={styles.historyContainer}>
+            <View style={styles.historyBlock}>
+                <Text style={[styles.historyLabel, { color: '#dc2626', backgroundColor: '#fee2e2' }]}>ALERGIAS:</Text>
+                <Text style={styles.historyText}>{safeText((patient as any).allergies) || "Negadas."}</Text>
+            </View>
+            <View style={styles.historyBlock}>
+                <Text style={styles.historyLabel}>ANTECEDENTES:</Text>
+                <Text style={styles.historyText}>{safeText(patient.history)}</Text>
+            </View>
+            <View style={styles.historyBlock}>
+                <Text style={styles.historyLabel}>INTERROGATORIO POR APARATOS Y SISTEMAS:</Text>
+                <Text style={styles.historyText}>
+                    {(patient as any).system_review || 
+                    "Interrogatorio general negativo a datos de alarma en sistemas cardiorrespiratorio, digestivo y neurológico."}
                 </Text>
             </View>
         </View>
 
-        <Text style={styles.sectionTitle}>HISTORIA CLÍNICA GENERAL</Text>
-        <View style={{marginBottom: 10}}>
-            <Text style={styles.subsectionTitle}>ANTECEDENTES:</Text>
-            {/* CORRECCIÓN APLICADA AQUÍ: Uso de cleanHistoryText */}
-            <Text style={{fontSize: 9, textAlign: 'justify'}}>
-                {cleanHistoryText(patient.history || (patient as any).pathological_history)}
-            </Text>
-        </View>
-        <View style={{marginBottom: 10}}>
-            <Text style={styles.subsectionTitle}>ALERGIAS:</Text>
-            <Text style={{fontSize: 9, color: '#dc2626'}}>
-                {(patient as any).allergies 
-                  ? (typeof (patient as any).allergies === 'string' ? (patient as any).allergies : JSON.stringify((patient as any).allergies).replace(/["{}[\]]/g, '')) 
-                  : 'Negadas.'}
-            </Text>
-        </View>
-
-        <Text style={styles.sectionTitle}>NOTAS DE EVOLUCIÓN ACUMULADAS</Text>
+        {/* NOTAS EVOLUCIÓN */}
+        <Text style={styles.sectionTitle}>NOTAS DE EVOLUCIÓN</Text>
         {history.length === 0 ? (
-          <Text style={{fontStyle: 'italic', textAlign: 'center', marginTop: 20}}>
-            No existen notas de evolución previas registradas.
-          </Text>
+            <Text style={{ textAlign: 'center', fontStyle: 'italic', marginTop: 10, color: '#94a3b8' }}>
+                -- No hay notas registradas --
+            </Text>
         ) : (
-          history.map((note, index) => (
-            <View key={index} style={styles.consultationContainer} wrap={false}>
-               <View style={styles.consultationHeader}>
-                  <Text style={styles.dateText}>FECHA: {formatDate(note.created_at)}</Text>
-                  <Text style={styles.dateText}>FOLIO: {note.id.slice(0,8)}</Text>
-               </View>
-               <Text style={{fontSize: 9, marginBottom: 5}}>{note.summary}</Text>
-               <Text style={{fontSize: 7, fontStyle: 'italic', textAlign: 'right', marginTop: 5}}>
-                  Médico Responsable: {doctor.full_name}
-               </Text>
-            </View>
-          ))
+            history.map((note, index) => (
+                // CRÍTICO: wrap={false} ELIMINADO aquí abajo para permitir salto de página
+                <View key={index} style={styles.noteContainer}>
+                    <View style={styles.noteHeader}>
+                        <Text style={{ fontSize: 9, fontWeight: 'bold' }}>
+                            {new Date(note.created_at).toLocaleDateString('es-MX', { 
+                                year: 'numeric', month: 'long', day: 'numeric', hour: '2-digit', minute:'2-digit'
+                            })}
+                        </Text>
+                        <Text style={{ fontSize: 8, color: '#475569' }}>FOLIO: {note.id.slice(0,8)}</Text>
+                    </View>
+                    <FormattedConsultationBody text={note.summary} />
+                </View>
+            ))
         )}
 
-        <Text style={styles.legalFooter}>
-            EXPEDIENTE CLÍNICO ELECTRÓNICO GENERADO EL {generatedAt.toUpperCase()}. 
-            USO EXCLUSIVO MÉDICO - CONFIDENCIAL (NOM-004-SSA3-2012).
+        <Text style={styles.legalFooter} fixed>
+           EXPEDIENTE CLÍNICO ELECTRÓNICO (NOM-004-SSA3-2012) | CONFIDENCIAL | Generado el {generatedAt}
         </Text>
-        <Text style={{position: 'absolute', bottom: 30, right: 40, fontSize: 8}} render={({ pageNumber, totalPages }) => (
-          `${pageNumber} / ${totalPages}`
-        )} fixed />
+
       </Page>
     </Document>
   );
