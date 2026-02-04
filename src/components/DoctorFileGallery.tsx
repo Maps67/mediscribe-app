@@ -1,8 +1,12 @@
 import React, { useEffect, useState } from 'react';
-import { FileText, Image as ImageIcon, RefreshCw, Eye, FolderOpen, Loader2, Download } from 'lucide-react';
+import { 
+  FileText, Image as ImageIcon, RefreshCw, Eye, FolderOpen, Loader2, Download,
+  Pencil, Trash2, Check, X, MoreVertical 
+} from 'lucide-react';
 // 🛡️ CONEXIÓN SINGLETON
 import { supabase } from '../lib/supabase';
 import { ImageViewerModal } from './ImageViewerModal';
+import { toast } from 'sonner';
 
 const BUCKET_NAME = 'pacientes';
 
@@ -20,7 +24,7 @@ interface FileObject {
 }
 
 interface DoctorFileGalleryProps {
-  patientId?: string; 
+  patientId?: string;
 }
 
 export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId }) => {
@@ -30,6 +34,11 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
   // ESTADOS DEL VISOR
   const [selectedImage, setSelectedImage] = useState<string | null>(null);
   const [selectedFileName, setSelectedFileName] = useState('');
+
+  // ESTADOS DE EDICIÓN
+  const [editingFileId, setEditingFileId] = useState<string | null>(null);
+  const [newFileName, setNewFileName] = useState('');
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const fetchFiles = async () => {
     if (!patientId) {
@@ -48,17 +57,17 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
 
       if (error) throw error;
 
-      // 🛡️ SANITIZACIÓN DE DATOS (Fix Error 400)
-      // Filtramos archivos temporales de sistema, carpetas vacías o residuos de subida
+      // 🛡️ SANITIZACIÓN DE DATOS
       const cleanFiles = (data || []).filter(f => 
         f.name !== '.emptyFolderPlaceholder' && 
-        !f.name.endsWith('_progress') && // Filtra los archivos fantasmas de la consola
-        f.metadata // Asegura que tenga metadatos
+        !f.name.endsWith('_progress') && 
+        f.metadata 
       );
 
       setFiles(cleanFiles);
     } catch (error) {
       console.error('Error cargando archivos:', error);
+      toast.error("Error al cargar la galería.");
     } finally {
       setLoading(false);
     }
@@ -77,7 +86,7 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
   };
 
   const handleViewFile = async (file: FileObject) => {
-    if (!patientId) return;
+    if (!patientId || editingFileId) return; // No abrir si se está editando
     
     const { data } = await supabase.storage
       .from(BUCKET_NAME)
@@ -93,6 +102,8 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
     }
   };
 
+  // 🧹 LIMPIADOR DE NOMBRE VISUAL
+  // Convierte "1709823_radiografia.jpg" -> "radiografia.jpg"
   const getDisplayName = (fileName: string) => {
     const parts = fileName.split('_');
     if (parts.length > 1 && !isNaN(Number(parts[0]))) {
@@ -100,6 +111,78 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
     }
     return fileName;
   };
+
+  // ✏️ INICIAR EDICIÓN
+  const startEditing = (e: React.MouseEvent, file: FileObject) => {
+    e.stopPropagation();
+    setEditingFileId(file.id);
+    // Quitamos la extensión para que el médico solo edite el nombre
+    const displayName = getDisplayName(file.name);
+    const nameWithoutExt = displayName.substring(0, displayName.lastIndexOf('.')) || displayName;
+    setNewFileName(nameWithoutExt);
+  };
+
+  // 💾 GUARDAR NUEVO NOMBRE
+  const saveRename = async (e: React.MouseEvent, file: FileObject) => {
+    e.stopPropagation();
+    if (!patientId || !newFileName.trim()) return;
+
+    setIsProcessing(true);
+    try {
+        const fileExt = file.name.split('.').pop();
+        // Mantenemos el timestamp original si existe, o generamos uno nuevo para evitar colisiones
+        const timestamp = Date.now(); 
+        const finalName = `${timestamp}_${newFileName.trim()}.${fileExt}`;
+
+        const { error } = await supabase.storage
+            .from(BUCKET_NAME)
+            .move(`${patientId}/${file.name}`, `${patientId}/${finalName}`);
+
+        if (error) throw error;
+
+        toast.success("Archivo renombrado correctamente");
+        setEditingFileId(null);
+        fetchFiles(); // Recargar lista
+    } catch (error) {
+        console.error("Error renaming:", error);
+        toast.error("No se pudo renombrar el archivo.");
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
+  // ❌ CANCELAR EDICIÓN
+  const cancelEditing = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setEditingFileId(null);
+    setNewFileName('');
+  };
+
+  // 🗑️ ELIMINAR ARCHIVO
+  const handleDelete = async (e: React.MouseEvent, fileName: string) => {
+    e.stopPropagation();
+    if (!patientId) return;
+    
+    if (!window.confirm("¿Estás seguro de eliminar este archivo permanentemente?")) return;
+
+    setIsProcessing(true);
+    try {
+        const { error } = await supabase.storage
+            .from(BUCKET_NAME)
+            .remove([`${patientId}/${fileName}`]);
+
+        if (error) throw error;
+
+        toast.success("Archivo eliminado.");
+        fetchFiles();
+    } catch (error) {
+        console.error("Error deleting:", error);
+        toast.error("Error al eliminar archivo.");
+    } finally {
+        setIsProcessing(false);
+    }
+  };
+
 
   if (!patientId) {
       return (
@@ -145,30 +228,86 @@ export const DoctorFileGallery: React.FC<DoctorFileGalleryProps> = ({ patientId 
             <ul className="space-y-2">
               {files.map((file) => {
                 const isImg = isImageFile(file);
+                const isEditing = editingFileId === file.id;
                 
                 return (
                   <li 
                     key={file.id} 
-                    className="flex items-center justify-between p-3 bg-white border border-slate-100 hover:border-blue-200 hover:shadow-sm rounded-xl group transition-all cursor-pointer"
-                    onClick={() => handleViewFile(file)}
+                    className={`flex items-center justify-between p-3 bg-white border border-slate-100 rounded-xl group transition-all ${!isEditing ? 'hover:border-blue-200 hover:shadow-sm cursor-pointer' : ''}`}
+                    onClick={() => !isEditing && handleViewFile(file)}
                   >
-                    <div className="flex items-center gap-3 overflow-hidden">
+                    <div className="flex items-center gap-3 overflow-hidden flex-1">
                       <div className={`w-10 h-10 rounded-lg flex items-center justify-center shrink-0 border ${isImg ? 'bg-blue-50 text-blue-600 border-blue-100' : 'bg-slate-50 text-slate-500 border-slate-200'}`}>
                         {isImg ? <ImageIcon size={18} /> : <FileText size={18} />}
                       </div>
-                      <div className="flex flex-col min-w-0">
-                        <span className="text-sm font-bold text-slate-700 truncate block max-w-[160px] group-hover:text-blue-700 transition-colors">
-                          {getDisplayName(file.name)}
-                        </span>
-                        <span className="text-[10px] text-slate-400 font-medium">
-                          {file.metadata?.size ? (file.metadata.size / 1024).toFixed(1) : '0'} KB • {new Date(file.created_at).toLocaleDateString()}
-                        </span>
+                      
+                      <div className="flex flex-col min-w-0 flex-1 mr-2">
+                        {isEditing ? (
+                            // MODO EDICIÓN
+                            <div className="flex items-center gap-2 animate-in fade-in zoom-in-95 duration-200">
+                                <input 
+                                    type="text" 
+                                    value={newFileName}
+                                    onChange={(e) => setNewFileName(e.target.value)}
+                                    className="w-full text-sm border border-blue-300 rounded px-2 py-1 focus:outline-none focus:ring-2 focus:ring-blue-200"
+                                    autoFocus
+                                    onClick={(e) => e.stopPropagation()}
+                                    onKeyDown={(e) => {
+                                        if (e.key === 'Enter') saveRename(e as any, file);
+                                        if (e.key === 'Escape') cancelEditing(e as any);
+                                    }}
+                                />
+                                <button onClick={(e) => saveRename(e, file)} disabled={isProcessing} className="p-1 text-green-600 hover:bg-green-50 rounded"><Check size={16}/></button>
+                                <button onClick={cancelEditing} disabled={isProcessing} className="p-1 text-red-500 hover:bg-red-50 rounded"><X size={16}/></button>
+                            </div>
+                        ) : (
+                            // MODO VISUALIZACIÓN
+                            <>
+                                <span className="text-sm font-bold text-slate-700 truncate block group-hover:text-blue-700 transition-colors">
+                                  {getDisplayName(file.name)}
+                                </span>
+                                <span className="text-[10px] text-slate-400 font-medium">
+                                  {file.metadata?.size ? (file.metadata.size / 1024).toFixed(1) : '0'} KB • {new Date(file.created_at).toLocaleDateString()}
+                                </span>
+                            </>
+                        )}
                       </div>
                     </div>
                     
-                    <button className="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all" title={isImg ? "Ver imagen" : "Descargar"}>
-                      {isImg ? <Eye size={18} /> : <Download size={18} />}
-                    </button>
+                    {/* ACCIONES (Solo visibles si no estás editando) */}
+                    {!isEditing && (
+                        <div className="flex items-center gap-1 opacity-100 lg:opacity-0 group-hover:opacity-100 transition-opacity">
+                            <button 
+                                onClick={(e) => startEditing(e, file)}
+                                className="p-2 text-slate-400 hover:text-amber-600 hover:bg-amber-50 rounded-full transition-all" 
+                                title="Renombrar archivo"
+                            >
+                                <Pencil size={16} />
+                            </button>
+                            
+                            <button 
+                                onClick={(e) => handleDelete(e, file.name)}
+                                className="p-2 text-slate-400 hover:text-red-600 hover:bg-red-50 rounded-full transition-all" 
+                                title="Eliminar archivo permanentemente"
+                            >
+                                <Trash2 size={16} />
+                            </button>
+                            
+                            {/* Separador visual */}
+                            <div className="w-px h-4 bg-slate-200 mx-1"></div>
+
+                            <button 
+                                className="p-2 text-slate-300 hover:text-blue-600 hover:bg-blue-50 rounded-full transition-all" 
+                                title={isImg ? "Ver imagen" : "Descargar"}
+                                onClick={(e) => {
+                                    e.stopPropagation(); // Evitar doble evento
+                                    handleViewFile(file);
+                                }}
+                            >
+                                {isImg ? <Eye size={18} /> : <Download size={18} />}
+                            </button>
+                        </div>
+                    )}
                   </li>
                 );
               })}
