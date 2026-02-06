@@ -45,13 +45,13 @@
   "main": "generate-context.js",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Maps67/mediscribe-app.git"
+    "url": "git+https://github.com/Maps67/vitalscribe-app.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/Maps67/mediscribe-app/issues"
+    "url": "https://github.com/Maps67/vitalscribe-app/issues"
   },
-  "homepage": "https://github.com/Maps67/mediscribe-app#readme"
+  "homepage": "https://github.com/Maps67/vitalscribe-app#readme"
 }
