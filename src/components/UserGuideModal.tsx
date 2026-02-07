@@ -1,45 +1,45 @@
 import React from 'react';
-import { X, LayoutDashboard, UserPlus, Mic, Pill, ShieldCheck, ArrowDown } from 'lucide-react';
+import { X, LayoutDashboard, UserPlus, BrainCircuit, FileText, ShieldCheck, ArrowDown, BookOpen } from 'lucide-react';
 
 interface UserGuideModalProps {
   isOpen: boolean;
   onClose: () => void;
+  onOpenProtocol?: () => void; // ✅ NUEVO: Acción para abrir tu presentación v9.3
 }
 
-export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose }) => {
+export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose, onOpenProtocol }) => {
   if (!isOpen) return null;
 
-  // Datos de los pasos para renderizarlos limpios
   const steps = [
     {
       icon: <LayoutDashboard size={24} className="text-white" />,
-      color: "bg-indigo-600",
-      title: "1. Su Tablero de Control",
-      desc: "Todo inicia aquí. Vea su agenda y clima. Busque el botón 'Nuevo Paciente' para empezar."
+      color: "bg-slate-700",
+      title: "1. Dashboard (Tablero)",
+      desc: "Su centro de comando: Gestione Agenda, Base de Pacientes y Configuración desde un solo lugar."
     },
     {
       icon: <UserPlus size={24} className="text-white" />,
-      color: "bg-blue-500",
-      title: "2. Admisión Rápida",
-      desc: "Sin papeleo. Solo ingrese Nombre y Edad en la ventana emergente y listo."
+      color: "bg-blue-600",
+      title: "2. Registro Normativo (NOM-004)",
+      desc: "Alta obligatoria. Ingrese la ficha de identificación completa antes de iniciar para garantizar validez legal."
     },
     {
-      icon: <Mic size={24} className="text-white" />,
-      color: "bg-teal-500",
-      title: "3. Consulta y Dictado",
-      desc: "Escriba o use el micrófono para dictar. La IA organiza sus notas automáticamente."
+      icon: <BrainCircuit size={24} className="text-white" />,
+      color: "bg-purple-600",
+      title: "3. Consulta IA y Consentimiento",
+      desc: "Seleccione paciente y obtenga consentimiento verbal. La IA transcribe y estructura el SOAP detectando riesgos."
     },
     {
-      icon: <Pill size={24} className="text-white" />,
+      icon: <FileText size={24} className="text-white" />, // Icono seguro
       color: "bg-amber-500",
-      title: "4. Receta Segura",
-      desc: "Seleccione medicamentos. El sistema le avisará si hay alergias peligrosas."
+      title: "4. Plan y Receta",
+      desc: "Genere el Plan Terapéutico. El sistema audita interacciones (Escudo Farmacológico). Imprima el formato oficial."
     },
     {
       icon: <ShieldCheck size={24} className="text-white" />,
       color: "bg-emerald-600",
-      title: "5. Finalizar y Blindar",
-      desc: "Al guardar, se genera su PDF y se activa el blindaje legal de la consulta."
+      title: "5. Revisión y Blindaje",
+      desc: "Revise el borrador preliminar. Al dar clic en 'Validar', la nota se cifra (AES-256) y se blinda legalmente."
     }
   ];
 
@@ -48,33 +48,32 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
       <div className="bg-white dark:bg-slate-900 w-full max-w-lg rounded-[2rem] shadow-2xl flex flex-col max-h-[90vh] overflow-hidden relative animate-in slide-in-from-bottom-4">
         
         {/* Encabezado */}
-        <div className="bg-slate-50 dark:bg-slate-800 p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center">
+        <div className="bg-slate-50 dark:bg-slate-800 p-6 border-b border-slate-100 dark:border-slate-700 flex justify-between items-center shrink-0">
           <div>
-            <h2 className="text-xl font-black text-slate-800 dark:text-white">Flujo de Consulta</h2>
-            <p className="text-slate-500 text-sm font-medium">Guía rápida paso a paso</p>
+            <h2 className="text-xl font-black text-slate-800 dark:text-white">Flujo Clínico Blindado</h2>
+            <p className="text-slate-500 text-sm font-medium">Estándar operativo v9.3</p>
           </div>
           <button onClick={onClose} className="p-2 hover:bg-slate-200 dark:hover:bg-slate-700 rounded-full transition-colors text-slate-500">
             <X size={20} />
           </button>
         </div>
 
-        {/* Cuerpo del Diagrama */}
+        {/* Cuerpo con Scroll */}
         <div className="p-6 overflow-y-auto custom-scrollbar">
           <div className="relative">
-            {/* Línea conectora vertical (El "Hilo conductor") */}
+            {/* Línea conectora */}
             <div className="absolute left-6 top-4 bottom-4 w-1 bg-slate-100 dark:bg-slate-800 rounded-full"></div>
 
             <div className="space-y-8 relative">
               {steps.map((step, idx) => (
                 <div key={idx} className="flex gap-4 relative group">
                   
-                  {/* Icono del Paso */}
-                  <div className={`relative z-10 w-12 h-12 rounded-2xl ${step.color} shadow-lg shadow-slate-200 dark:shadow-none flex items-center justify-center shrink-0 transition-transform group-hover:scale-110`}>
+                  {/* Icono */}
+                  <div className={`relative z-10 w-12 h-12 rounded-2xl ${step.color} shadow-lg flex items-center justify-center shrink-0 transition-transform group-hover:scale-110`}>
                     {step.icon}
-                    {/* Flecha conectora (excepto en el último) */}
                     {idx !== steps.length - 1 && (
-                      <div className="absolute -bottom-10 text-slate-300 dark:text-slate-600">
-                        <ArrowDown size={20} />
+                      <div className="absolute -bottom-10 left-1/2 -translate-x-1/2 z-20 bg-white dark:bg-slate-900 p-1 rounded-full text-slate-300 dark:text-slate-600">
+                        <ArrowDown size={18} />
                       </div>
                     )}
                   </div>
@@ -82,26 +81,37 @@ export const UserGuideModal: React.FC<UserGuideModalProps> = ({ isOpen, onClose 
                   {/* Texto */}
                   <div className="pt-1 pb-4">
                     <h3 className="font-bold text-slate-800 dark:text-white text-lg leading-tight">{step.title}</h3>
-                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 leading-relaxed">
+                    <p className="text-slate-500 dark:text-slate-400 text-sm mt-1 leading-relaxed text-justify">
                       {step.desc}
                     </p>
                   </div>
-
                 </div>
               ))}
             </div>
-
           </div>
         </div>
 
-        {/* Pie */}
-        <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-center">
+        {/* --- AQUÍ INTEGRAMOS EL PROTOCOLO --- */}
+        <div className="p-4 border-t border-slate-100 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-center shrink-0 flex flex-col gap-3">
+          
           <button 
             onClick={onClose}
-            className="w-full py-3 bg-indigo-600 hover:bg-indigo-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-indigo-200 dark:shadow-none"
+            className="w-full py-3 bg-brand-600 hover:bg-brand-700 text-white font-bold rounded-xl transition-all shadow-lg shadow-brand-200 dark:shadow-none"
           >
-            ¡Entendido, Comencemos!
+            Entendido, Iniciar Consulta
           </button>
+
+          {/* Botón secundario para los "Curiosos/Exigentes" */}
+          <button 
+            onClick={onOpenProtocol}
+            className="flex items-center justify-center gap-2 text-xs font-medium text-slate-400 hover:text-brand-600 transition-colors mx-auto group py-2"
+          >
+            <BookOpen size={14} className="group-hover:scale-110 transition-transform" />
+            <span>
+              Ver detalles técnicos: <span className="underline decoration-dotted group-hover:text-brand-700">Protocolo Omni-Sentinel v9.3</span>
+            </span>
+          </button>
+
         </div>
 
       </div>
