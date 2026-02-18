@@ -7,7 +7,7 @@ import {
   UserPlus, Activity, ChevronRight,
   CalendarX, FileSignature, Printer, FileCheck,
   HelpCircle, Zap, FolderUp, BrainCircuit, RefreshCcw,
-  Scissors, Volume2, Play, ArrowUpRight
+  Scissors, Volume2, Play, ArrowUpRight, Shield // ✅ Importamos Shield para el icono
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, parseISO, startOfDay, endOfDay, addDays, startOfMonth, endOfMonth } from 'date-fns';
@@ -27,7 +27,6 @@ import { QuickDocModal } from '../components/QuickDocModal';
 import { FastAdmitModal } from '../components/FastAdmitModal';
 import { UserGuideModal } from '../components/UserGuideModal';
 import { QuickNoteModal } from '../components/QuickNoteModal';
-// 👇 Importación del Módulo SUIVE-1
 import { SuiveReportGenerator } from '../components/SuiveReportGenerator';
 
 // Tipos del Sistema
@@ -66,18 +65,15 @@ const BrandLogo = ({ className = "" }: { className?: string }) => (
 
 const cleanMarkdown = (text: string): string => text ? text.replace(/[*_#`~]/g, '').replace(/^\s*[-•]\s+/gm, '').replace(/\[.*?\]/g, '').replace(/\n\s*\n/g, '\n').trim() : "";
 
-// --- ✅ MODIFICACIÓN 1: Función de limpieza profunda para voz (Anti-Emojis) ---
 const cleanTextForSpeech = (text: string): string => {
     if (!text) return "";
     return text
-        // Filtro de Emojis (Rangos Unicode completos)
         .replace(/[\u{1F600}-\u{1F64F}\u{1F300}-\u{1F5FF}\u{1F680}-\u{1F6FF}\u{2600}-\u{26FF}\u{2700}-\u{27BF}\u{1F900}-\u{1F9FF}\u{1F1E0}-\u{1F1FF}]/gu, '')
-        // Filtro de Markdown visual y caracteres ruidosos
         .replace(/[*_#`~]/g, '')
         .replace(/^\s*[-•]\s+/gm, '') 
-        .replace(/\[.*?\]/g, '') // Elimina referencias tipo [1]
-        .replace(/https?:\/\/\S+/g, 'enlace') // URLs -> "enlace"
-        .replace(/\s+/g, ' ') // Normalizar espacios
+        .replace(/\[.*?\]/g, '') 
+        .replace(/https?:\/\/\S+/g, 'enlace') 
+        .replace(/\s+/g, ' ') 
         .trim();
 };
 
@@ -128,16 +124,10 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
   const [isExecuting, setIsExecuting] = useState(false); 
   const navigate = useNavigate(); 
   
-  // --- ✅ MODIFICACIÓN 2: Actualización de la función de voz ---
   const speakResponse = (text: string) => {
       window.speechSynthesis.cancel();
-      
-      // CAMBIO AUDITADO: Usamos cleanTextForSpeech para limpiar emojis
       const textToRead = cleanTextForSpeech(text);
-      
-      // Validación: Si el mensaje era solo emojis, evitamos leer vacío
       if (!textToRead) return;
-
       const utterance = new SpeechSynthesisUtterance(textToRead);
       utterance.lang = 'es-MX';
       utterance.rate = 1.0;
@@ -166,10 +156,10 @@ const AssistantModal = ({ isOpen, onClose, onActionComplete, initialQuery }: { i
                   speakResponse(msg);
               } else {
                   const rawAnswer = await GeminiMedicalService.chatWithContext("Contexto: Dashboard Médico.", textToProcess);
-                  setMedicalAnswer(cleanMarkdown(rawAnswer)); // Mantiene cleanMarkdown para visualización
+                  setMedicalAnswer(cleanMarkdown(rawAnswer)); 
                   setAiResponse({ intent: 'MEDICAL_QUERY', data: {}, message: 'Consulta Clínica', originalText: textToProcess, confidence: 1.0 });
                   setStatus('answering');
-                  speakResponse(rawAnswer); // Usa la nueva limpieza internamente
+                  speakResponse(rawAnswer); 
               }
           };
           await executeLogic();
@@ -286,6 +276,9 @@ const Dashboard: React.FC = () => {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
   const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
+  // 👇 ESTADO PARA EL MODAL DE SUIVE (NUEVO)
+  const [isSuiveOpen, setIsSuiveOpen] = useState(false);
+
   const [currentTimeHour, setCurrentTimeHour] = useState(new Date().getHours());
 
   const lastFetchTime = useRef<number>(0);
@@ -511,7 +504,7 @@ const Dashboard: React.FC = () => {
         .animate-slide-top { animation: slideInTop 0.5s ease-out forwards; }
       `}</style>
       
-      {/* 📱 VISTA MÓVIL REPARADA (FIX v9.6) */}
+      {/* 📱 VISTA MÓVIL REPARADA */}
       <div className="md:hidden fixed inset-0 z-10 flex flex-col bg-slate-50 p-4 pb-24 overflow-hidden overscroll-none">
         <header className="shrink-0 bg-white rounded-xl p-4 shadow-sm border border-slate-200 relative animate-slide-top">
             <div className="flex flex-col gap-2 mb-2">
@@ -560,7 +553,7 @@ const Dashboard: React.FC = () => {
             </div>
         </header>
 
-        {/* 🟢 ZONA DE SCROLL COMPARTIDO (FIX) */}
+        {/* 🟢 ZONA DE SCROLL (Agenda limpia, sin SUIVE intrusivo) */}
         <section className="flex-1 min-h-0 flex flex-col my-4 animate-fade-in delay-150">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
                 <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-blue-500"/> Agenda de Hoy</h3>
@@ -570,7 +563,6 @@ const Dashboard: React.FC = () => {
                 </div>
             </div>
             
-            {/* Contenedor scrolleable único que aloja la Agenda Y el Reporte SUIVE */}
             <div className="flex-1 overflow-y-auto custom-scrollbar space-y-3 pr-1 pb-2">
                 {isLoading ? (
                     <div className="h-full flex flex-col items-center justify-center space-y-3 opacity-60">
@@ -604,19 +596,10 @@ const Dashboard: React.FC = () => {
                         </div>
                     ))
                 )}
-
-                {/* 👇 [MODIFICADO] SECCIÓN SUIVE INSERTADA AL FINAL DEL SCROLL 👇 */}
-                <div className="pt-6 pb-2">
-                   <div className="flex items-center gap-2 mb-2 px-1">
-                       <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Herramientas</span>
-                       <div className="h-px bg-slate-200 flex-1"></div>
-                   </div>
-                   <SuiveReportGenerator />
-                </div>
-                {/* 👆 FIN SECCIÓN SUIVE 👆 */}
             </div>
         </section>
 
+        {/* 🟢 FOOTER MÓVIL REORGANIZADO (AQUÍ ESTÁ LA SOLUCIÓN) */}
         <footer className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300 pb-2">
             <div className="grid grid-cols-2 gap-2 h-48">
                 <ImpactMetrics 
@@ -639,14 +622,22 @@ const Dashboard: React.FC = () => {
                 <span className="text-xs font-bold text-slate-600">Subir Archivo de Paciente</span>
             </button>
 
-            <button onClick={() => setIsChallengeModalOpen(true)} className="w-full bg-gradient-to-r from-blue-600 to-teal-500 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2">
-                <BrainCircuit size={16}/>
-                <span className="text-xs font-bold uppercase tracking-wide">Reto Clínico</span>
-            </button>
+            {/* 👇 DIVIDIMOS EL ESPACIO DEL ÚLTIMO BOTÓN EN DOS (RETO + SUIVE) 👇 */}
+            <div className="grid grid-cols-2 gap-2">
+                <button onClick={() => setIsChallengeModalOpen(true)} className="bg-gradient-to-r from-blue-600 to-teal-500 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2">
+                    <BrainCircuit size={16}/>
+                    <span className="text-xs font-bold uppercase tracking-wide">Reto</span>
+                </button>
+                
+                <button onClick={() => setIsSuiveOpen(true)} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm active:scale-95 text-slate-700 flex items-center justify-center gap-2 hover:bg-slate-50">
+                    <Shield size={16} className="text-emerald-600"/>
+                    <span className="text-xs font-bold uppercase tracking-wide">SUIVE-1</span>
+                </button>
+            </div>
         </footer>
       </div>
 
-      {/* 🖥️ VISTA ESCRITORIO */}
+      {/* 🖥️ VISTA ESCRITORIO (SE MANTIENE INLINE PARA APROVECHAR ESPACIO) */}
       <div className="hidden md:block min-h-screen bg-slate-50 p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
              <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
@@ -727,11 +718,10 @@ const Dashboard: React.FC = () => {
                          <ActionRadar items={pendingItems} onItemClick={handleRadarClick} />
                      </div>
 
-                     {/* 👇 SECCIÓN DE REPORTE SUIVE ESCRITORIO (Sin cambios, ya funcionaba) 👇 */}
+                     {/* 👇 SECCIÓN DE REPORTE SUIVE ESCRITORIO (Visible inline) 👇 */}
                      <div className="mt-2">
                         <SuiveReportGenerator />
                      </div>
-                     {/* 👆 FIN SECCIÓN SUIVE 👆 */}
 
                  </section>
                  
@@ -770,7 +760,25 @@ const Dashboard: React.FC = () => {
          </div>
       </div>
 
-      {/* --- INICIO DEL MODAL DE RETO DIARIO (ARREGLADO) --- */}
+      {/* --- MODAL SUIVE-1 (NUEVO) --- */}
+      {isSuiveOpen && (
+        <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 animate-fade-in">
+          <div className="relative w-full max-w-2xl bg-white rounded-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
+            <button 
+              onClick={() => setIsSuiveOpen(false)}
+              className="absolute top-2 right-2 bg-slate-100 hover:bg-slate-200 text-slate-600 p-2 rounded-full transition-all z-10"
+            >
+              <X size={20} />
+            </button>
+            {/* Renderizamos el componente dentro del modal */}
+            <div className="pt-8">
+               <SuiveReportGenerator />
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* --- OTROS MODALES --- */}
       {isChallengeModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 animate-fade-in">
           <div className="relative w-full max-w-md">
@@ -784,7 +792,6 @@ const Dashboard: React.FC = () => {
           </div>
         </div>
       )}
-      {/* --- FIN DEL MODAL --- */}
 
       {isUploadModalOpen && <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"><div className="bg-white w-full max-w-md rounded-2xl p-6 shadow-xl relative"><button onClick={() => setIsUploadModalOpen(false)} className="absolute top-4 right-4 text-slate-400 hover:text-slate-600 transition-colors"><X size={16}/></button><UploadMedico onUploadComplete={() => {}}/><div className="mt-4 pt-4 border-t"><DoctorFileGallery /></div></div></div>}
       {isQuickNoteOpen && <QuickNoteModal onClose={() => setIsQuickNoteOpen(false)} doctorProfile={doctorProfile!}/>}
