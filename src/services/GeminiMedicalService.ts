@@ -169,23 +169,42 @@ async function getSystemPrompt(slug: string = 'security_core_v1'): Promise<strin
 // ==========================================
 
 /**
- * Limpia bloques de código Markdown (```json) para asegurar parsing correcto.
+ * Limpia bloques de código y caracteres invisibles basura.
+ * Detecta automáticamente si es Objeto {} o Array [] para no cortar datos.
  */
 const cleanJSON = (text: string): string => {
   try {
     if (typeof text !== 'string') return text;
+    
+    // 1. Quitar markdown y limpieza básica
     let clean = text.replace(/```json/g, '').replace(/```/g, '');
-    const firstCurly = clean.indexOf('{');
-    const lastCurly = clean.lastIndexOf('}');
-    const firstBracket = clean.indexOf('[');
-    const lastBracket = clean.lastIndexOf(']');
 
-    // Detectar si es Objeto o Array y cortar lo que sobre
-    if (firstCurly !== -1 && lastCurly !== -1 && (firstCurly < firstBracket || firstBracket === -1)) {
-      clean = clean.substring(firstCurly, lastCurly + 1);
-    } else if (firstBracket !== -1 && lastBracket !== -1) {
-      clean = clean.substring(firstBracket, lastBracket + 1);
+    // 2. 🛡️ DETECCIÓN INTELIGENTE (Array vs Objeto)
+    const firstCurly = clean.indexOf('{');
+    const firstSquare = clean.indexOf('[');
+    
+    let startIndex = -1;
+    let endIndex = -1;
+
+    // Si encontramos un '[' antes que un '{', asumimos que es un Array (Lista)
+    if (firstSquare !== -1 && (firstCurly === -1 || firstSquare < firstCurly)) {
+        startIndex = firstSquare;
+        endIndex = clean.lastIndexOf(']');
+    } 
+    // Si encontramos un '{' antes, es un Objeto
+    else if (firstCurly !== -1) {
+        startIndex = firstCurly;
+        endIndex = clean.lastIndexOf('}');
     }
+
+    // Si encontramos un inicio y fin válidos, recortamos
+    if (startIndex !== -1 && endIndex !== -1) {
+        clean = clean.substring(startIndex, endIndex + 1);
+    }
+
+    // 3. 🛡️ EL FILTRO DE BASURA (Control Characters)
+    clean = clean.replace(/[\x00-\x09\x0B-\x0C\x0E-\x1F\x7F]/g, "");
+
     return clean.trim();
   } catch (e) {
     return text;
