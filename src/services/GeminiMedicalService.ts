@@ -848,61 +848,65 @@ if (safetyCheck.isCritical) {
 
   // --- H. INSIGHTS CLÍNICOS CONTEXTUALES (SMART CITATION) ---
   // ✅ ACTUALIZADO: AHORA USA CLIENT-SIDE API PARA EVITAR BLOQUEO DE EDGE FUNCTION
+  // --- H. INSIGHTS CLÍNICOS CONTEXTUALES (SMART CITATION) ---
+  // ✅ ACTUALIZADO: ENLACES SEGUROS A GOOGLE PARA EVITAR 404
   async generateClinicalInsights(noteContent: string, specialty: string = "Medicina General"): Promise<ClinicalInsight[]> {
     try {
-        // 1. Recuperar API Key Global (Bypass de Supabase Edge Function)
-        const apiKey = import.meta.env.VITE_GOOGLE_AI_KEY || 
-                       import.meta.env.VITE_GEMINI_API_KEY || 
-                       import.meta.env.VITE_GEMINI_KEY || 
-                       import.meta.env.VITE_GOOGLE_API_KEY;
-
-        if (!apiKey) {
-           console.warn("⚠️ [Insights] No se detectó API Key en variables de entorno. Deshabilitando insights.");
-           return [];
-        }
-
-        // 2. Configurar Cliente Directo
-        const client = new GoogleGenerativeAI(apiKey);
-        // 🚀 FIX: Usamos "gemini-2.5-flash" explícito para evitar 404 en v1beta
-        const model = client.getGenerativeModel({ model: "gemini-2.5-flash" }); 
-
-        const prompt = `
-            ACTÚA COMO: Asistente de Investigación Clínica y Soporte a la Decisión (CDSS).
-            OBJETIVO: Leer la nota clínica actual y sugerir 2-3 recursos informativos RELEVANTES y DE ALTA CALIDAD.
-            
-            ESPECIALIDAD: ${specialty}
-            NOTA ACTUAL: "${noteContent}"
-
-            FORMATO JSON ARRAY (ClinicalInsight):
-            [
-                {
-                    "id": "unique_id",
-                    "type": "guide" | "alert" | "treatment" | "info",
-                    "title": "Título corto",
-                    "content": "Resumen breve",
-                    "reference": "Fuente (Autor, Año)",
-                    "url": "URL (Opcional)"
-                }
-            ]
-            
-            IMPORTANTE: Responde ÚNICAMENTE con el Array JSON válido.
-        `;
-
-        // 3. Generación Directa (Sin Edge Function)
-        const result = await model.generateContent(prompt);
-        const response = result.response;
-        const text = response.text();
+      // 1. Configuración del Modelo
+      const apiKey = import.meta.env.VITE_GOOGLE_AI_KEY || import.meta.env.VITE_GEMINI_API_KEY; 
+      if (!apiKey) return [];
+  
+      const client = new GoogleGenerativeAI(apiKey);
+      const model = client.getGenerativeModel({ model: "gemini-2.0-flash" }); 
+  
+      // 2. EL CAMBIO EN EL PROMPT: Pedimos 'search_query', NO 'url'
+      const prompt = `
+        ACTÚA COMO: Asistente de Investigación Clínica y Soporte a la Decisión (CDSS).
+        OBJETIVO: Leer la nota clínica actual y sugerir 2-3 recursos informativos RELEVANTES y DE ALTA CALIDAD.
         
-        // 4. Limpieza y Parsing
-        const cleanText = cleanJSON(text);
-        const res = JSON.parse(cleanText);
+        ESPECIALIDAD: ${specialty}
+        NOTA ACTUAL: "${noteContent}"
         
-        return Array.isArray(res) ? res : [];
-
+        FORMATO JSON ARRAY (ClinicalInsight):
+        [
+          {
+            "id": "unique_id",
+            "type": "guide" | "alert" | "treatment" | "info",
+            "title": "Título corto y profesional",
+            "content": "Resumen breve",
+            "reference": "Fuente (Autor, Año, Entidad)",
+            "search_query": "Términos de búsqueda exactos + 'filetype:pdf' si es una guía o artículo formal. (Ej: 'Guia KDIGO lesión renal aguda 2024 filetype:pdf')"
+          }
+        ]
+        IMPORTANTE: NO inventes URLs directas. Genera solo la 'search_query'.
+        Responde ÚNICAMENTE con el Array JSON válido.
+      `;
+  
+      // 3. Generación
+      const result = await model.generateContent(prompt);
+      const response = result.response;
+      const text = response.text();
+  
+      // 4. Limpieza y Parsing
+      const cleanText = cleanJSON(text); // Asegúrate de que cleanJSON sea accesible (puede requerir 'this.cleanJSON' o estar fuera del objeto)
+      let res = JSON.parse(cleanText);
+  
+      if (!Array.isArray(res)) res = [];
+  
+      // 5. EL CAMBIO PREMIUM: Usar Google Scholar (Académico)
+    // Esto filtra basura comercial y muestra solo evidencia científica.
+    const safeResults = res.map((item: any) => ({
+      ...item,
+      // Usamos 'scholar.google.com' en lugar de 'www.google.com'
+      // hl=es fuerza la interfaz en español
+      url: `https://scholar.google.com/scholar?hl=es&q=${encodeURIComponent(item.search_query || item.title + " " + item.reference)}`
+    }));
+  
+      return safeResults;
+  
     } catch (e) {
-        console.warn("⚠️ Error generando insights clínicos (Modo Cliente):", e);
-        // Retornamos array vacío para no romper la UI
-        return [];
+      console.warn("⚠️ Error generando insights clínicos:", e);
+      return [];
     }
   },
 
