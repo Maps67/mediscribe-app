@@ -465,6 +465,16 @@ export const GeminiMedicalService = {
             "${manualContext || 'No proporcionado. Basarse enteramente en la transcripción.'}"
 
             ===================================================
+            🚨 REGLA DE CORRECCIÓN DE ALTAVOCES (SPEAKER FIX)
+            ===================================================
+            A veces, la transcripción puede etiquetar erróneamente al hablante como 'MÉDICO' cuando en realidad es el paciente hablando (especialmente si dice frases en primera persona como: "Doctor, me duele...", "Siento que...").
+            
+            TU OBLIGACIÓN:
+            1. Ignora la etiqueta 'MÉDICO' si el contenido del texto es claramente una descripción de síntomas propios del paciente.
+            2. Si el texto dice: "MÉDICO: Doctor, vengo porque me duele la cabeza...", PROCESALO INTERNAMENTE como: "PACIENTE: Me duele la cabeza...".
+            3. No transcribas el error en la nota. Corrige la atribución en tu análisis (Subjetivo).
+
+            ===================================================
             🧠 MOTOR DE INTUICIÓN CLÍNICA (DATA SUPREMACY)
             ===================================================
             1. JERARQUÍA DE DATOS: Los valores de laboratorio (K+, Na+, Glucosa, pH) detectados en el audio o contexto TIENEN VETO sobre las órdenes verbales.

@@ -26,7 +26,9 @@ import { ImpactMetrics } from '../components/ImpactMetrics';
 import { QuickDocModal } from '../components/QuickDocModal';
 import { FastAdmitModal } from '../components/FastAdmitModal';
 import { UserGuideModal } from '../components/UserGuideModal';
-import { QuickNoteModal } from '../components/QuickNoteModal'; 
+import { QuickNoteModal } from '../components/QuickNoteModal';
+// 👇 [NUEVO] Importación del Módulo SUIVE-1
+import { SuiveReportGenerator } from '../components/SuiveReportGenerator';
 
 // Tipos del Sistema
 import { DoctorProfile } from '../types'; 
@@ -610,6 +612,12 @@ const Dashboard: React.FC = () => {
             </div>
         </section>
 
+        {/* 👇 [NUEVO] SECCIÓN DE REPORTE SUIVE MÓVIL 👇 */}
+        <div className="px-4 mb-4 border-t border-slate-200 pt-4">
+           <SuiveReportGenerator />
+        </div>
+        {/* 👆 FIN SECCIÓN SUIVE 👆 */}
+
         <footer className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300 pb-2">
             {/* ⚠️ AQUI ESTA LA CORRECCION DE ALTURA PARA MÓVIL (h-40 -> h-48) */}
             <div className="grid grid-cols-2 gap-2 h-48">
@@ -652,17 +660,17 @@ const Dashboard: React.FC = () => {
                             alt="Perfil" 
                             className="h-16 w-16 rounded-2xl shadow-md border-2 border-white object-cover bg-white" 
                         />
-                     ) : (
+                      ) : (
                         <BrandLogo className="h-16 w-16 rounded-2xl shadow-md border-2 border-white" />
-                     )}
-                     <div>
-                         <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">{formattedDocName}</h1>
-                         <p className="text-slate-500 font-medium text-lg mt-1 flex items-center gap-2">
+                      )}
+                      <div>
+                          <h1 className="text-4xl font-black text-slate-900 tracking-tight leading-tight">{formattedDocName}</h1>
+                          <p className="text-slate-500 font-medium text-lg mt-1 flex items-center gap-2">
                             <span className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse"></span>
                             Panel de Control Clínico
-                         </p>
-                     </div>
-                     <div className="flex gap-2 ml-4">
+                          </p>
+                      </div>
+                      <div className="flex gap-2 ml-4">
                         <button onClick={() => setIsAssistantOpen(true)} className="p-3 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2"><Bot size={20} className="text-blue-600"/> <span className="text-sm font-bold">Asistente</span></button>
                         <button onClick={() => setIsQuickNoteOpen(true)} className="p-3 bg-white border border-slate-200 text-slate-700 rounded-xl shadow-sm hover:shadow-md transition-all flex items-center gap-2"><Zap size={20} className="text-amber-500"/> <span className="text-sm font-bold">Nota Flash</span></button>
                         
@@ -674,7 +682,7 @@ const Dashboard: React.FC = () => {
                         <button onClick={() => window.location.reload()} className="p-3 bg-slate-100 text-slate-400 hover:text-blue-600 rounded-xl transition-colors" title="Forzar Recarga del Sistema">
                             <RefreshCcw size={20} />
                         </button>
-                     </div>
+                      </div>
                  </div>
                  <div className="flex items-center gap-8 bg-white px-8 py-4 rounded-xl border border-slate-200 shadow-sm">
                      <WeatherWidget weather={weather} isDesktop />
@@ -722,6 +730,13 @@ const Dashboard: React.FC = () => {
                          </div>
                          <ActionRadar items={pendingItems} onItemClick={handleRadarClick} />
                      </div>
+
+                     {/* 👇 [NUEVO] SECCIÓN DE REPORTE SUIVE ESCRITORIO 👇 */}
+                     <div className="mt-2">
+                        <SuiveReportGenerator />
+                     </div>
+                     {/* 👆 FIN SECCIÓN SUIVE 👆 */}
+
                  </section>
                  
                  <aside className="lg:col-span-1 flex flex-col gap-6">
