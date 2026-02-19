@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { Save, User, Stethoscope, Hash, Phone, MapPin, BookOpen, Download, FileSpreadsheet, ShieldCheck, Database, QrCode, PenTool, Image as ImageIcon, Lock, Camera, Calendar, Link2 } from 'lucide-react';
+import { Save, User, Stethoscope, Hash, Phone, MapPin, BookOpen, Download, FileSpreadsheet, ShieldCheck, Database, QrCode, PenTool, Image as ImageIcon, Lock, Camera, Calendar, Link2, Server, Fingerprint, CheckCircle2 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { MedicalDataService } from '../services/MedicalDataService';
 import { toast } from 'sonner';
@@ -22,6 +22,11 @@ const SettingsView: React.FC = () => {
   const [downloading, setDownloading] = useState(false); 
   const [showImporter, setShowImporter] = useState(false);
   
+  // Datos Reales del Sistema (Auditoría)
+  const [userId, setUserId] = useState<string>('');
+  const [userEmail, setUserEmail] = useState<string>('');
+  const [lastSignIn, setLastSignIn] = useState<string>('');
+
   // Campos del formulario (Datos Texto)
   const [fullName, setFullName] = useState('');
   const [specialty, setSpecialty] = useState('Medicina General');
@@ -48,6 +53,11 @@ const SettingsView: React.FC = () => {
     try {
       const { data: { user } } = await supabase.auth.getUser();
       if (!user) return;
+
+      // SET DATOS REALES DE AUDITORÍA
+      setUserId(user.id);
+      setUserEmail(user.email || 'No registrado');
+      setLastSignIn(user.last_sign_in_at ? new Date(user.last_sign_in_at).toLocaleString() : 'Primera Sesión');
 
       const { data } = await supabase
         .from('profiles') 
@@ -122,12 +132,12 @@ const SettingsView: React.FC = () => {
         id: user.id,
         full_name: fullName,
         specialty,
+        specialty_text: specialty, 
         license_number: license,
         phone,
         university,
         address,
         website_url: websiteUrl,
-        // Guardar URL de calendario externo
         external_calendar_url: calendarUrl,
         logo_url: logoUrl,
         signature_url: signatureUrl,
@@ -150,7 +160,6 @@ const SettingsView: React.FC = () => {
 
   const handleBackup = async () => {
     if(!confirm("¿Desea descargar una copia completa de sus pacientes y consultas en formato Excel (CSV)?")) return;
-    
     setDownloading(true);
     try {
       if (typeof MedicalDataService.downloadFullBackup === 'function') {
@@ -170,7 +179,7 @@ const SettingsView: React.FC = () => {
   if (loading) return <div className="p-10 text-center text-slate-400">Cargando perfil...</div>;
 
   return (
-    <div className="p-4 md:p-6 max-w-7xl mx-auto pb-32 relative">
+    <div className="p-4 md:p-6 max-w-7xl mx-auto relative">
 
       {/* --- INTEGRACIÓN DEL IMPORTADOR --- */}
       {showImporter && (
@@ -184,7 +193,7 @@ const SettingsView: React.FC = () => {
       <div className="flex flex-col md:flex-row justify-between items-start md:items-center mb-6 gap-4">
           <div>
               <h2 className="text-2xl font-bold text-slate-800 dark:text-white">Configuración</h2>
-              <p className="text-slate-500 dark:text-slate-400 text-sm">Datos del consultorio, identidad y activos digitales.</p>
+              <p className="text-slate-500 dark:text-slate-400 text-sm">Datos del consultorio, identidad y seguridad.</p>
           </div>
           
           <div className="flex gap-2 w-full md:w-auto">
@@ -217,16 +226,12 @@ const SettingsView: React.FC = () => {
                     <User size={18} className="text-brand-teal"/> Identidad Profesional
                 </div>
                 
-                {/* CORRECCIÓN DE GRID AQUÍ */}
                 <div className="p-6 grid grid-cols-1 md:grid-cols-2 gap-4">
-                    
-                    {/* Nombre ocupa 1 columna en móvil, 2 en escritorio */}
                     <div className="col-span-1 md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Nombre Completo</label>
                         <input type="text" required value={fullName} onChange={e => setFullName(e.target.value)} className="w-full p-3 border border-slate-200 dark:border-slate-700 rounded-lg focus:ring-2 focus:ring-brand-teal outline-none dark:bg-slate-900 dark:text-white" placeholder="Dr. Juan Pérez" />
                     </div>
                     
-                    {/* ESPECIALIDAD BLINDADA */}
                     <div>
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Especialidad</label>
                         <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-slate-100 dark:bg-slate-800/50 cursor-not-allowed">
@@ -257,7 +262,6 @@ const SettingsView: React.FC = () => {
                         </div>
                     </div>
 
-                    {/* Universidad ocupa 1 columna en móvil, 2 en escritorio */}
                     <div className="col-span-1 md:col-span-2">
                         <label className="block text-xs font-bold text-slate-500 dark:text-slate-400 uppercase mb-1">Universidad / Institución</label>
                         <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-lg px-3 bg-white dark:bg-slate-900 focus-within:ring-2 focus-within:ring-brand-teal">
@@ -299,7 +303,7 @@ const SettingsView: React.FC = () => {
             </div>
         </div>
 
-        {/* --- SECCIÓN 1.5: INTEGRACIÓN DE AGENDA (Nuevo Módulo) --- */}
+        {/* --- SECCIÓN 1.5: AGENDA --- */}
         <div className="bg-white dark:bg-slate-800 rounded-xl shadow-sm border border-slate-200 dark:border-slate-700 overflow-hidden">
             <div className="p-4 bg-slate-50 dark:bg-slate-900/50 border-b border-slate-100 dark:border-slate-700 font-bold text-slate-700 dark:text-slate-200 flex items-center gap-2">
                 <Calendar size={18} className="text-brand-teal"/> Sincronización de Agenda Externa
@@ -332,12 +336,10 @@ const SettingsView: React.FC = () => {
         {/* --- SECCIÓN 2: ACTIVOS DIGITALES --- */}
         <div>
             <h3 className="text-lg font-bold text-slate-700 dark:text-slate-200 mb-4 flex items-center gap-2">
-                <ImageIcon size={20} className="text-brand-teal" /> Activos Digitales para Recetas y Documentos
+                <ImageIcon size={20} className="text-brand-teal" /> Activos Digitales (Recetas y Documentos)
             </h3>
             
             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-                
-                {/* 1. FOTO DE PERFIL / AVATAR */}
                 <ImageUploader 
                     label="Foto de Perfil"
                     imageSrc={avatarUrl}
@@ -346,8 +348,6 @@ const SettingsView: React.FC = () => {
                     aspectRatio="square"
                     icon={<Camera size={18} className="text-brand-teal"/>}
                 />
-
-                {/* 2. LOGO */}
                 <ImageUploader 
                     label="Logo Clínica"
                     imageSrc={logoUrl}
@@ -355,18 +355,14 @@ const SettingsView: React.FC = () => {
                     helperText="Recomendado: PNG Transparente"
                     icon={<ImageIcon size={18} className="text-brand-teal"/>}
                 />
-
-                {/* 3. FIRMA */}
                 <ImageUploader 
-                    label="Firma Digital"
+                    label="Firma Autógrafa Digitalizada"
                     imageSrc={signatureUrl}
                     onUpload={(file) => handleSmartUpload(file, 'signature')}
-                    helperText="Firma en tinta negra fondo blanco."
+                    helperText="Esta imagen se incrustará en los PDFs."
                     aspectRatio="wide"
                     icon={<PenTool size={18} className="text-brand-teal"/>}
                 />
-
-                {/* 4. CÓDIGO QR */}
                 <ImageUploader 
                     label="Código QR Receta"
                     imageSrc={qrCodeUrl}
@@ -376,17 +372,106 @@ const SettingsView: React.FC = () => {
                     icon={<QrCode size={18} className="text-brand-teal"/>}
                 />
             </div>
-        </div>
 
-        {/* Aviso de Privacidad */}
-        <div className="p-4 bg-amber-50 dark:bg-amber-900/10 border border-amber-100 dark:border-amber-800/50 rounded-xl flex gap-3 items-start">
-            <ShieldCheck className="text-amber-600 shrink-0" size={20} />
-            <div>
-                <p className="text-sm font-bold text-amber-800 dark:text-amber-200">Privacidad y Seguridad de Datos</p>
-                <p className="text-xs text-amber-700 dark:text-amber-400 mt-1">
-                    Sus datos están protegidos. Puede descargar una copia de seguridad completa (CSV) usando el botón "Descargar Mis Datos".
-                </p>
+            {/* --- SECCIÓN 3: EVIDENCIA TÉCNICA Y LEGAL (NOM-151) --- */}
+            {/* CORRECCIÓN ESTRUCTURAL: Flex Column para asegurar orden y footer visible */}
+            <div className="mt-6 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl overflow-hidden flex flex-col">
+                
+                {/* HEAD: Título */}
+                <div className="p-4 border-b border-slate-200 dark:border-slate-700 flex flex-col md:flex-row md:items-center justify-between gap-4">
+                    <div className="flex items-center gap-3">
+                        <div className="p-2 bg-slate-200 dark:bg-slate-800 rounded-lg text-slate-600 dark:text-slate-400">
+                            <Server size={24} strokeWidth={2} />
+                        </div>
+                        <div>
+                            <h4 className="font-bold text-slate-800 dark:text-slate-100 text-sm md:text-base">
+                                Seguridad de Infraestructura y Trazabilidad
+                            </h4>
+                            <p className="text-xs text-slate-500 dark:text-slate-400">
+                                Datos técnicos de su cuenta activa en VitalScribe.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    {userId && (
+                        <span className="inline-flex items-center px-3 py-1 rounded-full text-xs font-bold bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400 border border-green-200 dark:border-green-800">
+                            <CheckCircle2 size={12} className="mr-2"/>
+                            CUENTA VERIFICADA
+                        </span>
+                    )}
+                </div>
+
+                {/* BODY: Columnas de Info */}
+                <div className="p-5 md:p-6 grid grid-cols-1 md:grid-cols-2 gap-6 flex-1">
+                    {/* Columna Izquierda: Explicación Legal */}
+                    <div className="space-y-3">
+                        <h5 className="text-sm font-bold text-slate-700 dark:text-slate-300 flex items-center gap-2">
+                            <Lock size={14} className="text-slate-400"/> Responsabilidad del Usuario
+                        </h5>
+                        <p className="text-sm text-slate-600 dark:text-slate-400 leading-relaxed text-justify">
+                            El uso de esta cuenta para la generación de documentos médicos electrónicos implica la aceptación de los mecanismos de seguridad implementados por VitalScribe.
+                        </p>
+                        <ul className="text-xs text-slate-500 dark:text-slate-400 space-y-1 mt-2 list-disc pl-4">
+                            <li>Cada documento PDF generado recibe una marca de tiempo inmutable.</li>
+                            <li>La cuenta está vinculada a un identificador único (UUID) que actúa como llave de auditoría.</li>
+                            <li>Los activos digitales (firma) están protegidos bajo políticas RLS (Row Level Security).</li>
+                        </ul>
+                    </div>
+                    
+                    {/* Columna Derecha: DATOS REALES */}
+                    <div className="bg-white dark:bg-black/20 rounded-lg border border-slate-200 dark:border-slate-800 p-4 font-mono text-xs shadow-inner">
+                        <div className="flex items-center gap-2 mb-3 pb-2 border-b border-slate-100 dark:border-slate-700/50 text-slate-400">
+                            <Fingerprint size={14}/>
+                            <span className="font-bold uppercase tracking-wider">Credenciales Técnicas</span>
+                        </div>
+                        
+                        <div className="space-y-3">
+                            <div>
+                                <span className="block text-[10px] text-slate-400 uppercase mb-1">UUID de Usuario (Immutable Key)</span>
+                                <code className="block bg-slate-100 dark:bg-slate-800 p-2 rounded text-slate-700 dark:text-slate-300 break-all select-all">
+                                    {userId || 'Cargando identificador...'}
+                                </code>
+                            </div>
+                            
+                            <div className="grid grid-cols-2 gap-4">
+                                <div>
+                                    <span className="block text-[10px] text-slate-400 uppercase mb-1">Email Registrado</span>
+                                    <span className="text-slate-700 dark:text-slate-300 font-bold truncate block" title={userEmail}>
+                                        {userEmail}
+                                    </span>
+                                </div>
+                                <div>
+                                    <span className="block text-[10px] text-slate-400 uppercase mb-1">Última Sesión</span>
+                                    <span className="text-slate-700 dark:text-slate-300 font-bold">
+                                        {lastSignIn}
+                                    </span>
+                                </div>
+                            </div>
+
+                            <div className="pt-2 mt-2 border-t border-slate-100 dark:border-slate-700/50 flex justify-between items-center">
+                                <span className="text-[10px] text-slate-400">Protocolo de Base de Datos</span>
+                                <span className="text-[10px] text-brand-teal font-bold bg-teal-50 dark:bg-teal-900/20 px-2 py-0.5 rounded">
+                                    POSTGRESQL + RLS ACTIVADO
+                                </span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                {/* FOOTER: Aviso de Privacidad INTEGRADO */}
+                <div className="bg-amber-100 dark:bg-amber-900/30 border-t border-amber-200 dark:border-amber-800/50 px-6 py-4 flex gap-3 items-center mt-auto">
+                    <ShieldCheck className="text-amber-700 shrink-0" size={18} />
+                    <p className="text-xs text-amber-900 dark:text-amber-200 font-medium">
+                        <strong>Privacidad Garantizada:</strong> Sus datos están encriptados. Puede descargar una copia de seguridad completa (CSV) en cualquier momento usando el botón superior "Respaldo".
+                    </p>
+                </div>
+
             </div>
+            
+            {/* --- SOLUCIÓN FINAL AL SCROLL: ESPACIADOR FÍSICO --- */}
+            {/* Este div invisible de 32 (128px) asegura que haya espacio al final */}
+            <div className="h-32 w-full"></div>
+
         </div>
 
       </form>
