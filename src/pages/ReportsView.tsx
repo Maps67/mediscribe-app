@@ -301,12 +301,15 @@ const ReportsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. PIE DE PÁGINA: AVISO CORREGIDO Y CLARO */}
+      {/* 4. PIE DE PÁGINA: AVISO CORREGIDO PARA MÓVIL */}
       <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-4 text-center border-dashed">
-          <p className="text-slate-400 text-xs flex items-center justify-center gap-2">
-             <Clock size={14} />
-             Las métricas de <b>Rentabilidad Financiera</b> y <b>Retención de Pacientes</b> estarán disponibles en la actualización v8.1. 
-             (Su reporte epidemiológico SUIVE-1 ya está activo en el Dashboard).
+          <p className="text-slate-400 text-xs flex flex-col sm:flex-row items-center justify-center gap-2">
+             <Clock size={14} className="shrink-0" />
+             {/* ✅ CORRECCIÓN: El span agrupa todo el texto para que no se rompa en flexbox */}
+             <span>
+               Las métricas de <b>Rentabilidad Financiera</b> y <b>Retención de Pacientes</b> estarán disponibles en la actualización v8.1. 
+               (Su reporte epidemiológico SUIVE-1 ya está activo en el Dashboard).
+             </span>
           </p>
       </div>
 
