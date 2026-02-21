@@ -11,7 +11,8 @@ import {
   LifeBuoy,      // Icono para Soporte
   ChevronRight,  // Icono para lista
   ExternalLink,  // Icono para enlaces externos
-  RefreshCw      // ✅ NUEVO: Icono para indicador de carga
+  RefreshCw,      // ✅ NUEVO: Icono para indicador de carga
+  CheckCircle // ✅ AGREGAR ESTE NUEVO ICONO
 } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabase'; // ✅ NUEVO: Conexión a DB
@@ -301,14 +302,13 @@ const ReportsView: React.FC = () => {
         </div>
       </div>
 
-      {/* 4. PIE DE PÁGINA: AVISO CORREGIDO PARA MÓVIL */}
-      <div className="bg-slate-50 dark:bg-slate-800/50 rounded-xl border border-slate-200 dark:border-slate-700 p-4 text-center border-dashed">
-          <p className="text-slate-400 text-xs flex flex-col sm:flex-row items-center justify-center gap-2">
-             <Clock size={14} className="shrink-0" />
-             {/* ✅ CORRECCIÓN: El span agrupa todo el texto para que no se rompa en flexbox */}
+      {/* 4. PIE DE PÁGINA: ESTADO DEL SISTEMA (ACTUALIZADO) */}
+      <div className="bg-emerald-50 dark:bg-emerald-900/20 rounded-xl border border-emerald-100 dark:border-emerald-800 p-4 text-center border-dashed">
+          <p className="text-emerald-700 dark:text-emerald-400 text-xs flex flex-col sm:flex-row items-center justify-center gap-2">
+             <CheckCircle size={14} className="shrink-0" />
+             {/* ✅ TEXTO ACTUALIZADO: Refleja la realidad operativa de la v8.1 */}
              <span>
-               Las métricas de <b>Rentabilidad Financiera</b> y <b>Retención de Pacientes</b> estarán disponibles en la actualización v8.1. 
-               (Su reporte epidemiológico SUIVE-1 ya está activo en el Dashboard).
+               <b>Sistema de Inteligencia Operativa v8.1 Activo.</b> Sus métricas y el reporte epidemiológico SUIVE-1 se actualizan en tiempo real al finalizar cada consulta.
              </span>
           </p>
       </div>
