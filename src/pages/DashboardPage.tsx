@@ -7,7 +7,7 @@ import {
   UserPlus, Activity, ChevronRight,
   CalendarX, FileSignature, Printer, FileCheck,
   HelpCircle, Zap, FolderUp, BrainCircuit, RefreshCcw,
-  Scissors, Volume2, Play, ArrowUpRight, Shield // ✅ Importamos Shield para el icono
+  Scissors, Volume2, Play, ArrowUpRight, Shield 
 } from 'lucide-react';
 import { supabase } from '../lib/supabase';
 import { format, parseISO, startOfDay, endOfDay, addDays, startOfMonth, endOfMonth } from 'date-fns';
@@ -28,6 +28,8 @@ import { FastAdmitModal } from '../components/FastAdmitModal';
 import { UserGuideModal } from '../components/UserGuideModal';
 import { QuickNoteModal } from '../components/QuickNoteModal';
 import { SuiveReportGenerator } from '../components/SuiveReportGenerator';
+// ✅ NUEVO COMPONENTE: Calculadora de Riesgo
+import QuickRiskModal from '../components/QuickRiskModal';
 
 // Tipos del Sistema
 import { DoctorProfile } from '../types'; 
@@ -276,8 +278,9 @@ const Dashboard: React.FC = () => {
   const [isGuideOpen, setIsGuideOpen] = useState(false);
   const [isQuickNoteOpen, setIsQuickNoteOpen] = useState(false);
   const [isChallengeModalOpen, setIsChallengeModalOpen] = useState(false);
-  // 👇 ESTADO PARA EL MODAL DE SUIVE (NUEVO)
   const [isSuiveOpen, setIsSuiveOpen] = useState(false);
+  // ✅ ESTADO PARA CALCULADORA DE RIESGO
+  const [isRiskCalcOpen, setIsRiskCalcOpen] = useState(false);
 
   const [currentTimeHour, setCurrentTimeHour] = useState(new Date().getHours());
 
@@ -287,6 +290,13 @@ const Dashboard: React.FC = () => {
     if (!doctorProfile?.full_name) return 'Cargando...';
     const raw = doctorProfile.full_name.trim();
     return /^(Dr\.|Dra\.)/i.test(raw) ? raw : `Dr. ${raw}`;
+  }, [doctorProfile]);
+
+  // ✅ FILTRO DE ESPECIALIDAD QUIRÚRGICA
+  const isSurgical = useMemo(() => {
+    if (!doctorProfile?.specialty) return false;
+    const SURGICAL_KEYWORDS = ['Cirugía', 'Cirujano', 'Traumatología', 'Ortopedia', 'Ginecología', 'Obstetricia', 'Urología', 'Otorrino', 'Oftalmología', 'Neurocirugía', 'Plástica', 'Anestesiología'];
+    return SURGICAL_KEYWORDS.some(k => doctorProfile.specialty.toLowerCase().includes(k.toLowerCase()));
   }, [doctorProfile]);
 
   const greetingText = useMemo(() => {
@@ -553,7 +563,7 @@ const Dashboard: React.FC = () => {
             </div>
         </header>
 
-        {/* 🟢 ZONA DE SCROLL (Agenda limpia, sin SUIVE intrusivo) */}
+        {/* 🟢 ZONA DE SCROLL */}
         <section className="flex-1 min-h-0 flex flex-col my-4 animate-fade-in delay-150">
             <div className="flex justify-between items-center mb-2 px-1 shrink-0">
                 <h3 className="font-bold text-slate-700 text-xs flex items-center gap-1.5"><Calendar size={14} className="text-blue-500"/> Agenda de Hoy</h3>
@@ -599,7 +609,7 @@ const Dashboard: React.FC = () => {
             </div>
         </section>
 
-        {/* 🟢 FOOTER MÓVIL REORGANIZADO (AQUÍ ESTÁ LA SOLUCIÓN) */}
+        {/* 🟢 FOOTER MÓVIL REORGANIZADO */}
         <footer className="shrink-0 flex flex-col gap-2 animate-fade-in delay-300 pb-2">
             <div className="grid grid-cols-2 gap-2 h-48">
                 <ImpactMetrics 
@@ -622,22 +632,33 @@ const Dashboard: React.FC = () => {
                 <span className="text-xs font-bold text-slate-600">Subir Archivo de Paciente</span>
             </button>
 
-            {/* 👇 DIVIDIMOS EL ESPACIO DEL ÚLTIMO BOTÓN EN DOS (RETO + SUIVE) 👇 */}
-            <div className="grid grid-cols-2 gap-2">
-                <button onClick={() => setIsChallengeModalOpen(true)} className="bg-gradient-to-r from-blue-600 to-teal-500 rounded-xl p-3 shadow-md active:scale-95 text-white flex items-center justify-center gap-2">
+            {/* 👇 BOTONES DE ACCIÓN (RETO + SUIVE + RIESGO QX) 👇 */}
+            <div className={`grid gap-2 ${isSurgical ? 'grid-cols-3' : 'grid-cols-2'}`}>
+                <button onClick={() => setIsChallengeModalOpen(true)} className="bg-gradient-to-r from-blue-600 to-teal-500 rounded-xl p-3 shadow-md active:scale-95 text-white flex flex-col items-center justify-center gap-1">
                     <BrainCircuit size={16}/>
-                    <span className="text-xs font-bold uppercase tracking-wide">Reto</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide">Reto</span>
                 </button>
                 
-                <button onClick={() => setIsSuiveOpen(true)} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm active:scale-95 text-slate-700 flex items-center justify-center gap-2 hover:bg-slate-50">
+                <button onClick={() => setIsSuiveOpen(true)} className="bg-white border border-slate-200 rounded-xl p-3 shadow-sm active:scale-95 text-slate-700 flex flex-col items-center justify-center gap-1 hover:bg-slate-50">
                     <Shield size={16} className="text-emerald-600"/>
-                    <span className="text-xs font-bold uppercase tracking-wide">SUIVE-1</span>
+                    <span className="text-[10px] font-bold uppercase tracking-wide">SUIVE</span>
                 </button>
+
+                {/* ✅ BOTÓN NUEVO MÓVIL: PREMIUM Y CONSISTENTE */}
+                {isSurgical && (
+                  <button 
+                    onClick={() => setIsRiskCalcOpen(true)} 
+                    className="bg-gradient-to-br from-rose-500 to-pink-600 rounded-xl p-3 shadow-md active:scale-95 text-white flex flex-col items-center justify-center gap-1"
+                  >
+                      <Activity size={16} className="text-white"/>
+                      <span className="text-[10px] font-bold uppercase tracking-wide">Riesgo</span>
+                  </button>
+                )}
             </div>
         </footer>
       </div>
 
-      {/* 🖥️ VISTA ESCRITORIO (SE MANTIENE INLINE PARA APROVECHAR ESPACIO) */}
+      {/* 🖥️ VISTA ESCRITORIO */}
       <div className="hidden md:block min-h-screen bg-slate-50 p-8 pb-12 w-full">
          <div className="max-w-[1800px] mx-auto">
              <header className="flex flex-col lg:flex-row justify-between items-start lg:items-center mb-10 gap-6 animate-slide-top">
@@ -718,32 +739,73 @@ const Dashboard: React.FC = () => {
                          <ActionRadar items={pendingItems} onItemClick={handleRadarClick} />
                      </div>
 
-                     {/* 👇 SECCIÓN DE REPORTE SUIVE ESCRITORIO (Visible inline) 👇 */}
                      <div className="mt-2">
                         <SuiveReportGenerator />
                      </div>
 
                  </section>
                  
+                 {/* 🖥️ COLUMNA LATERAL DERECHA (ASIDE) */}
                  <aside className="lg:col-span-1 flex flex-col gap-6">
                      <div className="grid grid-cols-2 gap-4">
+                       {/* Botón 1: Consulta Rápida (Azul) */}
                        <button onClick={() => setIsFastAdmitOpen(true)} className="aspect-square bg-gradient-to-br from-teal-500 to-blue-600 rounded-xl p-4 shadow-lg overflow-hidden group text-left flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl relative active:scale-95">
                          <div className="absolute -right-4 -bottom-4 text-white opacity-20 transform transition-transform duration-500 group-hover:rotate-45 group-hover:scale-110"><UserPlus size={80} strokeWidth={1.5} /></div>
-                         <div className="relative z-10 bg-white/20 w-10 h-10 flex items-center justify-center rounded-full backdrop-blur-sm"><UserPlus className="text-white" size={20} /></div>
+                         <div className="relative z-10 bg-white/20 w-10 h-10 flex items-center justify-center rounded-lg backdrop-blur-sm"><UserPlus className="text-white" size={20} /></div>
                          <div className="relative z-10"><h3 className="text-white font-bold text-sm leading-tight">Consulta<br/>Rápida</h3></div>
                          <div className="absolute top-4 right-4 text-white opacity-0 transform translate-y-2 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-0">
                              <ArrowUpRight size={20} />
                          </div>
                        </button>
                        
+                       {/* Botón 2: Subir Archivo (Blanco) */}
                        <button onClick={() => setIsUploadModalOpen(true)} className="aspect-square bg-white border border-slate-200 rounded-xl p-4 shadow-sm overflow-hidden group text-left flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-1 hover:border-teal-400 hover:shadow-md hover:bg-teal-50 relative active:scale-95">
                          <div className="absolute -right-4 -bottom-4 text-teal-50 opacity-0 group-hover:opacity-100 transition-all duration-500 scale-150"><FolderUp size={80} /></div>
-                         <div className="relative z-10 bg-teal-50 w-10 h-10 flex items-center justify-center rounded-full group-hover:bg-teal-600 group-hover:text-white transition-colors"><FolderUp size={20} className="text-teal-600 group-hover:text-white" /></div>
+                         <div className="relative z-10 bg-teal-50 w-10 h-10 flex items-center justify-center rounded-lg group-hover:bg-teal-600 group-hover:text-white transition-colors"><FolderUp size={20} className="text-teal-600 group-hover:text-white" /></div>
                          <div className="relative z-10"><h3 className="text-slate-700 font-bold text-sm leading-tight group-hover:text-teal-700">Subir<br/>Archivo</h3></div>
                          <div className="absolute top-4 right-4 text-teal-600 opacity-0 transform translate-y-2 -translate-x-2 transition-all duration-300 group-hover:opacity-100 group-hover:translate-y-0 group-hover:translate-x-0">
                              <ArrowUpRight size={20} />
                          </div>
                        </button>
+
+                       {/* ✅ WIDGET RIESGO QX (PREMIUM + TEXTO CIENTÍFICO) */}
+                       {isSurgical && (
+                          <button 
+                            onClick={() => setIsRiskCalcOpen(true)} 
+                            className="aspect-square bg-gradient-to-br from-rose-500 to-pink-600 rounded-xl p-4 shadow-lg shadow-rose-200/50 overflow-hidden group text-left flex flex-col justify-between transition-all duration-300 ease-out hover:-translate-y-1 hover:shadow-xl relative active:scale-95 col-span-2 md:col-span-1 ring-1 ring-white/20"
+                          >
+                            {/* Fondo Decorativo */}
+                            <div className="absolute -right-6 -bottom-6 text-white opacity-10 group-hover:opacity-20 transition-all duration-500 scale-150 rotate-[-10deg]">
+                               <Activity size={100} strokeWidth={1.5} />
+                            </div>
+
+                            {/* Icono y Flecha */}
+                            <div className="relative z-10 flex justify-between items-start">
+                                <div className="bg-white/20 w-10 h-10 flex items-center justify-center rounded-lg backdrop-blur-md shadow-sm border border-white/10">
+                                   <Activity size={20} className="text-white" />
+                                </div>
+                                <div className="text-white/60 group-hover:text-white transition-colors transform translate-x-2 -translate-y-2 group-hover:translate-x-0 group-hover:translate-y-0 opacity-0 group-hover:opacity-100 duration-300">
+                                    <ArrowUpRight size={20} />
+                                </div>
+                            </div>
+
+                            {/* Textos */}
+                            <div className="relative z-10 mt-2">
+                               <h3 className="text-white font-bold text-sm leading-tight tracking-wide drop-shadow-sm">
+                                 Calculadora<br/>Riesgo Qx
+                               </h3>
+                               
+                               {/* 🌟 AQUÍ ESTÁ EL BADGE DE TEXTO 🌟 */}
+                               <div className="mt-2 inline-flex">
+                                  <div className="px-2 py-0.5 rounded-md bg-black/20 backdrop-blur-md border border-white/10">
+                                    <p className="text-[9px] font-medium text-white/90 uppercase tracking-wider flex items-center gap-1">
+                                        RCRI (Lee) • AHA
+                                    </p>
+                                  </div>
+                               </div>
+                            </div>
+                          </button>
+                        )}
                      </div>
 
                      <div className="h-auto">
@@ -760,7 +822,7 @@ const Dashboard: React.FC = () => {
          </div>
       </div>
 
-      {/* --- MODAL SUIVE-1 (NUEVO) --- */}
+      {/* --- MODALES --- */}
       {isSuiveOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 animate-fade-in">
           <div className="relative w-full max-w-2xl bg-white rounded-2xl overflow-hidden max-h-[90vh] overflow-y-auto">
@@ -770,7 +832,6 @@ const Dashboard: React.FC = () => {
             >
               <X size={20} />
             </button>
-            {/* Renderizamos el componente dentro del modal */}
             <div className="pt-8">
                <SuiveReportGenerator />
             </div>
@@ -778,7 +839,6 @@ const Dashboard: React.FC = () => {
         </div>
       )}
 
-      {/* --- OTROS MODALES --- */}
       {isChallengeModalOpen && (
         <div className="fixed inset-0 z-[80] flex items-center justify-center bg-slate-900/95 backdrop-blur-md p-4 animate-fade-in">
           <div className="relative w-full max-w-md">
@@ -799,6 +859,13 @@ const Dashboard: React.FC = () => {
       <AssistantModal isOpen={isAssistantOpen} onClose={() => setIsAssistantOpen(false)} onActionComplete={fetchData} initialQuery={initialAssistantQuery} />
       <FastAdmitModal isOpen={isFastAdmitOpen} onClose={() => setIsFastAdmitOpen(false)} /> 
       <UserGuideModal isOpen={isGuideOpen} onClose={() => setIsGuideOpen(false)} />
+      
+      {/* ✅ NUEVO MODAL DE RIESGO QX */}
+      <QuickRiskModal 
+        isOpen={isRiskCalcOpen} 
+        onClose={() => setIsRiskCalcOpen(false)} 
+        doctorId={doctorProfile?.id || ''} 
+      />
       
       <button onClick={() => setIsGuideOpen(true)} className="fixed z-50 bg-slate-900 text-white rounded-full shadow-2xl font-bold flex items-center justify-center gap-2 bottom-24 right-4 w-14 h-14 md:bottom-24 md:right-6 md:w-auto md:h-auto md:px-5 md:py-3 hover:scale-105 active:scale-95 transition-all">
         <HelpCircle size={24} /> <span className="hidden md:inline">¿Cómo funciona?</span>
